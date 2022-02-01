@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 		else if (c == 'l') use_edlib = 1;
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stderr, "Usage: test-ed [options] <in1.fa> <in2.fa>\n");
+		fprintf(stderr, "Usage: ed-test [options] <in1.fa> <in2.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -g    count gaps at the end of the target\n");
 		fprintf(stderr, "  -l    use edlib instead\n");

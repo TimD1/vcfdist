@@ -14,7 +14,7 @@ extern "C" {
  * @param ts         targeet sequence
  * @param ql         query sequence length
  * @param qs         query sequence
- * @param is_global  false is ignore gaps at the end of the target
+ * @param is_global  false to ignore gaps at the end of the target
  * @param mem        temporary memory of (tl+ql)*16 bytes at least
  *
  * @return edit distance
