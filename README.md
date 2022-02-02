@@ -1,4 +1,4 @@
-This repo [implements](lc89.c) the [Landau-Vishkin algorithm][lv89] to compute
+This repo [implements](lv89.c) the [Landau-Vishkin algorithm][lv89] to compute
 the edit distance between two strings. The time complexity of Landau-Vishkin is
 O(max(_m_,_n_)+_d_<sup>2</sup>), where _m_ and _n_ are the lengths of the two
 sequences and _d_ is their edit distance. This algorithm is faster for more
