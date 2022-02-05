@@ -8,6 +8,12 @@ OBJS=		lv89.o edlib.o
 PROG=		ed-test
 LIBS=		-lz -lpthread -lm
 
+ifneq ($(WFA_ROOT),)
+	CPPFLAGS+=-D_USE_WFA
+	OBJS+=$(WFA_ROOT)/build/libwfa.a
+	INCLUDES+=-I$(WFA_ROOT)
+endif
+
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
 	LIBS+=-fsanitize=address
