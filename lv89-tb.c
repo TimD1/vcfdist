@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
+#include <stdio.h>
 #include "lv89.h"
 
 typedef struct {
@@ -9,7 +11,7 @@ typedef struct {
 } wf_diag_t;
 
 typedef struct {
-	int32_t m, n, d0;
+	int32_t n, d0;
 	uint64_t *a;
 } wf_tb1_t;
 
@@ -26,7 +28,7 @@ static void wf_tb_add(wf_tb_t *tb, int32_t m)
 		tb->a = (wf_tb1_t*)realloc(tb->a, tb->m * sizeof(*tb->a));
 	}
 	p = &tb->a[tb->n++];
-	p->m = m;
+	p->n = m;
 	p->a = (uint64_t*)calloc((m + 31) / 32, sizeof(uint64_t));
 }
 
@@ -40,10 +42,13 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	*t_end = -1;
 	for (j = 0; j < n; ++j) {
 		wf_diag_t *p = &a[j];
-		int32_t k = p->k;
-		int32_t max_k = (ql - p->d < tl? ql - p->d : tl) - 1;
-		const char *ts_ = ts + 1, *qs_ = qs + p->d + 1;
+		int32_t k = p->k, max_k;
+		const char *ts_, *qs_;
 		uint64_t cmp = 0;
+		if (k >= tl || k + p->d >= ql) continue;
+		max_k = (ql - p->d < tl? ql - p->d : tl) - 1;
+		ts_ = ts + 1;
+		qs_ = qs + p->d + 1;
 		while (k + 7 < max_k) {
 			uint64_t x = *(uint64_t*)(ts_ + k); // warning: unaligned memory access
 			uint64_t y = *(uint64_t*)(qs_ + k);
@@ -80,7 +85,7 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	}
 	if (n >= 2) {
 		b[n].d = a[n-1].d;
-		b[n].k = a[n-2].k > a[n-1].k + 1? -1 : 0;
+		b[n].p = a[n-2].k > a[n-1].k + 1? -1 : 0;
 		b[n].k = a[n-2].k > a[n-1].k + 1? a[n-2].k : a[n-1].k + 1;
 	}
 	b[n+1].d = a[n-1].d + 1;
@@ -91,13 +96,17 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	wf_tb_add(tb, n + 2);
 	q = &tb->a[tb->n - 1];
 	q->d0 = b[0].d;
-	for (j = 0; j < n + 2; ++j)
+	for (j = 0; j < n + 2; ++j) {
 		q->a[j>>5] |= (uint64_t)(b[j].p + 1) << (j&0x1f)*2;
+	}
 
 	// drop out-of-bound cells
-	for (j = 0, m = 0; j < n + 2; ++j)
-		if (b[j].d + b[j].k < ql && b[j].k < tl)
-			a[m++] = b[j];
+	m = n + 2;
+	for (j = n + 1; j >= 0 && (b[j].d + b[j].k >= ql || b[j].k >= tl); --j)
+		--m;
+	for (j = 0; j < n + 2 && (b[j].d + b[j].k >= ql || b[j].k >= tl); ++j)
+		--m;
+	memcpy(a, &b[j], m * sizeof(*a));
 	return m;
 }
 
@@ -108,7 +117,7 @@ typedef struct {
 
 static void wf_cigar_push(wf_cigar_t *c, int32_t op, int32_t len)
 {
-	if (op == (c->cigar[c->n-1]&0xf)) {
+	if (c->n && op == (c->cigar[c->n-1]&0xf)) {
 		c->cigar[c->n-1] += len<<4;
 	} else {
 		if (c->n == c->m) {
@@ -124,26 +133,27 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t ql, const c
 	wf_cigar_t cigar = {0,0,0};
 	int32_t i = ql - 1, k = t_end, s = tb->n - 1;
 	for (;;) {
-		int32_t k0 = k, d, pre;
+		int32_t k0 = k, j, pre;
 		while (i >= 0 && k >= 0 && qs[i] == ts[k])
 			--i, --k;
 		if (k0 - k > 0)	
 			wf_cigar_push(&cigar, 0, k0 - k);
 		if (i < 0 || k < 0) break;
-		d = i - k - tb->a[s].d0;
-		pre = tb->a[s].a[d>>5] >> (d&0x1f)*2 & 0x3;
+		assert(s >= 0);
+		j = i - k - tb->a[s].d0;
+		assert(j < tb->a[s].n);
+		pre = (tb->a[s].a[j>>5] >> (j&0x1f)*2 & 0x3) - 1;
 		if (pre == 0) {
 			wf_cigar_push(&cigar, 0, 1);
 			--i, --k;
 		} else if (pre < 0) {
-			wf_cigar_push(&cigar, 2, 1);
+			wf_cigar_push(&cigar, 1, 1);
 			--i;
 		} else {
-			wf_cigar_push(&cigar, 1, 1);
+			wf_cigar_push(&cigar, 2, 1);
 			--k;
 		}
 		--s;
-		assert(s >= 0);
 	}
 	if (i > 0) wf_cigar_push(&cigar, 1, i);
 	else if (k > 0) wf_cigar_push(&cigar, 2, i);

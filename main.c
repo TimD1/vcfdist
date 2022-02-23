@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	int c, s, is_global = 0, use_edlib = 0, use_wfa = 0, report_cigar = 0;
 	int32_t n_cigar;
-	uint32_t *cigar;
+	uint32_t *cigar = 0;
 
 	while ((c = ketopt(&o, argc, argv, 1, "glwc", 0)) >= 0) {
 		if (c == 'g') is_global = 1;
@@ -70,7 +70,8 @@ int main(int argc, char *argv[])
 			free(mem);
 		}
 	}
-	if (report_cigar) {
+
+	if (!report_cigar) {
 		printf("%s\t%s\t%d\n", ks1->name.s, ks2->name.s, s);
 	} else {
 		int32_t i;
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
 			printf("%d%c", cigar[i]>>4, "MID"[cigar[i]&0xf]);
 		putchar('\n');
 	}
+	free(cigar);
 
 	kseq_destroy(ks1);
 	kseq_destroy(ks2);
