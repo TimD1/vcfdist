@@ -16,17 +16,21 @@ int main(int argc, char *argv[])
 	gzFile fp1, fp2;
 	kseq_t *ks1, *ks2;
 	ketopt_t o = KETOPT_INIT;
-	int c, s, is_global = 0, use_edlib = 0, use_wfa = 0;
+	int c, s, is_global = 0, use_edlib = 0, use_wfa = 0, report_cigar = 0;
+	int32_t n_cigar;
+	uint32_t *cigar;
 
-	while ((c = ketopt(&o, argc, argv, 1, "glw", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "glwc", 0)) >= 0) {
 		if (c == 'g') is_global = 1;
 		else if (c == 'l') use_edlib = 1;
 		else if (c == 'w') use_wfa = 1;
+		else if (c == 'c') report_cigar = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: ed-test [options] <in1.fa> <in2.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -g    count gaps at the end of the target\n");
+		fprintf(stderr, "  -c    report CIGAR\n");
 		fprintf(stderr, "  -l    use edlib instead\n");
 #ifdef _USE_WFA
 		fprintf(stderr, "  -w    use WFA\n");
@@ -58,11 +62,23 @@ int main(int argc, char *argv[])
 		s = edit_cigar_score_gap_affine(&wf->edit_cigar, &pan);
 #endif
 	} else {
-		uint8_t *mem = (uint8_t*)malloc((ks1->seq.l + ks2->seq.l) * 16);
-		s = lv_ed(ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, is_global, mem);
-		free(mem);
+		if (report_cigar) {
+			cigar = lv_ed_cigar(ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, is_global, &s, &n_cigar);
+		} else {
+			uint8_t *mem = (uint8_t*)malloc((ks1->seq.l + ks2->seq.l + 2) * 16);
+			s = lv_ed(ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, is_global, mem);
+			free(mem);
+		}
 	}
-	printf("%s\t%s\t%d\n", ks1->name.s, ks2->name.s, s);
+	if (report_cigar) {
+		printf("%s\t%s\t%d\n", ks1->name.s, ks2->name.s, s);
+	} else {
+		int32_t i;
+		printf("%s\t%s\t%d\t", ks1->name.s, ks2->name.s, s);
+		for (i = 0; i < n_cigar; ++i)
+			printf("%d%c", cigar[i]>>4, "MID"[cigar[i]&0xf]);
+		putchar('\n');
+	}
 
 	kseq_destroy(ks1);
 	kseq_destroy(ks2);
