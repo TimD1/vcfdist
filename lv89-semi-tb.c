@@ -32,9 +32,9 @@ static void wf_tb_add(wf_tb_t *tb, int32_t m)
 	p->a = (uint64_t*)calloc((m + 31) / 32, sizeof(uint64_t));
 }
 
-static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, int32_t is_global, int32_t *t_end)
+static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, int32_t *t_end, int32_t *q_end)
 {
-	int32_t j, m;
+	int32_t j;
 	wf_tb1_t *q;
 	wf_diag_t *b = a + n + 2; // temporary array
 
@@ -61,8 +61,8 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 		else if (k + 7 >= max_k)
 			while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
 				++k;
-		if (k + p->d == ql - 1 && (!is_global || k == tl - 1)) {
-			*t_end = k;
+		if (k + p->d == ql - 1 || k == tl - 1) {
+			*t_end = k, *q_end = k + p->d;
 			return -1;
 		}
 		p->k = k;
@@ -96,18 +96,12 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	wf_tb_add(tb, n + 2);
 	q = &tb->a[tb->n - 1];
 	q->d0 = b[0].d;
-	for (j = 0; j < n + 2; ++j) {
+	for (j = 0; j < n + 2; ++j)
 		q->a[j>>5] |= (uint64_t)(b[j].p + 1) << (j&0x1f)*2;
-	}
 
 	// drop out-of-bound cells
-	m = n + 2;
-	for (j = n + 1; j >= 0 && (b[j].d + b[j].k >= ql || b[j].k >= tl); --j)
-		--m;
-	for (j = 0; j < n + 2 && (b[j].d + b[j].k >= ql || b[j].k >= tl); ++j)
-		--m;
-	memcpy(a, &b[j], m * sizeof(*a));
-	return m;
+	memcpy(a, b, (n + 2) * sizeof(*a));
+	return n + 2;
 }
 
 typedef struct {
@@ -128,10 +122,10 @@ static void wf_cigar_push(wf_cigar_t *c, int32_t op, int32_t len)
 	}
 }
 
-static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t ql, const char *qs, wf_tb_t *tb, int32_t *n_cigar)
+static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, const char *qs, wf_tb_t *tb, int32_t *n_cigar)
 {
 	wf_cigar_t cigar = {0,0,0};
-	int32_t i = ql - 1, k = t_end, s = tb->n - 1;
+	int32_t i = q_end, k = t_end, s = tb->n - 1;
 	for (;;) {
 		int32_t k0 = k, j, pre;
 		while (i >= 0 && k >= 0 && qs[i] == ts[k])
@@ -167,21 +161,21 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t ql, const c
 }
 
 // mem should be at least (tl+ql)*16 long
-uint32_t *lv_ed_cigar(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t is_global, int32_t *score, int32_t *n_cigar)
+uint32_t *lv_ed_semi_cigar(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t *score, int32_t *n_cigar)
 {
-	int32_t s = 0, n = 1, t_end = -1, i;
+	int32_t s = 0, n = 1, t_end = -1, q_end = -1, i;
 	wf_diag_t *a;
 	uint32_t *cigar;
 	wf_tb_t tb = {0,0,0};
 	a = (wf_diag_t*)malloc((tl + ql + 1) * sizeof(*a));
 	a[0].d = 0, a[0].k = -1;
 	while (1) {
-		n = wf_step(&tb, tl, ts, ql, qs, n, a, is_global, &t_end);
+		n = wf_step(&tb, tl, ts, ql, qs, n, a, &t_end, &q_end);
 		if (n < 0) break;
 		++s;
 	}
 	free(a);
-	cigar = wf_traceback(t_end, ts, ql, qs, &tb, n_cigar);
+	cigar = wf_traceback(t_end, ts, q_end, qs, &tb, n_cigar);
 	for (i = 0; i < tb.n; ++i) free(tb.a[i].a);
 	free(tb.a);
 	*score = s;
