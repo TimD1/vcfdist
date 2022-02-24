@@ -149,6 +149,7 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, cons
 		}
 		--s;
 	}
+	assert(s == -1);
 	if (i > 0) wf_cigar_push(&cigar, 1, i);
 	else if (k > 0) wf_cigar_push(&cigar, 2, i);
 	for (i = 0; i < cigar.n>>1; ++i) {
