@@ -56,7 +56,7 @@ static int32_t wf_next(int32_t n, const wf_diag_t *a, wf_diag_t *b)
 	return n + 2;
 }
 
-static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, int32_t is_global)
+static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, uint64_t *mask, int32_t is_global)
 {
 	int32_t j, l, m, x;
 	wf_diag_t *b = a + n + 2; // temporary array
@@ -71,20 +71,32 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 			m += wf_next(l - x, &a[x], &b[m]), x = l;
 
 	// drop out-of-bound cells
-	for (j = 0, n = 0; j < m; ++j)
+	for (j = 0, n = 0; j < m; ++j) {
+		int32_t y = b[j].d + tl;
+		if (mask[y>>6] & 1ULL<<(y&0x3f)) continue;
 		if (b[j].d + b[j].k < ql && b[j].k < tl)
 			a[n++] = b[j];
+		else mask[y>>6] |= 1ULL << (y&0x3f);
+	}
 	return n;
+}
+
+int32_t lv_ed_bufsize(int32_t tl, int32_t ql)
+{
+	return (tl + ql + 1 + 63) / 64 * 8 + (tl + ql + 1) * 2 * 8;
 }
 
 // mem should be at least (tl+ql)*16 long
 int32_t lv_ed(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t is_global, uint8_t *mem)
 {
 	int32_t s = 0, n = 1;
-	wf_diag_t *a = (wf_diag_t*)mem;
+	wf_diag_t *a;
+	uint64_t *mask = (uint64_t*)mem;
+	memset(mask, 0, (tl + ql + 1 + 63) / 64 * sizeof(*mask));
+	a = (wf_diag_t*)(mask + (tl + ql + 1 + 63) / 64);
 	a[0].d = 0, a[0].k = -1;
 	while (1) {
-		n = wf_step(tl, ts, ql, qs, n, a, is_global);
+		n = wf_step(tl, ts, ql, qs, n, a, mask, is_global);
 		if (n < 0) break;
 		++s;
 	}
