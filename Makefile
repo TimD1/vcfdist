@@ -4,7 +4,7 @@ CFLAGS=		-g -Wall -O2
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
-OBJS=		lv89.o lv89-tb.o edlib.o
+OBJS=		lv89-semi.o lv89-tb.o edlib.o
 PROG=		ed-test
 LIBS=		-lz -lpthread -lm
 

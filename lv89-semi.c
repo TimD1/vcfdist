@@ -25,15 +25,16 @@ SOFTWARE.
 */
 
 #include <stdint.h>
+#include <string.h>
 #include "lv89.h"
 
 typedef struct {
 	int32_t d, k;
 } wf_diag_t;
 
-static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, int32_t is_global)
+static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a)
 {
-	int32_t j, m;
+	int32_t j;
 	wf_diag_t *b = a + n + 2; // temporary array
 
 	// wfa_extend
@@ -65,7 +66,7 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 		else if (k + 7 >= max_k)
 			while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
 				++k;
-		if (k + p->d == ql - 1 && (!is_global || k == tl - 1)) return -1;
+		if (k + p->d == ql - 1 || k == tl - 1) return -1;
 		p->k = k;
 	}
 #endif
@@ -87,22 +88,18 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 	}
 	b[n+1].d = a[n-1].d + 1;
 	b[n+1].k = a[n-1].k;
-
-	// drop out-of-bound cells
-	for (j = 0, m = 0; j < n + 2; ++j)
-		if (b[j].d + b[j].k < ql && b[j].k < tl)
-			a[m++] = b[j];
-	return m;
+	memcpy(a, b, (n + 2) * sizeof(*a));
+	return n + 2;
 }
 
 // mem should be at least (tl+ql)*16 long
-int32_t lv_ed(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t is_global, uint8_t *mem)
+int32_t lv_ed_semi(int32_t tl, const char *ts, int32_t ql, const char *qs, uint8_t *mem)
 {
 	int32_t s = 0, n = 1;
 	wf_diag_t *a = (wf_diag_t*)mem;
 	a[0].d = 0, a[0].k = -1;
 	while (1) {
-		n = wf_step(tl, ts, ql, qs, n, a, is_global);
+		n = wf_step(tl, ts, ql, qs, n, a);
 		if (n < 0) break;
 		++s;
 	}

@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 			cigar = lv_ed_cigar(ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, is_global, &s, &n_cigar);
 		} else {
 			uint8_t *mem = (uint8_t*)malloc((ks1->seq.l + ks2->seq.l + 2) * 16);
-			s = lv_ed(ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, is_global, mem);
+			s = lv_ed_semi(ks1->seq.l, ks1->seq.s, ks2->seq.l, ks2->seq.s, mem);
 			free(mem);
 		}
 	}
