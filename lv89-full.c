@@ -66,14 +66,9 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 	if (x < 0) return -1;
 
 	// wfa_next
-//	printf("X\n");
-	for (x = 0, m = 0, l = 1; l <= n; ++l) {
-		if (l == n || a[l].d != a[l-1].d + 1) {
-//			printf("Y\t%d\t%d\t%d\t%d\n", a[x].d, a[l-1].d, a[x].k, a[l-1].k);
-			m += wf_next(l - x, &a[x], &b[m]);
-			x = l;
-		}
-	}
+	for (x = 0, m = 0, l = 1; l <= n; ++l)
+		if (l == n || a[l].d != a[l-1].d + 1)
+			m += wf_next(l - x, &a[x], &b[m]), x = l;
 
 	// drop out-of-bound cells
 	for (j = 0, n = 0; j < m; ++j)
