@@ -73,7 +73,7 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	b[0].p = 1;
 	b[0].k = a[0].k + 1;
 	b[1].d = a[0].d;
-	b[1].p =  n == 1 || a[0].k > a[1].k? 1 : 0;
+	b[1].p =  n == 1 || a[0].k > a[1].k? 0 : 1;
 	b[1].k = (n == 1 || a[0].k > a[1].k? a[0].k : a[1].k) + 1;
 	for (j = 1; j < n - 1; ++j) {
 		int32_t k = a[j-1].k, p = -1;
@@ -133,6 +133,7 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, cons
 		if (k0 - k > 0)	
 			wf_cigar_push(&cigar, 0, k0 - k);
 		if (i < 0 || k < 0) break;
+		if (s < 0) fprintf(stderr, "i=%d, k=%d, s=%d\n", i, k, tb->n);
 		assert(s >= 0);
 		j = i - k - tb->a[s].d0;
 		assert(j < tb->a[s].n);
@@ -149,7 +150,6 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, cons
 		}
 		--s;
 	}
-	assert(s == -1);
 	if (i > 0) wf_cigar_push(&cigar, 1, i);
 	else if (k > 0) wf_cigar_push(&cigar, 2, i);
 	for (i = 0; i < cigar.n>>1; ++i) {
