@@ -136,7 +136,7 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, cons
 		assert(s >= 0);
 		j = i - k - tb->a[s].d0;
 		assert(j < tb->a[s].n);
-		pre = (tb->a[s].a[j>>5] >> (j&0x1f)*2 & 0x3) - 1;
+		pre = (int32_t)(tb->a[s].a[j>>5] >> (j&0x1f)*2 & 0x3) - 1;
 		if (pre == 0) {
 			wf_cigar_push(&cigar, 0, 1);
 			--i, --k;
