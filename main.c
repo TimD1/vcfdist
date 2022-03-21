@@ -31,7 +31,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: ed-test [options] <in1.fa> <in2.fa>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -g    count gaps at the end of the target\n");
-		fprintf(stderr, "  -c    report CIGAR\n");
+		fprintf(stderr, "  -s    the semi mode\n");
+		fprintf(stderr, "  -c    report CIGAR (only working with -s)\n");
 		fprintf(stderr, "  -l    use edlib instead\n");
 #ifdef _USE_WFA
 		fprintf(stderr, "  -w    use WFA\n");

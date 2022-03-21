@@ -151,7 +151,7 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, cons
 		--s;
 	}
 	if (i > 0) wf_cigar_push(&cigar, 1, i);
-	else if (k > 0) wf_cigar_push(&cigar, 2, i);
+	else if (k > 0) wf_cigar_push(&cigar, 2, k);
 	for (i = 0; i < cigar.n>>1; ++i) {
 		uint32_t t = cigar.cigar[i];
 		cigar.cigar[i] = cigar.cigar[cigar.n - i - 1];
@@ -168,7 +168,7 @@ uint32_t *lv_ed_semi_cigar(int32_t tl, const char *ts, int32_t ql, const char *q
 	wf_diag_t *a;
 	uint32_t *cigar;
 	wf_tb_t tb = {0,0,0};
-	a = (wf_diag_t*)malloc((tl + ql + 1) * sizeof(*a));
+	a = (wf_diag_t*)malloc(2 * (tl + ql + 1) * sizeof(*a));
 	a[0].d = 0, a[0].k = -1;
 	while (1) {
 		n = wf_step(&tb, tl, ts, ql, qs, n, a, &t_end, &q_end);
