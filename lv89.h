@@ -11,7 +11,7 @@ extern "C" {
  * Find the edit distance between two sequences
  *
  * @param tl         target sequence length
- * @param ts         targeet sequence
+ * @param ts         target sequence
  * @param ql         query sequence length
  * @param qs         query sequence
  * @param is_global  false to ignore gaps at the end of the target

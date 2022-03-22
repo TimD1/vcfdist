@@ -5,31 +5,42 @@
 #include <stdio.h>
 #include "lv89.h"
 
+#define MAT 0
+#define INS 1
+#define DEL 2
+
+// wavefront diagonal info
 typedef struct {
-	int32_t d;
-	int32_t k:30, p:2;
+	int32_t d;  // diagonal
+	int32_t k:30, p:2; // wavefront distance index, backtrace pointer
 } wf_diag_t;
 
+// per-wavefront traceback info
 typedef struct {
-	int32_t n, d0;
-	uint64_t *a;
+	int32_t n, d0; // cells in wavefront, first diagonal of wavefront
+	uint64_t *a; // TODO: wavefront distance indices??? 
 } wf_tb1_t;
 
+// per-alignment traceback info
 typedef struct {
-	int32_t m, n;
-	wf_tb1_t *a;
+	int32_t m, n; // max size of a, current size of a
+	wf_tb1_t *a; // array of wavefronts
 } wf_tb_t;
 
+// extend traceback data structure, allocating more memory and updating size
 static void wf_tb_add(wf_tb_t *tb, int32_t m)
 {
-	wf_tb1_t *p;
+    // expand array of alignment traceback info if necessary
 	if (tb->n == tb->m) {
-		tb->m = tb->m + (tb->m>>1) + 4;
+		tb->m = tb->m + (tb->m>>1) + 4; // m = m + m/2 + 4
 		tb->a = (wf_tb1_t*)realloc(tb->a, tb->m * sizeof(*tb->a));
 	}
+
+    // generate zero-ed tb 
+	wf_tb1_t *p;
 	p = &tb->a[tb->n++];
 	p->n = m;
-	p->a = (uint64_t*)calloc((m + 31) / 32, sizeof(uint64_t));
+	p->a = (uint64_t*)calloc((m + 31) / 32, sizeof(uint64_t)); // 2-bit pointer
 }
 
 static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, int32_t *t_end, int32_t *q_end)
@@ -93,9 +104,12 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	b[n+1].k = a[n-1].k;
 
 	// keep traceback information
-	wf_tb_add(tb, n + 2);
+	wf_tb_add(tb, n + 2); // add new wavefront to alignment info
 	q = &tb->a[tb->n - 1];
-	q->d0 = b[0].d;
+	q->d0 = b[0].d; //store first diagonal
+
+    // store backtrace pointers
+    // TODO: why +1? any checks for non-zero pointers?
 	for (j = 0; j < n + 2; ++j)
 		q->a[j>>5] |= (uint64_t)(b[j].p + 1) << (j&0x1f)*2;
 
@@ -105,61 +119,92 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 }
 
 typedef struct {
-	int32_t m, n;
+	int32_t m, n; // max cigar len, current cigar len
 	uint32_t *cigar;
 } wf_cigar_t;
 
 static void wf_cigar_push(wf_cigar_t *c, int32_t op, int32_t len)
 {
-	if (c->n && op == (c->cigar[c->n-1]&0xf)) {
+    // 4-bit op, 28-bit len = 268M (pretty reasonable)
+	if (c->n && op == (c->cigar[c->n-1]&0xf)) { // extend len of most recent op
 		c->cigar[c->n-1] += len<<4;
 	} else {
-		if (c->n == c->m) {
+		if (c->n == c->m) { // allocate more space in cigar
 			c->m = c->m + (c->m>>1) + 4;
 			c->cigar = (uint32_t*)realloc(c->cigar, c->m * sizeof(*c->cigar));
 		}
+        // add op and len to cigar
 		c->cigar[c->n++] = len<<4 | op;
 	}
 }
 
-static uint32_t *wf_traceback(int32_t t_end, const char *ts, int32_t q_end, const char *qs, wf_tb_t *tb, int32_t *n_cigar)
+
+
+static uint32_t *wf_traceback(int32_t t_end, const char *ts, 
+        int32_t q_end, const char *qs, wf_tb_t *tb, int32_t *n_cigar)
 {
+    // initialize cigar and pointers
 	wf_cigar_t cigar = {0,0,0};
-	int32_t i = q_end, k = t_end, s = tb->n - 1;
+	int32_t i = q_end, k = t_end, s = tb->n - 1; // query, template ptrs, score
+
 	for (;;) {
+
+        // slide back along diag (opposite of wfa_extend)
 		int32_t k0 = k, j, pre;
 		while (i >= 0 && k >= 0 && qs[i] == ts[k])
 			--i, --k;
+
+        // push matches to cigar
 		if (k0 - k > 0)	
-			wf_cigar_push(&cigar, 0, k0 - k);
+			wf_cigar_push(&cigar, MAT, k0 - k);
+
+        // end if we're done
 		if (i < 0 || k < 0) break;
+
+        // score should always be positive
 		if (s < 0) fprintf(stderr, "i=%d, k=%d, s=%d\n", i, k, tb->n);
 		assert(s >= 0);
+
+        // get index of current cell in wavefront
 		j = i - k - tb->a[s].d0;
-		assert(j < tb->a[s].n);
+		assert(j < tb->a[s].n); // check in range
+
+        // get predecessor pointer
 		pre = (int32_t)(tb->a[s].a[j>>5] >> (j&0x1f)*2 & 0x3) - 1;
+
+        // update CIGAR
 		if (pre == 0) {
-			wf_cigar_push(&cigar, 0, 1);
+			wf_cigar_push(&cigar, MAT, 1);
 			--i, --k;
 		} else if (pre < 0) {
-			wf_cigar_push(&cigar, 1, 1);
+			wf_cigar_push(&cigar, INS, 1);
 			--i;
 		} else {
-			wf_cigar_push(&cigar, 2, 1);
+			wf_cigar_push(&cigar, DEL, 1);
 			--k;
 		}
+
+        // go to previous wavefront
 		--s;
 	}
-	if (i > 0) wf_cigar_push(&cigar, 1, i);
-	else if (k > 0) wf_cigar_push(&cigar, 2, k);
+    // push remaining INSs
+	if (i > 0) wf_cigar_push(&cigar, INS, i);
+    // push remaining DELs
+	else if (k > 0) wf_cigar_push(&cigar, DEL, k);
+
+    // reverse cigar
 	for (i = 0; i < cigar.n>>1; ++i) {
 		uint32_t t = cigar.cigar[i];
 		cigar.cigar[i] = cigar.cigar[cigar.n - i - 1];
 		cigar.cigar[cigar.n - i - 1] = t;
 	}
+
+    // return cigar and length
 	*n_cigar = cigar.n;
 	return cigar.cigar;
 }
+
+
 
 // mem should be at least (tl+ql)*16 long
 uint32_t *lv_ed_semi_cigar(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t *score, int32_t *n_cigar)
