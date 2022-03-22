@@ -23,6 +23,8 @@ typedef struct {
 	wf_tb1_t *a; // array of wavefronts
 } wf_tb_t;
 
+
+
 // extend traceback data structure, allocating more memory and updating size
 static void wf_tb_add(wf_tb_t *tb, int32_t m)
 {
@@ -39,14 +41,15 @@ static void wf_tb_add(wf_tb_t *tb, int32_t m)
 	p->a = (uint64_t*)calloc((m + 31) / 32, sizeof(uint64_t)); // 2-bit pointer
 }
 
-static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a, int32_t *t_end, int32_t *q_end)
+
+
+static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t n, wf_diag_t *a)
 {
 	int32_t j;
 	wf_tb1_t *q;
 	wf_diag_t *b = a + n + 2; // temporary array
 
 	// wfa_extend
-	*t_end = -1;
 	for (j = 0; j < n; ++j) {
 		wf_diag_t *p = &a[j];
 		int32_t k = p->k, max_k;
@@ -56,6 +59,8 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 		max_k = (ql - p->d < tl? ql - p->d : tl) - 1;
 		ts_ = ts + 1;
 		qs_ = qs + p->d + 1;
+
+        // compare 8 values at once for efficiency
 		while (k + 7 < max_k) {
 			uint64_t x = *(uint64_t*)(ts_ + k); // warning: unaligned memory access
 			uint64_t y = *(uint64_t*)(qs_ + k);
@@ -63,25 +68,31 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 			if (cmp == 0) k += 8;
 			else break;
 		}
+
 		if (cmp)
 			k += __builtin_ctzl(cmp) >> 3; // on x86, this is done via the BSR instruction: https://www.felixcloutier.com/x86/bsr
 		else if (k + 7 >= max_k)
 			while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
 				++k;
-		if (k + p->d == ql - 1 || k == tl - 1) {
-			*t_end = k, *q_end = k + p->d;
-			return -1;
-		}
+
+        // if we're done, stop
+		if (k + p->d == ql - 1 && k == tl - 1) return -1;
+
+        // update furthest-reaching index
 		p->k = k;
 	}
 
 	// wfa_next
+    
+    // compute start of b (insert, mismatch)
 	b[0].d = a[0].d - 1;
 	b[0].p = 1;
 	b[0].k = a[0].k + 1;
 	b[1].d = a[0].d;
 	b[1].p =  n == 1 || a[0].k > a[1].k? 0 : 1;
 	b[1].k = (n == 1 || a[0].k > a[1].k? a[0].k : a[1].k) + 1;
+
+    // compute middle of b (insert, delete, mismatch)
 	for (j = 1; j < n - 1; ++j) {
 		int32_t k = a[j-1].k, p = -1;
 		p = k > a[j+1].k + 1? p : 1;
@@ -90,6 +101,8 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 		k = k > a[j].k + 1? k : a[j].k + 1;
 		b[j+1].d = a[j].d, b[j+1].k = k, b[j+1].p = p;
 	}
+
+    // compute end of b (delete, mismatch)
 	if (n >= 2) {
 		b[n].d = a[n-1].d;
 		b[n].p = a[n-2].k > a[n-1].k + 1? -1 : 0;
@@ -109,7 +122,7 @@ static int32_t wf_step(wf_tb_t *tb, int32_t tl, const char *ts, int32_t ql, cons
 	for (j = 0; j < n + 2; ++j)
 		q->a[j>>5] |= (uint64_t)(b[j].p + 1) << (j&0x1f)*2;
 
-	// drop out-of-bound cells
+	// save results to a, two more rows now
 	memcpy(a, b, (n + 2) * sizeof(*a));
 	return n + 2;
 }
@@ -136,12 +149,12 @@ static void wf_cigar_push(wf_cigar_t *c, int32_t op, int32_t len)
 
 
 
-static uint32_t *wf_traceback(int32_t t_end, const char *ts, 
-        int32_t q_end, const char *qs, wf_tb_t *tb, int32_t *n_cigar)
+static uint32_t *wf_traceback(int32_t tl, const char *ts, 
+        int32_t ql, const char *qs, wf_tb_t *tb, int32_t *n_cigar)
 {
     // initialize cigar and pointers
 	wf_cigar_t cigar = {0,0,0};
-	int32_t i = q_end, k = t_end, s = tb->n - 1; // query, template ptrs, score
+	int32_t i = ql-1, k = tl-1, s = tb->n - 1; // query, template ptrs, score
 
 	for (;;) {
 
@@ -205,19 +218,19 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts,
 // mem should be at least (tl+ql)*16 long
 uint32_t *lv_ed_semi_cigar(int32_t tl, const char *ts, int32_t ql, const char *qs, int32_t *score, int32_t *n_cigar)
 {
-	int32_t s = 0, n = 1, t_end = -1, q_end = -1, i;
+	int32_t s = 0, n = 1, i;
 	wf_diag_t *a;
 	uint32_t *cigar;
 	wf_tb_t tb = {0,0,0};
 	a = (wf_diag_t*)malloc(2 * (tl + ql + 1) * sizeof(*a));
 	a[0].d = 0, a[0].k = -1;
 	while (1) {
-		n = wf_step(&tb, tl, ts, ql, qs, n, a, &t_end, &q_end);
+		n = wf_step(&tb, tl, ts, ql, qs, n, a);
 		if (n < 0) break;
 		++s;
 	}
 	free(a);
-	cigar = wf_traceback(t_end, ts, q_end, qs, &tb, n_cigar);
+	cigar = wf_traceback(tl, ts, ql, qs, &tb, n_cigar);
 	for (i = 0; i < tb.n; ++i) free(tb.a[i].a);
 	free(tb.a);
 	*score = s;
