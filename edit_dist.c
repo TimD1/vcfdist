@@ -26,7 +26,7 @@ SOFTWARE.
 
 #include <stdint.h>
 #include <string.h>
-#include "lv89.h"
+#include "edit_dist.h"
 
 typedef struct {
 	int32_t d, k;
@@ -37,17 +37,6 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 	int32_t j;
 	wf_diag_t *b = a + n + 2; // temporary array
 
-	// wfa_extend
-#if 0 // unoptimized original version
-	for (j = 0; j < n; ++j) {
-		wf_diag_t *p = &a[j];
-		int32_t k = p->k, i = k + p->d;
-		while (k + 1 < tl && i + 1 < ql && ts[k+1] == qs[i+1])
-			++k, ++i;
-		if (k + p->d == ql - 1 && (!is_global || k == tl - 1)) return -1;
-		p->k = k;
-	}
-#else // optimized version learned from WFA
 	for (j = 0; j < n; ++j) {
 		wf_diag_t *p = &a[j];
 		int32_t k = p->k;
@@ -66,10 +55,9 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 		else if (k + 7 >= max_k)
 			while (k < max_k && *(ts_ + k) == *(qs_ + k)) // use this for generic CPUs. It is slightly faster than the unoptimized version
 				++k;
-		if (k + p->d == ql - 1 || k == tl - 1) return -1;
+		if (k + p->d == ql - 1 && k == tl - 1) return -1;
 		p->k = k;
 	}
-#endif
 
 	// wfa_next
 	b[0].d = a[0].d - 1;
@@ -92,8 +80,19 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 	return n + 2;
 }
 
+// create buffer for landau-vishkin edit distance calculation
+int32_t edit_dist_bufsize(int32_t tl, int32_t ql)
+{
+    // packed uint64_t boolean mask for valid diagonals
+	int32_t mask = (tl + ql + 1 + 63) / 64 * 8;
+
+    // two arrays of int32_t (d,k) for current/next wavefront
+    int32_t ab = (tl + ql + 1) * 2 * 8;
+    return mask + ab;
+}
+
 // mem should be at least (tl+ql)*16 long
-int32_t lv_ed_semi(int32_t tl, const char *ts, int32_t ql, const char *qs, uint8_t *mem)
+int32_t edit_dist(int32_t tl, const char *ts, int32_t ql, const char *qs, uint8_t *mem)
 {
 	int32_t s = 0, n = 1;
 	wf_diag_t *a = (wf_diag_t*)mem;

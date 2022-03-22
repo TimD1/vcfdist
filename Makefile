@@ -4,8 +4,8 @@ CFLAGS=		-g -Wall -O2
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
-OBJS=		lv89-semi.o lv89-full.o lv89-semi-tb.o
-PROG=		ed-test
+OBJS=		edit_dist.o edit_dist_cigar.o
+PROG=		vcfdist
 LIBS=		-lz -lpthread -lm
 
 
@@ -35,9 +35,6 @@ depend:
 		(LC_ALL=C; export LC_ALL; makedepend -Y -- $(CFLAGS) $(DFLAGS) -- *.c *.cpp)
 
 # DO NOT DELETE
-
-example.o: lv89.h
-lv89-full.o: lv89.h
-lv89-semi-tb.o: lv89.h
-lv89-semi.o: lv89.h
-main.o: lv89.h ketopt.h kseq.h
+edit_dist.o: edit_dist.h
+edit_dist_cigar.o: edit_dist.h
+main.o: edit_dist.h ketopt.h kseq.h
