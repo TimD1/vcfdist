@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 		int32_t i;
 		printf("%s\t%s\t%d\t", ks1->name.s, ks2->name.s, s);
 		for (i = 0; i < n_cigar; ++i)
-			printf("%d%c", cigar[i]>>4, "MID"[cigar[i]&0xf]);
+			printf("%d%c", cigar[i]>>4, "MIDNSHP=X"[cigar[i]&0xf]);
 		putchar('\n');
 	}
 	free(cigar);

@@ -5,10 +5,6 @@
 #include <stdio.h>
 #include "lv89.h"
 
-#define MAT 0
-#define INS 1
-#define DEL 2
-
 // wavefront diagonal info
 typedef struct {
 	int32_t d;  // diagonal
@@ -156,7 +152,7 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts,
 
         // push matches to cigar
 		if (k0 - k > 0)	
-			wf_cigar_push(&cigar, MAT, k0 - k);
+			wf_cigar_push(&cigar, E, k0 - k);
 
         // end if we're done
 		if (i < 0 || k < 0) break;
@@ -174,13 +170,13 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts,
 
         // update CIGAR
 		if (pre == 0) {
-			wf_cigar_push(&cigar, MAT, 1);
+			wf_cigar_push(&cigar, X, 1);
 			--i, --k;
 		} else if (pre < 0) {
-			wf_cigar_push(&cigar, INS, 1);
+			wf_cigar_push(&cigar, I, 1);
 			--i;
 		} else {
-			wf_cigar_push(&cigar, DEL, 1);
+			wf_cigar_push(&cigar, D, 1);
 			--k;
 		}
 
@@ -188,9 +184,9 @@ static uint32_t *wf_traceback(int32_t t_end, const char *ts,
 		--s;
 	}
     // push remaining INSs
-	if (i > 0) wf_cigar_push(&cigar, INS, i);
+	if (i > 0) wf_cigar_push(&cigar, I, i);
     // push remaining DELs
-	else if (k > 0) wf_cigar_push(&cigar, DEL, k);
+	else if (k > 0) wf_cigar_push(&cigar, D, k);
 
     // reverse cigar
 	for (i = 0; i < cigar.n>>1; ++i) {

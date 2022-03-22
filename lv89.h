@@ -7,6 +7,17 @@
 extern "C" {
 #endif
 
+// CIGAR definitions
+#define M 0
+#define I 1
+#define D 2
+#define N 3
+#define S 4
+#define H 5
+#define P 6
+#define E 7
+#define X 8
+
 /**
  * Find the edit distance between two sequences
  *
