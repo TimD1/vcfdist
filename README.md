@@ -1,11 +1,13 @@
-This repo implements the [Landau-Vishkin algorithm][lv89] to compute the edit
-distance between two strings. This is a fast method for highly similar strings.
-[The actual implementation](lv89.c) follows a simplified [WFA][WFA] formulation
-rather than the original formulation. It also learns a performance trick from
-WFA. For a pair of ~5Mb HLA sequences with ~123k edits, the implementation here
-can find the result in 71 seconds, faster than [edlib][edlib]. Edlib will be
-faster for more divergent sequences.
+# VCFDist
+This project computes the edit distance between two VCF files, when provided
+with a reference FASTA.
+
+#### Related Work
+This work is based on the [Landau-Vishkin algorithm][lv89] for edit distance,
+and follows a simple implementation of [Wave Front Alignment][WFA]. The actual
+alignment code is an extension of [Heng Li's implementation][lh3], designed for
+computing the edit distance between two highly-similar strings.
 
 [lv89]: https://doi.org/10.1016/0196-6774(89)90010-2
-[edlib]: https://github.com/Martinsos/edlib
 [WFA]: https://github.com/smarco/WFA
+[lh3]: https://github.com/lh3/lv89
