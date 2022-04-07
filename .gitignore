@@ -1,3 +1,7 @@
 .*.swp
 *.o
 vcfdist
+r10.4_chr20
+scripts/img
+scripts/input
+scripts/lib
