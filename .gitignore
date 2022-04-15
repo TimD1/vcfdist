@@ -2,6 +2,8 @@
 *.o
 vcfdist
 r10.4_chr20
+pfda-v2
 scripts/img
-scripts/input
 scripts/lib
+scripts/data
+scripts/results
