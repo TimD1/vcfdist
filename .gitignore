@@ -3,7 +3,9 @@
 vcfdist
 r10.4_chr20
 pfda-v2
+wfa
 scripts/img
 scripts/lib
 scripts/data
 scripts/results
+*.nfs*
