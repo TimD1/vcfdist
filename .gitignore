@@ -9,3 +9,4 @@ scripts/lib
 scripts/data
 scripts/results
 *.nfs*
+src/compare
