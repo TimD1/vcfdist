@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <exception>
 #include <filesystem>
@@ -7,14 +8,57 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <sys/time.h>
 
 #include "vcf.h"
 #include "vcfutils.h"
 
 std::string VERSION = "0.0.1";
+std::string PROGRAM = "vcfdist::compare";
 void print_version() {
-    printf("vcfdist compare v%s\n", VERSION.data());
+    printf("%s v%s\n", PROGRAM.data(), VERSION.data());
 }
+
+/* --------------------------------------------------------------------------- */
+
+#define WARN(f_, ...)                                           \
+{                                                               \
+    struct tm _tm123_;                                          \
+    struct timeval _xxtv123_;                                   \
+    gettimeofday(&_xxtv123_, NULL);                             \
+    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                   \
+    fprintf(stderr, "\033[33m[WARN %s %02d:%02d:%02d]\033[0m ", \
+            PROGRAM.data(), _tm123_.tm_hour,_tm123_.tm_min,     \
+            _tm123_.tm_sec);                                    \
+    fprintf(stderr, (f_), ##__VA_ARGS__);                       \
+    fprintf(stderr, "\n");                                      \
+};
+
+#define INFO(f_, ...)                                           \
+{                                                               \
+    struct tm _tm123_;                                          \
+    struct timeval _xxtv123_;                                   \
+    gettimeofday(&_xxtv123_, NULL);                             \
+    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                   \
+    fprintf(stderr, "\033[32m[INFO %s %02d:%02d:%02d]\033[0m ", \
+            PROGRAM.data(), _tm123_.tm_hour,_tm123_.tm_min,     \
+            _tm123_.tm_sec);                                    \
+    fprintf(stderr, (f_), ##__VA_ARGS__);                       \
+    fprintf(stderr, "\n");                                      \
+};
+
+#define ERROR(f_, ...)                                           \
+{                                                                \
+    struct tm _tm123_;                                           \
+    struct timeval _xxtv123_;                                    \
+    gettimeofday(&_xxtv123_, NULL);                              \
+    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                    \
+    fprintf(stderr, "\033[31m[ERROR %s %02d:%02d:%02d]\033[0m ", \
+            PROGRAM.data(), _tm123_.tm_hour,_tm123_.tm_min,      \
+            _tm123_.tm_sec);                                     \
+    fprintf(stderr, (f_), ##__VA_ARGS__);                        \
+    fprintf(stderr, "\n");                                       \
+};
 
 /* --------------------------------------------------------------------------- */
 
@@ -38,12 +82,12 @@ struct contigRegions {
     std::vector<int> stops;
 };
 
-class bedRegions {
+class bedData {
 public:
 
     // constructors
-    bedRegions() = default;
-    bedRegions(std::string bed_fn) {
+    bedData() = default;
+    bedData(std::string bed_fn) {
         std::ifstream bed(bed_fn);
         std::string region;
         while (getline(bed, region)) {
@@ -86,13 +130,221 @@ private:
 
 /* --------------------------------------------------------------------------- */
 
+#define TYPE_REF 0
+#define TYPE_SUB 1
+#define TYPE_INS 2
+#define TYPE_DEL 3
+#define TYPE_GRP 4
+#define TYPE_MNP 5
+std::vector< std::string > type_strs { "REF", "SUB", "INS", "DEL", "GRP", "MNP" };
+
+#define GT_DOT_DOT   0
+#define GT_REF_REF   1
+#define GT_REF_ALT1  2
+#define GT_REF_ALT2  3
+#define GT_ALT1_REF  4
+#define GT_ALT1_ALT1 5
+#define GT_ALT1_ALT2 6
+#define GT_ALT2_REF  7
+#define GT_ALT2_ALT1 8
+#define GT_ALT2_ALT2 9
+#define GT_OTHER     10
+std::vector< std::string > gt_strs {
+".|.", "0|0", "0|1", "0|2", "1|0", "1|1", "1|2", "2|0", "2|1", "2|2", "?|?"
+};
+
+struct variantCalls {
+    std::vector<int> gaps;          // indices of gaps in this struct's vectors
+    std::vector<int> poss;          // variant start positions
+    std::vector<uint8_t> haps;      // variant haplotype
+    std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
+    std::vector<std::string> refs;  // variant reference allele
+    std::vector<std::string> alts;  // variant alternate allele (always one)
+    std::vector<float> var_quals;   // variant quality (0-60)
+    std::vector<float> gt_quals;    // genotype quality (0-60)
+    /* std::vector<int> lens; */
+    /* std::vector<int> inss; */
+    /* std::vector<int> dels; */
+};
+
+class vcfData {
+public:
+    vcfData(htsFile* vcf) {
+
+        // counters
+        int nseq = 0;   // number of sequences
+        std::vector< std::vector<int> > 
+            ntypes(2, std::vector<int>(type_strs.size(), 0));
+        int n    = 0;   // total number of records in file
+
+        // quality data for each call
+        int ngq_arr = 0;
+        int ngq     = 0;
+        int * gq    = (int*) malloc(sizeof(int));
+        float * fgq = (float*) malloc(sizeof(float));
+        bool int_qual = true;
+
+        // genotype data for each call
+        int ngt_arr   = 0;
+        bool gq_warn  = false;
+        int ngt       = 0;
+        std::vector<int> ngts(gt_strs.size(), 0);
+        int * gt      = NULL;
+        
+        // read header
+        bcf1_t * rec  = NULL;
+        bcf_hdr_t *hdr = bcf_hdr_read(vcf);
+        fprintf(stderr, "VCF contains %i sample(s)\n", bcf_hdr_nsamples(hdr));
+
+        // report names of all the sequences in the VCF file
+        const char **seqnames = NULL;
+        seqnames = bcf_hdr_seqnames(hdr, &nseq);
+        if (seqnames == NULL) {
+            ERROR("failed to read VCF header");
+            goto error1;
+        }
+
+        // struct for storing each record
+        rec = bcf_init();
+        if (rec == NULL) {
+            ERROR("failed to read VCF records");
+            goto error2;
+        }
+        
+        while (bcf_read(vcf, hdr, rec) == 0) {
+            bcf_unpack(rec, BCF_UN_ALL);
+            n++;
+
+            // parse GQ in either INT or FLOAT format, and GT
+            if (int_qual) {
+                ngq = bcf_get_format_int32(hdr, rec, "GQ", &gq, &ngq_arr);
+                if (ngq == -2) {
+                    ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &ngq_arr);
+                    gq[0] = int(fgq[0]);
+                    int_qual = false;
+                }
+            }
+            else {
+                ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &ngq_arr);
+                gq[0] = int(fgq[0]);
+            }
+            if ( ngq == -3 ) {
+                if (!gq_warn) {
+                    WARN("no GQ tag at %s:%i", seqnames[rec->rid], int(rec->pos));
+                    gq_warn = true; // only warn once
+                }
+                gq[0] = 0;
+            }
+            ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
+            if (ngt < 0) {
+                ERROR("failed to read GT at %s:%i\n", 
+                        seqnames[rec->rid], int(rec->pos));
+            }
+
+            // parse genotype info
+            // gt[i]  gt[i] >> 1  gt[i] << 1  GT MEANING
+            // 0      0           0           .  missing
+            // 2      1           4           0  reference
+            // 4      2           8           1  alternate1
+            // 6      3           12          2  alternate2
+            switch ( (gt[0] >> 1) + (gt[1] << 1) ) {
+                case 0:  ngts[GT_DOT_DOT]++;   break;
+                case 5:  ngts[GT_REF_REF]++;   break;
+                case 6:  ngts[GT_ALT1_REF]++;  break;
+                case 7:  ngts[GT_ALT2_REF]++;  break;
+                case 9:  ngts[GT_REF_ALT1]++;  break;
+                case 10: ngts[GT_ALT1_ALT1]++; break;
+                case 11: ngts[GT_ALT2_ALT1]++; break;
+                case 13: ngts[GT_REF_ALT2]++;  break;
+                case 14: ngts[GT_ALT1_ALT2]++; break;
+                case 15: ngts[GT_ALT2_ALT2]++; break;
+                default: ngts[GT_OTHER]++;     break; // 3|1 etc
+            }
+
+            // parse variant type
+            std::string ref = rec->d.allele[0];
+            for (int hap = 0; hap < 2; hap++) {
+                int allele_idx = bcf_gt_allele(gt[hap]);
+                if (allele_idx < 0) allele_idx = hap; // set 0|1 if .|.
+                if (allele_idx == 0) continue; // nothing to do if reference
+                std::string allele = rec->d.allele[allele_idx];
+
+                // skip spanning deletion
+                if (allele == "*") { ntypes[hap][TYPE_REF]++; continue; }
+
+                int indel_len = allele.size() - ref.size();
+                if (indel_len > 0) { // insertion
+                    ntypes[hap][TYPE_INS]++;
+                } else if (indel_len < 0) { // deletion
+                    ntypes[hap][TYPE_DEL]++;
+                } else { // substitution
+                    if (ref.size() == 1) ntypes[hap][TYPE_SUB]++;
+                    else {
+                        if (std::string(ref.data()+1) == std::string(allele.data()+1)){
+                            //TODO: update ref/allele
+                            ntypes[hap][TYPE_SUB]++;
+                        }
+                        else {
+                            fprintf(stderr, "%s %s\n", ref.data(), allele.data());
+                            ntypes[hap][TYPE_MNP]++;
+                        }
+                    }
+                }
+            }
+
+        }
+
+        /* fprintf(stderr, "\nSequence names:"); */
+        /* for (int i = 0; i < nseq; i++) { */
+        /*     if (i % 5 == 0) fprintf(stderr, "\n  "); */
+        /*     fprintf(stderr, "[%2i] %s \t", i, seqnames[i]); */
+        /* } */
+        /* fprintf(stderr, "\n"); */
+
+        fprintf(stderr, "\nVCF contains %i records.\n", n);
+
+        fprintf(stderr, "\nGenotypes:\n");
+        for (size_t i = 0; i < gt_strs.size(); i++) {
+            fprintf(stderr, "  %s  %i\n", gt_strs[i].data(), ngts[i]);
+        }
+
+        fprintf(stderr, "\nVariant Types:\n");
+        for (int h = 0; h < 2; h++) {
+            fprintf(stderr, "  Haplotype %i\n", h+1);
+            for (size_t i = 0; i < type_strs.size(); i++) {
+                fprintf(stderr, "    %s  %i\n", type_strs[i].data(), ntypes[h][i]);
+            }
+        }
+
+        free(gq);
+        free(fgq);
+        free(gt);
+        free(seqnames);
+        bcf_hdr_destroy(hdr);
+        bcf_close(vcf);
+        bcf_destroy(rec);
+        return;
+error2:
+        free(seqnames);
+error1:
+        bcf_close(vcf);
+        bcf_hdr_destroy(hdr);
+        return;
+
+    }
+private:
+    std::unordered_map<std::string, variantCalls> calls;
+};
+
+/* --------------------------------------------------------------------------- */
+
 int parse_args(
         int argc, 
         char ** argv, 
         htsFile *& ref_fasta, 
         htsFile *& calls_vcf, 
         htsFile *& truth_vcf, 
-        bedRegions *& bed,
+        bedData *& bed,
         std::string & out_dir
         ) {
 
@@ -111,22 +363,19 @@ int parse_args(
     calls_vcf_fn = std::string(argv[1]);
     calls_vcf = bcf_open(calls_vcf_fn.data(), "r");
     if (calls_vcf == NULL) {
-        printf("[E::compare] failed to open calls_vcf file '%s'.\n", 
-                calls_vcf_fn.data());
+        ERROR("failed to open calls_vcf file '%s'.", calls_vcf_fn.data());
         return 1;
     }
     truth_vcf_fn = std::string(argv[2]);
     truth_vcf = bcf_open(truth_vcf_fn.data(), "r");
     if (truth_vcf == NULL) {
-        printf("[E::compare] failed to open truth_vcf file '%s'.\n", 
-                truth_vcf_fn.data());
+        ERROR("failed to open truth_vcf file '%s'.", truth_vcf_fn.data());
         return 1;
     }
     ref_fasta_fn = std::string(argv[3]);
     ref_fasta = bcf_open(ref_fasta_fn.data(), "r");
     if (ref_fasta == NULL) {
-        printf("[E::compare] failed to open ref_fasta file '%s'.\n", 
-                ref_fasta_fn.data());
+        ERROR("failed to open ref_fasta file '%s'.", ref_fasta_fn.data());
         return 1;
     }
 
@@ -135,27 +384,27 @@ int parse_args(
         if (std::string(argv[i]) == "-b") {
             i++;
             if (i == argc) {
-                printf("[E::compare] option '-b' used without providing BED.\n");
+                ERROR("option '-b' used without providing BED.");
                 return 1;
             }
             try {
-                bed = new bedRegions(std::string(argv[i++]));
+                bed = new bedData(std::string(argv[i++]));
             } catch (const std::exception & e) {
-                printf("[E::compare] %s\n", e.what());
+                ERROR("%s", e.what());
                 return 1;
             }
         }
         else if (std::string(argv[i]) == "-o") {
             i++;
             if (i == argc) {
-                printf("[E::compare] option '-o' used without providing DIR.\n");
+                ERROR("option '-o' used without providing DIR.");
                 return 1;
             }
             try {
                 out_dir = std::string(argv[i++]);
                 std::filesystem::create_directory(out_dir);
             } catch (const std::exception & e) {
-                printf("[E::compare] %s\n", e.what());
+                ERROR("%s", e.what());
                 return 1;
             }
         }
@@ -170,7 +419,7 @@ int parse_args(
             return 1;
         }
         else {
-            printf("[E::compare] unexpected option '%s'.\n", argv[i]);
+            ERROR("unexpected option '%s'.", argv[i]);
             return 1;
         }
     }
@@ -184,44 +433,21 @@ int main(int argc, char **argv) {
 
     // parse and store command-line args
     htsFile *ref_fasta, *calls_vcf, *truth_vcf;
-    bedRegions * bed;
+    bedData * bed;
     std::string out_dir;
     int exit = parse_args(argc, argv, 
             ref_fasta, calls_vcf, truth_vcf, bed, out_dir);
     if (exit) std::exit(EXIT_SUCCESS);
 
-    std::cout << std::string(*bed) << std::endl;
+    fprintf(stderr, "CALLS:\n");
+    vcfData * calls = new vcfData(calls_vcf);
+    fprintf(stderr, "\n\nTRUTH:\n");
+    vcfData * truth = new vcfData(truth_vcf);
 
         
-    /* // read header */
-    /* bcf_hdr_t *hdr = bcf_hdr_read(inf); */
-
-    // if hdr == NULL
- 
-    /* // struc for storing each record */
-    /* bcf1_t *rec = bcf_init(); */
-    /* if (rec == NULL) { */
-    /*     return EXIT_FAILURE; */
-    /* } */
- 
-    /* while (bcf_read(inf, hdr, rec) == 0) { */
-    /*     if (bcf_is_snp(rec)) { */
-    /*         printf("Number of alleles: %lu\n", (unsigned long)rec->n_allele); */
-    /*         printf("Chr name is %s\n", bcf_hdr_id2name(hdr, rec->rid)); */
-    /*         printf("Position for this SNP is %li\n", rec->pos); */
-    /*         printf("REF:%s ALT:%s\n", rec->d.allele[0], rec->d.allele[1]); */
-    /*         // iterating over alleles */
-    /*         for (int i=0; i<rec->n_allele; ++i) */
-    /*             printf("%s\n", rec->d.allele[i]); */
-    /*     } else { */
-    /*         continue; */
-    /*     } */
-    /* } */
- 
-    /* bcf_hdr_destroy(hdr); */
-    /* bcf_close(inf); */
-    /* bcf_destroy(rec); */
-    /* delete bed */
+    delete bed;
+    delete calls;
+    delete truth;
 
     return EXIT_SUCCESS;
 }
