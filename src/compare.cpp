@@ -172,10 +172,14 @@ public:
     vcfData(htsFile* vcf) {
 
         // counters
-        int nseq = 0;   // number of sequences
+        int nseq   = 0;   // number of sequences
         std::vector< std::vector<int> > 
             ntypes(2, std::vector<int>(type_strs.size(), 0));
-        int n    = 0;   // total number of records in file
+        int n      = 0;   // total number of records in file
+        int npass  = 0;   // records which PASS all filters
+
+        // data
+        int prev_end = 0; // previous variant end position
 
         // quality data for each call
         int ngq_arr = 0;
@@ -194,6 +198,33 @@ public:
         // read header
         bcf1_t * rec  = NULL;
         bcf_hdr_t *hdr = bcf_hdr_read(vcf);
+        int pass_filter_id = 0;
+        bool pass = false;
+        bool pass_found = false;
+        for(int i = 0; i < hdr->nhrec; i++) {
+
+            // search all FILTER lines
+            if (hdr->hrec[i]->type == BCF_HL_FLT) {
+
+                // select PASS filter
+                bool is_pass_filter = false;
+                for(int j = 0; j < hdr->hrec[i]->nkeys; j++)
+                    if (hdr->hrec[i]->keys[j] == std::string("ID") && 
+                            hdr->hrec[i]->vals[j] == std::string("PASS"))
+                        is_pass_filter = true;
+
+                // save PASS filter index to keep only passing reads
+                if (is_pass_filter)
+                    for(int j = 0; j < hdr->hrec[i]->nkeys; j++)
+                        if (hdr->hrec[i]->keys[j] == std::string("IDX")) {
+                            pass_filter_id = std::stoi(hdr->hrec[i]->vals[j]);
+                            pass_found = true;
+                        }
+            }
+        }
+        if (!pass_found) {
+            ERROR("failed to find PASS FILTER in VCF");
+        }
         fprintf(stderr, "VCF contains %i sample(s)\n", bcf_hdr_nsamples(hdr));
 
         // report names of all the sequences in the VCF file
@@ -202,6 +233,10 @@ public:
         if (seqnames == NULL) {
             ERROR("failed to read VCF header");
             goto error1;
+        }
+        for(int i = 0; i < nseq; i++) {
+            this->calls[seqnames[i]] = variantCalls();
+            this->calls[seqnames[i]].gaps.push_back(0);
         }
 
         // struct for storing each record
@@ -212,8 +247,18 @@ public:
         }
         
         while (bcf_read(vcf, hdr, rec) == 0) {
+
+            // unpack info (populates rec->d allele info)
             bcf_unpack(rec, BCF_UN_ALL);
             n++;
+
+            // check that variant passed all filters
+            pass = false;
+            for (int i = 0; i < rec->d.n_flt; i++) {
+                if (rec->d.flt[i] == pass_filter_id) pass = true;
+            }
+            if (!pass) continue;
+            npass++;
 
             // parse GQ in either INT or FLOAT format, and GT
             if (int_qual) {
@@ -262,46 +307,58 @@ public:
             }
 
             // parse variant type
-            std::string ref = rec->d.allele[0];
             for (int hap = 0; hap < 2; hap++) {
+
+                // get ref and allele, skipping ref calls
+                std::string ref = rec->d.allele[0];
                 int allele_idx = bcf_gt_allele(gt[hap]);
                 if (allele_idx < 0) allele_idx = hap; // set 0|1 if .|.
                 if (allele_idx == 0) continue; // nothing to do if reference
                 std::string allele = rec->d.allele[allele_idx];
-
                 // skip spanning deletion
                 if (allele == "*") { ntypes[hap][TYPE_REF]++; continue; }
 
+                // determine variant type
                 int indel_len = allele.size() - ref.size();
+                int type = -1;
                 if (indel_len > 0) { // insertion
-                    ntypes[hap][TYPE_INS]++;
+                    type = TYPE_INS;
                 } else if (indel_len < 0) { // deletion
-                    ntypes[hap][TYPE_DEL]++;
+                    type = TYPE_DEL;
                 } else { // substitution
-                    if (ref.size() == 1) ntypes[hap][TYPE_SUB]++;
+                    if (ref.size() == 1) type = TYPE_SUB;
                     else {
                         if (std::string(ref.data()+1) == std::string(allele.data()+1)){
-                            //TODO: update ref/allele
-                            ntypes[hap][TYPE_SUB]++;
+                            type = TYPE_SUB;
+                            ref = ref[0]; allele = allele[0]; // chop off matches
                         }
-                        else {
-                            fprintf(stderr, "%s %s\n", ref.data(), allele.data());
-                            ntypes[hap][TYPE_MNP]++;
-                        }
+                        else type = TYPE_MNP;
                     }
                 }
+                ntypes[hap][type]++;
+
+                if (rec->pos - prev_end > 50)
+                    this->calls[seqnames[rec->rid]].gaps.push_back(npass-1);
+                prev_end = rec->pos + rec->rlen;
+                this->calls[seqnames[rec->rid]].poss.push_back(rec->pos);
+                this->calls[seqnames[rec->rid]].haps.push_back(hap);
+                this->calls[seqnames[rec->rid]].types.push_back(type);
+                this->calls[seqnames[rec->rid]].refs.push_back(ref);
+                this->calls[seqnames[rec->rid]].alts.push_back(allele);
+                this->calls[seqnames[rec->rid]].gt_quals.push_back(gq[0]);
+                this->calls[seqnames[rec->rid]].var_quals.push_back(rec->qual);
             }
-
         }
+        this->calls[seqnames[rec->rid]].gaps.push_back(npass);
 
-        /* fprintf(stderr, "\nSequence names:"); */
-        /* for (int i = 0; i < nseq; i++) { */
-        /*     if (i % 5 == 0) fprintf(stderr, "\n  "); */
-        /*     fprintf(stderr, "[%2i] %s \t", i, seqnames[i]); */
-        /* } */
-        /* fprintf(stderr, "\n"); */
+        fprintf(stderr, "\nSequence names:");
+        for (int i = 0; i < nseq; i++) {
+            if (i % 5 == 0) fprintf(stderr, "\n  ");
+            fprintf(stderr, "[%2i] %s \t", i, seqnames[i]);
+        }
+        fprintf(stderr, "\n");
 
-        fprintf(stderr, "\nVCF contains %i records.\n", n);
+        fprintf(stderr, "\nVCF contains %i records, of which %i PASS all filters.\n", n, npass);
 
         fprintf(stderr, "\nGenotypes:\n");
         for (size_t i = 0; i < gt_strs.size(); i++) {
