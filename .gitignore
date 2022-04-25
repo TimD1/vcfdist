@@ -1,5 +1,7 @@
 .*.swp
 *.o
+*.txt
+*.nfs*
 vcfdist
 r10.4_chr20
 pfda-v2
@@ -8,5 +10,4 @@ scripts/img
 scripts/lib
 scripts/data
 scripts/results
-*.nfs*
 src/compare

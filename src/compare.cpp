@@ -225,7 +225,6 @@ public:
         if (!pass_found) {
             ERROR("failed to find PASS FILTER in VCF");
         }
-        fprintf(stderr, "VCF contains %i sample(s)\n", bcf_hdr_nsamples(hdr));
 
         // report names of all the sequences in the VCF file
         const char **seqnames = NULL;
@@ -351,14 +350,15 @@ public:
         }
         this->calls[seqnames[rec->rid]].gaps.push_back(npass);
 
+        fprintf(stderr, "VCF contains %i sample(s) and %i records, "
+            "of which %i PASS all filters.\n", bcf_hdr_nsamples(hdr), n, npass);
+
         fprintf(stderr, "\nSequence names:");
         for (int i = 0; i < nseq; i++) {
             if (i % 5 == 0) fprintf(stderr, "\n  ");
             fprintf(stderr, "[%2i] %s \t", i, seqnames[i]);
         }
         fprintf(stderr, "\n");
-
-        fprintf(stderr, "\nVCF contains %i records, of which %i PASS all filters.\n", n, npass);
 
         fprintf(stderr, "\nGenotypes:\n");
         for (size_t i = 0; i < gt_strs.size(); i++) {
