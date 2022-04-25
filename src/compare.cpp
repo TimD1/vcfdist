@@ -141,8 +141,7 @@ private:
 #define TYPE_INS 2
 #define TYPE_DEL 3
 #define TYPE_GRP 4
-#define TYPE_MNP 5
-std::vector< std::string > type_strs { "REF", "SUB", "INS", "DEL", "GRP", "MNP" };
+std::vector< std::string > type_strs { "REF", "SUB", "INS", "DEL", "GRP"};
 
 #define GT_DOT_DOT   0
 #define GT_REF_REF   1
@@ -168,24 +167,27 @@ struct variantCalls {
     std::vector<std::string> alts;  // variant alternate allele (always one)
     std::vector<float> var_quals;   // variant quality (0-60)
     std::vector<float> gt_quals;    // genotype quality (0-60)
-    /* std::vector<int> lens; */
+    std::vector<int> rlens;          // reference lengths
     /* std::vector<int> inss; */
     /* std::vector<int> dels; */
 };
 
 class vcfData {
 public:
-    vcfData(htsFile* vcf) {
+    vcfData(htsFile* vcf) : hapcalls(2) {
 
         // counters
-        int nseq   = 0;   // number of sequences
+        int nseq   = 0;                     // number of sequences
         std::vector< std::vector<int> > 
             ntypes(2, std::vector<int>(type_strs.size(), 0));
-        int n      = 0;   // total number of records in file
-        int npass  = 0;   // records which PASS all filters
+        int n      = 0;                     // total number of records in file
+        int npass  = 0;                     // records PASSing all filters
 
         // data
-        int prev_end = 0; // previous variant end position
+        std::vector<int> prev_end = {-args.gap*2, -args.gap*2};
+        std::unordered_map<int, bool> prev_rids;
+        int prev_rid = -1;
+        std::vector<int> var_idx  = {0, 0};   // indices per hap/contig
 
         // quality data for each call
         int ngq_arr = 0;
@@ -240,8 +242,9 @@ public:
             goto error1;
         }
         for(int i = 0; i < nseq; i++) {
+            this->hapcalls[0][seqnames[i]] = variantCalls();
+            this->hapcalls[1][seqnames[i]] = variantCalls();
             this->calls[seqnames[i]] = variantCalls();
-            this->calls[seqnames[i]].gaps.push_back(0);
         }
 
         // struct for storing each record
@@ -253,6 +256,18 @@ public:
         
         while (bcf_read(vcf, hdr, rec) == 0) {
 
+            // new contig!
+            if (rec->rid != prev_rid) {
+                prev_rid = rec->rid;
+                if (prev_rids.find(rec->rid) != prev_rids.end()) {
+                    ERROR("unsorted VCF, contig %s already parsed", 
+                            seqnames[rec->rid]);
+                } else {
+                    INFO("contig %s", seqnames[rec->rid]);
+                    var_idx = {0, 0};
+                }
+            }
+
             // unpack info (populates rec->d allele info)
             bcf_unpack(rec, BCF_UN_ALL);
             n++;
@@ -263,7 +278,6 @@ public:
                 if (rec->d.flt[i] == pass_filter_id) pass = true;
             }
             if (!pass) continue;
-            npass++;
 
             // parse GQ in either INT or FLOAT format, and GT
             if (int_qual) {
@@ -316,48 +330,94 @@ public:
 
                 // get ref and allele, skipping ref calls
                 std::string ref = rec->d.allele[0];
-                int allele_idx = bcf_gt_allele(gt[hap]);
-                if (allele_idx < 0) allele_idx = hap; // set 0|1 if .|.
-                if (allele_idx == 0) continue; // nothing to do if reference
-                std::string allele = rec->d.allele[allele_idx];
+                int alt_idx = bcf_gt_allele(gt[hap]);
+                if (alt_idx < 0) alt_idx = hap; // set 0|1 if .|.
+                if (alt_idx == 0) continue; // nothing to do if reference
+                std::string alt = rec->d.allele[alt_idx];
                 // skip spanning deletion
-                if (allele == "*") { ntypes[hap][TYPE_REF]++; continue; }
+                if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
 
                 // determine variant type
-                int indel_len = allele.size() - ref.size();
+                int indel_len = alt.size() - ref.size();
                 int type = -1;
+                int pos = rec->pos;
+                size_t matches = 0;
                 if (indel_len > 0) { // insertion
-                    type = TYPE_INS;
+                    while (matches < ref.size() && ref[matches] == alt[matches]) matches++;
+                    if (matches == ref.size()) type = TYPE_INS; else type = TYPE_GRP;
+                    pos += matches;
+                    alt = alt.substr(matches);
+                    ref = ref.substr(matches);
                 } else if (indel_len < 0) { // deletion
-                    type = TYPE_DEL;
+                    while (matches < alt.size() && ref[matches] == alt[matches]) matches++;
+                    if (matches == alt.size()) type = TYPE_DEL; else type = TYPE_GRP;
+                    pos += matches;
+                    ref = ref.substr(matches);
+                    alt = alt.substr(matches);
                 } else { // substitution
                     if (ref.size() == 1) type = TYPE_SUB;
                     else {
-                        if (std::string(ref.data()+1) == std::string(allele.data()+1)){
+                        if (ref.substr(1) == alt.substr(1)){
                             type = TYPE_SUB;
-                            ref = ref[0]; allele = allele[0]; // chop off matches
+                            ref = ref[0]; alt = alt[0]; // chop off matches
                         }
-                        else type = TYPE_MNP;
+                        else type = TYPE_GRP;
                     }
                 }
-                ntypes[hap][type]++;
 
-                if (rec->pos - prev_end > 50)
-                    this->calls[seqnames[rec->rid]].gaps.push_back(npass-1);
-                prev_end = rec->pos + rec->rlen;
-                this->calls[seqnames[rec->rid]].poss.push_back(rec->pos);
+                int rlen;
+                switch (type) {
+                    case TYPE_INS:
+                        rlen = 0; break;
+                    case TYPE_SUB:
+                        rlen = 1; break;
+                    case TYPE_DEL:
+                    case TYPE_GRP:
+                        rlen = ref.size(); break;
+                    default:
+                        ERROR("unexpected variant type (%d)", type);
+                        break;
+                }
+
+                // add to all calls info
+                if (pos - std::max(prev_end[0], prev_end[1]) > args.gap)
+                    this->calls[seqnames[rec->rid]].gaps
+                        .push_back(var_idx[0]+var_idx[1]);
+                this->calls[seqnames[rec->rid]].poss.push_back(pos);
+                this->calls[seqnames[rec->rid]].rlens.push_back(rlen);
                 this->calls[seqnames[rec->rid]].haps.push_back(hap);
                 this->calls[seqnames[rec->rid]].types.push_back(type);
                 this->calls[seqnames[rec->rid]].refs.push_back(ref);
-                this->calls[seqnames[rec->rid]].alts.push_back(allele);
+                this->calls[seqnames[rec->rid]].alts.push_back(alt);
                 this->calls[seqnames[rec->rid]].gt_quals.push_back(gq[0]);
                 this->calls[seqnames[rec->rid]].var_quals.push_back(rec->qual);
+
+                // add to haplotype-specific calls info
+                if (pos - prev_end[hap] > args.gap)
+                    this->hapcalls[hap][seqnames[rec->rid]].gaps
+                        .push_back(var_idx[hap]);
+                this->hapcalls[hap][seqnames[rec->rid]].poss.push_back(pos);
+                this->hapcalls[hap][seqnames[rec->rid]].rlens.push_back(rlen);
+                this->hapcalls[hap][seqnames[rec->rid]].haps.push_back(hap);
+                this->hapcalls[hap][seqnames[rec->rid]].types.push_back(type);
+                this->hapcalls[hap][seqnames[rec->rid]].refs.push_back(ref);
+                this->hapcalls[hap][seqnames[rec->rid]].alts.push_back(alt);
+                this->hapcalls[hap][seqnames[rec->rid]].gt_quals.push_back(gq[0]);
+                this->hapcalls[hap][seqnames[rec->rid]].var_quals.push_back(rec->qual);
+
+                npass++;
+                ntypes[hap][type]++;
+                var_idx[hap]++;
+                prev_end[hap] = pos + rlen;
             }
         }
-        this->calls[seqnames[rec->rid]].gaps.push_back(npass);
+        this->calls[seqnames[rec->rid]].gaps.push_back(var_idx[0]+var_idx[1]);
+        this->hapcalls[0][seqnames[rec->rid]].gaps.push_back(var_idx[0]);
+        this->hapcalls[1][seqnames[rec->rid]].gaps.push_back(var_idx[1]);
 
         fprintf(stderr, "VCF contains %i sample(s) and %i records, "
-            "of which %i PASS all filters.\n", bcf_hdr_nsamples(hdr), n, npass);
+            "of which %i PASS all filters.\n", 
+            bcf_hdr_nsamples(hdr), n, npass);
 
         fprintf(stderr, "\nSequence names:");
         for (int i = 0; i < nseq; i++) {
@@ -380,8 +440,19 @@ public:
         }
 
         fprintf(stderr, "\nGroups:\n");
-        fprintf(stderr, "%i groups total\n", 
-                int(this->calls[seqnames[rec->rid]].gaps.size()));
+        for(int i = 0; i < nseq; i++) {
+            if (this->calls[seqnames[i]].poss.size())  {
+                fprintf(stderr, "  Contig %s: %lu variants, %lu groups total\n", 
+                        seqnames[i],
+                        this->calls[seqnames[i]].poss.size(),
+                        this->calls[seqnames[i]].gaps.size());
+                for (int h = 0; h < 2; h++) {
+                    fprintf(stderr, "    Haplotype %i: %lu variants, %lu groups total\n", h+1,
+                            this->hapcalls[h][seqnames[i]].poss.size(),
+                            this->hapcalls[h][seqnames[i]].gaps.size());
+                }
+            }
+        }
 
         free(gq);
         free(fgq);
@@ -399,8 +470,8 @@ error1:
         return;
 
     }
-private:
     std::unordered_map<std::string, variantCalls> calls;
+    std::vector< std::unordered_map<std::string, variantCalls> > hapcalls;
 };
 
 /* --------------------------------------------------------------------------- */
@@ -504,6 +575,67 @@ int parse_args(
 }
 
 /* --------------------------------------------------------------------------- */
+
+int ed_align(vcfData* & vcf, htsFile* ref_fasta) {
+
+    // iterate over each haplotype
+    for (int h = 0; h < 2; h++) {
+
+        // iterate over each contig
+        for (auto itr = vcf->hapcalls[h].begin(); 
+                itr != vcf->hapcalls[h].end(); itr++) {
+            std::string ctg = itr->first;
+            variantCalls vars = itr->second;
+            if (vars.poss.size() == 0) continue;
+            fprintf(stderr, "\nhap %i ctg %s: %lu variants\n", h, 
+                    ctg.data(), vars.poss.size());
+
+            // iterate over each group of variants
+            for (size_t i = 0; i < vars.gaps.size()-1; i++) {
+                int beg_idx = vars.gaps[i];
+                int end_idx = vars.gaps[i+1];
+                int beg = vars.poss[beg_idx]-1;
+                int end = vars.poss[end_idx-1] + vars.rlens[end_idx-1]+1;
+                int subs = 0;
+                int inss = 0;
+                int dels = 0;
+                int grps = 0;
+                const char* ref;
+                const char* alt;
+
+                // iterate over variants, summing edit distance
+                for (int j = beg_idx; j < end_idx; j++) {
+                    switch (vars.types[j]) {
+                        case TYPE_SUB: subs++; break;
+                        case TYPE_INS: inss += vars.alts[j].size(); break;
+                        case TYPE_DEL: dels += vars.refs[j].size(); break;
+                        case TYPE_GRP: grps += std::max(vars.refs[j].size(), 
+                                               vars.alts[j].size()); break;
+                        default: ERROR("unexpected type") std::exit(1); break;
+                    }
+                }
+
+                /* if (grps > 0) { */
+                if (end_idx-beg_idx > 1 && end-beg < 50) {
+                    fprintf(stderr, "  group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
+                            int(i), end_idx-beg_idx, end-beg, beg, end,
+                            subs*2 + inss + dels + grps, subs, inss, dels, grps);
+                    for (int j = beg_idx; j < end_idx; j++) {
+                        if (vars.refs[j].size() == 0) ref = "-"; else ref = vars.refs[j].data();
+                        if (vars.alts[j].size() == 0) alt = "-"; else alt = vars.alts[j].data();
+                        fprintf(stderr, "    %s:%i %s\t%s\t%s\n", ctg.data(), vars.poss[j],
+                                type_strs[vars.types[j]].data(), ref, alt);
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+
+}
+
+/* --------------------------------------------------------------------------- */
  
 int main(int argc, char **argv) {
 
@@ -516,16 +648,17 @@ int main(int argc, char **argv) {
             ref_fasta, calls_vcf, truth_vcf, bed, out_dir);
     if (exit) std::exit(EXIT_SUCCESS);
 
-    fprintf(stderr, "CALLS:\n");
-    vcfData * calls = new vcfData(calls_vcf);
+    /* fprintf(stderr, "CALLS:\n"); */
+    /* vcfData * calls = new vcfData(calls_vcf); */
+    /* ed_align(calls, ref_fasta); */
+    /* delete calls; */
 
-    /* fprintf(stderr, "\n\nTRUTH:\n"); */
-    /* vcfData * truth = new vcfData(truth_vcf); */
-
+    fprintf(stderr, "\n\nTRUTH:\n");
+    vcfData * truth = new vcfData(truth_vcf);
+    ed_align(truth, ref_fasta);
+    delete truth;
         
     delete bed;
-    delete calls;
-    /* delete truth; */
 
     return EXIT_SUCCESS;
 }
