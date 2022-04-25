@@ -19,6 +19,11 @@ void print_version() {
     printf("%s v%s\n", PROGRAM.data(), VERSION.data());
 }
 
+struct Arguments {
+    std::string calls, truth, ref, bed, out;
+    int gap = 50;
+} args;
+
 /* --------------------------------------------------------------------------- */
 
 #define WARN(f_, ...)                                           \
@@ -71,6 +76,7 @@ void print_usage() {
     printf("Options:\n");
     printf("  -b FILE\tBED file containing regions to evaluate\n");
     printf("  -o DIR\toutput directory\n");
+    printf("  -g GAP size for independent groups [50]\n");
     printf("  -h\t\tshow this help message\n");
     printf("  -v\t\tshow version number\n");
 }
@@ -373,6 +379,10 @@ public:
             }
         }
 
+        fprintf(stderr, "\nGroups:\n");
+        fprintf(stderr, "%i groups total\n", 
+                int(this->calls[seqnames[rec->rid]].gaps.size()));
+
         free(gq);
         free(fgq);
         free(gt);
@@ -423,18 +433,21 @@ int parse_args(
         ERROR("failed to open calls_vcf file '%s'.", calls_vcf_fn.data());
         return 1;
     }
+    args.calls = calls_vcf_fn;
     truth_vcf_fn = std::string(argv[2]);
     truth_vcf = bcf_open(truth_vcf_fn.data(), "r");
     if (truth_vcf == NULL) {
         ERROR("failed to open truth_vcf file '%s'.", truth_vcf_fn.data());
         return 1;
     }
+    args.truth = truth_vcf_fn;
     ref_fasta_fn = std::string(argv[3]);
     ref_fasta = bcf_open(ref_fasta_fn.data(), "r");
     if (ref_fasta == NULL) {
         ERROR("failed to open ref_fasta file '%s'.", ref_fasta_fn.data());
         return 1;
     }
+    args.ref = ref_fasta_fn;
 
     /* handle optional arguments */
     for (int i = 4; i < argc;) {
@@ -445,6 +458,7 @@ int parse_args(
                 return 1;
             }
             try {
+                args.bed = std::string(argv[i]);
                 bed = new bedData(std::string(argv[i++]));
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
@@ -458,6 +472,7 @@ int parse_args(
                 return 1;
             }
             try {
+                args.out = argv[i];
                 out_dir = std::string(argv[i++]);
                 std::filesystem::create_directory(out_dir);
             } catch (const std::exception & e) {
@@ -474,6 +489,10 @@ int parse_args(
             i++;
             print_version();
             return 1;
+        }
+        else if (std::string(argv[i]) == "-g") {
+            i++;
+            args.gap = std::stoi(argv[i++]);
         }
         else {
             ERROR("unexpected option '%s'.", argv[i]);
@@ -492,19 +511,21 @@ int main(int argc, char **argv) {
     htsFile *ref_fasta, *calls_vcf, *truth_vcf;
     bedData * bed;
     std::string out_dir;
+    Arguments args;
     int exit = parse_args(argc, argv, 
             ref_fasta, calls_vcf, truth_vcf, bed, out_dir);
     if (exit) std::exit(EXIT_SUCCESS);
 
     fprintf(stderr, "CALLS:\n");
     vcfData * calls = new vcfData(calls_vcf);
-    fprintf(stderr, "\n\nTRUTH:\n");
-    vcfData * truth = new vcfData(truth_vcf);
+
+    /* fprintf(stderr, "\n\nTRUTH:\n"); */
+    /* vcfData * truth = new vcfData(truth_vcf); */
 
         
     delete bed;
     delete calls;
-    delete truth;
+    /* delete truth; */
 
     return EXIT_SUCCESS;
 }
