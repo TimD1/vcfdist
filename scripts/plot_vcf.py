@@ -4,9 +4,12 @@ import numpy as np
 
 vcf_filename = "../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz"
 vcf_file = pysam.VariantFile(vcf_filename, 'r')
+fasta_filename = "/x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
+fasta_file = pysam.FastaFile(fasta_filename)
 
 prev_contig = prev_start = prev_stop = None
 curr_contig = curr_start = curr_stop = None
+subs = 0
 distances = []            # between each variant
 variant_region_bases = [] # bases in region
 variant_region_sizes = [] # variants in region
@@ -36,6 +39,7 @@ _2_1 = 5
 
 def get_type(phasing, alleles):
     ''' Determine SUB/INS/DEL from phasing and alleles. '''
+    global subs
 
     if phasing == _0_0:
         print(f"ERROR, unexpected phasing: {phasings[phasing]} {alleles}")
@@ -48,18 +52,37 @@ def get_type(phasing, alleles):
         indel_len1 = len(alleles[1]) - len(alleles[0])
         indel_len2 = len(alleles[2]) - len(alleles[0])
         if indel_len1 < 0 and indel_len2 < 0:
+            deletion_sizes.append(-indel_len1)
+            deletion_sizes.append(-indel_len2)
             return DEL_DEL
-        elif indel_len1 > 0 and indel_len2 < 0 or \
-             indel_len1 < 0 and indel_len2 > 0:
+        elif indel_len1 > 0 and indel_len2 < 0:
+            deletion_sizes.append(-indel_len2)
+            insertion_sizes.append(indel_len1)
+            return INS_DEL
+        elif indel_len1 < 0 and indel_len2 > 0:
+            deletion_sizes.append(-indel_len1)
+            insertion_sizes.append(indel_len2)
             return INS_DEL
         elif indel_len1 > 0 and indel_len2 > 0:
+            insertion_sizes.append(indel_len1)
+            insertion_sizes.append(indel_len2)
             return INS_INS
-        elif indel_len1 == 0 and indel_len2 > 0 or \
-             indel_len2 == 0 and indel_len1 > 0:
-                 return SUB_INS
-        elif indel_len1 == 0 and indel_len2 < 0 or \
-             indel_len2 == 0 and indel_len1 < 0:
-                 return SUB_DEL
+        elif indel_len1 == 0 and indel_len2 > 0:
+             subs += 1
+             insertion_sizes.append(indel_len2)
+             return SUB_INS
+        elif indel_len2 == 0 and indel_len1 > 0:
+             insertion_sizes.append(indel_len1)
+             subs += 1
+             return SUB_INS
+        elif indel_len1 == 0 and indel_len2 < 0:
+             deletion_sizes.append(-indel_len2)
+             subs += 1
+             return SUB_DEL
+        elif indel_len2 == 0 and indel_len1 < 0:
+             deletion_sizes.append(-indel_len1)
+             subs += 1
+             return SUB_DEL
         else:
             if len(alleles[0]) != 1:
                 print(f"ERROR, expected SUB: {phasings[phasing]} {alleles}")
@@ -71,6 +94,7 @@ def get_type(phasing, alleles):
                 print(f"ERROR, expected different SUBs: {phasings[phasing]} {alleles}")
                 exit()
 
+            subs += 2
             return SUB_SUB
 
     else: # single ALT
@@ -86,6 +110,7 @@ def get_type(phasing, alleles):
             insertion_sizes.append(indel_len)
             return INS
         else:
+            subs += 1
             if len(alleles[0]) != 1:
                 print(f"ERROR, expected SUB: {phasings[phasing]} {alleles}")
                 exit()
@@ -236,3 +261,33 @@ plt.yscale('log')
 plt.ylabel('Counts')
 plt.xlabel('Phasing')
 plt.savefig("img/variant_genotypes.png")
+
+bases = 0
+for ctg in vcf_file.header.contigs:
+    if ctg not in fasta_file.references:
+        print(f"WARNING: contig '{ctg}' present in '{cfg.args.vcf}', but"
+              f" not '{cfg.args.ref}', skipping...")
+    else:
+        l = fasta_file.get_reference_length(ctg)
+        bases += l
+bases *= 2
+
+print("total bases:", bases)
+print("subs:", subs)
+print("inss:", [insertion_sizes.count(i) for i in range(1,50)])
+print("dels:", [deletion_sizes.count(i) for i in range(1,50)])
+print("sub prob:", -np.log(subs/bases))
+print("ins probs:", [-np.log(insertion_sizes.count(i)/bases) for i in range(1,50)])
+print("del probs:", [-np.log(deletion_sizes.count(i)/bases) for i in range(1,50)])
+
+plt.figure()
+plt.plot(range(1,50), [np.log(insertion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)])
+plt.plot(range(1,50), [np.log(deletion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)])
+x = list(range(1,50)) + list(range(1,50))
+y = [np.log(deletion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)] + \
+    [np.log(insertion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)]
+a,b,c = np.polyfit(x, y, 2)
+print(f"{a}x**2+{b}x+{c}")
+plt.plot(range(1,50), [a*x**2 + b*x + c for x in range(1,50)])
+plt.legend(["insertions", "deletions", "best-fit"])
+plt.savefig("img/indel_gap_scores.png")
