@@ -10,8 +10,11 @@
 #include <sstream>
 #include <sys/time.h>
 
+// zlib is required for kseq
+#include "zlib.h"
 #include "vcf.h"
-#include "vcfutils.h"
+#include "kseq.h"
+KSEQ_INIT(int, read);
 
 std::string VERSION = "0.0.1";
 std::string PROGRAM = "vcfdist::compare";
@@ -23,6 +26,13 @@ struct Arguments {
     std::string calls, truth, ref, bed, out;
     int gap = 50;
 } args;
+
+/* --------------------------------------------------------------------------- */
+
+std::string GREEN(std::string str) { return "\033[32m" + str + "\033[0m"; }
+std::string GREEN_STR(int i) { return "\033[32m" + std::to_string(i) + "\033[0m"; }
+std::string RED(std::string str) { return "\033[31m" + str + "\033[0m"; }
+std::string RED_STR(int i) { return "\033[31m" + std::to_string(i) + "\033[0m"; }
 
 /* --------------------------------------------------------------------------- */
 
@@ -263,7 +273,7 @@ public:
                     ERROR("unsorted VCF, contig %s already parsed", 
                             seqnames[rec->rid]);
                 } else {
-                    INFO("contig %s", seqnames[rec->rid]);
+                    INFO("parsing contig %s", seqnames[rec->rid]);
                     var_idx = {0, 0};
                 }
             }
@@ -338,22 +348,30 @@ public:
                 if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
 
                 // determine variant type
-                int indel_len = alt.size() - ref.size();
                 int type = -1;
                 int pos = rec->pos;
-                size_t matches = 0;
-                if (indel_len > 0) { // insertion
-                    while (matches < ref.size() && ref[matches] == alt[matches]) matches++;
-                    if (matches == ref.size()) type = TYPE_INS; else type = TYPE_GRP;
-                    pos += matches;
-                    alt = alt.substr(matches);
-                    ref = ref.substr(matches);
-                } else if (indel_len < 0) { // deletion
-                    while (matches < alt.size() && ref[matches] == alt[matches]) matches++;
-                    if (matches == alt.size()) type = TYPE_DEL; else type = TYPE_GRP;
-                    pos += matches;
-                    ref = ref.substr(matches);
-                    alt = alt.substr(matches);
+                int lm = 0; // match from left->right (trim prefix)
+                int rm = -1;// match from right->left (simplify complex variants GRP->INDEL)
+                int reflen = int(ref.size());
+                int altlen = int(alt.size());
+                if (altlen-reflen > 0) { // insertion
+                    while (lm < reflen && ref[lm] == alt[lm]) lm++;
+                    while (reflen+rm >= lm && 
+                            ref[reflen+rm] == alt[altlen+rm]) rm--;
+                    if (lm > reflen+rm) type = TYPE_INS; else type = TYPE_GRP;
+                    pos += lm;
+                    alt = alt.substr(lm, altlen+rm-lm+2);
+                    ref = ref.substr(lm, reflen+rm-lm+2);
+
+                } else if (altlen-reflen < 0) { // deletion
+                    while (lm < altlen && ref[lm] == alt[lm]) lm++;
+                    while (altlen+rm >= lm && 
+                            ref[reflen+rm] == alt[altlen+rm]) rm--;
+                    if (lm > altlen+rm) type = TYPE_DEL; else type = TYPE_GRP;
+                    pos += lm;
+                    alt = alt.substr(lm, altlen+rm-lm+2);
+                    ref = ref.substr(lm, reflen+rm-lm+2);
+
                 } else { // substitution
                     if (ref.size() == 1) type = TYPE_SUB;
                     else {
@@ -364,6 +382,12 @@ public:
                         else type = TYPE_GRP;
                     }
                 }
+
+                /* if (altlen > 1 && reflen > 1) { // debug print complex vars */
+                /*     fprintf(stderr, "\nORIG REF: %s\n NEW REF: %s\n" */
+                /*             "ORIG ALT: %s\n NEW ALT: %s\n", rec->d.allele[0], */
+                /*             ref.data(), rec->d.allele[alt_idx], alt.data()); */
+                /* } */
 
                 int rlen;
                 switch (type) {
@@ -479,7 +503,7 @@ error1:
 int parse_args(
         int argc, 
         char ** argv, 
-        htsFile *& ref_fasta, 
+        std::unordered_map<std::string, std::string> & ref_fasta, 
         htsFile *& calls_vcf, 
         htsFile *& truth_vcf, 
         bedData *& bed,
@@ -512,13 +536,20 @@ int parse_args(
         return 1;
     }
     args.truth = truth_vcf_fn;
+
+    // load reference FASTA
     ref_fasta_fn = std::string(argv[3]);
-    ref_fasta = bcf_open(ref_fasta_fn.data(), "r");
-    if (ref_fasta == NULL) {
+    INFO("loading reference FASTA '%s'", ref_fasta_fn.data());
+    args.ref = ref_fasta_fn;
+    FILE* ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
+    if (ref_fasta_fp == NULL) {
         ERROR("failed to open ref_fasta file '%s'.", ref_fasta_fn.data());
         return 1;
     }
-    args.ref = ref_fasta_fn;
+    kseq_t * seq = kseq_init(fileno(ref_fasta_fp));
+    while (kseq_read(seq) >= 0 ) ref_fasta[seq->name.s] = seq->seq.s;
+    kseq_destroy(seq);
+    fclose(ref_fasta_fp);
 
     /* handle optional arguments */
     for (int i = 4; i < argc;) {
@@ -576,7 +607,10 @@ int parse_args(
 
 /* --------------------------------------------------------------------------- */
 
-int ed_align(vcfData* & vcf, htsFile* ref_fasta) {
+int ed_align(
+        vcfData* & vcf, 
+        const std::unordered_map <std::string, std::string> & ref_fasta
+) {
 
     // iterate over each haplotype
     for (int h = 0; h < 2; h++) {
@@ -609,23 +643,71 @@ int ed_align(vcfData* & vcf, htsFile* ref_fasta) {
                         case TYPE_SUB: subs++; break;
                         case TYPE_INS: inss += vars.alts[j].size(); break;
                         case TYPE_DEL: dels += vars.refs[j].size(); break;
-                        case TYPE_GRP: grps += std::max(vars.refs[j].size(), 
-                                               vars.alts[j].size()); break;
+                        case TYPE_GRP: grps += vars.refs[j].size() +
+                                               vars.alts[j].size(); break;
                         default: ERROR("unexpected type") std::exit(1); break;
                     }
                 }
 
+                // for now, just look at small examples
+                if (end_idx-beg_idx > 1 && end-beg < 30) {
                 /* if (grps > 0) { */
-                if (end_idx-beg_idx > 1 && end-beg < 50) {
-                    fprintf(stderr, "  group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
+
+                    // print summary
+                    fprintf(stderr, "\n  Group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
                             int(i), end_idx-beg_idx, end-beg, beg, end,
                             subs*2 + inss + dels + grps, subs, inss, dels, grps);
                     for (int j = beg_idx; j < end_idx; j++) {
-                        if (vars.refs[j].size() == 0) ref = "-"; else ref = vars.refs[j].data();
-                        if (vars.alts[j].size() == 0) alt = "-"; else alt = vars.alts[j].data();
-                        fprintf(stderr, "    %s:%i %s\t%s\t%s\n", ctg.data(), vars.poss[j],
+                        if (vars.refs[j].size() == 0) ref = "-"; 
+                        else ref = vars.refs[j].data();
+                        if (vars.alts[j].size() == 0) alt = "-"; 
+                        else alt = vars.alts[j].data();
+                        fprintf(stderr, "    %s:%i %s\t%s\t%s\n", 
+                                ctg.data(), vars.poss[j],
                                 type_strs[vars.types[j]].data(), ref, alt);
                     }
+
+
+                    int j = beg_idx;
+                    std::string ref_str = "";
+                    std::string alt_str = "";
+                    for (int ref_pos = beg; ref_pos < end;) {
+                        if (ref_pos == vars.poss[j]) { // in variant
+                            switch (vars.types[j]) {
+                                case TYPE_INS:
+                                    alt_str += GREEN(vars.alts[j]);
+                                    ref_str += std::string(vars.alts[j].size(), ' ');
+                                    break;
+                                case TYPE_DEL:
+                                    alt_str += std::string(vars.refs[j].size(), ' ');
+                                    ref_str += RED(vars.refs[j]);
+                                    ref_pos += vars.refs[j].size();
+                                    break;
+                                case TYPE_SUB:
+                                    alt_str += " " + GREEN(vars.alts[j]);
+                                    ref_str += RED(vars.refs[j]) + " ";
+                                    ref_pos++;
+                                    break;
+                                case TYPE_GRP:
+                                    alt_str += std::string(vars.refs[j].size(), ' ') 
+                                        + GREEN(vars.alts[j]);
+                                    ref_str += RED(vars.refs[j]) + std::string(
+                                            vars.alts[j].size(), ' ');
+                                    ref_pos += vars.refs[j].size();
+                                    break;
+                            }
+                            j++; // next variant
+                        }
+                        else { // match
+                            ref_str += ref_fasta.at(ctg)[ref_pos];
+                            alt_str += ref_fasta.at(ctg)[ref_pos];
+                            ref_pos++;
+                        }
+                    }
+                    fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
+                            ref_str.data(), alt_str.data());
+
+                    // do alignment
                 }
             }
         }
@@ -640,7 +722,8 @@ int ed_align(vcfData* & vcf, htsFile* ref_fasta) {
 int main(int argc, char **argv) {
 
     // parse and store command-line args
-    htsFile *ref_fasta, *calls_vcf, *truth_vcf;
+    htsFile *calls_vcf, *truth_vcf;
+    std::unordered_map<std::string,std::string> ref_fasta;
     bedData * bed;
     std::string out_dir;
     Arguments args;
@@ -648,16 +731,16 @@ int main(int argc, char **argv) {
             ref_fasta, calls_vcf, truth_vcf, bed, out_dir);
     if (exit) std::exit(EXIT_SUCCESS);
 
-    /* fprintf(stderr, "CALLS:\n"); */
-    /* vcfData * calls = new vcfData(calls_vcf); */
-    /* ed_align(calls, ref_fasta); */
-    /* delete calls; */
+    fprintf(stderr, "CALLS:\n");
+    vcfData * calls = new vcfData(calls_vcf);
+    ed_align(calls, ref_fasta);
+    delete calls;
 
-    fprintf(stderr, "\n\nTRUTH:\n");
-    vcfData * truth = new vcfData(truth_vcf);
-    ed_align(truth, ref_fasta);
-    delete truth;
-        
+    /* fprintf(stderr, "\n\nTRUTH:\n"); */
+    /* vcfData * truth = new vcfData(truth_vcf); */
+    /* ed_align(truth, ref_fasta); */
+    /* delete truth; */
+
     delete bed;
 
     return EXIT_SUCCESS;
