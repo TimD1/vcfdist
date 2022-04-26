@@ -382,7 +382,10 @@ public:
                     ref = ref.substr(lm, reflen+rm-lm+2);
 
                 } else { // substitution
-                    if (ref.size() == 1) type = TYPE_SUB;
+                    if (ref.size() == 1) {
+                        type = (ref[0] == alt[0] ? TYPE_REF : TYPE_SUB);
+                        if (type == TYPE_REF) continue;
+                    }
                     else {
                         if (ref.substr(1) == alt.substr(1)){
                             type = TYPE_SUB;
@@ -397,6 +400,7 @@ public:
                     case TYPE_INS:
                         rlen = 0; break;
                     case TYPE_SUB:
+                    case TYPE_REF:
                         rlen = 1; break;
                     case TYPE_DEL:
                     case TYPE_GRP:
@@ -655,13 +659,15 @@ int ed_align(
                         case TYPE_SUB: subs++; break;
                         case TYPE_INS: inss += vars.alts[var].size(); break;
                         case TYPE_DEL: dels += vars.refs[var].size(); break;
-                        default: ERROR("unexpected type") std::exit(1); break;
+                        case TYPE_GRP: grps += vars.alts[var].size() + 
+                                       vars.refs[var].size(); break;
+                        default: ERROR("unexpected variant type (%i)", vars.types[var]) 
+                                 std::exit(1); break;
                     }
                 }
 
                 // for now, just look at small examples
                 if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) {
-                /* if (grps > 0) { */
 
                     // print summary
                     fprintf(stderr, "\n  Group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
@@ -710,9 +716,15 @@ int ed_align(
                             var++; // next variant
                         }
                         else { // match
-                            ref_str += ref_fasta.at(ctg)[ref_pos];
-                            alt_str += ref_fasta.at(ctg)[ref_pos];
-                            ref_pos++;
+                            try {
+                                ref_str += ref_fasta.at(ctg)[ref_pos];
+                                alt_str += ref_fasta.at(ctg)[ref_pos];
+                                ref_pos++;
+                            } catch (const std::out_of_range & e) {
+                                ERROR("contig %s not present in reference FASTA",
+                                        ctg.data());
+                                exit(1);
+                            }
                         }
                     }
                     fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
@@ -733,6 +745,8 @@ int ed_align(
                     /*                 reflen - prev_diags[d], altlen) - 1; */
                     /*         int offset = prev_offsets[d]; */
                     /*         // increment k as much as possible */
+                    /*         if (prev_diags[d] == 0) { */
+                    /*         } */
                     /*         prev_offsets[d] = offset; */
                     /*     } */
 
@@ -773,15 +787,15 @@ int main(int argc, char **argv) {
             ref_fasta, calls_vcf, truth_vcf, bed, out_dir);
     if (exit) std::exit(EXIT_SUCCESS);
 
-    fprintf(stderr, "CALLS:\n");
-    vcfData * calls = new vcfData(calls_vcf);
-    ed_align(calls, ref_fasta);
-    delete calls;
+    /* fprintf(stderr, "CALLS:\n"); */
+    /* vcfData * calls = new vcfData(calls_vcf); */
+    /* ed_align(calls, ref_fasta); */
+    /* delete calls; */
 
-    /* fprintf(stderr, "\n\nTRUTH:\n"); */
-    /* vcfData * truth = new vcfData(truth_vcf); */
-    /* ed_align(truth, ref_fasta); */
-    /* delete truth; */
+    fprintf(stderr, "\n\nTRUTH:\n");
+    vcfData * truth = new vcfData(truth_vcf);
+    ed_align(truth, ref_fasta);
+    delete truth;
 
     delete bed;
 
