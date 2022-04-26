@@ -177,9 +177,9 @@ struct variantCalls {
     std::vector<std::string> alts;  // variant alternate allele (always one)
     std::vector<float> var_quals;   // variant quality (0-60)
     std::vector<float> gt_quals;    // genotype quality (0-60)
-    std::vector<int> rlens;          // reference lengths
-    /* std::vector<int> inss; */
-    /* std::vector<int> dels; */
+    std::vector<int> rlens;         // reference lengths
+    std::vector< std::vector<int> > offs; 
+                                    // offsets for each hap within group
 };
 
 class vcfData {
@@ -197,7 +197,13 @@ public:
         std::vector<int> prev_end = {-args.gap*2, -args.gap*2};
         std::unordered_map<int, bool> prev_rids;
         int prev_rid = -1;
-        std::vector<int> var_idx  = {0, 0};   // indices per hap/contig
+        std::string seq;
+
+        // need two versions, since grouping is different if hap only vs both
+        int var_idx = 0;                       // variant indices
+        std::vector<int> hap_var_idx = {0, 0}; // indices per hap/contig
+        std::vector<int> offs = {0, 0};        // offsets in group after INDELs
+        std::vector<int> hap_offs = {0, 0};    // offsets in group after INDELs
 
         // quality data for each call
         int ngq_arr = 0;
@@ -254,7 +260,10 @@ public:
         for(int i = 0; i < nseq; i++) {
             this->hapcalls[0][seqnames[i]] = variantCalls();
             this->hapcalls[1][seqnames[i]] = variantCalls();
+            this->hapcalls[0][seqnames[i]].offs.resize(2);
+            this->hapcalls[1][seqnames[i]].offs.resize(2);
             this->calls[seqnames[i]] = variantCalls();
+            this->calls[seqnames[i]].offs.resize(2);
         }
 
         // struct for storing each record
@@ -267,14 +276,15 @@ public:
         while (bcf_read(vcf, hdr, rec) == 0) {
 
             // new contig!
+            seq = seqnames[rec->rid];
             if (rec->rid != prev_rid) {
                 prev_rid = rec->rid;
                 if (prev_rids.find(rec->rid) != prev_rids.end()) {
-                    ERROR("unsorted VCF, contig %s already parsed", 
-                            seqnames[rec->rid]);
+                    ERROR("unsorted VCF, contig %s already parsed", seq.data());
                 } else {
-                    INFO("parsing contig %s", seqnames[rec->rid]);
-                    var_idx = {0, 0};
+                    INFO("parsing contig %s", seq.data());
+                    hap_var_idx = {0, 0};
+                    var_idx = 0;
                 }
             }
 
@@ -304,15 +314,14 @@ public:
             }
             if ( ngq == -3 ) {
                 if (!gq_warn) {
-                    WARN("no GQ tag at %s:%i", seqnames[rec->rid], int(rec->pos));
+                    WARN("no GQ tag at %s:%lu", seq.data(), rec->pos);
                     gq_warn = true; // only warn once
                 }
                 gq[0] = 0;
             }
             ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
             if (ngt < 0) {
-                ERROR("failed to read GT at %s:%i\n", 
-                        seqnames[rec->rid], int(rec->pos));
+                ERROR("failed to read GT at %s:%lu\n", seq.data(), rec->pos);
             }
 
             // parse genotype info
@@ -383,12 +392,6 @@ public:
                     }
                 }
 
-                /* if (altlen > 1 && reflen > 1) { // debug print complex vars */
-                /*     fprintf(stderr, "\nORIG REF: %s\n NEW REF: %s\n" */
-                /*             "ORIG ALT: %s\n NEW ALT: %s\n", rec->d.allele[0], */
-                /*             ref.data(), rec->d.allele[alt_idx], alt.data()); */
-                /* } */
-
                 int rlen;
                 switch (type) {
                     case TYPE_INS:
@@ -404,40 +407,49 @@ public:
                 }
 
                 // add to all calls info
-                if (pos - std::max(prev_end[0], prev_end[1]) > args.gap)
-                    this->calls[seqnames[rec->rid]].gaps
-                        .push_back(var_idx[0]+var_idx[1]);
-                this->calls[seqnames[rec->rid]].poss.push_back(pos);
-                this->calls[seqnames[rec->rid]].rlens.push_back(rlen);
-                this->calls[seqnames[rec->rid]].haps.push_back(hap);
-                this->calls[seqnames[rec->rid]].types.push_back(type);
-                this->calls[seqnames[rec->rid]].refs.push_back(ref);
-                this->calls[seqnames[rec->rid]].alts.push_back(alt);
-                this->calls[seqnames[rec->rid]].gt_quals.push_back(gq[0]);
-                this->calls[seqnames[rec->rid]].var_quals.push_back(rec->qual);
+                if (pos - std::max(prev_end[0], prev_end[1]) > args.gap) {
+                    this->calls[seq].gaps.push_back(var_idx);
+                    offs = {0, 0};
+                }
+                this->calls[seq].poss.push_back(pos);
+                this->calls[seq].rlens.push_back(rlen);
+                this->calls[seq].haps.push_back(hap);
+                this->calls[seq].types.push_back(type);
+                this->calls[seq].refs.push_back(ref);
+                this->calls[seq].alts.push_back(alt);
+                this->calls[seq].offs[0].push_back(offs[0]);
+                this->calls[seq].offs[1].push_back(offs[1]);
+                this->calls[seq].gt_quals.push_back(gq[0]);
+                this->calls[seq].var_quals.push_back(rec->qual);
 
                 // add to haplotype-specific calls info
-                if (pos - prev_end[hap] > args.gap)
-                    this->hapcalls[hap][seqnames[rec->rid]].gaps
-                        .push_back(var_idx[hap]);
-                this->hapcalls[hap][seqnames[rec->rid]].poss.push_back(pos);
-                this->hapcalls[hap][seqnames[rec->rid]].rlens.push_back(rlen);
-                this->hapcalls[hap][seqnames[rec->rid]].haps.push_back(hap);
-                this->hapcalls[hap][seqnames[rec->rid]].types.push_back(type);
-                this->hapcalls[hap][seqnames[rec->rid]].refs.push_back(ref);
-                this->hapcalls[hap][seqnames[rec->rid]].alts.push_back(alt);
-                this->hapcalls[hap][seqnames[rec->rid]].gt_quals.push_back(gq[0]);
-                this->hapcalls[hap][seqnames[rec->rid]].var_quals.push_back(rec->qual);
+                if (pos - prev_end[hap] > args.gap) {
+                    this->hapcalls[hap][seq].gaps.push_back(hap_var_idx[hap]);
+                    hap_offs[hap] = 0;
+                }
+                this->hapcalls[hap][seq].poss.push_back(pos);
+                this->hapcalls[hap][seq].rlens.push_back(rlen);
+                this->hapcalls[hap][seq].haps.push_back(hap);
+                this->hapcalls[hap][seq].types.push_back(type);
+                this->hapcalls[hap][seq].refs.push_back(ref);
+                this->hapcalls[hap][seq].alts.push_back(alt);
+                this->hapcalls[hap][seq].offs[0].push_back(hap_offs[0]);
+                this->hapcalls[hap][seq].offs[1].push_back(hap_offs[1]);
+                this->hapcalls[hap][seq].gt_quals.push_back(gq[0]);
+                this->hapcalls[hap][seq].var_quals.push_back(rec->qual);
 
                 npass++;
                 ntypes[hap][type]++;
-                var_idx[hap]++;
+                hap_var_idx[hap]++;
+                var_idx++;
+                offs[hap] += altlen - reflen;
+                hap_offs[hap] += altlen - reflen;
                 prev_end[hap] = pos + rlen;
             }
         }
-        this->calls[seqnames[rec->rid]].gaps.push_back(var_idx[0]+var_idx[1]);
-        this->hapcalls[0][seqnames[rec->rid]].gaps.push_back(var_idx[0]);
-        this->hapcalls[1][seqnames[rec->rid]].gaps.push_back(var_idx[1]);
+        this->calls[seq].gaps.push_back(var_idx);
+        this->hapcalls[0][seq].gaps.push_back(hap_var_idx[0]);
+        this->hapcalls[1][seq].gaps.push_back(hap_var_idx[1]);
 
         fprintf(stderr, "VCF contains %i sample(s) and %i records, "
             "of which %i PASS all filters.\n", 
@@ -625,9 +637,9 @@ int ed_align(
                     ctg.data(), vars.poss.size());
 
             // iterate over each group of variants
-            for (size_t i = 0; i < vars.gaps.size()-1; i++) {
-                int beg_idx = vars.gaps[i];
-                int end_idx = vars.gaps[i+1];
+            for (size_t var_grp = 0; var_grp < vars.gaps.size()-1; var_grp++) {
+                int beg_idx = vars.gaps[var_grp];
+                int end_idx = vars.gaps[var_grp+1];
                 int beg = vars.poss[beg_idx]-1;
                 int end = vars.poss[end_idx-1] + vars.rlens[end_idx-1]+1;
                 int subs = 0;
@@ -638,65 +650,64 @@ int ed_align(
                 const char* alt;
 
                 // iterate over variants, summing edit distance
-                for (int j = beg_idx; j < end_idx; j++) {
-                    switch (vars.types[j]) {
+                for (int var = beg_idx; var < end_idx; var++) {
+                    switch (vars.types[var]) {
                         case TYPE_SUB: subs++; break;
-                        case TYPE_INS: inss += vars.alts[j].size(); break;
-                        case TYPE_DEL: dels += vars.refs[j].size(); break;
-                        case TYPE_GRP: grps += vars.refs[j].size() +
-                                               vars.alts[j].size(); break;
+                        case TYPE_INS: inss += vars.alts[var].size(); break;
+                        case TYPE_DEL: dels += vars.refs[var].size(); break;
                         default: ERROR("unexpected type") std::exit(1); break;
                     }
                 }
 
                 // for now, just look at small examples
-                if (end_idx-beg_idx > 1 && end-beg < 30) {
+                if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) {
                 /* if (grps > 0) { */
 
                     // print summary
                     fprintf(stderr, "\n  Group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
-                            int(i), end_idx-beg_idx, end-beg, beg, end,
+                            int(var_grp), end_idx-beg_idx, end-beg, beg, end,
                             subs*2 + inss + dels + grps, subs, inss, dels, grps);
-                    for (int j = beg_idx; j < end_idx; j++) {
-                        if (vars.refs[j].size() == 0) ref = "-"; 
-                        else ref = vars.refs[j].data();
-                        if (vars.alts[j].size() == 0) alt = "-"; 
-                        else alt = vars.alts[j].data();
-                        fprintf(stderr, "    %s:%i %s\t%s\t%s\n", 
-                                ctg.data(), vars.poss[j],
-                                type_strs[vars.types[j]].data(), ref, alt);
+                    for (int var = beg_idx; var < end_idx; var++) {
+                        if (vars.refs[var].size() == 0) ref = "-"; 
+                        else ref = vars.refs[var].data();
+                        if (vars.alts[var].size() == 0) alt = "-"; 
+                        else alt = vars.alts[var].data();
+                        fprintf(stderr, "    %s:%i hap%i %s\t%s\t%s\toffset %d\n", 
+                                ctg.data(), vars.poss[var], h,
+                                type_strs[vars.types[var]].data(), ref, alt, 
+                                vars.offs[h][var]);
                     }
 
-
-                    int j = beg_idx;
+                    // colored alignment
+                    int var = beg_idx;
                     std::string ref_str = "";
                     std::string alt_str = "";
                     for (int ref_pos = beg; ref_pos < end;) {
-                        if (ref_pos == vars.poss[j]) { // in variant
-                            switch (vars.types[j]) {
+                        if (ref_pos == vars.poss[var]) { // in variant
+                            switch (vars.types[var]) {
                                 case TYPE_INS:
-                                    alt_str += GREEN(vars.alts[j]);
-                                    ref_str += std::string(vars.alts[j].size(), ' ');
+                                    alt_str += GREEN(vars.alts[var]);
+                                    ref_str += std::string(vars.alts[var].size(), ' ');
                                     break;
                                 case TYPE_DEL:
-                                    alt_str += std::string(vars.refs[j].size(), ' ');
-                                    ref_str += RED(vars.refs[j]);
-                                    ref_pos += vars.refs[j].size();
+                                    alt_str += std::string(vars.refs[var].size(), ' ');
+                                    ref_str += RED(vars.refs[var]);
+                                    ref_pos += vars.refs[var].size();
                                     break;
                                 case TYPE_SUB:
-                                    alt_str += " " + GREEN(vars.alts[j]);
-                                    ref_str += RED(vars.refs[j]) + " ";
+                                    alt_str += " " + GREEN(vars.alts[var]);
+                                    ref_str += RED(vars.refs[var]) + " ";
                                     ref_pos++;
                                     break;
                                 case TYPE_GRP:
-                                    alt_str += std::string(vars.refs[j].size(), ' ') 
-                                        + GREEN(vars.alts[j]);
-                                    ref_str += RED(vars.refs[j]) + std::string(
-                                            vars.alts[j].size(), ' ');
-                                    ref_pos += vars.refs[j].size();
+                                    alt_str += std::string(vars.refs[var].size(), ' ') 
+                                        + GREEN(vars.alts[var]);
+                                    ref_str += RED(vars.refs[var]) + std::string(
+                                            vars.alts[var].size(), ' ');
+                                    ref_pos += vars.refs[var].size();
                                     break;
                             }
-                            j++; // next variant
+                            var++; // next variant
                         }
                         else { // match
                             ref_str += ref_fasta.at(ctg)[ref_pos];
@@ -707,7 +718,38 @@ int ed_align(
                     fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
                             ref_str.data(), alt_str.data());
 
-                    // do alignment
+                    /* // do alignment */
+                    /* int score = 0; */
+                    /* int reflen = end-beg; */
+                    /* int altlen = reflen + inss - dels; */
+                    /* std::vector<int> prev_diags = {0}; */
+                    /* std::vector<int> prev_offsets = {-1}; */
+                    /* std::vector<int> diags, offsets; */
+                    /* while (true) { */
+
+                    /*     // extend prev wavefront (increment offset while match) */
+                    /*     for(int d = 0; d < score+1; d++) { */
+                    /*         int max_offset = std::min( */
+                    /*                 reflen - prev_diags[d], altlen) - 1; */
+                    /*         int offset = prev_offsets[d]; */
+                    /*         // increment k as much as possible */
+                    /*         prev_offsets[d] = offset; */
+                    /*     } */
+
+                    /*     // get next wavefront */
+                    /*     // */
+                    /*     // two rows previous to current row */
+                    /*     diags.resize(diags.size()+2); */
+                    /*     offsets.resize(offsets.size()+2); */
+
+
+                    /*     // prepare for next iteration */
+                    /*     ++score; */
+                    /*     diags.swap(prev_diags); */
+                    /*     offsets.swap(prev_offsets); */
+                    /* } */
+                    /* fprintf(stderr, "min ED: %i\n" score); */
+                    /* return score */
                 }
             }
         }
