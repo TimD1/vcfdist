@@ -741,60 +741,55 @@ int ed_align(
                     }
 
                     // do alignment
-                    int score = 0;
+                    int s = 0;
                     int reflen = end-beg;
                     int altlen = reflen + inss - dels;
-                    std::vector<int> prev_diags = {0};
-                    std::vector<int> prev_offsets = {-1};
-                    std::vector<int> diags, offsets;
+                    std::vector< std::vector<int> > diags, offsets;
+                    diags.push_back(std::vector<int>(1,0));
+                    offsets.push_back(std::vector<int>(1,-1));
                     bool done = false;
                     while (true) {
 
                         // EXTEND WAVEFRONT
-                        for (int d = 0; d < score+1; d++) {
+                        for (int d = 0; d < s+1; d++) {
                             int max_offset = std::min(
-                                    reflen - prev_diags[d], altlen) - 1;
-                            int offset = prev_offsets[d];
+                                    reflen - diags[s][d], altlen) - 1;
+                            int offset = offsets[s][d];
                             while (offset < max_offset && alt[offset+1] == 
-                                    ref_fasta.at(ctg)[prev_diags[d]+offset+beg+1]) {
+                                    ref_fasta.at(ctg)[diags[s][d]+offset+beg+1]) {
                                 offset++;
                             }
-                            if (offset == altlen-1 && offset+prev_diags[d] == reflen-1)
+                            if (offset == altlen-1 && 
+                                    offset+diags[s][d] == reflen-1)
                             { done = true; break; }
-                            prev_offsets[d] = offset;
+                            offsets[s][d] = offset;
                         }
                         if (done) break;
 
 
                         // NEXT WAVEFRONT
                         
-                        // two rows previous to current row
-                        diags.resize(score+2);
-                        offsets.resize(score+2);
-                        
-                        // edge cells
-                        diags[0] = prev_diags[0] - 1;
-                        offsets[0] = prev_offsets[0] + 1;
-                        diags[score+1] = prev_diags[score] + 1;
-                        offsets[score+1] = prev_offsets[score];
+                        // add wavefront, fill edge cells
+                        diags.push_back(std::vector<int>(s+2));
+                        offsets.push_back(std::vector<int>(s+2));
+                        diags[s+1][0] = diags[s][0] - 1;
+                        offsets[s+1][0] = offsets[s][0] + 1;
+                        diags[s+1][s+1] = diags[s][s] + 1;
+                        offsets[s+1][s+1] = offsets[s][s];
 
                         // central cells
-                        for (int d = 1; d <= score; d++) {
-                            diags[d] = prev_offsets[d-1] > 
-                                prev_offsets[d] + 1 ? 
-                                prev_diags[d-1] + 1 : prev_diags[d] - 1;
-                            offsets[d] = std::max(prev_offsets[d-1],
-                                    prev_offsets[d]+1);
+                        for (int d = 1; d <= s; d++) {
+                            diags[s+1][d] = offsets[s][d-1] > 
+                                offsets[s][d] + 1 ? 
+                                diags[s][d-1] + 1 : diags[s][d] - 1;
+                            offsets[s+1][d] = std::max(offsets[s][d-1],
+                                    offsets[s][d]+1);
                         }
-
-                        // prepare for next iteration
-                        ++score;
-                        diags.swap(prev_diags);
-                        offsets.swap(prev_offsets);
+                        ++s;
                     }
 
-                    // print original and new path if score changes
-                    if (score != subs*2 + inss + dels) {
+                    // print original and new path if s changes
+                    if (s != subs*2 + inss + dels) {
                         const char* var_ref;
                         const char* var_alt;
                         fprintf(stderr, "\n  Group %i: %d variants, "
@@ -815,11 +810,11 @@ int ed_align(
 
                         fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
                                 ref_str.data(), alt_str.data());
-                        fprintf(stderr, "  new ED: %i\n", score);
+                        fprintf(stderr, "  new ED: %i\n", s);
                         new_ed_groups++;
                     }
                     old_ed += subs*2 + inss + dels;
-                    new_ed += score;
+                    new_ed += s;
                     groups++;
                 }
             }
