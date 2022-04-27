@@ -653,6 +653,10 @@ int ed_align(
 ) {
 
     // iterate over each haplotype
+    int groups = 0;
+    int new_ed_groups = 0;
+    int old_ed = 0;
+    int new_ed = 0;
     for (int h = 0; h < 2; h++) {
 
         // iterate over each contig
@@ -671,9 +675,6 @@ int ed_align(
                 int subs = 0;
                 int inss = 0;
                 int dels = 0;
-                int grps = 0;
-                const char* ref;
-                const char* alt;
 
                 // iterate over variants, summing edit distance
                 for (int var = beg_idx; var < end_idx; var++) {
@@ -681,43 +682,25 @@ int ed_align(
                         case TYPE_SUB: subs++; break;
                         case TYPE_INS: inss += vars.alts[var].size(); break;
                         case TYPE_DEL: dels += vars.refs[var].size(); break;
-                        case TYPE_GRP: 
-                           grps += vars.alts[var].size() + vars.refs[var].size(); 
-                           inss += vars.alts[var].size();
-                           dels += vars.refs[var].size();
-                           break;
                         default: ERROR("unexpected variant type (%i)", vars.types[var]) 
                                  std::exit(1); break;
                     }
                 }
 
                 // for now, just look at small examples
-                /* if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) { */
-                if (grps) {
-
-                    // print summary
-                    fprintf(stderr, "\n  Group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
-                            int(var_grp), end_idx-beg_idx, end-beg, beg, end,
-                            subs*2 + inss + dels + grps, subs, inss, dels, grps);
-                    for (int var = beg_idx; var < end_idx; var++) {
-                        if (vars.refs[var].size() == 0) ref = "-"; 
-                        else ref = vars.refs[var].data();
-                        if (vars.alts[var].size() == 0) alt = "-"; 
-                        else alt = vars.alts[var].data();
-                        fprintf(stderr, "    %s:%i hap%i %s\t%s\t%s\toffset %d\n", 
-                                ctg.data(), vars.poss[var], h,
-                                type_strs[vars.types[var]].data(), ref, alt, 
-                                vars.offs[h][var]);
-                    }
+                if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) {
+                /* if (true) { */
 
                     // colored alignment
                     int var = beg_idx;
                     std::string ref_str = "";
                     std::string alt_str = "";
+                    std::string alt = "";
                     for (int ref_pos = beg; ref_pos < end;) {
                         if (ref_pos == vars.poss[var]) { // in variant
                             switch (vars.types[var]) {
                                 case TYPE_INS:
+                                    alt += vars.alts[var];
                                     alt_str += GREEN(vars.alts[var]);
                                     ref_str += std::string(vars.alts[var].size(), ' ');
                                     break;
@@ -727,11 +710,13 @@ int ed_align(
                                     ref_pos += vars.refs[var].size();
                                     break;
                                 case TYPE_SUB:
+                                    alt += vars.alts[var];
                                     alt_str += " " + GREEN(vars.alts[var]);
                                     ref_str += RED(vars.refs[var]) + " ";
                                     ref_pos++;
                                     break;
                                 case TYPE_GRP:
+                                    alt += vars.alts[var];
                                     alt_str += std::string(vars.refs[var].size(), ' ') 
                                         + GREEN(vars.alts[var]);
                                     ref_str += RED(vars.refs[var]) + std::string(
@@ -743,6 +728,7 @@ int ed_align(
                         }
                         else { // match
                             try {
+                                alt += ref_fasta.at(ctg)[ref_pos];
                                 ref_str += ref_fasta.at(ctg)[ref_pos];
                                 alt_str += ref_fasta.at(ctg)[ref_pos];
                                 ref_pos++;
@@ -753,48 +739,94 @@ int ed_align(
                             }
                         }
                     }
-                    fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
-                            ref_str.data(), alt_str.data());
 
-                    /* // do alignment */
-                    /* int score = 0; */
-                    /* int reflen = end-beg; */
-                    /* int altlen = reflen + inss - dels; */
-                    /* std::vector<int> prev_diags = {0}; */
-                    /* std::vector<int> prev_offsets = {-1}; */
-                    /* std::vector<int> diags, offsets; */
-                    /* while (true) { */
+                    // do alignment
+                    int score = 0;
+                    int reflen = end-beg;
+                    int altlen = reflen + inss - dels;
+                    std::vector<int> prev_diags = {0};
+                    std::vector<int> prev_offsets = {-1};
+                    std::vector<int> diags, offsets;
+                    bool done = false;
+                    while (true) {
 
-                    /*     // extend prev wavefront (increment offset while match) */
-                    /*     for(int d = 0; d < score+1; d++) { */
-                    /*         int max_offset = std::min( */
-                    /*                 reflen - prev_diags[d], altlen) - 1; */
-                    /*         int offset = prev_offsets[d]; */
-                    /*         // increment k as much as possible */
-                    /*         if (prev_diags[d] == 0) { // */ 
-                    /*         } */
-                    /*         prev_offsets[d] = offset; */
-                    /*     } */
-
-                    /*     // get next wavefront */
-                    /*     // */
-                    /*     // two rows previous to current row */
-                    /*     diags.resize(diags.size()+2); */
-                    /*     offsets.resize(offsets.size()+2); */
+                        // EXTEND WAVEFRONT
+                        for (int d = 0; d < score+1; d++) {
+                            int max_offset = std::min(
+                                    reflen - prev_diags[d], altlen) - 1;
+                            int offset = prev_offsets[d];
+                            while (offset < max_offset && alt[offset+1] == 
+                                    ref_fasta.at(ctg)[prev_diags[d]+offset+beg+1]) {
+                                offset++;
+                            }
+                            if (offset == altlen-1 && offset+prev_diags[d] == reflen-1)
+                            { done = true; break; }
+                            prev_offsets[d] = offset;
+                        }
+                        if (done) break;
 
 
-                    /*     // prepare for next iteration */
-                    /*     ++score; */
-                    /*     diags.swap(prev_diags); */
-                    /*     offsets.swap(prev_offsets); */
-                    /* } */
-                    /* fprintf(stderr, "min ED: %i\n" score); */
-                    /* return score */
+                        // NEXT WAVEFRONT
+                        
+                        // two rows previous to current row
+                        diags.resize(score+2);
+                        offsets.resize(score+2);
+                        
+                        // edge cells
+                        diags[0] = prev_diags[0] - 1;
+                        offsets[0] = prev_offsets[0] + 1;
+                        diags[score+1] = prev_diags[score] + 1;
+                        offsets[score+1] = prev_offsets[score];
+
+                        // central cells
+                        for (int d = 1; d <= score; d++) {
+                            diags[d] = prev_offsets[d-1] > 
+                                prev_offsets[d] + 1 ? 
+                                prev_diags[d-1] + 1 : prev_diags[d] - 1;
+                            offsets[d] = std::max(prev_offsets[d-1],
+                                    prev_offsets[d]+1);
+                        }
+
+                        // prepare for next iteration
+                        ++score;
+                        diags.swap(prev_diags);
+                        offsets.swap(prev_offsets);
+                    }
+
+                    // print original and new path if score changes
+                    if (score != subs*2 + inss + dels) {
+                        const char* var_ref;
+                        const char* var_alt;
+                        fprintf(stderr, "\n  Group %i: %d variants, "
+                                "range %d\t(%d-%d),\n  old ED: %d (%dS %dI %dD)\n",
+                                int(var_grp), end_idx-beg_idx, end-beg, beg, end,
+                                subs*2 + inss + dels, subs, inss, dels);
+                        for (int var = beg_idx; var < end_idx; var++) {
+                            if (vars.refs[var].size() == 0) var_ref = "-"; 
+                            else var_ref = vars.refs[var].data();
+                            if (vars.alts[var].size() == 0) var_alt = "-"; 
+                            else var_alt = vars.alts[var].data();
+                            fprintf(stderr, "    %s:%i hap%i "
+                                    "%s\t%s\t%s\toffset %d\n", 
+                                    ctg.data(), vars.poss[var], h,
+                                    type_strs[vars.types[var]].data(), 
+                                    var_ref, var_alt, vars.offs[h][var]);
+                        }
+
+                        fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
+                                ref_str.data(), alt_str.data());
+                        fprintf(stderr, "  new ED: %i\n", score);
+                        new_ed_groups++;
+                    }
+                    old_ed += subs*2 + inss + dels;
+                    new_ed += score;
+                    groups++;
                 }
             }
         }
     }
-
+    INFO("Edit dist reduced in %i of %i groups, from %i to %i.", 
+            new_ed_groups, groups, old_ed, new_ed);
     return 0;
 
 }
