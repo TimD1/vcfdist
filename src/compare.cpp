@@ -168,18 +168,34 @@ std::vector< std::string > gt_strs {
 ".|.", "0|0", "0|1", "0|2", "1|0", "1|1", "1|2", "2|0", "2|1", "2|2", "?|?"
 };
 
-struct variantCalls {
+class variantCalls {
+public:
+    variantCalls() { this->offs.resize(2); };
+    void add_gap(int g) { this->gaps.push_back(g); }
+    void add_var(int pos, int rlen, int off0, int off1, uint8_t hap, 
+            uint8_t type, std::string ref, std::string alt, float gq, float vq) {
+        this->poss.push_back(pos);
+        this->rlens.push_back(rlen);
+        this->offs[0].push_back(off0);
+        this->offs[1].push_back(off1);
+        this->haps.push_back(hap);
+        this->types.push_back(type);
+        this->refs.push_back(ref);
+        this->alts.push_back(alt);
+        this->gt_quals.push_back(gq);
+        this->var_quals.push_back(vq);
+    }
     std::vector<int> gaps;          // indices of gaps in this struct's vectors
     std::vector<int> poss;          // variant start positions
+    std::vector<int> rlens;         // reference lengths
+    std::vector< std::vector<int> > offs; 
+                                    // offsets for each hap within group
     std::vector<uint8_t> haps;      // variant haplotype
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
     std::vector<std::string> refs;  // variant reference allele
     std::vector<std::string> alts;  // variant alternate allele (always one)
-    std::vector<float> var_quals;   // variant quality (0-60)
     std::vector<float> gt_quals;    // genotype quality (0-60)
-    std::vector<int> rlens;         // reference lengths
-    std::vector< std::vector<int> > offs; 
-                                    // offsets for each hap within group
+    std::vector<float> var_quals;   // variant quality (0-60)
 };
 
 class vcfData {
@@ -260,10 +276,7 @@ public:
         for(int i = 0; i < nseq; i++) {
             this->hapcalls[0][seqnames[i]] = variantCalls();
             this->hapcalls[1][seqnames[i]] = variantCalls();
-            this->hapcalls[0][seqnames[i]].offs.resize(2);
-            this->hapcalls[1][seqnames[i]].offs.resize(2);
             this->calls[seqnames[i]] = variantCalls();
-            this->calls[seqnames[i]].offs.resize(2);
         }
 
         // struct for storing each record
@@ -283,6 +296,7 @@ public:
                     ERROR("unsorted VCF, contig %s already parsed", seq.data());
                 } else {
                     INFO("parsing contig %s", seq.data());
+                    prev_end = {-args.gap*2, -args.gap*2};
                     hap_var_idx = {0, 0};
                     var_idx = 0;
                 }
@@ -395,6 +409,7 @@ public:
                     }
                 }
 
+                // calculate reference length of variant
                 int rlen;
                 switch (type) {
                     case TYPE_INS:
@@ -412,48 +427,57 @@ public:
 
                 // add to all calls info
                 if (pos - std::max(prev_end[0], prev_end[1]) > args.gap) {
-                    this->calls[seq].gaps.push_back(var_idx);
+                    this->calls[seq].add_gap(var_idx);
                     offs = {0, 0};
                 }
-                this->calls[seq].poss.push_back(pos);
-                this->calls[seq].rlens.push_back(rlen);
-                this->calls[seq].haps.push_back(hap);
-                this->calls[seq].types.push_back(type);
-                this->calls[seq].refs.push_back(ref);
-                this->calls[seq].alts.push_back(alt);
-                this->calls[seq].offs[0].push_back(offs[0]);
-                this->calls[seq].offs[1].push_back(offs[1]);
-                this->calls[seq].gt_quals.push_back(gq[0]);
-                this->calls[seq].var_quals.push_back(rec->qual);
+                if (type == TYPE_GRP) { // split GRP into INS+DEL
+                    this->calls[seq].add_var(pos, 0, offs[0], offs[1], hap, TYPE_INS,
+                            "", alt, gq[0], rec->qual); // add INS
+                    offs[hap] += altlen;
+                    this->calls[seq].add_var(pos, rlen, offs[0], offs[1], hap, TYPE_DEL,
+                            ref, "", gq[0], rec->qual); // add DEL
+                    offs[hap] -= reflen;
+                    var_idx += 2;
+                } else {
+                    this->calls[seq].add_var(pos, rlen, offs[0], offs[1], hap, type,
+                            ref, alt, gq[0], rec->qual);
+                    offs[hap] += altlen - reflen;
+                    var_idx++;
+                }
 
                 // add to haplotype-specific calls info
                 if (pos - prev_end[hap] > args.gap) {
-                    this->hapcalls[hap][seq].gaps.push_back(hap_var_idx[hap]);
+                    this->hapcalls[hap][seq].add_gap(hap_var_idx[hap]);
                     hap_offs[hap] = 0;
                 }
-                this->hapcalls[hap][seq].poss.push_back(pos);
-                this->hapcalls[hap][seq].rlens.push_back(rlen);
-                this->hapcalls[hap][seq].haps.push_back(hap);
-                this->hapcalls[hap][seq].types.push_back(type);
-                this->hapcalls[hap][seq].refs.push_back(ref);
-                this->hapcalls[hap][seq].alts.push_back(alt);
-                this->hapcalls[hap][seq].offs[0].push_back(hap_offs[0]);
-                this->hapcalls[hap][seq].offs[1].push_back(hap_offs[1]);
-                this->hapcalls[hap][seq].gt_quals.push_back(gq[0]);
-                this->hapcalls[hap][seq].var_quals.push_back(rec->qual);
+                if (type == TYPE_GRP) { // split GRP into INS+DEL
+                    this->hapcalls[hap][seq].add_var(pos, 0, hap_offs[0], // INS
+                        hap_offs[1], hap, TYPE_INS, "", alt, gq[0], rec->qual);
+                    hap_offs[hap] += altlen;
+                    this->hapcalls[hap][seq].add_var(pos, rlen, hap_offs[0], // DEL
+                        hap_offs[1], hap, TYPE_DEL, ref, "", gq[0], rec->qual);
+                    hap_offs[hap] -= reflen;
+                    hap_var_idx[hap] += 2;
+                } else {
+                    this->hapcalls[hap][seq].add_var(pos, rlen, hap_offs[0], 
+                            hap_offs[1], hap, type, ref, alt, gq[0], rec->qual);
+                    hap_offs[hap] += altlen - reflen;
+                    hap_var_idx[hap]++;
+                }
 
+                // warn if overlap
+                if (prev_end[hap] > pos) {
+                    WARN("potential overlap at %s:%i", seq.data(), pos);
+                }
+
+                prev_end[hap] = pos + rlen;
                 npass++;
                 ntypes[hap][type]++;
-                hap_var_idx[hap]++;
-                var_idx++;
-                offs[hap] += altlen - reflen;
-                hap_offs[hap] += altlen - reflen;
-                prev_end[hap] = pos + rlen;
             }
         }
-        this->calls[seq].gaps.push_back(var_idx);
-        this->hapcalls[0][seq].gaps.push_back(hap_var_idx[0]);
-        this->hapcalls[1][seq].gaps.push_back(hap_var_idx[1]);
+        this->calls[seq].add_gap(var_idx);
+        this->hapcalls[0][seq].add_gap(hap_var_idx[0]);
+        this->hapcalls[1][seq].add_gap(hap_var_idx[1]);
 
         fprintf(stderr, "VCF contains %i sample(s) and %i records, "
             "of which %i PASS all filters.\n", 
@@ -637,8 +661,6 @@ int ed_align(
             std::string ctg = itr->first;
             variantCalls vars = itr->second;
             if (vars.poss.size() == 0) continue;
-            fprintf(stderr, "\nhap %i ctg %s: %lu variants\n", h, 
-                    ctg.data(), vars.poss.size());
 
             // iterate over each group of variants
             for (size_t var_grp = 0; var_grp < vars.gaps.size()-1; var_grp++) {
@@ -659,15 +681,19 @@ int ed_align(
                         case TYPE_SUB: subs++; break;
                         case TYPE_INS: inss += vars.alts[var].size(); break;
                         case TYPE_DEL: dels += vars.refs[var].size(); break;
-                        case TYPE_GRP: grps += vars.alts[var].size() + 
-                                       vars.refs[var].size(); break;
+                        case TYPE_GRP: 
+                           grps += vars.alts[var].size() + vars.refs[var].size(); 
+                           inss += vars.alts[var].size();
+                           dels += vars.refs[var].size();
+                           break;
                         default: ERROR("unexpected variant type (%i)", vars.types[var]) 
                                  std::exit(1); break;
                     }
                 }
 
                 // for now, just look at small examples
-                if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) {
+                /* if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) { */
+                if (grps) {
 
                     // print summary
                     fprintf(stderr, "\n  Group %i: %d variants, range %d\t(%d-%d),\tED %d (%dS %dI %dD %dG)\n",
@@ -745,7 +771,7 @@ int ed_align(
                     /*                 reflen - prev_diags[d], altlen) - 1; */
                     /*         int offset = prev_offsets[d]; */
                     /*         // increment k as much as possible */
-                    /*         if (prev_diags[d] == 0) { */
+                    /*         if (prev_diags[d] == 0) { // */ 
                     /*         } */
                     /*         prev_offsets[d] = offset; */
                     /*     } */
