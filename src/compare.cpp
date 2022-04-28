@@ -647,6 +647,9 @@ int parse_args(
 
 /* --------------------------------------------------------------------------- */
 
+#define PTR_UP   1
+#define PTR_LEFT 2
+
 int ed_align(
         vcfData* & vcf, 
         const std::unordered_map <std::string, std::string> & ref_fasta
@@ -690,6 +693,7 @@ int ed_align(
                 // for now, just look at small examples
                 if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) {
                 /* if (true) { */
+                /* if (var_grp == 2040) { */
 
                     // colored alignment
                     int var = beg_idx;
@@ -744,9 +748,10 @@ int ed_align(
                     int s = 0;
                     int reflen = end-beg;
                     int altlen = reflen + inss - dels;
-                    std::vector< std::vector<int> > diags, offsets;
+                    std::vector< std::vector<int> > diags, offsets, ptrs;
                     diags.push_back(std::vector<int>(1,0));
                     offsets.push_back(std::vector<int>(1,-1));
+                    ptrs.push_back(std::vector<int>(1,0));
                     bool done = false;
                     while (true) {
 
@@ -772,21 +777,127 @@ int ed_align(
                         // add wavefront, fill edge cells
                         diags.push_back(std::vector<int>(s+2));
                         offsets.push_back(std::vector<int>(s+2));
+                        ptrs.push_back(std::vector<int>(s+2));
                         diags[s+1][0] = diags[s][0] - 1;
                         offsets[s+1][0] = offsets[s][0] + 1;
+                        ptrs[s+1][0] = PTR_UP;
                         diags[s+1][s+1] = diags[s][s] + 1;
                         offsets[s+1][s+1] = offsets[s][s];
+                        ptrs[s+1][s+1] = PTR_LEFT;
 
                         // central cells
                         for (int d = 1; d <= s; d++) {
-                            diags[s+1][d] = offsets[s][d-1] > 
-                                offsets[s][d] + 1 ? 
-                                diags[s][d-1] + 1 : diags[s][d] - 1;
-                            offsets[s+1][d] = std::max(offsets[s][d-1],
-                                    offsets[s][d]+1);
+                            if (offsets[s][d-1] >= offsets[s][d]+1) {
+                                diags[s+1][d] = diags[s][d-1] + 1;
+                                offsets[s+1][d] = offsets[s][d-1];
+                                ptrs[s+1][d] = PTR_LEFT;
+                            } else {
+                                diags[s+1][d] = diags[s][d] - 1;
+                                offsets[s+1][d] = offsets[s][d]+1;
+                                ptrs[s+1][d] = PTR_UP;
+                            }
                         }
                         ++s;
                     }
+
+                    // DEBUG PRINT
+                    if (s != subs*2 + inss + dels) {
+
+                        // print diags/offsets
+                        fprintf(stderr, "\ndiags:\n");
+                        for(int si = 0; si < s; si++) {
+                            for(int di = 0; di <= si; di++) {
+                                fprintf(stderr, " %d", diags[si][di]);
+                            }
+                            fprintf(stderr, "\n");
+                        }
+                        fprintf(stderr, "\noffsets:\n");
+                        for(int si = 0; si < s; si++) {
+                            for(int di = 0; di <= si; di++) {
+                                fprintf(stderr, " %d", offsets[si][di]);
+                            }
+                            fprintf(stderr, "\n");
+                        }
+                        fprintf(stderr, "\nptrs:\n");
+                        for(int si = 0; si < s; si++) {
+                            for(int di = 0; di <= si; di++) {
+                                fprintf(stderr, " %d", ptrs[si][di]);
+                            }
+                            fprintf(stderr, "\n");
+                        }
+
+                        // create array
+                        std::vector< std::vector<char> > ptr_str;
+                        for (int i = 0; i < altlen; i++)
+                            ptr_str.push_back(std::vector<char>(reflen, '.'));
+
+                        // modify array with pointers
+                        int altpos, refpos;
+                        for (int si = 0; si < s; si++) {
+                            for(int di = 0; di <= si; di++) {
+                                if (di == 0) {
+                                    if (si == 0) {
+                                        altpos = 0;
+                                        refpos = 0;
+                                    } else {
+                                        altpos = offsets[si-1][di] + 1;
+                                        refpos = diags[si-1][di] + offsets[si-1][di];
+                                        if (altpos < altlen && refpos < reflen)
+                                            ptr_str[altpos][refpos] = '|';
+                                    }
+                                } 
+                                else if (di == si) {
+                                    altpos = offsets[si-1][di-1];
+                                    refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1;
+                                    if (altpos < altlen && refpos < reflen)
+                                        ptr_str[altpos][refpos] = '-';
+                                } 
+                                else if (offsets[si-1][di-1] > offsets[si-1][di]+1) {
+                                    altpos = offsets[si-1][di-1];
+                                    refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1;
+                                    if (altpos < altlen && refpos < reflen)
+                                        ptr_str[altpos][refpos] = '-';
+                                } 
+                                else {
+                                    altpos = offsets[si-1][di] + 1;
+                                    refpos = diags[si-1][di] + offsets[si-1][di];
+                                    if (altpos < altlen && refpos < reflen)
+                                        ptr_str[altpos][refpos] = '|';
+                                }
+                                while (altpos < altlen-1 && refpos < reflen-1 && 
+                                        alt[++altpos] == ref_fasta.at(ctg)[beg + ++refpos]) {
+                                    ptr_str[altpos][refpos] = '\\';
+                                }
+                            }
+                        }
+                        ptr_str[altlen-1][reflen-1] = '*';
+                        ptr_str[0][0] = '*';
+
+                        // print array
+                        for (int i = -1; i < altlen; i++) {
+                            for (int j = -1; j < reflen; j++) {
+                                if (i < 0 && j < 0) {
+                                    fprintf(stderr, "\n  ");
+                                }
+                                else if (i < 0) {
+                                    fprintf(stderr, "%c", ref_fasta.at(ctg)[beg+j]);
+                                } else if (j < 0) {
+                                    fprintf(stderr, "\n%c ", alt[i]);
+                                } else {
+                                    fprintf(stderr, "%c", ptr_str[i][j]);
+                                }
+                            }
+                        }
+                    }
+
+                    /* // BACKTRACK */
+                    /* std::vector<int> cig(reflen+altlen); */
+                    /* int cig_ptr = reflen + altlen - 1; */
+                    /* int score = s; */
+                    /* int diag = (reflen-altlen+score) / 2; // idx of last cell in WF */
+                    /* while (cig_ptr > 0) { */
+                    /* } */
+
 
                     // print original and new path if s changes
                     if (s != subs*2 + inss + dels) {
@@ -812,6 +923,7 @@ int ed_align(
                                 ref_str.data(), alt_str.data());
                         fprintf(stderr, "  new ED: %i\n", s);
                         new_ed_groups++;
+                        if (new_ed_groups > 10) return 0;
                     }
                     old_ed += subs*2 + inss + dels;
                     new_ed += s;
