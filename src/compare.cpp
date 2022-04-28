@@ -29,10 +29,10 @@ struct Arguments {
 
 /* --------------------------------------------------------------------------- */
 
+std::string GREEN(char c) { return "\033[32m" + std::string(1,c) + "\033[0m"; }
 std::string GREEN(std::string str) { return "\033[32m" + str + "\033[0m"; }
-std::string GREEN_STR(int i) { return "\033[32m" + std::to_string(i) + "\033[0m"; }
+std::string RED(char c) { return "\033[31m" + std::string(1,c) + "\033[0m"; }
 std::string RED(std::string str) { return "\033[31m" + str + "\033[0m"; }
-std::string RED_STR(int i) { return "\033[31m" + std::to_string(i) + "\033[0m"; }
 
 /* --------------------------------------------------------------------------- */
 
@@ -647,8 +647,11 @@ int parse_args(
 
 /* --------------------------------------------------------------------------- */
 
+#define PTR_NONE 0
 #define PTR_UP   1
 #define PTR_LEFT 2
+#define PTR_BOTH 3
+#define PTR_DIAG 4
 
 int ed_align(
         vcfData* & vcf, 
@@ -691,7 +694,7 @@ int ed_align(
                 }
 
                 // for now, just look at small examples
-                if (end_idx-beg_idx > 1 && inss+dels > 0 && end-beg < 30) {
+                if (end-beg < 30) {
                 /* if (true) { */
                 /* if (var_grp == 2040) { */
 
@@ -764,10 +767,10 @@ int ed_align(
                                     ref_fasta.at(ctg)[diags[s][d]+offset+beg+1]) {
                                 offset++;
                             }
+                            offsets[s][d] = offset;
                             if (offset == altlen-1 && 
                                     offset+diags[s][d] == reflen-1)
                             { done = true; break; }
-                            offsets[s][d] = offset;
                         }
                         if (done) break;
 
@@ -803,25 +806,15 @@ int ed_align(
                     // DEBUG PRINT
                     if (s != subs*2 + inss + dels) {
 
-                        // print diags/offsets
-                        fprintf(stderr, "\ndiags:\n");
-                        for(int si = 0; si < s; si++) {
-                            for(int di = 0; di <= si; di++) {
-                                fprintf(stderr, " %d", diags[si][di]);
-                            }
-                            fprintf(stderr, "\n");
-                        }
                         fprintf(stderr, "\noffsets:\n");
-                        for(int si = 0; si < s; si++) {
-                            for(int di = 0; di <= si; di++) {
-                                fprintf(stderr, " %d", offsets[si][di]);
-                            }
-                            fprintf(stderr, "\n");
-                        }
-                        fprintf(stderr, "\nptrs:\n");
-                        for(int si = 0; si < s; si++) {
-                            for(int di = 0; di <= si; di++) {
-                                fprintf(stderr, " %d", ptrs[si][di]);
+                        fprintf(stderr, "s= ");
+                        for(int i = 0; i <= s; i++) fprintf(stderr, "%2i ", i);
+                        fprintf(stderr, "\n ");
+                        for(int i = 0; i <= s; i++) fprintf(stderr, "  /");
+                        fprintf(stderr, "\n");
+                        for(int r = 0; r <= s; r++) {
+                            for(int c = 0; c <= s-r; c++) {
+                                fprintf(stderr, " %2d", offsets[r+c][c]);
                             }
                             fprintf(stderr, "\n");
                         }
@@ -833,7 +826,7 @@ int ed_align(
 
                         // modify array with pointers
                         int altpos, refpos;
-                        for (int si = 0; si < s; si++) {
+                        for (int si = 0; si <= s; si++) {
                             for(int di = 0; di <= si; di++) {
                                 if (di == 0) {
                                     if (si == 0) {
@@ -870,8 +863,10 @@ int ed_align(
                                 }
                             }
                         }
-                        ptr_str[altlen-1][reflen-1] = '*';
-                        ptr_str[0][0] = '*';
+                        // NOTE: first base will ALWAYS match, due to grabbing 
+                        // previous ref base before variant. This is required 
+                        // for correctness of algorithm
+                        ptr_str[0][0] = '\\';
 
                         // print array
                         for (int i = -1; i < altlen; i++) {
@@ -890,21 +885,124 @@ int ed_align(
                         }
                     }
 
-                    /* // BACKTRACK */
-                    /* std::vector<int> cig(reflen+altlen); */
-                    /* int cig_ptr = reflen + altlen - 1; */
-                    /* int score = s; */
-                    /* int diag = (reflen-altlen+score) / 2; // idx of last cell in WF */
-                    /* while (cig_ptr > 0) { */
-                    /* } */
+                    // BACKTRACK
+                    
+                    // init
+                    std::vector<int> cig(reflen+altlen);
+                    int cig_ptr = reflen + altlen - 1;
+                    int score = s;
+                    int diag = (reflen-altlen+score) / 2; // idx of last cell in WF
+                    int ptr;
+
+                    while (score > 0) {
+
+                        // find previous wavefront
+                        int off = offsets[score][diag];
+                        int prev_off, up_off, left_off;
+                        if (diag == 0) { // left edge, must go up
+                            if (score == 0) {
+                                ERROR("score should not be zero.");
+                            }
+                            up_off = offsets[score-1][diag]+1;
+                            prev_off = up_off;
+                            ptr = PTR_UP;
+
+                        } else if (diag == score) { // right edge, must go left
+                            left_off = offsets[score-1][diag-1];
+                            prev_off = left_off;
+                            ptr = PTR_LEFT;
+
+                        } else { // get predecessor
+                            left_off = offsets[score-1][diag-1];
+                            up_off = offsets[score-1][diag]+1;
+                            if (left_off > up_off) {
+                                prev_off = left_off;
+                                ptr = PTR_LEFT;
+                            } else {
+                                prev_off = up_off;
+                                ptr = PTR_UP;
+                            }
+                        }
+
+                        // slide up diagonally
+                        while (off > prev_off) {
+                            cig[cig_ptr--] = PTR_DIAG;
+                            cig[cig_ptr--] = PTR_DIAG;
+                            off--;
+                        }
+
+                        // go to previous wavefront
+                        cig[cig_ptr--] = ptr;
+                        score--;
+                        switch(ptr) {
+                        case PTR_LEFT:
+                            diag--;
+                            break;
+                        case PTR_UP:
+                            off--;
+                            break;
+                        default:
+                            ERROR("Pointer type unexpected: ptr=%i", ptr);
+                            break;
+                        }
+
+                    }
+                    // slide up diagonally to end
+                    for (int i = 0; i <= offsets[0][0]; i++) {
+                        cig[cig_ptr--] = PTR_DIAG;
+                        cig[cig_ptr--] = PTR_DIAG;
+                    }
+
+                    // get ref/alt strings for printing
+                    int ref_ptr = 0;
+                    int alt_ptr = 0;
+                    std::string new_ref_str, new_alt_str;
+                    for(size_t i = 0; i < cig.size(); i++) {
+                        switch(cig[i]) {
+                            case PTR_DIAG:
+                                new_ref_str += ref_fasta.at(ctg)[beg+ref_ptr++];
+                                new_alt_str += alt[alt_ptr++];
+                                i++;
+                                break;
+                            case PTR_UP:
+                                new_ref_str += " ";
+                                new_alt_str += GREEN(alt[alt_ptr++]);
+                                break;
+                            case PTR_LEFT:
+                                new_ref_str += RED(ref_fasta.at(ctg)[beg+ref_ptr++]);
+                                new_alt_str += " ";
+                                break;
+                        }
+                    }
 
 
                     // print original and new path if s changes
                     if (s != subs*2 + inss + dels) {
+
+                        fprintf(stderr, "\nPTRS: ");
+                        for(size_t i = 0; i < cig.size(); i++) {
+                            fprintf(stderr, "%i ", cig[i]);
+                        }
+
+                        fprintf(stderr, "\nCIGAR: ");
+                        for(size_t i = 0; i < cig.size(); i++) {
+                            switch(cig[i]) {
+                                case PTR_DIAG:
+                                    if (cig[++i] != PTR_DIAG)
+                                        ERROR("cig should be PTR_DIAG");
+                                    fprintf(stderr, "M"); break;
+                                case PTR_UP:
+                                    fprintf(stderr, "I"); break;
+                                case PTR_LEFT:
+                                    fprintf(stderr, "D"); break;
+                            }
+                        }
+                        fprintf(stderr, "\n");
+
                         const char* var_ref;
                         const char* var_alt;
                         fprintf(stderr, "\n  Group %i: %d variants, "
-                                "range %d\t(%d-%d),\n  old ED: %d (%dS %dI %dD)\n",
+                                "range %d\t(%d-%d),\n\n  old ED: %d (%dS %dI %dD)\n",
                                 int(var_grp), end_idx-beg_idx, end-beg, beg, end,
                                 subs*2 + inss + dels, subs, inss, dels);
                         for (int var = beg_idx; var < end_idx; var++) {
@@ -921,7 +1019,9 @@ int ed_align(
 
                         fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
                                 ref_str.data(), alt_str.data());
-                        fprintf(stderr, "  new ED: %i\n", s);
+                        fprintf(stderr, "\n  new ED: %i\n", s);
+                        fprintf(stderr, "    REF: %s\n    ALT: %s\n", 
+                                new_ref_str.data(), new_alt_str.data());
                         new_ed_groups++;
                         if (new_ed_groups > 10) return 0;
                     }
