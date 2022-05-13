@@ -37,6 +37,7 @@ static int32_t wf_step(int32_t tl, const char *ts, int32_t ql, const char *qs, i
 	int32_t j;
 	wf_diag_t *b = a + n + 2; // temporary array
 
+    // wfa_extend
 	for (j = 0; j < n; ++j) {
 		wf_diag_t *p = &a[j];
 		int32_t k = p->k;
