@@ -77,6 +77,10 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("invalid print verbosity provided");
             }
+            if (this->print_verbosity < 0 || this->print_verbosity > 2) {
+                ERROR("print verbosity %d not a valid option (0,1,2)", 
+                        this->print_verbosity);
+            }
         }
         else if (std::string(argv[i]) == "-h") {
             i++;

@@ -201,12 +201,20 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             if (alt_idx < 0) alt_idx = hap; // set 0|1 if .|.
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
+
             // skip spanning deletion
             if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
 
+            // TODO: keep overlaps, test all non-overlapping subsets
+            // skip overlapping variants
+            int pos = rec->pos;
+            if (prev_end[hap] > pos) { // warn if overlap
+                WARN("potential overlap at %s:%i", seq.data(), pos);
+                continue;
+            }
+
             // determine variant type
             int type = -1;
-            int pos = rec->pos;
             int lm = 0; // match from left->right (trim prefix)
             int rm = -1;// match from right->left (simplify complex variants GRP->INDEL)
             int reflen = int(ref.size());
@@ -297,11 +305,6 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                         hap_offs[1], hap, type, ref, alt, gq[0], rec->qual);
                 hap_offs[hap] += altlen - reflen;
                 hap_var_idx[hap]++;
-            }
-
-            // warn if overlap
-            if (prev_end[hap] > pos) {
-                WARN("potential overlap at %s:%i", seq.data(), pos);
             }
 
             prev_end[hap] = pos + rlen;
