@@ -17,12 +17,12 @@ int main(int argc, char **argv) {
     fastaData ref(g.ref_fasta_fp);
 
     vcfData calls(g.calls_vcf_fp);
-    edit_dist_realign(&calls, &ref);
+    /* edit_dist_realign(&calls, &ref); */
 
     vcfData truth(g.truth_vcf_fp);
-    edit_dist_realign(&truth, &ref);
+    /* edit_dist_realign(&truth, &ref); */
 
-    /* edit_dist(&calls, &truth, &ref); */
+    edit_dist(&calls, &truth, &ref);
 
     return EXIT_SUCCESS;
 }
