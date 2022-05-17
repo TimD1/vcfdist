@@ -5,7 +5,7 @@
 #include "print.h"
 
 
-int ed_align(const vcfData* vcf, const fastaData* const ref) {
+int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
     // iterate over each haplotype
     int groups = 0;
@@ -149,83 +149,85 @@ int ed_align(const vcfData* vcf, const fastaData* const ref) {
 
                 // DEBUG PRINT
 
-                /* printf("\noffsets:\n"); */
-                /* printf("s= "); */
-                /* for(int i = 0; i <= s; i++) printf("%2i ", i); */
-                /* printf("\n "); */
-                /* for(int i = 0; i <= s; i++) printf("  /"); */
-                /* printf("\n"); */
-                /* for(int r = 0; r <= s; r++) { */
-                /*     for(int c = 0; c <= s-r; c++) { */
-                /*         printf(" %2d", offsets[r+c][c]); */
-                /*     } */
-                /*     printf("\n"); */
-                /* } */
+                if (g.print_verbosity >= 2) {
+                    printf("\noffsets:\n");
+                    printf("s= ");
+                    for(int i = 0; i <= s; i++) printf("%2i ", i);
+                    printf("\n ");
+                    for(int i = 0; i <= s; i++) printf("  /");
+                    printf("\n");
+                    for(int r = 0; r <= s; r++) {
+                        for(int c = 0; c <= s-r; c++) {
+                            printf(" %2d", offsets[r+c][c]);
+                        }
+                        printf("\n");
+                    }
 
-                /* // create array */
-                /* std::vector< std::vector<char> > ptr_str; */
-                /* for (int i = 0; i < altlen; i++) */
-                /*     ptr_str.push_back(std::vector<char>(reflen, '.')); */
+                    // create array
+                    std::vector< std::vector<char> > ptr_str;
+                    for (int i = 0; i < altlen; i++)
+                        ptr_str.push_back(std::vector<char>(reflen, '.'));
 
-                /* // modify array with pointers */
-                /* int altpos, refpos; */
-                /* for (int si = 0; si <= s; si++) { */
-                /*     for(int di = 0; di <= si; di++) { */
-                /*         if (di == 0) { */
-                /*             if (si == 0) { */
-                /*                 altpos = 0; */
-                /*                 refpos = 0; */
-                /*             } else { */
-                /*                 altpos = offsets[si-1][di] + 1; */
-                /*                 refpos = diags[si-1][di] + offsets[si-1][di]; */
-                /*                 if (altpos < altlen && refpos < reflen) */
-                /*                     ptr_str[altpos][refpos] = '|'; */
-                /*             } */
-                /*         } */ 
-                /*         else if (di == si) { */
-                /*             altpos = offsets[si-1][di-1]; */
-                /*             refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1; */
-                /*             if (altpos < altlen && refpos < reflen) */
-                /*                 ptr_str[altpos][refpos] = '-'; */
-                /*         } */ 
-                /*         else if (offsets[si-1][di-1] > offsets[si-1][di]+1) { */
-                /*             altpos = offsets[si-1][di-1]; */
-                /*             refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1; */
-                /*             if (altpos < altlen && refpos < reflen) */
-                /*                 ptr_str[altpos][refpos] = '-'; */
-                /*         } */ 
-                /*         else { */
-                /*             altpos = offsets[si-1][di] + 1; */
-                /*             refpos = diags[si-1][di] + offsets[si-1][di]; */
-                /*             if (altpos < altlen && refpos < reflen) */
-                /*                 ptr_str[altpos][refpos] = '|'; */
-                /*         } */
-                /*         while (altpos < altlen-1 && refpos < reflen-1 && */ 
-                /*                 alt[++altpos] == ref->fasta.at(ctg)[beg + ++refpos]) { */
-                /*             ptr_str[altpos][refpos] = '\\'; */
-                /*         } */
-                /*     } */
-                /* } */
-                /* // NOTE: first base will ALWAYS match, due to grabbing */ 
-                /* // previous ref base before variant. This is required */ 
-                /* // for correctness of algorithm */
-                /* ptr_str[0][0] = '\\'; */
+                    // modify array with pointers
+                    int altpos, refpos;
+                    for (int si = 0; si <= s; si++) {
+                        for(int di = 0; di <= si; di++) {
+                            if (di == 0) {
+                                if (si == 0) {
+                                    altpos = 0;
+                                    refpos = 0;
+                                } else {
+                                    altpos = offsets[si-1][di] + 1;
+                                    refpos = diags[si-1][di] + offsets[si-1][di];
+                                    if (altpos < altlen && refpos < reflen)
+                                        ptr_str[altpos][refpos] = '|';
+                                }
+                            } 
+                            else if (di == si) {
+                                altpos = offsets[si-1][di-1];
+                                refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1;
+                                if (altpos < altlen && refpos < reflen)
+                                    ptr_str[altpos][refpos] = '-';
+                            } 
+                            else if (offsets[si-1][di-1] > offsets[si-1][di]+1) {
+                                altpos = offsets[si-1][di-1];
+                                refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1;
+                                if (altpos < altlen && refpos < reflen)
+                                    ptr_str[altpos][refpos] = '-';
+                            } 
+                            else {
+                                altpos = offsets[si-1][di] + 1;
+                                refpos = diags[si-1][di] + offsets[si-1][di];
+                                if (altpos < altlen && refpos < reflen)
+                                    ptr_str[altpos][refpos] = '|';
+                            }
+                            while (altpos < altlen-1 && refpos < reflen-1 && 
+                                    alt[++altpos] == ref->fasta.at(ctg)[beg + ++refpos]) {
+                                ptr_str[altpos][refpos] = '\\';
+                            }
+                        }
+                    }
+                    // NOTE: first base will ALWAYS match, due to grabbing 
+                    // previous ref base before variant. This is required 
+                    // for correctness of algorithm
+                    ptr_str[0][0] = '\\';
 
-                /* // print array */
-                /* for (int i = -1; i < altlen; i++) { */
-                /*     for (int j = -1; j < reflen; j++) { */
-                /*         if (i < 0 && j < 0) { */
-                /*             printf("\n  "); */
-                /*         } */
-                /*         else if (i < 0) { */
-                /*             printf("%c", ref->fasta.at(ctg)[beg+j]); */
-                /*         } else if (j < 0) { */
-                /*             printf("\n%c ", alt[i]); */
-                /*         } else { */
-                /*             printf("%c", ptr_str[i][j]); */
-                /*         } */
-                /*     } */
-                /* } */
+                    // print array
+                    for (int i = -1; i < altlen; i++) {
+                        for (int j = -1; j < reflen; j++) {
+                            if (i < 0 && j < 0) {
+                                printf("\n  ");
+                            }
+                            else if (i < 0) {
+                                printf("%c", ref->fasta.at(ctg)[beg+j]);
+                            } else if (j < 0) {
+                                printf("\n%c ", alt[i]);
+                            } else {
+                                printf("%c", ptr_str[i][j]);
+                            }
+                        }
+                    }
+                }
 
                 // BACKTRACK
                 
@@ -321,51 +323,55 @@ int ed_align(const vcfData* vcf, const fastaData* const ref) {
                     }
                 }
 
-                /* printf("\nPTRS: "); */
-                /* for(size_t i = 0; i < cig.size(); i++) { */
-                /*     printf("%i ", cig[i]); */
-                /* } */
+                if (g.print_verbosity >= 2) {
+                    printf("\nPTRS: ");
+                    for(size_t i = 0; i < cig.size(); i++) {
+                        printf("%i ", cig[i]);
+                    }
 
-                /* printf("\nCIGAR: "); */
-                /* for(size_t i = 0; i < cig.size(); i++) { */
-                /*     switch(cig[i]) { */
-                /*         case PTR_DIAG: */
-                /*             if (cig[++i] != PTR_DIAG) */
-                /*                 ERROR("cig should be PTR_DIAG"); */
-                /*             printf("M"); break; */
-                /*         case PTR_UP: */
-                /*             printf("I"); break; */
-                /*         case PTR_LEFT: */
-                /*             printf("D"); break; */
-                /*     } */
-                /* } */
-                /* printf("\n"); */
+                    printf("\nCIGAR: ");
+                    for(size_t i = 0; i < cig.size(); i++) {
+                        switch(cig[i]) {
+                            case PTR_DIAG:
+                                if (cig[++i] != PTR_DIAG)
+                                    ERROR("cig should be PTR_DIAG");
+                                printf("M"); break;
+                            case PTR_UP:
+                                printf("I"); break;
+                            case PTR_LEFT:
+                                printf("D"); break;
+                        }
+                    }
+                    printf("\n");
+                }
 
-                /* // print group info, and old/new alignments */
-                /* if (subs*2 + inss + dels != s) { */
-                /*     const char* var_ref; */
-                /*     const char* var_alt; */
-                /*     printf("\n\n  Group %i: %d variants, %s:%d-%d\n\n" */
-                /*             "    old edit distance: %d (%dS %dI %dD)\n", */
-                /*             int(var_grp), end_idx-beg_idx, ctg.data(), */ 
-                /*             beg, end, subs*2 + inss + dels, subs, inss, dels); */
-                /*     for (int var = beg_idx; var < end_idx; var++) { */
-                /*         if (vars.refs[var].size() == 0) var_ref = "-"; */ 
-                /*         else var_ref = vars.refs[var].data(); */
-                /*         if (vars.alts[var].size() == 0) var_alt = "-"; */ 
-                /*         else var_alt = vars.alts[var].data(); */
-                /*         printf("      %s:%i hap%i %s\t%s\t%s\n", */ 
-                /*                 ctg.data(), vars.poss[var], h, */ 
-                /*                 type_strs[vars.types[var]].data(), */ 
-                /*                 var_ref, var_alt); */
-                /*     } */
-                /*     printf("      REF: %s\n      ALT: %s\n", */ 
-                /*             ref_str.data(), alt_str.data()); */
-                /*     printf("\n    new edit distance: %i (%iI %iD)\n", */ 
-                /*             s, new_inss, new_dels); */
-                /*     printf("      REF: %s\n      ALT: %s\n", */ 
-                /*             new_ref_str.data(), new_alt_str.data()); */
-                /* } */
+                // print group info, and old/new alignments
+                if (g.print_verbosity >= 1) {
+                    if (subs*2 + inss + dels != s) {
+                        const char* var_ref;
+                        const char* var_alt;
+                        printf("\n\n  Group %i: %d variants, %s:%d-%d\n\n"
+                                "    old edit distance: %d (%dS %dI %dD)\n",
+                                int(var_grp), end_idx-beg_idx, ctg.data(), 
+                                beg, end, subs*2 + inss + dels, subs, inss, dels);
+                        for (int var = beg_idx; var < end_idx; var++) {
+                            if (vars.refs[var].size() == 0) var_ref = "-"; 
+                            else var_ref = vars.refs[var].data();
+                            if (vars.alts[var].size() == 0) var_alt = "-"; 
+                            else var_alt = vars.alts[var].data();
+                            printf("      %s:%i hap%i %s\t%s\t%s\n", 
+                                    ctg.data(), vars.poss[var], h, 
+                                    type_strs[vars.types[var]].data(), 
+                                    var_ref, var_alt);
+                        }
+                        printf("      REF: %s\n      ALT: %s\n", 
+                                ref_str.data(), alt_str.data());
+                        printf("\n    new edit distance: %i (%iI %iD)\n", 
+                                s, new_inss, new_dels);
+                        printf("      REF: %s\n      ALT: %s\n", 
+                                new_ref_str.data(), new_alt_str.data());
+                    }
+                }
 
                 // update counters
                 old_ed += subs*2 + inss + dels;

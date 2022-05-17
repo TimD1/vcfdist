@@ -7,11 +7,6 @@
 #include "vcf.h"
 #include "print.h"
 
-std::vector< std::string > type_strs { "REF", "SUB", "INS", "DEL", "GRP"};
-std::vector< std::string > gt_strs {
-".|.", "0|0", "0|1", "0|2", "1|0", "1|1", "1|2", "2|0", "2|1", "2|2", "?|?"
-};
-
 /******************************************************************************/
 
 variantCalls::variantCalls() { this->offs.resize(2); };
@@ -205,15 +200,8 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             // skip spanning deletion
             if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
 
-            // TODO: keep overlaps, test all non-overlapping subsets
-            // skip overlapping variants
-            int pos = rec->pos;
-            if (prev_end[hap] > pos) { // warn if overlap
-                WARN("potential overlap at %s:%i", seq.data(), pos);
-                continue;
-            }
-
             // determine variant type
+            int pos = rec->pos;
             int type = -1;
             int lm = 0; // match from left->right (trim prefix)
             int rm = -1;// match from right->left (simplify complex variants GRP->INDEL)
@@ -249,6 +237,13 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                     }
                     else type = TYPE_GRP;
                 }
+            }
+
+            // TODO: keep overlaps, test all non-overlapping subsets
+            // skip overlapping variants
+            if (prev_end[hap] > pos) { // warn if overlap
+                WARN("potential overlap at %s:%i", seq.data(), pos);
+                continue;
             }
 
             // calculate reference length of variant
@@ -339,17 +334,19 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
         }
     }
 
-    printf("\nGroups:\n");
-    for(int i = 0; i < nseq; i++) {
-        if (this->calls[seqnames[i]].poss.size())  {
-            printf("  Contig %s: %lu variants, %lu groups total\n", 
-                    seqnames[i],
-                    this->calls[seqnames[i]].poss.size(),
-                    this->calls[seqnames[i]].gaps.size());
-            for (int h = 0; h < 2; h++) {
-                printf("    Haplotype %i: %lu variants, %lu groups total\n", h+1,
-                        this->hapcalls[h][seqnames[i]].poss.size(),
-                        this->hapcalls[h][seqnames[i]].gaps.size());
+    if (g.print_verbosity >= 1) {
+        printf("\nGroups:\n");
+        for(int i = 0; i < nseq; i++) {
+            if (this->calls[seqnames[i]].poss.size())  {
+                printf("  Contig %s: %lu variants, %lu groups total\n", 
+                        seqnames[i],
+                        this->calls[seqnames[i]].poss.size(),
+                        this->calls[seqnames[i]].gaps.size());
+                for (int h = 0; h < 2; h++) {
+                    printf("    Haplotype %i: %lu variants, %lu groups total\n", h+1,
+                            this->hapcalls[h][seqnames[i]].poss.size(),
+                            this->hapcalls[h][seqnames[i]].gaps.size());
+                }
             }
         }
     }

@@ -10,6 +10,7 @@
 #define PTR_BOTH 3
 #define PTR_DIAG 4
 
-int ed_align(const vcfData* vcf, const fastaData* const ref);
+int edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
+int edit_dist(const vcfData* calls, const vcfData* truth, const fastaData* const ref);
 
 #endif

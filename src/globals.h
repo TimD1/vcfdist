@@ -39,5 +39,7 @@ public:
 };
 
 extern Globals g;
+extern std::vector< std::string > type_strs;
+extern std::vector< std::string > gt_strs;
 
 #endif

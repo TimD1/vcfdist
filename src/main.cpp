@@ -6,6 +6,9 @@
 #include "dist.h"
 
 Globals g;
+std::vector< std::string > type_strs = { "REF", "SUB", "INS", "DEL", "GRP"};
+std::vector< std::string > gt_strs = {
+".|.", "0|0", "0|1", "0|2", "1|0", "1|1", "1|2", "2|0", "2|1", "2|2", "?|?" };
  
 int main(int argc, char **argv) {
 
@@ -14,10 +17,12 @@ int main(int argc, char **argv) {
     fastaData ref(g.ref_fasta_fp);
 
     vcfData calls(g.calls_vcf_fp);
-    ed_align(&calls, &ref);
+    edit_dist_realign(&calls, &ref);
 
-    /* vcfData truth(g.truth_vcf_fp); */
-    /* ed_align(&truth, &ref); */
+    vcfData truth(g.truth_vcf_fp);
+    edit_dist_realign(&truth, &ref);
+
+    /* edit_dist(&calls, &truth, &ref); */
 
     return EXIT_SUCCESS;
 }
