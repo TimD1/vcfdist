@@ -543,24 +543,302 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     for(size_t i = call_clust_beg_idx; i < call_clust_end_idx; i++) {
                         printf("\tGroup %zu: %d variants\n", i, call_vars->gaps[i+1]-call_vars->gaps[i]);
                         for(int j = call_vars->gaps[i]; j < call_vars->gaps[i+1]; j++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), call_vars->poss[j], call_vars->refs[j].data(), call_vars->alts[j].data());
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), call_vars->poss[j], 
+                                    call_vars->refs[j].data(), call_vars->alts[j].data());
                         }
                     }
                     printf("HAP1: %zu groups\n", hap1_clust_end_idx-hap1_clust_beg_idx);
                     for(size_t i = hap1_clust_beg_idx; i < hap1_clust_end_idx; i++) {
                         printf("\tGroup %zu: %d variants\n", i, hap1_vars->gaps[i+1]-hap1_vars->gaps[i]);
                         for(int j = hap1_vars->gaps[i]; j < hap1_vars->gaps[i+1]; j++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap1_vars->poss[j], hap1_vars->refs[j].data(), hap1_vars->alts[j].data());
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap1_vars->poss[j], 
+                                    hap1_vars->refs[j].data(), hap1_vars->alts[j].data());
                         }
                     }
                     printf("HAP2: %zu groups\n", hap2_clust_end_idx-hap2_clust_beg_idx);
                     for(size_t i = hap2_clust_beg_idx; i < hap2_clust_end_idx; i++) {
                         printf("\tGroup %zu: %d variants\n", i, hap2_vars->gaps[i+1]-hap2_vars->gaps[i]);
                         for(int j = hap2_vars->gaps[i]; j < hap2_vars->gaps[i+1]; j++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap2_vars->poss[j], hap2_vars->refs[j].data(), hap2_vars->alts[j].data());
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap2_vars->poss[j], 
+                                    hap2_vars->refs[j].data(), hap2_vars->alts[j].data());
                         }
                     }
                 }
+
+                // get supercluster start/end positions
+                int beg_pos = std::min(call_vars->poss[call_vars->gaps[call_clust_beg_idx]]-1, 
+                        std::min(hap1_vars->poss[hap1_vars->gaps[hap1_clust_beg_idx]]-1, 
+                            hap2_vars->poss[hap2_vars->gaps[hap2_clust_beg_idx]]-1));
+                int end_pos = std::max(call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
+                            call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1]+1,
+                        std::max(hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
+                            hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1]+1,
+                        hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
+                            hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1]+1));
+
+                // generate call string
+                int call_var_idx = call_vars->gaps[call_clust_beg_idx];
+                std::string call = "", call_str = "", ref_str = "";
+                for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
+                    if (ref_pos == call_vars->poss[call_var_idx]) { // in call variant
+                        switch (call_vars->types[call_var_idx]) {
+                            case TYPE_INS:
+                                call += call_vars->alts[call_var_idx];
+                                call_str += GREEN(call_vars->alts[call_var_idx]);
+                                ref_str += std::string(call_vars->alts[call_var_idx].size(), ' ');
+                                break;
+                            case TYPE_DEL:
+                                call_str += std::string(call_vars->refs[call_var_idx].size(), ' ');
+                                ref_pos += call_vars->refs[call_var_idx].size();
+                                ref_str += RED(call_vars->refs[call_var_idx]);
+                                break;
+                            case TYPE_SUB:
+                                call += call_vars->alts[call_var_idx];
+                                call_str += " " + GREEN(call_vars->alts[call_var_idx]);
+                                ref_str += RED(call_vars->refs[call_var_idx]) + " ";
+                                ref_pos++;
+                                break;
+                            case TYPE_GRP:
+                                call += call_vars->alts[call_var_idx];
+                                call_str += std::string(call_vars->refs[call_var_idx].size(), ' ') 
+                                    + GREEN(call_vars->alts[call_var_idx]);
+                                ref_str += RED(call_vars->refs[call_var_idx]) + std::string(
+                                        call_vars->alts[call_var_idx].size(), ' ');
+                                ref_pos += call_vars->refs[call_var_idx].size();
+                                break;
+                        }
+                        call_var_idx++; // next variant
+                    }
+                    else { // match
+                        try {
+                            call += ref->fasta.at(ctg)[ref_pos];
+                            call_str += ref->fasta.at(ctg)[ref_pos];
+                            ref_str += ref->fasta.at(ctg)[ref_pos];
+                            ref_pos++;
+                        } catch (const std::out_of_range & e) {
+                            ERROR("contig %s not present in reference FASTA",
+                                    ctg.data());
+                            exit(1);
+                        }
+                    }
+                }
+
+                // generate hap1 and hap2 strings and pointers
+                int hap1_var_idx = hap1_vars->gaps[hap1_clust_beg_idx];
+                int hap2_var_idx = hap2_vars->gaps[hap2_clust_beg_idx];
+                std::string hap1 = "", hap2 = "", hap1_str = "", hap2_str = ""; 
+                std::vector<int> hap1_ptrs, hap2_ptrs;
+                for (int hap1_ref_pos = beg_pos, hap2_ref_pos = beg_pos; hap1_ref_pos < end_pos || hap2_ref_pos < end_pos; ) {
+
+                    // CONSIDER HAP1 ONLY, PRIOR REFERENCE POSITION
+                    if (hap1_ref_pos < hap2_ref_pos) {
+                        if (hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
+                            switch (hap1_vars->types[hap1_var_idx]) {
+                                case TYPE_INS:
+                                    hap1 += hap1_vars->alts[hap1_var_idx];
+                                    hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                                    hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    break;
+                                case TYPE_DEL:
+                                    hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ');
+                                    hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                                    break;
+                                case TYPE_SUB:
+                                    hap1 += hap1_vars->alts[hap1_var_idx];
+                                    hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                                    hap1_str += " " + GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    hap1_ref_pos++;
+                                    break;
+                                case TYPE_GRP:
+                                    hap1 += hap1_vars->alts[hap1_var_idx];
+                                    hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                                    hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ') 
+                                        + GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                                    break;
+                            }
+                            hap1_var_idx++; // next variant
+                        } else { // no hap1 variant, in hap2 variant
+                            try {
+                                hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
+                                hap1_ptrs.push_back(-1);
+                                hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
+                                hap1_ref_pos++;
+                            } catch (const std::out_of_range & e) {
+                                ERROR("contig %s not present in reference FASTA",
+                                        ctg.data());
+                                exit(1);
+                            }
+                        }
+                    }
+
+                    // CONSIDER HAP2 ONLY, PRIOR REFERENCE POSITION
+                    else if (hap2_ref_pos < hap1_ref_pos) {
+                        if (hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
+                            switch (hap2_vars->types[hap2_var_idx]) {
+                                case TYPE_INS:
+                                    hap2 += hap2_vars->alts[hap2_var_idx];
+                                    hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                                    hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    break;
+                                case TYPE_DEL:
+                                    hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ');
+                                    hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                                    break;
+                                case TYPE_SUB:
+                                    hap2 += hap2_vars->alts[hap2_var_idx];
+                                    hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                                    hap2_str += " " + GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    hap2_ref_pos++;
+                                    break;
+                                case TYPE_GRP:
+                                    hap2 += hap2_vars->alts[hap2_var_idx];
+                                    hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                                    hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ') 
+                                        + GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                                    break;
+                            }
+                            hap2_var_idx++; // next variant
+                        } else { // match
+                            try {
+                                hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
+                                hap2_ptrs.push_back(-1);
+                                hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
+                                hap2_ref_pos++;
+                            } catch (const std::out_of_range & e) {
+                                ERROR("contig %s not present in reference FASTA",
+                                        ctg.data());
+                                exit(1);
+                            }
+                        }
+                    }
+
+                    // REFERENCE POSITIONS MATCH! POTENTIAL TRANSITIONS
+                    else {
+                        bool hap1_var = false;
+                        if (hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
+                            hap1_var = true;
+                            switch (hap1_vars->types[hap1_var_idx]) {
+                                case TYPE_INS:
+                                    hap1 += hap1_vars->alts[hap1_var_idx];
+                                    hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                                    hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    break;
+                                case TYPE_DEL:
+                                    hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ');
+                                    hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                                    break;
+                                case TYPE_SUB:
+                                    hap1 += hap1_vars->alts[hap1_var_idx];
+                                    hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                                    hap1_str += " " + GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    hap1_ref_pos++;
+                                    break;
+                                case TYPE_GRP:
+                                    hap1 += hap1_vars->alts[hap1_var_idx];
+                                    hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                                    hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ') 
+                                        + GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                                    break;
+                            }
+                            hap1_var_idx++; // next variant
+                        } 
+
+                        bool hap2_var = false;
+                        if (hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
+                            hap2_var = true;
+                            switch (hap2_vars->types[hap2_var_idx]) {
+                                case TYPE_INS:
+                                    hap2 += hap2_vars->alts[hap2_var_idx];
+                                    hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                                    hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    break;
+                                case TYPE_DEL:
+                                    hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ');
+                                    hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                                    break;
+                                case TYPE_SUB:
+                                    hap2 += hap2_vars->alts[hap2_var_idx];
+                                    hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                                    hap2_str += " " + GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    hap2_ref_pos++;
+                                    break;
+                                case TYPE_GRP:
+                                    hap2 += hap2_vars->alts[hap2_var_idx];
+                                    hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                                    hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ') 
+                                        + GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                                    break;
+                            }
+                            hap2_var_idx++; // next variant
+
+                        } 
+                        
+                        // ONE WAS VARIANT, INVALID POINTERS
+                        if (!hap1_var && hap2_var) {
+                            try {
+                                hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
+                                hap1_ptrs.push_back(-1);
+                                hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
+                                hap1_ref_pos++;
+                            } catch (const std::out_of_range & e) {
+                                ERROR("contig %s not present in reference FASTA",
+                                        ctg.data());
+                                exit(1);
+                            }
+                        }
+                        if (hap1_var && !hap2_var) {
+                            try {
+                                hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
+                                hap2.push_back(-1);
+                                hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
+                                hap2_ref_pos++;
+                            } catch (const std::out_of_range & e) {
+                                ERROR("contig %s not present in reference FASTA",
+                                        ctg.data());
+                                exit(1);
+                            }
+                        }
+
+                        // BOTH MATCH REFERENCE, ADD POINTERS
+                        if (!hap1_var && !hap2_var) { // add pointers
+                            try {
+                                hap1_ptrs.push_back(hap2.size());
+                                hap2_ptrs.push_back(hap1.size());
+                                hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
+                                hap1_str += BLUE(ref->fasta.at(ctg)[hap1_ref_pos]);
+                                hap1_ref_pos++;
+                                hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
+                                hap2_str += BLUE(ref->fasta.at(ctg)[hap2_ref_pos]);
+                                hap2_ref_pos++;
+                            } catch (const std::out_of_range & e) {
+                                ERROR("contig %s not present in reference FASTA",
+                                        ctg.data());
+                                exit(1);
+                            }
+                        }
+                    }
+                }
+                if (any_merged) {
+                    printf("ORIG: %s\n", ref_str.data());
+                    printf("CALL: %s\n", call_str.data());
+                    printf("HAP1: %s\n", hap1_str.data());
+                    printf("HAP2: %s\n", hap2_str.data());
+                    printf("\nHAP1: ");
+                    for(int i = 0; i < hap1_ptrs.size(); i++) {
+                        printf("%2d ", hap1_ptrs[i]);
+                    }
+                    printf("\nHAP2: ");
+                    for(int i = 0; i < hap2_ptrs.size(); i++) {
+                        printf("%2d ", hap2_ptrs[i]);
+                    }
+
+                }
+
+                // align clusters
 
                 // reset for next merged cluster
                 call_clust_beg_idx = call_clust_end_idx;
@@ -573,75 +851,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
     return 0;
 }
 
-            /* // iterate over each group of variants */
-            /* for (size_t var_grp = 0; var_grp < vars.gaps.size()-1; var_grp++) { */
-            /*     int beg_idx = vars.gaps[var_grp]; */
-            /*     int end_idx = vars.gaps[var_grp+1]; */
-            /*     int beg = vars.poss[beg_idx]-1; */
-            /*     int end = vars.poss[end_idx-1] + vars.rlens[end_idx-1]+1; */
-            /*     int subs = 0; */
-            /*     int inss = 0; */
-            /*     int dels = 0; */
-
-            /*     // iterate over variants, summing edit distance */
-            /*     for (int var = beg_idx; var < end_idx; var++) { */
-            /*         switch (vars.types[var]) { */
-            /*             case TYPE_SUB: subs++; break; */
-            /*             case TYPE_INS: inss += vars.alts[var].size(); break; */
-            /*             case TYPE_DEL: dels += vars.refs[var].size(); break; */
-            /*             default: ERROR("unexpected variant type (%i)", vars.types[var]) */ 
-            /*                      std::exit(1); break; */
-            /*         } */
-            /*     } */
-
-            /*     // colored alignment */
-            /*     int var = beg_idx; */
-            /*     std::string ref_str = ""; */
-            /*     std::string alt_str = ""; */
-            /*     std::string alt = ""; */
-            /*     for (int ref_pos = beg; ref_pos < end;) { */
-            /*         if (ref_pos == vars.poss[var]) { // in variant */
-            /*             switch (vars.types[var]) { */
-            /*                 case TYPE_INS: */
-            /*                     alt += vars.alts[var]; */
-            /*                     alt_str += GREEN(vars.alts[var]); */
-            /*                     ref_str += std::string(vars.alts[var].size(), ' '); */
-            /*                     break; */
-            /*                 case TYPE_DEL: */
-            /*                     alt_str += std::string(vars.refs[var].size(), ' '); */
-            /*                     ref_str += RED(vars.refs[var]); */
-            /*                     ref_pos += vars.refs[var].size(); */
-            /*                     break; */
-            /*                 case TYPE_SUB: */
-            /*                     alt += vars.alts[var]; */
-            /*                     alt_str += " " + GREEN(vars.alts[var]); */
-            /*                     ref_str += RED(vars.refs[var]) + " "; */
-            /*                     ref_pos++; */
-            /*                     break; */
-            /*                 case TYPE_GRP: */
-            /*                     alt += vars.alts[var]; */
-            /*                     alt_str += std::string(vars.refs[var].size(), ' ') */ 
-            /*                         + GREEN(vars.alts[var]); */
-            /*                     ref_str += RED(vars.refs[var]) + std::string( */
-            /*                             vars.alts[var].size(), ' '); */
-            /*                     ref_pos += vars.refs[var].size(); */
-            /*                     break; */
-            /*             } */
-            /*             var++; // next variant */
-            /*         } */
-            /*         else { // match */
-            /*             try { */
-            /*                 alt += ref->fasta.at(ctg)[ref_pos]; */
-            /*                 ref_str += ref->fasta.at(ctg)[ref_pos]; */
-            /*                 alt_str += ref->fasta.at(ctg)[ref_pos]; */
-            /*                 ref_pos++; */
-            /*             } catch (const std::out_of_range & e) { */
-            /*                 ERROR("contig %s not present in reference FASTA", */
-            /*                         ctg.data()); */
-            /*                 exit(1); */
-            /*             } */
-            /*         } */
-            /*     } */
 
             /*     // do alignment */
             /*     int s = 0; */
