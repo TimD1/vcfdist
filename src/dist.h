@@ -9,6 +9,7 @@
 #define PTR_LEFT 2
 #define PTR_BOTH 3
 #define PTR_DIAG 4
+#define PTR_SWAP 5
 
 int edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
 int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);

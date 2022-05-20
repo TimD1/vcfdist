@@ -393,6 +393,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
     // iterate over each haplotype
+    int distance = 0;
     for (int call_hap = 0; call_hap < 2; call_hap++) {
 
         // iterate over each contig
@@ -443,7 +444,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 bool added_call = false;
                 bool added_hap1 = false;
                 bool added_hap2 = false;
-                bool any_merged = false;
                 int curr_call_end_pos = 0, curr_hap1_end_pos = 0, curr_hap2_end_pos = 0;
                 if (next_call_beg_pos < next_hap1_beg_pos && 
                         next_call_beg_pos < next_hap2_beg_pos) {
@@ -493,7 +493,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                             else
                                 next_hap1_beg_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1;
                             added_hap1 = true;
-                            any_merged = true;
                         }
                         while (next_hap2_beg_pos < curr_call_end_pos + g.gap) {
                             hap2_clust_end_idx += 1;
@@ -504,7 +503,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                             else
                                 next_hap2_beg_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1;
                             added_hap2 = true;
-                            any_merged = true;
                         }
                     }
                     if (added_hap1) {
@@ -518,7 +516,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                             else
                                 next_call_beg_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]]-1;
                             added_call = true;
-                            any_merged = true;
                         }
                     }
                     if (added_hap2) {
@@ -532,35 +529,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                             else
                                 next_call_beg_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]]-1;
                             added_call = true;
-                            any_merged = true;
-                        }
-                    }
-                }
-
-                // print cluster info
-                if (any_merged) {
-                    printf("\n\nCALL: %zu groups\n", call_clust_end_idx-call_clust_beg_idx);
-                    for(size_t i = call_clust_beg_idx; i < call_clust_end_idx; i++) {
-                        printf("\tGroup %zu: %d variants\n", i, call_vars->gaps[i+1]-call_vars->gaps[i]);
-                        for(int j = call_vars->gaps[i]; j < call_vars->gaps[i+1]; j++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), call_vars->poss[j], 
-                                    call_vars->refs[j].data(), call_vars->alts[j].data());
-                        }
-                    }
-                    printf("HAP1: %zu groups\n", hap1_clust_end_idx-hap1_clust_beg_idx);
-                    for(size_t i = hap1_clust_beg_idx; i < hap1_clust_end_idx; i++) {
-                        printf("\tGroup %zu: %d variants\n", i, hap1_vars->gaps[i+1]-hap1_vars->gaps[i]);
-                        for(int j = hap1_vars->gaps[i]; j < hap1_vars->gaps[i+1]; j++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap1_vars->poss[j], 
-                                    hap1_vars->refs[j].data(), hap1_vars->alts[j].data());
-                        }
-                    }
-                    printf("HAP2: %zu groups\n", hap2_clust_end_idx-hap2_clust_beg_idx);
-                    for(size_t i = hap2_clust_beg_idx; i < hap2_clust_end_idx; i++) {
-                        printf("\tGroup %zu: %d variants\n", i, hap2_vars->gaps[i+1]-hap2_vars->gaps[i]);
-                        for(int j = hap2_vars->gaps[i]; j < hap2_vars->gaps[i+1]; j++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap2_vars->poss[j], 
-                                    hap2_vars->refs[j].data(), hap2_vars->alts[j].data());
                         }
                     }
                 }
@@ -793,7 +761,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                         if (hap1_var && !hap2_var) {
                             try {
                                 hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
-                                hap2.push_back(-1);
+                                hap2_ptrs.push_back(-1);
                                 hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
                                 hap2_ref_pos++;
                             } catch (const std::out_of_range & e) {
@@ -822,173 +790,341 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                         }
                     }
                 }
-                if (any_merged) {
-                    printf("ORIG: %s\n", ref_str.data());
-                    printf("CALL: %s\n", call_str.data());
-                    printf("HAP1: %s\n", hap1_str.data());
-                    printf("HAP2: %s\n", hap2_str.data());
-                    printf("\nHAP1: ");
-                    for(int i = 0; i < hap1_ptrs.size(); i++) {
-                        printf("%2d ", hap1_ptrs[i]);
-                    }
-                    printf("\nHAP2: ");
-                    for(int i = 0; i < hap2_ptrs.size(); i++) {
-                        printf("%2d ", hap2_ptrs[i]);
-                    }
 
+                // do alignment
+                int s = 0;
+                int call_len = call.size();
+                int hap1_len = hap1.size();
+                int hap2_len = hap2.size();
+                int hap1_mat_len = call.size() + hap1.size() - 1;
+                int hap2_mat_len = call.size() + hap2.size() - 1;
+                std::vector< std::vector<int> > offsets1, ptrs1;
+                offsets1.push_back(std::vector<int>(hap1_mat_len,-2)); // init all invalid
+                /* ptrs1.push_back(std::vector<int>(hap1_mat_len,PTR_NONE)); */
+                std::vector< std::vector<int> > offsets2, ptrs2;
+                offsets2.push_back(std::vector<int>(hap2_mat_len,-2)); // init all invalid
+                /* ptrs2.push_back(std::vector<int>(hap2_mat_len,PTR_NONE)); */
+                offsets1[0][call_len-1] = -1; // only start from top left diag
+                offsets2[0][call_len-1] = -1;
+                bool done = false;
+                bool extend = true;
+
+
+                while (true) {
+
+                    // EXTEND WAVEFRONT
+                    extend = true;
+                    while (extend) {
+
+                        // extend hap1, allow hap1 -> hap2 transition
+                        for (int d1 = 0; d1 < hap1_mat_len; d1++) {
+                            int off1 = offsets1[s][d1];
+                            int diag1 = d1 + 1 - call_len;
+
+                            // don't allow starting from untouched cells
+                            if (off1 == -2) continue;
+
+                            // check that it's within matrix
+                            if (diag1 + off1 + 1 < 0) continue;
+                            if (off1 > call_len - 1) continue;
+                            if (diag1 + off1 > hap1_len - 1) continue;
+
+                            // extend
+                            while (off1 < call_len - 1 && 
+                                   diag1 + off1 < hap1_len - 1) {
+
+                                // extend to other hap if possible
+                                if (off1 + diag1 < hap1_len &&
+                                    off1 + diag1 >= 0 &&
+                                    hap1_ptrs[off1+diag1] >= 0) {
+                                    int d2 = hap1_ptrs[off1+diag1] - off1 + call_len-1;
+                                    if (off1 > offsets2[s][d2]) {
+                                        /* printf("switch 1->2: off1=%d offsets2=%d s=%d d2=%d diag1=%d\n", */
+                                        /*         off1, offsets2[s][d2], s, d2, diag1); */
+                                        offsets2[s][d2] = off1;
+                                    }
+                                }
+
+                                // extend on this hap if possible
+                                if (call[off1+1] == hap1[diag1+off1+1])
+                                    off1++;
+                                else
+                                    break;
+                            }
+                            offsets1[s][d1] = off1;
+
+                            // finish if done
+                            if (off1 == call_len - 1 && 
+                                off1 + diag1 == hap1_len - 1)
+                            { done = true; break; }
+
+                        }
+                        if (done) break;
+
+                        // extend hap2, allow hap2->hap1 transition, redo if taken
+                        extend = false;
+                        for (int d2 = 0; d2 < hap2_mat_len; d2++) {
+                            int off2 = offsets2[s][d2];
+                            int diag2 = d2 + 1 - call_len;
+
+                            // don't allow starting from untouched cells
+                            if (off2 == -2) continue;
+
+                            // check that it's within matrix
+                            if (diag2 + off2 + 1 < 0) continue;
+                            if (off2 > call_len - 1) continue;
+                            if (diag2 + off2 > hap2_len - 1) continue;
+
+                            // extend
+                            while (off2 < call_len - 1 && 
+                                   diag2 + off2 < hap2_len - 1) {
+
+                                // extend to other hap if possible
+                                if (off2 + diag2 < hap2_len &&
+                                    off2 + diag2 >= 0 &&
+                                    hap2_ptrs[off2+diag2] >= 0) {
+                                    int d1 = hap2_ptrs[off2+diag2] - off2 + call_len-1;
+                                    if (off2 > offsets1[s][d1]) {
+                                        extend = true;
+                                        /* printf("switch 2->1: off2=%d offsets1=%d s=%d d1=%d diag2=%d\n", */
+                                        /*         off2, offsets1[s][d1], s, d1, diag2); */
+                                        offsets1[s][d1] = off2;
+                                    }
+                                }
+
+                                // extend on this hap if possible
+                                if (call[off2+1] == hap2[diag2+off2+1])
+                                    off2++;
+                                else
+                                    break;
+                            }
+                            offsets2[s][d2] = off2;
+
+                            // finish if done
+                            if (off2 == call_len - 1 && 
+                                off2 + diag2 == hap2_len - 1)
+                            { done = true; break; }
+
+                        }
+                        if (done) break;
+                    }
+                    if (done) break;
+
+
+                    // NEXT WAVEFRONT
+                    
+                    // add wavefront, fill edge cells
+                    offsets1.push_back(std::vector<int>(hap1_mat_len, -2));
+                    offsets2.push_back(std::vector<int>(hap2_mat_len, -2));
+                    // bottom left cells
+                    if (s+1 == call_len-1) {
+                        offsets1[s+1][0] = s+1;
+                        offsets2[s+1][0] = s+1;
+                    }
+                    // top right cells
+                    if (s+1 == hap1_mat_len-1)
+                        offsets1[s+1][hap1_mat_len-1] = s+1;
+                    if (s+1 == hap2_mat_len-1)
+                        offsets2[s+1][hap2_mat_len-1] = s+1;
+
+                    /* ptrs1.push_back(std::vector<int>(hap1_mat_len)); */
+                    /* ptrs1[s+1][0] = PTR_UP; */
+                    /* ptrs1[s+1][s+1] = PTR_LEFT; */
+
+                    // central cells
+                    for (int d1 = 1; d1 < hap1_mat_len-1; d1++) {
+                        int offleft1 = offsets1[s][d1-1];
+                        int offtop1 = (offsets1[s][d1+1] == -2) ? 
+                            -2 : offsets1[s][d1+1]+1;
+                        if (offleft1 >= offtop1) {
+                            offsets1[s+1][d1] = offleft1;
+                            /* ptrs1[s+1][d1] = PTR_LEFT; */
+                        } else {
+                            offsets1[s+1][d1] = offtop1;
+                            /* ptrs1[s+1][d1] = PTR_UP; */
+                        }
+                    }
+                    for (int d2 = 1; d2 < hap2_mat_len-1; d2++) {
+                        int offleft2 = offsets2[s][d2-1];
+                        int offtop2 = (offsets2[s][d2+1] == -2) ? 
+                            -2 : offsets2[s][d2+1]+1;
+                        if (offleft2 >= offtop2) {
+                            offsets2[s+1][d2] = offleft2;
+                            /* ptrs1[s+1][d2] = PTR_LEFT; */
+                        } else {
+                            offsets2[s+1][d2] = offtop2;
+                            /* ptrs1[s+1][d2] = PTR_UP; */
+                        }
+                    }
+                    ++s;
                 }
 
-                // align clusters
+
+                // PRINT RESULTS
+                if (s > 0) {
+                    /* && */ 
+                    /*     ref_str.size() < 50 && ( */
+                    /*         hap1_clust_end_idx - hap1_clust_beg_idx || */ 
+                    /*         hap2_clust_end_idx - hap2_clust_beg_idx */
+                    /*         )) { */
+
+                    // print cluster info
+                    printf("\n\nCALL: %zu groups\n", call_clust_end_idx-call_clust_beg_idx);
+                    for(size_t i = call_clust_beg_idx; i < call_clust_end_idx; i++) {
+                        printf("\tGroup %zu: %d variants\n", i, call_vars->gaps[i+1]-call_vars->gaps[i]);
+                        for(int j = call_vars->gaps[i]; j < call_vars->gaps[i+1]; j++) {
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), call_vars->poss[j], 
+                                    call_vars->refs[j].data(), call_vars->alts[j].data());
+                        }
+                    }
+                    printf("HAP1: %zu groups\n", hap1_clust_end_idx-hap1_clust_beg_idx);
+                    for(size_t i = hap1_clust_beg_idx; i < hap1_clust_end_idx; i++) {
+                        printf("\tGroup %zu: %d variants\n", i, hap1_vars->gaps[i+1]-hap1_vars->gaps[i]);
+                        for(int j = hap1_vars->gaps[i]; j < hap1_vars->gaps[i+1]; j++) {
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap1_vars->poss[j], 
+                                    hap1_vars->refs[j].data(), hap1_vars->alts[j].data());
+                        }
+                    }
+                    printf("HAP2: %zu groups\n", hap2_clust_end_idx-hap2_clust_beg_idx);
+                    for(size_t i = hap2_clust_beg_idx; i < hap2_clust_end_idx; i++) {
+                        printf("\tGroup %zu: %d variants\n", i, hap2_vars->gaps[i+1]-hap2_vars->gaps[i]);
+                        for(int j = hap2_vars->gaps[i]; j < hap2_vars->gaps[i+1]; j++) {
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap2_vars->poss[j], 
+                                    hap2_vars->refs[j].data(), hap2_vars->alts[j].data());
+                        }
+                    }
+                    
+                    /* printf("\n\nORIG: %s\n", ref_str.data()); */
+                    /* printf("CALL: %s\n", call_str.data()); */
+                    /* printf("HAP1: %s\t", hap1_str.data()); */
+                    /* for(size_t i = 0; i < hap1_ptrs.size(); i++) { */
+                    /*     if (hap1_ptrs[i] >= 0) */
+                    /*         printf("%2s ", BLUE(hap1_ptrs[i]).data()); */
+                    /*     else */
+                    /*         printf("%2d ", hap1_ptrs[i]); */
+                    /* } */
+                    /* printf("\n"); */
+                    /* printf("HAP2: %s\t", hap2_str.data()); */
+                    /* for(size_t i = 0; i < hap2_ptrs.size(); i++) { */
+                    /*     if (hap2_ptrs[i] >= 0) */
+                    /*         printf("%s ", BLUE(hap2_ptrs[i]).data()); */
+                    /*     else */
+                    /*         printf("%2d ", hap2_ptrs[i]); */
+                    /* } */
+                    /* printf("\n"); */
+                    printf("call: %s\n", call.data());
+                    printf("hap1: %s\n", hap1.data());
+                    printf("hap2: %s\n", hap2.data());
+
+                    printf("distance: %d\n", s);
+
+                    /* // DEBUG PRINT */
+                    /* printf("\noffsets hap 1:\n"); */
+                    /* printf("s= "); */
+                    /* for(int i = 0; i < hap1_mat_len; i++) printf("%2i ", i); */
+                    /* printf("\n "); */
+                    /* for(int i = 0; i < hap1_mat_len; i++) printf("  /"); */
+                    /* printf("\n"); */
+                    /* for(int r = 0; r < s; r++) { */
+                    /*     for(int c = 0; c < hap1_mat_len; c++) { */
+                    /*         printf(" %2d", offsets1[r][c]); */
+                    /*     } */
+                    /*     printf("\n"); */
+                    /* } */
+                    /* printf("\noffsets hap 2:\n"); */
+                    /* printf("s= "); */
+                    /* for(int i = 0; i < hap2_mat_len; i++) printf("%2i ", i); */
+                    /* printf("\n "); */
+                    /* for(int i = 0; i < hap2_mat_len; i++) printf("  /"); */
+                    /* printf("\n"); */
+                    /* for(int r = 0; r < s; r++) { */
+                    /*     for(int c = 0; c < hap2_mat_len; c++) { */
+                    /*         printf(" %2d", offsets2[r][c]); */
+                    /*     } */
+                    /*     printf("\n"); */
+                    /* } */
+
+                    /* // create array */
+                    /* std::vector< std::vector<char> > ptr_str; */
+                    /* for (int i = 0; i < call_len; i++) */
+                    /*     ptr_str.push_back(std::vector<char>(hap1_len, '.')); */
+
+                    /* // modify array with pointers */
+                    /* int call_pos, hap1_pos; */
+                    /* for (int si = 0; si <= s; si++) { */
+                    /*     for(int di = 0; di <= si; di++) { */
+                    /*         if (di == 0) { */
+                    /*             if (si == 0) { */
+                    /*                 call_pos = 0; */
+                    /*                 hap1_pos = 0; */
+                    /*             } else { */
+                    /*                 call_pos = offsets1[si-1][di] + 1; */
+                    /*                 hap1_pos = diags1[si-1][di] + offsets1[si-1][di]; */
+                    /*                 if (call_pos < call_len && hap1_pos < hap1_len) */
+                    /*                     ptr_str[call_pos][hap1_pos] = '|'; */
+                    /*             } */
+                    /*         } */ 
+                    /*         else if (di == si) { */
+                    /*             call_pos = offsets1[si-1][di-1]; */
+                    /*             hap1_pos = diags1[si-1][di-1] + offsets1[si-1][di-1] + 1; */
+                    /*             if (call_pos < call_len && hap1_pos < hap1_len) */
+                    /*                 ptr_str[call_pos][hap1_pos] = '-'; */
+                    /*         } */ 
+                    /*         else if (offsets1[si-1][di-1] > offsets1[si-1][di]+1) { */
+                    /*             call_pos = offsets1[si-1][di-1]; */
+                    /*             hap1_pos = diags1[si-1][di-1] + offsets1[si-1][di-1] + 1; */
+                    /*             if (call_pos < call_len && hap1_pos < hap1_len) */
+                    /*                 ptr_str[call_pos][hap1_pos] = '-'; */
+                    /*         } */ 
+                    /*         else { */
+                    /*             call_pos = offsets1[si-1][di] + 1; */
+                    /*             hap1_pos = diags1[si-1][di] + offsets1[si-1][di]; */
+                    /*             if (call_pos < call_len && hap1_pos < hap1_len) */
+                    /*                 ptr_str[call_pos][hap1_pos] = '|'; */
+                    /*         } */
+                    /*         while (call_pos < call_len-1 && hap1_pos < hap1_len-1 && */ 
+                    /*                 call[++call_pos] == hap1[++hap1_pos]) { */
+                    /*             ptr_str[call_pos][hap1_pos] = '\\'; */
+                    /*         } */
+                    /*     } */
+                    /* } */
+                    /* // NOTE: first base will ALWAYS match, due to grabbing */ 
+                    /* // previous ref base before variant. This is required */ 
+                    /* // for correctness of algorithm */
+                    /* ptr_str[0][0] = '\\'; */
+
+                    /* // print array */
+                    /* for (int i = -1; i < call_len; i++) { */
+                    /*     for (int j = -1; j < hap1_len; j++) { */
+                    /*         if (i < 0 && j < 0) { */
+                    /*             printf("\n  "); */
+                    /*         } */
+                    /*         else if (i < 0) { */
+                    /*             printf("%c", hap1[j]); */
+                    /*         } else if (j < 0) { */
+                    /*             printf("\n%c ", call[i]); */
+                    /*         } else { */
+                    /*             printf("%c", ptr_str[i][j]); */
+                    /*         } */
+                    /*     } */
+                    /* } */
+
+                }
 
                 // reset for next merged cluster
                 call_clust_beg_idx = call_clust_end_idx;
                 hap1_clust_beg_idx = hap1_clust_end_idx;
                 hap2_clust_beg_idx = hap2_clust_end_idx;
+                distance += s;
             }
+            INFO("Total edit distance: %d", distance);
         }
     }
 
-    return 0;
+    return distance;
 }
 
 
-            /*     // do alignment */
-            /*     int s = 0; */
-            /*     int reflen = end-beg; */
-            /*     int altlen = reflen + inss - dels; */
-            /*     std::vector< std::vector<int> > diags, offsets, ptrs; */
-            /*     diags.push_back(std::vector<int>(1,0)); */
-            /*     offsets.push_back(std::vector<int>(1,-1)); */
-            /*     ptrs.push_back(std::vector<int>(1,0)); */
-            /*     bool done = false; */
-            /*     while (true) { */
-
-            /*         // EXTEND WAVEFRONT */
-            /*         for (int d = 0; d < s+1; d++) { */
-            /*             int max_offset = std::min( */
-            /*                     reflen - diags[s][d], altlen) - 1; */
-            /*             int offset = offsets[s][d]; */
-            /*             while (offset < max_offset && alt[offset+1] == */ 
-            /*                     ref->fasta.at(ctg)[diags[s][d]+offset+beg+1]) { */
-            /*                 offset++; */
-            /*             } */
-            /*             offsets[s][d] = offset; */
-            /*             if (offset == altlen-1 && */ 
-            /*                     offset+diags[s][d] == reflen-1) */
-            /*             { done = true; break; } */
-            /*         } */
-            /*         if (done) break; */
-
-
-            /*         // NEXT WAVEFRONT */
-                    
-            /*         // add wavefront, fill edge cells */
-            /*         diags.push_back(std::vector<int>(s+2)); */
-            /*         offsets.push_back(std::vector<int>(s+2)); */
-            /*         ptrs.push_back(std::vector<int>(s+2)); */
-            /*         diags[s+1][0] = diags[s][0] - 1; */
-            /*         offsets[s+1][0] = offsets[s][0] + 1; */
-            /*         ptrs[s+1][0] = PTR_UP; */
-            /*         diags[s+1][s+1] = diags[s][s] + 1; */
-            /*         offsets[s+1][s+1] = offsets[s][s]; */
-            /*         ptrs[s+1][s+1] = PTR_LEFT; */
-
-            /*         // central cells */
-            /*         for (int d = 1; d <= s; d++) { */
-            /*             if (offsets[s][d-1] >= offsets[s][d]+1) { */
-            /*                 diags[s+1][d] = diags[s][d-1] + 1; */
-            /*                 offsets[s+1][d] = offsets[s][d-1]; */
-            /*                 ptrs[s+1][d] = PTR_LEFT; */
-            /*             } else { */
-            /*                 diags[s+1][d] = diags[s][d] - 1; */
-            /*                 offsets[s+1][d] = offsets[s][d]+1; */
-            /*                 ptrs[s+1][d] = PTR_UP; */
-            /*             } */
-            /*         } */
-            /*         ++s; */
-            /*     } */
-
-            /*     // DEBUG PRINT */
-
-            /*     if (g.print_verbosity >= 2) { */
-            /*         printf("\noffsets:\n"); */
-            /*         printf("s= "); */
-            /*         for(int i = 0; i <= s; i++) printf("%2i ", i); */
-            /*         printf("\n "); */
-            /*         for(int i = 0; i <= s; i++) printf("  /"); */
-            /*         printf("\n"); */
-            /*         for(int r = 0; r <= s; r++) { */
-            /*             for(int c = 0; c <= s-r; c++) { */
-            /*                 printf(" %2d", offsets[r+c][c]); */
-            /*             } */
-            /*             printf("\n"); */
-            /*         } */
-
-            /*         // create array */
-            /*         std::vector< std::vector<char> > ptr_str; */
-            /*         for (int i = 0; i < altlen; i++) */
-            /*             ptr_str.push_back(std::vector<char>(reflen, '.')); */
-
-            /*         // modify array with pointers */
-            /*         int altpos, refpos; */
-            /*         for (int si = 0; si <= s; si++) { */
-            /*             for(int di = 0; di <= si; di++) { */
-            /*                 if (di == 0) { */
-            /*                     if (si == 0) { */
-            /*                         altpos = 0; */
-            /*                         refpos = 0; */
-            /*                     } else { */
-            /*                         altpos = offsets[si-1][di] + 1; */
-            /*                         refpos = diags[si-1][di] + offsets[si-1][di]; */
-            /*                         if (altpos < altlen && refpos < reflen) */
-            /*                             ptr_str[altpos][refpos] = '|'; */
-            /*                     } */
-            /*                 } */ 
-            /*                 else if (di == si) { */
-            /*                     altpos = offsets[si-1][di-1]; */
-            /*                     refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1; */
-            /*                     if (altpos < altlen && refpos < reflen) */
-            /*                         ptr_str[altpos][refpos] = '-'; */
-            /*                 } */ 
-            /*                 else if (offsets[si-1][di-1] > offsets[si-1][di]+1) { */
-            /*                     altpos = offsets[si-1][di-1]; */
-            /*                     refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1; */
-            /*                     if (altpos < altlen && refpos < reflen) */
-            /*                         ptr_str[altpos][refpos] = '-'; */
-            /*                 } */ 
-            /*                 else { */
-            /*                     altpos = offsets[si-1][di] + 1; */
-            /*                     refpos = diags[si-1][di] + offsets[si-1][di]; */
-            /*                     if (altpos < altlen && refpos < reflen) */
-            /*                         ptr_str[altpos][refpos] = '|'; */
-            /*                 } */
-            /*                 while (altpos < altlen-1 && refpos < reflen-1 && */ 
-            /*                         alt[++altpos] == ref->fasta.at(ctg)[beg + ++refpos]) { */
-            /*                     ptr_str[altpos][refpos] = '\\'; */
-            /*                 } */
-            /*             } */
-            /*         } */
-            /*         // NOTE: first base will ALWAYS match, due to grabbing */ 
-            /*         // previous ref base before variant. This is required */ 
-            /*         // for correctness of algorithm */
-            /*         ptr_str[0][0] = '\\'; */
-
-            /*         // print array */
-            /*         for (int i = -1; i < altlen; i++) { */
-            /*             for (int j = -1; j < reflen; j++) { */
-            /*                 if (i < 0 && j < 0) { */
-            /*                     printf("\n  "); */
-            /*                 } */
-            /*                 else if (i < 0) { */
-            /*                     printf("%c", ref->fasta.at(ctg)[beg+j]); */
-            /*                 } else if (j < 0) { */
-            /*                     printf("\n%c ", alt[i]); */
-            /*                 } else { */
-            /*                     printf("%c", ptr_str[i][j]); */
-            /*                 } */
-            /*             } */
-            /*         } */
-            /*     } */
 
             /*     // BACKTRACK */
                 
@@ -1144,7 +1280,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
         /* } // contig */
     /* } // hap */
     /* INFO("Edit dist reduced in %i of %i groups, from %i to %i.", */ 
-            /* new_ed_groups, groups, old_ed, new_ed); */
+    /*         new_ed_groups, groups, old_ed, new_ed); */
     /* return 0; */
 
 /* } */

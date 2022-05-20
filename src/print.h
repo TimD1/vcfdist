@@ -10,6 +10,7 @@ std::string GREEN(char c);
 std::string GREEN(std::string str);
 std::string RED(char c);
 std::string RED(std::string str);
+std::string BLUE(int i);
 std::string BLUE(char c);
 std::string BLUE(std::string str);
 
