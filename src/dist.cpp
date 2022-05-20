@@ -533,16 +533,30 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     }
                 }
 
-                // get supercluster start/end positions
-                int beg_pos = std::min(call_vars->poss[call_vars->gaps[call_clust_beg_idx]]-1, 
-                        std::min(hap1_vars->poss[hap1_vars->gaps[hap1_clust_beg_idx]]-1, 
-                            hap2_vars->poss[hap2_vars->gaps[hap2_clust_beg_idx]]-1));
-                int end_pos = std::max(call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
-                            call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1]+1,
-                        std::max(hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
-                            hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1]+1,
-                        hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
-                            hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1]+1));
+                // get supercluster start/end positions (allowing empty haps)
+                int beg_pos = std::numeric_limits<int>::max();
+                int end_pos = -1;
+                if (call_clust_end_idx - call_clust_beg_idx) { // call vars present
+                    beg_pos = std::min(beg_pos, 
+                            call_vars->poss[call_vars->gaps[call_clust_beg_idx]]-1);
+                    end_pos = std::max(end_pos, 
+                            call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
+                            call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1]+1);
+                }
+                if (hap1_clust_end_idx - hap1_clust_beg_idx) { // hap1 vars present
+                    beg_pos = std::min(beg_pos, 
+                            hap1_vars->poss[hap1_vars->gaps[hap1_clust_beg_idx]]-1);
+                    end_pos = std::max(end_pos, 
+                            hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
+                            hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1]+1);
+                }
+                if (hap2_clust_end_idx - hap2_clust_beg_idx) { // hap2 vars present
+                    beg_pos = std::min(beg_pos, 
+                            hap2_vars->poss[hap2_vars->gaps[hap2_clust_beg_idx]]-1);
+                    end_pos = std::max(end_pos, 
+                            hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
+                            hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1]+1);
+                }
 
                 // generate call string
                 int call_var_idx = call_vars->gaps[call_clust_beg_idx];
