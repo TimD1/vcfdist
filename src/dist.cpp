@@ -441,96 +441,73 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     next_hap2_beg_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1;
 
                 // initialize cluster merging with first to start
-                bool added_call = false;
-                bool added_hap1 = false;
-                bool added_hap2 = false;
-                int curr_call_end_pos = 0, curr_hap1_end_pos = 0, curr_hap2_end_pos = 0;
+                int curr_end_pos = 0;
                 if (next_call_beg_pos < next_hap1_beg_pos && 
-                        next_call_beg_pos < next_hap2_beg_pos) {
+                        next_call_beg_pos < next_hap2_beg_pos) { // call var first
                     call_clust_end_idx += 1;
-                    curr_call_end_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
+                    curr_end_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
                             call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1] + 1;
                     if (call_clust_end_idx >= call_vars->gaps.size()-1)
                         next_call_beg_pos = std::numeric_limits<int>::max();
                     else
                         next_call_beg_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]]-1;
-                    added_call = true;
                 } 
                 else if (next_hap1_beg_pos < next_call_beg_pos && 
-                        next_hap1_beg_pos < next_hap2_beg_pos) {
+                        next_hap1_beg_pos < next_hap2_beg_pos) { // hap1 var first
                     hap1_clust_end_idx += 1;
-                    curr_hap1_end_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
+                    curr_end_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
                             hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1] + 1;
                     if (hap1_clust_end_idx >= hap1_vars->gaps.size()-1)
                         next_hap1_beg_pos = std::numeric_limits<int>::max();
                     else
                         next_hap1_beg_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1;
-                    added_hap1 = true;
                 } 
-                else {
+                else { // hap2 var first
                     hap2_clust_end_idx += 1;
-                    curr_hap2_end_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
+                    curr_end_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
                             hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1] + 1;
                     if (hap2_clust_end_idx >= hap2_vars->gaps.size()-1)
                         next_hap2_beg_pos = std::numeric_limits<int>::max();
                     else
                         next_hap2_beg_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1;
-                    added_hap2 = true;
                 }
 
                 // keep expanding cluster while possible
-                while (added_call || added_hap1 || added_hap2) {
-
-                    // NOTE: multiple options can be taken in single iteration
-                    if (added_call) {
-                        added_call = false;
-                        while (next_hap1_beg_pos < curr_call_end_pos + g.gap) {
-                            hap1_clust_end_idx += 1;
-                            curr_hap1_end_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
-                                    hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1] + 1;
-                            if (hap1_clust_end_idx >= hap1_vars->gaps.size()-1)
-                                next_hap1_beg_pos = std::numeric_limits<int>::max();
-                            else
-                                next_hap1_beg_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1;
-                            added_hap1 = true;
-                        }
-                        while (next_hap2_beg_pos < curr_call_end_pos + g.gap) {
-                            hap2_clust_end_idx += 1;
-                            curr_hap2_end_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
-                                    hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1] + 1;
-                            if (hap2_clust_end_idx >= hap2_vars->gaps.size()-1)
-                                next_hap2_beg_pos = std::numeric_limits<int>::max();
-                            else
-                                next_hap2_beg_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1;
-                            added_hap2 = true;
-                        }
+                bool just_merged = true;
+                bool any_merged = false;
+                while (just_merged) {
+                    just_merged = false;
+                    while (next_hap1_beg_pos < curr_end_pos + g.gap) {
+                        hap1_clust_end_idx += 1;
+                        curr_end_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
+                                hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1] + 1;
+                        if (hap1_clust_end_idx >= hap1_vars->gaps.size()-1)
+                            next_hap1_beg_pos = std::numeric_limits<int>::max();
+                        else
+                            next_hap1_beg_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1;
+                        just_merged = true;
                     }
-                    if (added_hap1) {
-                        added_hap1 = false;
-                        while (next_call_beg_pos < curr_hap1_end_pos + g.gap) {
-                            call_clust_end_idx += 1;
-                            curr_call_end_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
-                                    call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1] + 1;
-                            if (call_clust_end_idx >= call_vars->gaps.size()-1)
-                                next_call_beg_pos = std::numeric_limits<int>::max();
-                            else
-                                next_call_beg_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]]-1;
-                            added_call = true;
-                        }
+                    while (next_hap2_beg_pos < curr_end_pos + g.gap) {
+                        hap2_clust_end_idx += 1;
+                        curr_end_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
+                                hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1] + 1;
+                        if (hap2_clust_end_idx >= hap2_vars->gaps.size()-1)
+                            next_hap2_beg_pos = std::numeric_limits<int>::max();
+                        else
+                            next_hap2_beg_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1;
+                        just_merged = true;
                     }
-                    if (added_hap2) {
-                        added_hap2 = false;
-                        while (next_call_beg_pos < curr_hap2_end_pos + g.gap) {
-                            call_clust_end_idx += 1;
-                            curr_call_end_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
-                                    call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1] + 1;
-                            if (call_clust_end_idx >= call_vars->gaps.size()-1)
-                                next_call_beg_pos = std::numeric_limits<int>::max();
-                            else
-                                next_call_beg_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]]-1;
-                            added_call = true;
-                        }
+                    while (next_call_beg_pos < curr_end_pos + g.gap) {
+                        call_clust_end_idx += 1;
+                        curr_end_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]-1] + 
+                                call_vars->rlens[call_vars->gaps[call_clust_end_idx]-1] + 1;
+                        if (call_clust_end_idx >= call_vars->gaps.size()-1)
+                            next_call_beg_pos = std::numeric_limits<int>::max();
+                        else
+                            next_call_beg_pos = call_vars->poss[call_vars->gaps[call_clust_end_idx]]-1;
+                        just_merged = true;
                     }
+                    if (just_merged) any_merged = true;
                 }
 
                 // get supercluster start/end positions (allowing empty haps)
@@ -576,8 +553,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 break;
                             case TYPE_SUB:
                                 call += call_vars->alts[call_var_idx];
-                                call_str += " " + GREEN(call_vars->alts[call_var_idx]);
-                                ref_str += RED(call_vars->refs[call_var_idx]) + " ";
+                                call_str += GREEN(call_vars->alts[call_var_idx]);
+                                ref_str += RED(call_vars->refs[call_var_idx]);
                                 ref_pos++;
                                 break;
                             case TYPE_GRP:
@@ -628,7 +605,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 case TYPE_SUB:
                                     hap1 += hap1_vars->alts[hap1_var_idx];
                                     hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                                    hap1_str += " " + GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
                                     hap1_ref_pos++;
                                     break;
                                 case TYPE_GRP:
@@ -670,7 +647,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 case TYPE_SUB:
                                     hap2 += hap2_vars->alts[hap2_var_idx];
                                     hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                                    hap2_str += " " + GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
                                     hap2_ref_pos++;
                                     break;
                                 case TYPE_GRP:
@@ -714,7 +691,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 case TYPE_SUB:
                                     hap1 += hap1_vars->alts[hap1_var_idx];
                                     hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                                    hap1_str += " " + GREEN(hap1_vars->alts[hap1_var_idx]);
+                                    hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
                                     hap1_ref_pos++;
                                     break;
                                 case TYPE_GRP:
@@ -744,7 +721,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 case TYPE_SUB:
                                     hap2 += hap2_vars->alts[hap2_var_idx];
                                     hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                                    hap2_str += " " + GREEN(hap2_vars->alts[hap2_var_idx]);
+                                    hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
                                     hap2_ref_pos++;
                                     break;
                                 case TYPE_GRP:
@@ -759,7 +736,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
                         } 
                         
-                        // ONE WAS VARIANT, INVALID POINTERS
+                        // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
                         if (!hap1_var && hap2_var) {
                             try {
                                 hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
@@ -975,12 +952,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
 
                 // PRINT RESULTS
-                if (s > 0) {
-                    /* && */ 
-                    /*     ref_str.size() < 50 && ( */
-                    /*         hap1_clust_end_idx - hap1_clust_beg_idx || */ 
-                    /*         hap2_clust_end_idx - hap2_clust_beg_idx */
-                    /*         )) { */
+                if (s > 0 && any_merged) 
+                {
 
                     // print cluster info
                     printf("\n\nCALL: %zu groups\n", call_clust_end_idx-call_clust_beg_idx);
@@ -988,7 +961,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                         printf("\tGroup %zu: %d variants\n", i, call_vars->gaps[i+1]-call_vars->gaps[i]);
                         for(int j = call_vars->gaps[i]; j < call_vars->gaps[i+1]; j++) {
                             printf("\t\t%s %d\t%s\t%s\n", ctg.data(), call_vars->poss[j], 
-                                    call_vars->refs[j].data(), call_vars->alts[j].data());
+                                    call_vars->refs[j].size() ? call_vars->refs[j].data() : "_", 
+                                    call_vars->alts[j].size() ? call_vars->alts[j].data() : "_");
                         }
                     }
                     printf("HAP1: %zu groups\n", hap1_clust_end_idx-hap1_clust_beg_idx);
@@ -996,7 +970,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                         printf("\tGroup %zu: %d variants\n", i, hap1_vars->gaps[i+1]-hap1_vars->gaps[i]);
                         for(int j = hap1_vars->gaps[i]; j < hap1_vars->gaps[i+1]; j++) {
                             printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap1_vars->poss[j], 
-                                    hap1_vars->refs[j].data(), hap1_vars->alts[j].data());
+                                    hap1_vars->refs[j].size() ? hap1_vars->refs[j].data() : "_", 
+                                    hap1_vars->alts[j].size() ? hap1_vars->alts[j].data() : "_");
                         }
                     }
                     printf("HAP2: %zu groups\n", hap2_clust_end_idx-hap2_clust_beg_idx);
@@ -1004,32 +979,15 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                         printf("\tGroup %zu: %d variants\n", i, hap2_vars->gaps[i+1]-hap2_vars->gaps[i]);
                         for(int j = hap2_vars->gaps[i]; j < hap2_vars->gaps[i+1]; j++) {
                             printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap2_vars->poss[j], 
-                                    hap2_vars->refs[j].data(), hap2_vars->alts[j].data());
+                                    hap2_vars->refs[j].size() ? hap2_vars->refs[j].data() : "_", 
+                                    hap2_vars->alts[j].size() ? hap2_vars->alts[j].data() : "_");
                         }
                     }
                     
-                    /* printf("\n\nORIG: %s\n", ref_str.data()); */
-                    /* printf("CALL: %s\n", call_str.data()); */
-                    /* printf("HAP1: %s\t", hap1_str.data()); */
-                    /* for(size_t i = 0; i < hap1_ptrs.size(); i++) { */
-                    /*     if (hap1_ptrs[i] >= 0) */
-                    /*         printf("%2s ", BLUE(hap1_ptrs[i]).data()); */
-                    /*     else */
-                    /*         printf("%2d ", hap1_ptrs[i]); */
-                    /* } */
-                    /* printf("\n"); */
-                    /* printf("HAP2: %s\t", hap2_str.data()); */
-                    /* for(size_t i = 0; i < hap2_ptrs.size(); i++) { */
-                    /*     if (hap2_ptrs[i] >= 0) */
-                    /*         printf("%s ", BLUE(hap2_ptrs[i]).data()); */
-                    /*     else */
-                    /*         printf("%2d ", hap2_ptrs[i]); */
-                    /* } */
-                    /* printf("\n"); */
-                    printf("call: %s\n", call.data());
-                    printf("hap1: %s\n", hap1.data());
-                    printf("hap2: %s\n", hap2.data());
-
+                    printf("ORIG: %s\n", ref_str.data());
+                    printf("CALL: %s\n", call_str.data());
+                    printf("HAP1: %s\n", hap1_str.data());
+                    printf("HAP2: %s\n", hap2_str.data());
                     printf("distance: %d\n", s);
 
                     /* // DEBUG PRINT */
