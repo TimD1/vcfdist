@@ -1,6 +1,7 @@
 #!/bin/bash
 
     # ../scripts/data/ref.fasta \
+    # ../test/truth.vcf.gz \
 ./vcfdist \
     ../scripts/data/calls.vcf.gz \
     ../scripts/data/truth.vcf.gz \
