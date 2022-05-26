@@ -106,6 +106,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
         this->hapcalls[0][seqnames[i]] = variantCalls();
         this->hapcalls[1][seqnames[i]] = variantCalls();
         this->calls[seqnames[i]] = variantCalls();
+        this->contigs.push_back(seqnames[i]);
     }
 
     // struct for storing each record
@@ -120,6 +121,15 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
         // new contig!
         seq = seqnames[rec->rid];
         if (rec->rid != prev_rid) {
+
+            // end prev contig if this isn't the first contig
+            if (prev_rid >= 0) {
+                this->calls[seqnames[prev_rid]].add_gap(var_idx);
+                this->hapcalls[0][seqnames[prev_rid]].add_gap(hap_var_idx[0]);
+                this->hapcalls[1][seqnames[prev_rid]].add_gap(hap_var_idx[1]);
+            }
+
+            // start new contig
             prev_rid = rec->rid;
             if (prev_rids.find(rec->rid) != prev_rids.end()) {
                 ERROR("unsorted VCF, contig %s already parsed", seq.data());

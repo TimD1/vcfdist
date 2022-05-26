@@ -11,6 +11,11 @@
 #define PTR_DIAG 4
 #define PTR_SWAP 5
 
+#define CAL1_HAP1 0
+#define CAL1_HAP2 1
+#define CAL2_HAP1 2
+#define CAL2_HAP2 3
+
 int edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
 int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);
 
