@@ -9,7 +9,7 @@
 #define PTR_LEFT 2
 #define PTR_BOTH 3
 #define PTR_DIAG 4
-#define PTR_SWAP 5
+#define PTR_SWAP 8
 
 #define CAL1_HAP1 0
 #define CAL1_HAP2 1

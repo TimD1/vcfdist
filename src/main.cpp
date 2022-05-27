@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     vcfData truth(g.truth_vcf_fp);
     /* edit_dist_realign(&truth, &ref); */
 
-    edit_dist(&calls, &truth, &ref);
+    /* edit_dist(&calls, &truth, &ref); */
 
     return EXIT_SUCCESS;
 }

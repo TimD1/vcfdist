@@ -95,25 +95,25 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 int s = 0;
                 int reflen = end-beg;
                 int altlen = reflen + inss - dels;
-                std::vector< std::vector<int> > diags, offsets, ptrs;
+                std::vector< std::vector<int> > diags, offs, ptrs;
                 diags.push_back(std::vector<int>(1,0));
-                offsets.push_back(std::vector<int>(1,-1));
+                offs.push_back(std::vector<int>(1,-1));
                 ptrs.push_back(std::vector<int>(1,0));
                 bool done = false;
                 while (true) {
 
                     // EXTEND WAVEFRONT
                     for (int d = 0; d < s+1; d++) {
-                        int max_offset = std::min(
+                        int max_off = std::min(
                                 reflen - diags[s][d], altlen) - 1;
-                        int offset = offsets[s][d];
-                        while (offset < max_offset && alt[offset+1] == 
-                                ref->fasta.at(ctg)[diags[s][d]+offset+beg+1]) {
-                            offset++;
+                        int off = offs[s][d];
+                        while (off < max_off && alt[off+1] == 
+                                ref->fasta.at(ctg)[diags[s][d]+off+beg+1]) {
+                            off++;
                         }
-                        offsets[s][d] = offset;
-                        if (offset == altlen-1 && 
-                                offset+diags[s][d] == reflen-1)
+                        offs[s][d] = off;
+                        if (off == altlen-1 && 
+                                off+diags[s][d] == reflen-1)
                         { done = true; break; }
                     }
                     if (done) break;
@@ -123,24 +123,24 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     
                     // add wavefront, fill edge cells
                     diags.push_back(std::vector<int>(s+2));
-                    offsets.push_back(std::vector<int>(s+2));
+                    offs.push_back(std::vector<int>(s+2));
                     ptrs.push_back(std::vector<int>(s+2));
                     diags[s+1][0] = diags[s][0] - 1;
-                    offsets[s+1][0] = offsets[s][0] + 1;
+                    offs[s+1][0] = offs[s][0] + 1;
                     ptrs[s+1][0] = PTR_UP;
                     diags[s+1][s+1] = diags[s][s] + 1;
-                    offsets[s+1][s+1] = offsets[s][s];
+                    offs[s+1][s+1] = offs[s][s];
                     ptrs[s+1][s+1] = PTR_LEFT;
 
                     // central cells
                     for (int d = 1; d <= s; d++) {
-                        if (offsets[s][d-1] >= offsets[s][d]+1) {
+                        if (offs[s][d-1] >= offs[s][d]+1) {
                             diags[s+1][d] = diags[s][d-1] + 1;
-                            offsets[s+1][d] = offsets[s][d-1];
+                            offs[s+1][d] = offs[s][d-1];
                             ptrs[s+1][d] = PTR_LEFT;
                         } else {
                             diags[s+1][d] = diags[s][d] - 1;
-                            offsets[s+1][d] = offsets[s][d]+1;
+                            offs[s+1][d] = offs[s][d]+1;
                             ptrs[s+1][d] = PTR_UP;
                         }
                     }
@@ -150,7 +150,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 // DEBUG PRINT
 
                 if (g.print_verbosity >= 2) {
-                    printf("\noffsets:\n");
+                    printf("\noffs:\n");
                     printf("s= ");
                     for(int i = 0; i <= s; i++) printf("%2i ", i);
                     printf("\n ");
@@ -158,15 +158,15 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     printf("\n");
                     for(int r = 0; r <= s; r++) {
                         for(int c = 0; c <= s-r; c++) {
-                            printf(" %2d", offsets[r+c][c]);
+                            printf(" %2d", offs[r+c][c]);
                         }
                         printf("\n");
                     }
 
                     // create array
-                    std::vector< std::vector<char> > ptr_str;
+                    std::vector< std::vector<wchar_t> > ptr_str;
                     for (int i = 0; i < altlen; i++)
-                        ptr_str.push_back(std::vector<char>(reflen, '.'));
+                        ptr_str.push_back(std::vector<wchar_t>(reflen, '.'));
 
                     // modify array with pointers
                     int altpos, refpos;
@@ -177,27 +177,27 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                                     altpos = 0;
                                     refpos = 0;
                                 } else {
-                                    altpos = offsets[si-1][di] + 1;
-                                    refpos = diags[si-1][di] + offsets[si-1][di];
+                                    altpos = offs[si-1][di] + 1;
+                                    refpos = diags[si-1][di] + offs[si-1][di];
                                     if (altpos < altlen && refpos < reflen)
                                         ptr_str[altpos][refpos] = '|';
                                 }
                             } 
                             else if (di == si) {
-                                altpos = offsets[si-1][di-1];
-                                refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1;
+                                altpos = offs[si-1][di-1];
+                                refpos = diags[si-1][di-1] + offs[si-1][di-1] + 1;
                                 if (altpos < altlen && refpos < reflen)
                                     ptr_str[altpos][refpos] = '-';
                             } 
-                            else if (offsets[si-1][di-1] > offsets[si-1][di]+1) {
-                                altpos = offsets[si-1][di-1];
-                                refpos = diags[si-1][di-1] + offsets[si-1][di-1] + 1;
+                            else if (offs[si-1][di-1] > offs[si-1][di]+1) {
+                                altpos = offs[si-1][di-1];
+                                refpos = diags[si-1][di-1] + offs[si-1][di-1] + 1;
                                 if (altpos < altlen && refpos < reflen)
                                     ptr_str[altpos][refpos] = '-';
                             } 
                             else {
-                                altpos = offsets[si-1][di] + 1;
-                                refpos = diags[si-1][di] + offsets[si-1][di];
+                                altpos = offs[si-1][di] + 1;
+                                refpos = diags[si-1][di] + offs[si-1][di];
                                 if (altpos < altlen && refpos < reflen)
                                     ptr_str[altpos][refpos] = '|';
                             }
@@ -241,24 +241,24 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 while (score > 0) {
 
                     // find previous wavefront
-                    int off = offsets[score][diag];
+                    int off = offs[score][diag];
                     int prev_off, up_off, left_off;
                     if (diag == 0) { // left edge, must go up
                         if (score == 0) {
                             ERROR("score should not be zero.");
                         }
-                        up_off = offsets[score-1][diag]+1;
+                        up_off = offs[score-1][diag]+1;
                         prev_off = up_off;
                         ptr = PTR_UP;
 
                     } else if (diag == score) { // right edge, must go left
-                        left_off = offsets[score-1][diag-1];
+                        left_off = offs[score-1][diag-1];
                         prev_off = left_off;
                         ptr = PTR_LEFT;
 
                     } else { // get predecessor
-                        left_off = offsets[score-1][diag-1];
-                        up_off = offsets[score-1][diag]+1;
+                        left_off = offs[score-1][diag-1];
+                        up_off = offs[score-1][diag]+1;
                         if (left_off > up_off) {
                             prev_off = left_off;
                             ptr = PTR_LEFT;
@@ -292,7 +292,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
                 }
                 // slide up diagonally to end
-                for (int i = 0; i <= offsets[0][0]; i++) {
+                for (int i = 0; i <= offs[0][0]; i++) {
                     cig[cig_ptr--] = PTR_DIAG;
                     cig[cig_ptr--] = PTR_DIAG;
                 }

@@ -11,3 +11,4 @@ scripts/lib
 scripts/data
 scripts/results
 src/compare
+test/

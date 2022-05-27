@@ -106,7 +106,6 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
         this->hapcalls[0][seqnames[i]] = variantCalls();
         this->hapcalls[1][seqnames[i]] = variantCalls();
         this->calls[seqnames[i]] = variantCalls();
-        this->contigs.push_back(seqnames[i]);
     }
 
     // struct for storing each record
@@ -135,6 +134,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 ERROR("unsorted VCF, contig %s already parsed", seq.data());
             } else {
                 INFO("parsing contig %s", seq.data());
+                this->contigs.push_back(seq);
                 prev_end = {-g.gap*2, -g.gap*2};
                 hap_var_idx = {0, 0};
                 var_idx = 0;
@@ -324,23 +324,23 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     INFO("VCF contains %i sample(s) and %i records", bcf_hdr_nsamples(hdr), n);
     INFO("After splitting by haplotype, %i PASS all filters", npass);
 
-    printf("\nSequence names:");
-    for (int i = 0; i < nseq; i++) {
-        if (i % 5 == 0) printf("\n  ");
-        printf("[%2i] %s \t", i, seqnames[i]);
+    INFO("Contigs:");
+    for (size_t i = 0; i < this->contigs.size(); i++) {
+        INFO("  [%2lu] %s", i, this->contigs[i].data());
     }
-    printf("\n");
+    INFO(" ");
 
-    printf("\nGenotypes:\n");
+    INFO("Genotypes:");
     for (size_t i = 0; i < gt_strs.size(); i++) {
-        printf("  %s  %i\n", gt_strs[i].data(), ngts[i]);
+        INFO("  %s  %i", gt_strs[i].data(), ngts[i]);
     }
+    INFO(" ");
 
-    printf("\nVariant Types:\n");
+    INFO("Variant Types:");
     for (int h = 0; h < 2; h++) {
-        printf("  Haplotype %i\n", h+1);
+        INFO("  Haplotype %i", h+1);
         for (size_t i = 0; i < type_strs.size(); i++) {
-            printf("    %s  %i\n", type_strs[i].data(), ntypes[h][i]);
+            INFO("    %s  %i", type_strs[i].data(), ntypes[h][i]);
         }
     }
 
