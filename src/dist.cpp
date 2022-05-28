@@ -1004,7 +1004,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
 
                     // NEXT WAVEFRONT
-                    
                     // add wavefront, fill edge cells
                     offs[i].push_back(std::vector<int>(mat_len, -2));
                     // bottom left cells
@@ -1014,9 +1013,9 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     if (s[i]+1 == mat_len-1)
                         offs[i][s[i]+1][mat_len-1] = s[i]+1;
 
-                    /* ptrs1.push_back(std::vector<int>(hap1_mat_len)); */
-                    /* ptrs1[s+1][0] = PTR_UP; */
-                    /* ptrs1[s+1][s+1] = PTR_LEFT; */
+                    ptrs[i].push_back(std::vector<int>(mat_len));
+                    ptrs[i][s[i]+1][0] = PTR_UP;
+                    ptrs[i][s[i]+1][s[i]+1] = PTR_LEFT;
 
                     // central cells
                     for (int d = 1; d < mat_len-1; d++) {
@@ -1025,10 +1024,10 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                             -2 : offs[i][s[i]][d+1]+1;
                         if (offleft >= offtop) {
                             offs[i][s[i]+1][d] = offleft;
-                            /* ptrs1[s+1][d] = PTR_LEFT; */
+                            ptrs[i][s[i]+1][d] = PTR_LEFT;
                         } else {
                             offs[i][s[i]+1][d] = offtop;
-                            /* ptrs1[s+1][d] = PTR_UP; */
+                            ptrs[i][s[i]+1][d] = PTR_UP;
                         }
                     }
                     ++s[i];
@@ -1037,9 +1036,9 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
 
             // PRINT RESULTS
-            if(std::min(s[CAL1_HAP1]+s[CAL2_HAP2], s[CAL2_HAP1]+s[CAL1_HAP2])) // non-zero edit dist
-            {
-
+            int dist = std::min(s[CAL1_HAP1]+s[CAL2_HAP2], 
+                    s[CAL2_HAP1]+s[CAL1_HAP2]);
+            if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
                 printf("\n\nCAL1: %zu groups\n", cal1_clust_end_idx-cal1_clust_beg_idx);
                 for(size_t i = cal1_clust_beg_idx; i < cal1_clust_end_idx; i++) {
@@ -1083,103 +1082,84 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 printf("CAL2: %s\n", cal2_str.data());
                 printf("HAP1: %s\n", hap1_str.data());
                 printf("HAP2: %s\n", hap2_str.data());
-                printf("cal1-hap1 dist: %d\n", s[CAL1_HAP1]);
-                printf("cal1-hap2 dist: %d\n", s[CAL1_HAP2]);
-                printf("cal2-hap1 dist: %d\n", s[CAL2_HAP1]);
-                printf("cal2-hap2 dist: %d\n", s[CAL2_HAP2]);
-
-                /* // DEBUG PRINT */
-                /* printf("\noffsets hap 1:\n"); */
-                /* printf("s= "); */
-                /* for(int i = 0; i < hap1_mat_len; i++) printf("%2i ", i); */
-                /* printf("\n "); */
-                /* for(int i = 0; i < hap1_mat_len; i++) printf("  /"); */
-                /* printf("\n"); */
-                /* for(int r = 0; r < s; r++) { */
-                /*     for(int c = 0; c < hap1_mat_len; c++) { */
-                /*         printf(" %2d", offsets1[r][c]); */
-                /*     } */
-                /*     printf("\n"); */
-                /* } */
-                /* printf("\noffsets hap 2:\n"); */
-                /* printf("s= "); */
-                /* for(int i = 0; i < hap2_mat_len; i++) printf("%2i ", i); */
-                /* printf("\n "); */
-                /* for(int i = 0; i < hap2_mat_len; i++) printf("  /"); */
-                /* printf("\n"); */
-                /* for(int r = 0; r < s; r++) { */
-                /*     for(int c = 0; c < hap2_mat_len; c++) { */
-                /*         printf(" %2d", offsets2[r][c]); */
-                /*     } */
-                /*     printf("\n"); */
-                /* } */
-
-                /* // create array */
-                /* std::vector< std::vector<char> > ptr_str; */
-                /* for (int i = 0; i < call_len; i++) */
-                /*     ptr_str.push_back(std::vector<char>(hap1_len, '.')); */
-
-                /* // modify array with pointers */
-                /* int call_pos, hap1_pos; */
-                /* for (int si = 0; si <= s; si++) { */
-                /*     for(int di = 0; di <= si; di++) { */
-                /*         if (di == 0) { */
-                /*             if (si == 0) { */
-                /*                 call_pos = 0; */
-                /*                 hap1_pos = 0; */
-                /*             } else { */
-                /*                 call_pos = offsets1[si-1][di] + 1; */
-                /*                 hap1_pos = diags1[si-1][di] + offsets1[si-1][di]; */
-                /*                 if (call_pos < call_len && hap1_pos < hap1_len) */
-                /*                     ptr_str[call_pos][hap1_pos] = '|'; */
-                /*             } */
-                /*         } */ 
-                /*         else if (di == si) { */
-                /*             call_pos = offsets1[si-1][di-1]; */
-                /*             hap1_pos = diags1[si-1][di-1] + offsets1[si-1][di-1] + 1; */
-                /*             if (call_pos < call_len && hap1_pos < hap1_len) */
-                /*                 ptr_str[call_pos][hap1_pos] = '-'; */
-                /*         } */ 
-                /*         else if (offsets1[si-1][di-1] > offsets1[si-1][di]+1) { */
-                /*             call_pos = offsets1[si-1][di-1]; */
-                /*             hap1_pos = diags1[si-1][di-1] + offsets1[si-1][di-1] + 1; */
-                /*             if (call_pos < call_len && hap1_pos < hap1_len) */
-                /*                 ptr_str[call_pos][hap1_pos] = '-'; */
-                /*         } */ 
-                /*         else { */
-                /*             call_pos = offsets1[si-1][di] + 1; */
-                /*             hap1_pos = diags1[si-1][di] + offsets1[si-1][di]; */
-                /*             if (call_pos < call_len && hap1_pos < hap1_len) */
-                /*                 ptr_str[call_pos][hap1_pos] = '|'; */
-                /*         } */
-                /*         while (call_pos < call_len-1 && hap1_pos < hap1_len-1 && */ 
-                /*                 call[++call_pos] == hap1[++hap1_pos]) { */
-                /*             ptr_str[call_pos][hap1_pos] = '\\'; */
-                /*         } */
-                /*     } */
-                /* } */
-                /* // NOTE: first base will ALWAYS match, due to grabbing */ 
-                /* // previous ref base before variant. This is required */ 
-                /* // for correctness of algorithm */
-                /* ptr_str[0][0] = '\\'; */
-
-                /* // print array */
-                /* for (int i = -1; i < call_len; i++) { */
-                /*     for (int j = -1; j < hap1_len; j++) { */
-                /*         if (i < 0 && j < 0) { */
-                /*             printf("\n  "); */
-                /*         } */
-                /*         else if (i < 0) { */
-                /*             printf("%c", hap1[j]); */
-                /*         } else if (j < 0) { */
-                /*             printf("\n%c ", call[i]); */
-                /*         } else { */
-                /*             printf("%c", ptr_str[i][j]); */
-                /*         } */
-                /*     } */
-                /* } */
-
             }
+
+            // DEBUG PRINT
+            if (g.print_verbosity >= 2 && dist) {
+                for(int h = 0; h < 4; h++) { // 4 alignments
+                    printf("\n%s ALIGNMENT (distance %d)\n", 
+                            aln_strs[h].data(), s[h]);
+
+                    // create array
+                    std::vector< std::vector<char> > ptr_str;
+                    for (int i = 0; i < call_lens[h]; i++)
+                        ptr_str.push_back(std::vector<char>(hap_lens[h], '.'));
+
+                    // modify array with pointers
+                    int mat_len = call_lens[h] + hap_lens[h] - 1;
+                    for (int si = 0; si <= s[h]; si++) {
+                        for(int di = 0; di < mat_len; di++) {
+                            int diag = di + 1 - call_lens[h];
+                            int off = offs[h][si][di];
+
+                            // check that indices are within bounds
+                            int cal_pos = off;
+                            int hap_pos = diag + off;
+                            if (cal_pos < 0 || hap_pos < 0) continue;
+                            if (cal_pos > call_lens[h]-1 || 
+                                    hap_pos > hap_lens[h]-1) continue;
+
+                            // special case: main diag, no previous edits
+                            if (si == 0 && diag == 0) {
+                                while (cal_pos >= 0) {
+                                    ptr_str[cal_pos--][hap_pos--] = '\\';
+                                }
+                            }
+                            // left edge
+                            else if (cal_pos == 0) {
+                                ptr_str[cal_pos][hap_pos] = '-';
+                            } 
+                            // top edge
+                            else if (hap_pos == 0) {
+                                ptr_str[cal_pos][hap_pos] = '|';
+                            } 
+                            else {
+                                // follow diagonal
+                                int top_off = (di < mat_len-1) ? offs[h][si-1][di+1]+1 : -2;
+                                int left_off = (di > 0) ? offs[h][si-1][di-1] : -2;
+                                while (cal_pos > 0 && hap_pos > 0 && 
+                                        cal_pos > top_off && cal_pos > left_off) {
+                                    ptr_str[cal_pos--][hap_pos--] = '\\';
+                                }
+                                // check left/up
+                                if (cal_pos == top_off) {
+                                    ptr_str[cal_pos][hap_pos] = '|';
+                                } else if (cal_pos == left_off) {
+                                    ptr_str[cal_pos][hap_pos] = '-';
+                                }
+                            }
+                        }
+                    }
+
+                    // print array
+                    for (int i = -1; i < call_lens[h]; i++) {
+                        for (int j = -1; j < hap_lens[h]; j++) {
+                            if (i < 0 && j < 0) {
+                                printf("  ");
+                            }
+                            else if (i < 0) {
+                                printf("%c", haps[h][j]);
+                            } else if (j < 0) {
+                                printf("\n%c ", cals[h][i]);
+                            } else {
+                                printf("%c", ptr_str[i][j]);
+                            }
+                        }
+                    }
+                    printf("\n");
+
+                } // 4 alignments
+            } // debug print
 
             // reset for next merged cluster
             cal1_clust_beg_idx = cal1_clust_end_idx;
