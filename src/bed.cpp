@@ -15,14 +15,51 @@ bedData::bedData(const std::string & bed_fn) {
 }
 
 void bedData::add(const std::string & contig, const int & start, const int & stop) {
-    if (regions.find(contig) == regions.end()) {
-        regions[contig] = contigRegions();
+    if (this->regions.find(contig) == this->regions.end()) {
+        this->regions[contig] = contigRegions();
+        this->contigs.push_back(contig);
     }
-    regions[contig].starts.push_back(start);
-    regions[contig].stops.push_back(stop);
+    this->regions[contig].starts.push_back(start);
+    this->regions[contig].stops.push_back(stop);
+    this->regions[contig].n++;
 }
 
 void bedData::check() {
+    for (size_t i = 0; i < this->contigs.size(); i++) {
+        int prev_start = -1;
+        int prev_stop = -1;
+        for (int j = 0; j < this->regions[this->contigs[i]].n; j++) {
+
+            // check this region is positive size
+            int start = this->regions[this->contigs[i]].starts[j];
+            int stop = this->regions[this->contigs[i]].stops[j];
+            if (stop < start) ERROR("BED region %s:%d-%d stop precedes start.", 
+                    this->contigs[i].data(), start, stop);
+            if (stop == start) ERROR("BED region %s:%d-%d length zero.",
+                    this->contigs[i].data(), start, stop);
+
+            // check for overlaps/etc
+            if (j) { // not first region on contig
+
+                if (stop < prev_start)
+                    ERROR("BED is unsorted; region %s:%d-%d precedes %s:%d-%d.",
+                        this->contigs[i].data(), prev_start, prev_stop, 
+                        this->contigs[i].data(), start, stop);
+                if (start < prev_stop)
+                    ERROR("BED overlap detected: regions %s:%d-%d and %s:%d-%d.",
+                        this->contigs[i].data(), prev_start, prev_stop, 
+                        this->contigs[i].data(), start, stop);
+                if (prev_stop == start) 
+                    WARN("BED regions %s:%d-%d and %s:%d-%d should be merged.",
+                        this->contigs[i].data(), prev_start, prev_stop, 
+                        this->contigs[i].data(), start, stop);
+            }
+
+            prev_start = start;
+            prev_stop = stop;
+        }
+    }
+    INFO("BED '%s' is valid.", g.bed_fn.data());
 }
 
 int bedData::contains(std::string contig, const int & start, const int & stop) {

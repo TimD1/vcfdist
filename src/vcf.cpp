@@ -256,7 +256,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             // TODO: keep overlaps, test all non-overlapping subsets
             // skip overlapping variants
             if (prev_end[hap] > pos) { // warn if overlap
-                WARN("potential overlap at %s:%i, skipping", seq.data(), pos);
+                WARN("VCF variant overlap at %s:%i, skipping", seq.data(), pos);
                 continue;
             }
 

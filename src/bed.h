@@ -15,6 +15,7 @@
 struct contigRegions {
     std::vector<int> starts;
     std::vector<int> stops;
+    int n;
 };
 
 class bedData {
@@ -32,6 +33,7 @@ public:
 
 private:
     std::unordered_map<std::string, contigRegions> regions;
+    std::vector<std::string> contigs;
 };
 
 #endif
