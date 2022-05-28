@@ -43,6 +43,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     std::unordered_map<int, bool> prev_rids;
     int prev_rid = -1;
     std::string seq;
+    std::vector<int> nregions(region_strs.size(), 0);
 
     // need two versions, since grouping is different if hap only vs both
     int var_idx = 0;                       // variant indices
@@ -140,10 +141,6 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 var_idx = 0;
             }
         }
-
-        // check that variant is in region of interest
-
-
 
         // unpack info (populates rec->d allele info)
         bcf_unpack(rec, BCF_UN_ALL);
@@ -272,7 +269,27 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 case TYPE_GRP:
                     rlen = ref.size(); break;
                 default:
-                    ERROR("unexpected variant type (%d)", type);
+                    ERROR("unexpected variant type: %d", type);
+                    break;
+            }
+
+            // check that variant is in region of interest
+            switch (g.bed.contains(seq, pos, pos + rlen)) {
+                case OUTSIDE: 
+                    nregions[OUTSIDE]++;
+                    continue;
+                case INSIDE: 
+                    nregions[INSIDE]++;
+                    break;
+                case BORDER:
+                    nregions[BORDER]++;
+                    break;
+                case OTHER_CTG:
+                    nregions[OTHER_CTG]++;
+                    continue;
+                default:
+                    ERROR("unexpected BED region type: %d", 
+                            g.bed.contains(seq, pos, pos+rlen));
                     break;
             }
 
@@ -337,6 +354,12 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     INFO("Genotypes:");
     for (size_t i = 0; i < gt_strs.size(); i++) {
         INFO("  %s  %i", gt_strs[i].data(), ngts[i]);
+    }
+    INFO(" ");
+
+    INFO("Variants in BED Regions:");
+    for (size_t i = 0; i < region_strs.size(); i++) {
+        INFO("  %s  %i", region_strs[i].data(), nregions[i]);
     }
     INFO(" ");
 

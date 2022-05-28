@@ -68,7 +68,7 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
         ERROR("Invalid region %s:%d-%d in BED contains", contig.data(), start, stop);
 
     // contig not in BED
-    if (this->regions.find(contig) == this->regions.end()) return OUTSIDE;
+    if (this->regions.find(contig) == this->regions.end()) return OTHER_CTG;
 
     // variant before/after all BED regions
     if (stop <= this->regions[contig].starts[0]) return OUTSIDE;

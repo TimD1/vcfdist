@@ -11,6 +11,7 @@
 #define OUTSIDE 0
 #define INSIDE 1
 #define BORDER 2
+#define OTHER_CTG 3
 
 struct contigRegions {
     std::vector<int> starts;

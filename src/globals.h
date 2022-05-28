@@ -41,6 +41,6 @@ public:
 extern Globals g;
 extern std::vector< std::string > type_strs;
 extern std::vector< std::string > gt_strs;
-extern std::vector< std::string > reg_strs;
+extern std::vector< std::string > region_strs;
 
 #endif

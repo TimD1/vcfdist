@@ -478,7 +478,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
             // keep expanding cluster while possible
             bool just_merged = true;
-            bool any_merged = false;
             while (just_merged) {
                 just_merged = false;
                 while (hap1_pos < curr_end_pos + g.gap) {
@@ -517,7 +516,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
-                if (just_merged) any_merged = true;
             }
 
             // get supercluster start/end positions (allowing empty haps)
@@ -1039,7 +1037,7 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
 
             // PRINT RESULTS
-            /* if (any_merged) */ 
+            if(std::min(s[CAL1_HAP1]+s[CAL2_HAP2], s[CAL2_HAP1]+s[CAL1_HAP2])) // non-zero edit dist
             {
 
                 // print cluster info
