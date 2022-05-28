@@ -141,6 +141,10 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             }
         }
 
+        // check that variant is in region of interest
+
+
+
         // unpack info (populates rec->d allele info)
         bcf_unpack(rec, BCF_UN_ALL);
         n++;
@@ -345,15 +349,16 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     }
 
     if (g.print_verbosity >= 1) {
-        printf("\nGroups:\n");
+        INFO(" ");
+        INFO("Groups:");
         for(int i = 0; i < nseq; i++) {
             if (this->calls[seqnames[i]].poss.size())  {
-                printf("  Contig %s: %lu variants, %lu groups total\n", 
+                INFO("  Contig %s: %lu variants, %lu groups total", 
                         seqnames[i],
                         this->calls[seqnames[i]].poss.size(),
                         this->calls[seqnames[i]].gaps.size());
                 for (int h = 0; h < 2; h++) {
-                    printf("    Haplotype %i: %lu variants, %lu groups total\n", h+1,
+                    INFO("    Haplotype %i: %lu variants, %lu groups total", h+1,
                             this->hapcalls[h][seqnames[i]].poss.size(),
                             this->hapcalls[h][seqnames[i]].gaps.size());
                 }

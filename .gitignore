@@ -1,6 +1,7 @@
 .*.swp
 *.o
 *.txt
+*.bed
 *.nfs*
 vcfdist
 r10.4_chr20

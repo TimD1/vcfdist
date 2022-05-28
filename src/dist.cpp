@@ -164,9 +164,9 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     }
 
                     // create array
-                    std::vector< std::vector<wchar_t> > ptr_str;
+                    std::vector< std::vector<char> > ptr_str;
                     for (int i = 0; i < altlen; i++)
-                        ptr_str.push_back(std::vector<wchar_t>(reflen, '.'));
+                        ptr_str.push_back(std::vector<char>(reflen, '.'));
 
                     // modify array with pointers
                     int altpos, refpos;
