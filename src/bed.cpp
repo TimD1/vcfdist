@@ -27,51 +27,32 @@ void bedData::check() {
 
 int bedData::contains(std::string contig, const int & start, const int & stop) {
 
-    printf("@%s %d-%d\n", contig.data(), start, stop);
     if (stop < start)
         ERROR("Invalid region %s:%d-%d in BED contains", contig.data(), start, stop);
 
     // contig not in BED
-    if (this->regions.find(contig) == this->regions.end()) {
-        printf("no contig\n");
-        return OUTSIDE;
-    }
+    if (this->regions.find(contig) == this->regions.end()) return OUTSIDE;
 
     // variant before/after all BED regions
-    if (stop <= this->regions[contig].starts[0]) {
-        printf("stop before first region\n");
-        return OUTSIDE;
-    }
+    if (stop <= this->regions[contig].starts[0]) return OUTSIDE;
     if (start >= this->regions[contig].stops[ 
-            this->regions[contig].stops.size()-1]) {
-        printf("start after last region\n");
-        return OUTSIDE;
-    }
+            this->regions[contig].stops.size()-1]) return OUTSIDE;
 
     // get indices of variant within bed regions list
-    int start_idx = std::upper_bound(
+    size_t start_idx = std::upper_bound(
             this->regions[contig].starts.begin(),
             this->regions[contig].starts.end(),
             start) - this->regions[contig].starts.begin() - 1;
-    int stop_idx = std::lower_bound(
+    size_t stop_idx = std::lower_bound(
             this->regions[contig].stops.begin(),
             this->regions[contig].stops.end(),
             stop) - this->regions[contig].stops.begin();
 
-    // we know stop > starts[0], and start < starts[0]
-    if (start_idx < 0) {
-        printf("start before first region, stop must be after first region starts.\n");
-        return BORDER;
-    }
-    if (stop_idx >= this->regions[contig].stops.size()) {
-        printf("stop after last region, start must be before last region starts.\n");
-        return BORDER;
-    }
+    // variant must be partially in region, other index off end
+    if (start_idx < 0) return BORDER;
+    if (stop_idx >= this->regions[contig].stops.size()) return BORDER;
 
-    int region_start = this->regions[contig].starts[start_idx];
-    int region_stop = this->regions[contig].stops[stop_idx];
-    printf("start idx: %d   stop_idx: %d\n", start_idx, stop_idx);
-    printf("region_start: %d   region_stop: %d\n", region_start, region_stop);
+    // variant in middle
     if (stop_idx == start_idx)
         return INSIDE;
     if (stop_idx == start_idx + 1) {
