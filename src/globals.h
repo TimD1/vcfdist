@@ -24,6 +24,7 @@ public:
 
     int gap = 50;
     int print_verbosity = 0;
+    int min_qual = 0;
 
     // constructors
     Globals() {;}

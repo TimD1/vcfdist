@@ -44,6 +44,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     int prev_rid = -1;
     std::string seq;
     std::vector<int> nregions(region_strs.size(), 0);
+    std::vector<int> pass_min_qual = {0, 0};
 
     // need two versions, since grouping is different if hap only vs both
     int var_idx = 0;                       // variant indices
@@ -151,6 +152,11 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
         for (int i = 0; i < rec->d.n_flt; i++) {
             if (rec->d.flt[i] == pass_filter_id) pass = true;
         }
+        if (!pass) continue;
+
+        // check that variant exceeds min_qual
+        pass = rec->qual >= g.min_qual;
+        pass_min_qual[pass]++;
         if (!pass) continue;
 
         // parse GQ in either INT or FLOAT format, and GT
@@ -355,6 +361,11 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     for (size_t i = 0; i < gt_strs.size(); i++) {
         INFO("  %s  %i", gt_strs[i].data(), ngts[i]);
     }
+    INFO(" ");
+
+    INFO("Variant exceeds Min Qual (%d):", g.min_qual);
+    INFO("  FAIL  %d", pass_min_qual[0]);
+    INFO("  PASS  %d", pass_min_qual[1]);
     INFO(" ");
 
     INFO("Variants in BED Regions:");

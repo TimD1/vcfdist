@@ -68,7 +68,18 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("%s", e.what());
             }
         }
-        if (std::string(argv[i]) == "-p") {
+        else if (std::string(argv[i]) == "-q") {
+            i++;
+            if (i == argc) {
+                ERROR("option '-q' used without providing MIN_QUAL");
+            }
+            try {
+                this->min_qual = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("invalid minimum variant quality provided");
+            }
+        }
+        else if (std::string(argv[i]) == "-p") {
             i++;
             if (i == argc) {
                 ERROR("option '-p' used without providing VERBOSITY");
@@ -122,12 +133,13 @@ void Globals::print_usage() const
 {
     printf("Usage: vcfdist <calls.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
     printf("Required:\n");
-    printf("  FILE\tcalls.vcf\tVCF file containing variant calls to evaluate \n");
-    printf("  FILE\ttruth.vcf\tVCF file containing ground truth variant calls \n");
+    printf("  FILE\tcalls.vcf\tphased VCF file containing variant calls to evaluate \n");
+    printf("  FILE\ttruth.vcf\tphased VCF file containing ground truth variant calls \n");
     printf("  FILE\tref.fasta\tFASTA file containing reference sequence \n");
     printf("Options:\n");
     printf("  -b FILE\tBED file containing regions to evaluate\n");
     printf("  -o DIR\toutput directory\n");
+    printf("  -q MIN_QUAL\tminimum variant quality [0]\n");
     printf("  -g GAP\tsize for independent groups [50]\n");
     printf("  -p VERBOSITY\tprinting verbosity (0,1,2) [0]\n");
     printf("  -h\t\tshow this help message\n");
