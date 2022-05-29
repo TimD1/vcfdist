@@ -22,9 +22,9 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
             if (vars.poss.size() == 0) continue;
 
             // iterate over each group of variants
-            for (size_t var_grp = 0; var_grp < vars.gaps.size()-1; var_grp++) {
-                int beg_idx = vars.gaps[var_grp];
-                int end_idx = vars.gaps[var_grp+1];
+            for (size_t var_grp = 0; var_grp < vars.clusters.size()-1; var_grp++) {
+                int beg_idx = vars.clusters[var_grp];
+                int end_idx = vars.clusters[var_grp+1];
                 int beg = vars.poss[beg_idx]-1;
                 int end = vars.poss[end_idx-1] + vars.rlens[end_idx-1]+1;
                 int subs = 0;
@@ -414,10 +414,10 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
         size_t cal2_clust_beg_idx = 0;
         size_t hap1_clust_beg_idx = 0;
         size_t hap2_clust_beg_idx = 0;
-        while (cal1_clust_beg_idx < cal1_vars->gaps.size()-1 || // last gap added for end
-               cal2_clust_beg_idx < cal2_vars->gaps.size()-1 ||
-               hap1_clust_beg_idx < hap1_vars->gaps.size()-1 ||
-               hap2_clust_beg_idx < hap2_vars->gaps.size()-1) {
+        while (cal1_clust_beg_idx < cal1_vars->clusters.size()-1 || // last cluster added for end
+               cal2_clust_beg_idx < cal2_vars->clusters.size()-1 ||
+               hap1_clust_beg_idx < hap1_vars->clusters.size()-1 ||
+               hap2_clust_beg_idx < hap2_vars->clusters.size()-1) {
 
             // set all start positions
             size_t cal1_clust_end_idx = cal1_clust_beg_idx;
@@ -425,53 +425,53 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             size_t hap1_clust_end_idx = hap1_clust_beg_idx;
             size_t hap2_clust_end_idx = hap2_clust_beg_idx;
 
-            int cal1_pos = (cal1_clust_beg_idx < cal1_vars->gaps.size()-1) ? 
-                    cal1_vars->poss[cal1_vars->gaps[cal1_clust_end_idx]]-1 : 
+            int cal1_pos = (cal1_clust_beg_idx < cal1_vars->clusters.size()-1) ? 
+                    cal1_vars->poss[cal1_vars->clusters[cal1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int cal2_pos = (cal2_clust_beg_idx < cal2_vars->gaps.size()-1) ? 
-                    cal2_vars->poss[cal2_vars->gaps[cal2_clust_end_idx]]-1 : 
+            int cal2_pos = (cal2_clust_beg_idx < cal2_vars->clusters.size()-1) ? 
+                    cal2_vars->poss[cal2_vars->clusters[cal2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int hap1_pos = (hap1_clust_beg_idx < hap1_vars->gaps.size()-1) ? 
-                    hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1 : 
+            int hap1_pos = (hap1_clust_beg_idx < hap1_vars->clusters.size()-1) ? 
+                    hap1_vars->poss[hap1_vars->clusters[hap1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int hap2_pos = (hap2_clust_beg_idx < hap2_vars->gaps.size()-1) ? 
-                    hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1 : 
+            int hap2_pos = (hap2_clust_beg_idx < hap2_vars->clusters.size()-1) ? 
+                    hap2_vars->poss[hap2_vars->clusters[hap2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
 
             // initialize cluster merging with first to start
             int curr_end_pos = 0;
             if (cal1_pos <= hap1_pos && cal1_pos <= cal2_pos && cal1_pos <= hap2_pos) {
                 cal1_clust_end_idx += 1;
-                curr_end_pos = cal1_vars->poss[cal1_vars->gaps[cal1_clust_end_idx]-1] +
-                        cal1_vars->rlens[cal1_vars->gaps[cal1_clust_end_idx]-1] + 1;
-                cal1_pos = (cal1_clust_end_idx < cal1_vars->gaps.size()-1) ? 
-                    cal1_vars->poss[cal1_vars->gaps[cal1_clust_end_idx]]-1 : 
+                curr_end_pos = cal1_vars->poss[cal1_vars->clusters[cal1_clust_end_idx]-1] +
+                        cal1_vars->rlens[cal1_vars->clusters[cal1_clust_end_idx]-1] + 1;
+                cal1_pos = (cal1_clust_end_idx < cal1_vars->clusters.size()-1) ? 
+                    cal1_vars->poss[cal1_vars->clusters[cal1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
             else if (cal2_pos <= hap1_pos && cal2_pos <= cal1_pos && 
                     cal2_pos <= hap2_pos) {
                 cal2_clust_end_idx += 1;
-                curr_end_pos = cal2_vars->poss[cal2_vars->gaps[cal2_clust_end_idx]-1] +
-                        cal2_vars->rlens[cal2_vars->gaps[cal2_clust_end_idx]-1] + 1;
-                cal2_pos = (cal2_clust_end_idx < cal2_vars->gaps.size()-1) ? 
-                    cal2_vars->poss[cal2_vars->gaps[cal2_clust_end_idx]]-1 : 
+                curr_end_pos = cal2_vars->poss[cal2_vars->clusters[cal2_clust_end_idx]-1] +
+                        cal2_vars->rlens[cal2_vars->clusters[cal2_clust_end_idx]-1] + 1;
+                cal2_pos = (cal2_clust_end_idx < cal2_vars->clusters.size()-1) ? 
+                    cal2_vars->poss[cal2_vars->clusters[cal2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
             else if (hap1_pos <= cal1_pos && hap1_pos <= cal2_pos && 
                     hap1_pos <= hap2_pos) {
                 hap1_clust_end_idx += 1;
-                curr_end_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] +
-                        hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1] + 1;
-                hap1_pos = (hap1_clust_end_idx < hap1_vars->gaps.size()-1) ? 
-                    hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1 : 
+                curr_end_pos = hap1_vars->poss[hap1_vars->clusters[hap1_clust_end_idx]-1] +
+                        hap1_vars->rlens[hap1_vars->clusters[hap1_clust_end_idx]-1] + 1;
+                hap1_pos = (hap1_clust_end_idx < hap1_vars->clusters.size()-1) ? 
+                    hap1_vars->poss[hap1_vars->clusters[hap1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
             else {
                 hap2_clust_end_idx += 1;
-                curr_end_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] +
-                        hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1] + 1;
-                hap2_pos = (hap2_clust_end_idx < hap2_vars->gaps.size()-1) ? 
-                    hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1 : 
+                curr_end_pos = hap2_vars->poss[hap2_vars->clusters[hap2_clust_end_idx]-1] +
+                        hap2_vars->rlens[hap2_vars->clusters[hap2_clust_end_idx]-1] + 1;
+                hap2_pos = (hap2_clust_end_idx < hap2_vars->clusters.size()-1) ? 
+                    hap2_vars->poss[hap2_vars->clusters[hap2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             }
 
@@ -482,37 +482,37 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 just_merged = false;
                 while (hap1_pos < curr_end_pos + g.gap) {
                     hap1_clust_end_idx += 1;
-                    curr_end_pos = hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
-                            hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1] + 1;
-                    hap1_pos = (hap1_clust_end_idx < hap1_vars->gaps.size()-1) ? 
-                        hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]]-1 : 
+                    curr_end_pos = hap1_vars->poss[hap1_vars->clusters[hap1_clust_end_idx]-1] + 
+                            hap1_vars->rlens[hap1_vars->clusters[hap1_clust_end_idx]-1] + 1;
+                    hap1_pos = (hap1_clust_end_idx < hap1_vars->clusters.size()-1) ? 
+                        hap1_vars->poss[hap1_vars->clusters[hap1_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
                 while (hap2_pos < curr_end_pos + g.gap) {
                     hap2_clust_end_idx += 1;
-                    curr_end_pos = hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
-                            hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1] + 1;
-                    hap2_pos = (hap2_clust_end_idx < hap2_vars->gaps.size()-1) ? 
-                        hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]]-1 : 
+                    curr_end_pos = hap2_vars->poss[hap2_vars->clusters[hap2_clust_end_idx]-1] + 
+                            hap2_vars->rlens[hap2_vars->clusters[hap2_clust_end_idx]-1] + 1;
+                    hap2_pos = (hap2_clust_end_idx < hap2_vars->clusters.size()-1) ? 
+                        hap2_vars->poss[hap2_vars->clusters[hap2_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
                 while (cal1_pos < curr_end_pos + g.gap) {
                     cal1_clust_end_idx += 1;
-                    curr_end_pos = cal1_vars->poss[cal1_vars->gaps[cal1_clust_end_idx]-1] + 
-                            cal1_vars->rlens[cal1_vars->gaps[cal1_clust_end_idx]-1] + 1;
-                    cal1_pos = (cal1_clust_end_idx < cal1_vars->gaps.size()-1) ? 
-                        cal1_vars->poss[cal1_vars->gaps[cal1_clust_end_idx]]-1 : 
+                    curr_end_pos = cal1_vars->poss[cal1_vars->clusters[cal1_clust_end_idx]-1] + 
+                            cal1_vars->rlens[cal1_vars->clusters[cal1_clust_end_idx]-1] + 1;
+                    cal1_pos = (cal1_clust_end_idx < cal1_vars->clusters.size()-1) ? 
+                        cal1_vars->poss[cal1_vars->clusters[cal1_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
                 while (cal2_pos < curr_end_pos + g.gap) {
                     cal2_clust_end_idx += 1;
-                    curr_end_pos = cal2_vars->poss[cal2_vars->gaps[cal2_clust_end_idx]-1] + 
-                            cal2_vars->rlens[cal2_vars->gaps[cal2_clust_end_idx]-1] + 1;
-                    cal2_pos = (cal2_clust_end_idx < cal2_vars->gaps.size()-1) ? 
-                        cal2_vars->poss[cal2_vars->gaps[cal2_clust_end_idx]]-1 : 
+                    curr_end_pos = cal2_vars->poss[cal2_vars->clusters[cal2_clust_end_idx]-1] + 
+                            cal2_vars->rlens[cal2_vars->clusters[cal2_clust_end_idx]-1] + 1;
+                    cal2_pos = (cal2_clust_end_idx < cal2_vars->clusters.size()-1) ? 
+                        cal2_vars->poss[cal2_vars->clusters[cal2_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
@@ -523,39 +523,39 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             int end_pos = -1;
             if (cal1_clust_end_idx - cal1_clust_beg_idx) { // cal1 vars present
                 beg_pos = std::min(beg_pos, 
-                        cal1_vars->poss[cal1_vars->gaps[cal1_clust_beg_idx]]-1);
+                        cal1_vars->poss[cal1_vars->clusters[cal1_clust_beg_idx]]-1);
                 end_pos = std::max(end_pos, 
-                        cal1_vars->poss[cal1_vars->gaps[cal1_clust_end_idx]-1] + 
-                        cal1_vars->rlens[cal1_vars->gaps[cal1_clust_end_idx]-1]+1);
+                        cal1_vars->poss[cal1_vars->clusters[cal1_clust_end_idx]-1] + 
+                        cal1_vars->rlens[cal1_vars->clusters[cal1_clust_end_idx]-1]+1);
             }
             if (cal2_clust_end_idx - cal2_clust_beg_idx) { // cal2 vars present
                 beg_pos = std::min(beg_pos, 
-                        cal2_vars->poss[cal2_vars->gaps[cal2_clust_beg_idx]]-1);
+                        cal2_vars->poss[cal2_vars->clusters[cal2_clust_beg_idx]]-1);
                 end_pos = std::max(end_pos, 
-                        cal2_vars->poss[cal2_vars->gaps[cal2_clust_end_idx]-1] + 
-                        cal2_vars->rlens[cal2_vars->gaps[cal2_clust_end_idx]-1]+1);
+                        cal2_vars->poss[cal2_vars->clusters[cal2_clust_end_idx]-1] + 
+                        cal2_vars->rlens[cal2_vars->clusters[cal2_clust_end_idx]-1]+1);
             }
             if (hap1_clust_end_idx - hap1_clust_beg_idx) { // hap1 vars present
                 beg_pos = std::min(beg_pos, 
-                        hap1_vars->poss[hap1_vars->gaps[hap1_clust_beg_idx]]-1);
+                        hap1_vars->poss[hap1_vars->clusters[hap1_clust_beg_idx]]-1);
                 end_pos = std::max(end_pos, 
-                        hap1_vars->poss[hap1_vars->gaps[hap1_clust_end_idx]-1] + 
-                        hap1_vars->rlens[hap1_vars->gaps[hap1_clust_end_idx]-1]+1);
+                        hap1_vars->poss[hap1_vars->clusters[hap1_clust_end_idx]-1] + 
+                        hap1_vars->rlens[hap1_vars->clusters[hap1_clust_end_idx]-1]+1);
             }
             if (hap2_clust_end_idx - hap2_clust_beg_idx) { // hap2 vars present
                 beg_pos = std::min(beg_pos, 
-                        hap2_vars->poss[hap2_vars->gaps[hap2_clust_beg_idx]]-1);
+                        hap2_vars->poss[hap2_vars->clusters[hap2_clust_beg_idx]]-1);
                 end_pos = std::max(end_pos, 
-                        hap2_vars->poss[hap2_vars->gaps[hap2_clust_end_idx]-1] + 
-                        hap2_vars->rlens[hap2_vars->gaps[hap2_clust_end_idx]-1]+1);
+                        hap2_vars->poss[hap2_vars->clusters[hap2_clust_end_idx]-1] + 
+                        hap2_vars->rlens[hap2_vars->clusters[hap2_clust_end_idx]-1]+1);
             }
 
             // generate ref string
             std::string ref_str = ref->fasta.at(ctg).substr(beg_pos, end_pos-beg_pos);
 
             // generate cal1 and cal2 strings and pointers
-            int cal1_var_idx = cal1_vars->gaps[cal1_clust_beg_idx];
-            int cal2_var_idx = cal2_vars->gaps[cal2_clust_beg_idx];
+            int cal1_var_idx = cal1_vars->clusters[cal1_clust_beg_idx];
+            int cal2_var_idx = cal2_vars->clusters[cal2_clust_beg_idx];
             std::string cal1 = "", cal2 = "", cal1_str = "", cal2_str = ""; 
             std::vector<int> cal1_ptrs, cal2_ptrs;
             for (int cal1_ref_pos = beg_pos, cal2_ref_pos = beg_pos; cal1_ref_pos < end_pos || cal2_ref_pos < end_pos; ) {
@@ -754,8 +754,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             }
 
             // generate hap1 and hap2 strings and pointers
-            int hap1_var_idx = hap1_vars->gaps[hap1_clust_beg_idx];
-            int hap2_var_idx = hap2_vars->gaps[hap2_clust_beg_idx];
+            int hap1_var_idx = hap1_vars->clusters[hap1_clust_beg_idx];
+            int hap2_var_idx = hap2_vars->clusters[hap2_clust_beg_idx];
             std::string hap1 = "", hap2 = "", hap1_str = "", hap2_str = ""; 
             std::vector<int> hap1_ptrs, hap2_ptrs;
             for (int hap1_ref_pos = beg_pos, hap2_ref_pos = beg_pos; hap1_ref_pos < end_pos || hap2_ref_pos < end_pos; ) {
@@ -1042,8 +1042,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 // print cluster info
                 printf("\n\nCAL1: %zu groups\n", cal1_clust_end_idx-cal1_clust_beg_idx);
                 for(size_t i = cal1_clust_beg_idx; i < cal1_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, cal1_vars->gaps[i+1]-cal1_vars->gaps[i]);
-                    for(int j = cal1_vars->gaps[i]; j < cal1_vars->gaps[i+1]; j++) {
+                    printf("\tGroup %zu: %d variants\n", i, cal1_vars->clusters[i+1]-cal1_vars->clusters[i]);
+                    for(int j = cal1_vars->clusters[i]; j < cal1_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), cal1_vars->poss[j], 
                                 cal1_vars->refs[j].size() ? cal1_vars->refs[j].data() : "_", 
                                 cal1_vars->alts[j].size() ? cal1_vars->alts[j].data() : "_");
@@ -1051,8 +1051,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 }
                 printf("CAL2: %zu groups\n", cal2_clust_end_idx-cal2_clust_beg_idx);
                 for(size_t i = cal2_clust_beg_idx; i < cal2_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, cal2_vars->gaps[i+1]-cal2_vars->gaps[i]);
-                    for(int j = cal2_vars->gaps[i]; j < cal2_vars->gaps[i+1]; j++) {
+                    printf("\tGroup %zu: %d variants\n", i, cal2_vars->clusters[i+1]-cal2_vars->clusters[i]);
+                    for(int j = cal2_vars->clusters[i]; j < cal2_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), cal2_vars->poss[j], 
                                 cal2_vars->refs[j].size() ? cal2_vars->refs[j].data() : "_", 
                                 cal2_vars->alts[j].size() ? cal2_vars->alts[j].data() : "_");
@@ -1060,8 +1060,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 }
                 printf("HAP1: %zu groups\n", hap1_clust_end_idx-hap1_clust_beg_idx);
                 for(size_t i = hap1_clust_beg_idx; i < hap1_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, hap1_vars->gaps[i+1]-hap1_vars->gaps[i]);
-                    for(int j = hap1_vars->gaps[i]; j < hap1_vars->gaps[i+1]; j++) {
+                    printf("\tGroup %zu: %d variants\n", i, hap1_vars->clusters[i+1]-hap1_vars->clusters[i]);
+                    for(int j = hap1_vars->clusters[i]; j < hap1_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap1_vars->poss[j], 
                                 hap1_vars->refs[j].size() ? hap1_vars->refs[j].data() : "_", 
                                 hap1_vars->alts[j].size() ? hap1_vars->alts[j].data() : "_");
@@ -1069,8 +1069,8 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 }
                 printf("HAP2: %zu groups\n", hap2_clust_end_idx-hap2_clust_beg_idx);
                 for(size_t i = hap2_clust_beg_idx; i < hap2_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, hap2_vars->gaps[i+1]-hap2_vars->gaps[i]);
-                    for(int j = hap2_vars->gaps[i]; j < hap2_vars->gaps[i+1]; j++) {
+                    printf("\tGroup %zu: %d variants\n", i, hap2_vars->clusters[i+1]-hap2_vars->clusters[i]);
+                    for(int j = hap2_vars->clusters[i]; j < hap2_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), hap2_vars->poss[j], 
                                 hap2_vars->refs[j].size() ? hap2_vars->refs[j].data() : "_", 
                                 hap2_vars->alts[j].size() ? hap2_vars->alts[j].data() : "_");
@@ -1167,9 +1167,9 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             hap1_clust_beg_idx = hap1_clust_end_idx;
             hap2_clust_beg_idx = hap2_clust_end_idx;
             distance += std::min(s[CAL1_HAP1]+s[CAL2_HAP2], s[CAL2_HAP1]+s[CAL1_HAP2]);
-        }
+        } // each cluster
         INFO("Total edit distance: %d", distance);
-    }
+    } // each contig
 
     return distance;
 }

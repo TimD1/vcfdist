@@ -32,12 +32,12 @@ public:
     variantCalls();
 
     // helper functions
-    void add_gap(int g);
+    void add_cluster(int g);
     void add_var(int pos, int rlen, int off0, int off1, uint8_t hap, 
             uint8_t type, std::string ref, std::string alt, float gq, float vq);
 
     // data
-    std::vector<int> gaps;          // indices of gaps in this struct's vectors
+    std::vector<int> clusters;      // indices of clusters in this struct's vectors
     std::vector<int> poss;          // variant start positions
     std::vector<int> rlens;         // reference lengths
     std::vector< std::vector<int> > offs; 

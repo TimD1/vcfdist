@@ -11,7 +11,7 @@
 
 variantCalls::variantCalls() { this->offs.resize(2); };
 
-void variantCalls::add_gap(int g) { this->gaps.push_back(g); }
+void variantCalls::add_cluster(int g) { this->clusters.push_back(g); }
 
 void variantCalls::add_var(int pos, int rlen, int off0, int off1, uint8_t hap, 
         uint8_t type, std::string ref, std::string alt, float gq, float vq) {
@@ -124,9 +124,9 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
 
             // end prev contig if this isn't the first contig
             if (prev_rid >= 0) {
-                this->calls[seqnames[prev_rid]].add_gap(var_idx);
-                this->hapcalls[0][seqnames[prev_rid]].add_gap(hap_var_idx[0]);
-                this->hapcalls[1][seqnames[prev_rid]].add_gap(hap_var_idx[1]);
+                this->calls[seqnames[prev_rid]].add_cluster(var_idx);
+                this->hapcalls[0][seqnames[prev_rid]].add_cluster(hap_var_idx[0]);
+                this->hapcalls[1][seqnames[prev_rid]].add_cluster(hap_var_idx[1]);
             }
 
             // start new contig
@@ -295,7 +295,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
 
             // add to all calls info
             if (pos - std::max(prev_end[0], prev_end[1]) > g.gap) {
-                this->calls[seq].add_gap(var_idx);
+                this->calls[seq].add_cluster(var_idx);
                 offs = {0, 0};
             }
             if (type == TYPE_GRP) { // split GRP into INS+DEL
@@ -315,7 +315,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
 
             // add to haplotype-specific calls info
             if (pos - prev_end[hap] > g.gap) {
-                this->hapcalls[hap][seq].add_gap(hap_var_idx[hap]);
+                this->hapcalls[hap][seq].add_cluster(hap_var_idx[hap]);
                 hap_offs[hap] = 0;
             }
             if (type == TYPE_GRP) { // split GRP into INS+DEL
@@ -338,9 +338,9 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             ntypes[hap][type]++;
         }
     }
-    this->calls[seq].add_gap(var_idx);
-    this->hapcalls[0][seq].add_gap(hap_var_idx[0]);
-    this->hapcalls[1][seq].add_gap(hap_var_idx[1]);
+    this->calls[seq].add_cluster(var_idx);
+    this->hapcalls[0][seq].add_cluster(hap_var_idx[0]);
+    this->hapcalls[1][seq].add_cluster(hap_var_idx[1]);
 
     INFO("VCF contains %i sample(s) and %i records", bcf_hdr_nsamples(hdr), n);
     INFO("After splitting by haplotype, %i PASS all filters", npass);
@@ -379,11 +379,11 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 INFO("  Contig %s: %lu variants, %lu groups total", 
                         seqnames[i],
                         this->calls[seqnames[i]].poss.size(),
-                        this->calls[seqnames[i]].gaps.size());
+                        this->calls[seqnames[i]].clusters.size());
                 for (int h = 0; h < 2; h++) {
                     INFO("    Haplotype %i: %lu variants, %lu groups total", h+1,
                             this->hapcalls[h][seqnames[i]].poss.size(),
-                            this->hapcalls[h][seqnames[i]].gaps.size());
+                            this->hapcalls[h][seqnames[i]].clusters.size());
                 }
             }
         }
