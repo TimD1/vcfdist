@@ -1,7 +1,7 @@
 CC = /opt/rh/devtoolset-8/root/bin/g++
 CFLAGS = -g -Wall -std=c++2a -O2
 IFLAGS = /usr/local/include/
-OBJS = globals.o print.o vcf.o dist.o bed.o
+OBJS = globals.o print.o vcf.o dist.o bed.o cluster.o phase.o
 TARGET = vcfdist
 LDLIBS = -lz -lhts -lstdc++fs
 
@@ -24,6 +24,12 @@ dist.o: dist.cpp dist.h
 
 bed.o: bed.cpp bed.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) bed.cpp
+
+cluster.o: cluster.cpp cluster.h
+	$(CC) -c $(CFLAGS) -I$(IFLAGS) cluster.cpp
+
+phase.o: phase.cpp phase.h
+	$(CC) -c $(CFLAGS) -I$(IFLAGS) phase.cpp
 
 clean:
 	rm -f $(TARGET) *.o

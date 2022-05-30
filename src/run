@@ -1,10 +1,9 @@
 #!/bin/bash
 
-    # ../scripts/data/ref.fasta \
-    # ../test/truth.vcf.gz \
+    # -b ../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
 ./vcfdist \
     ../test/calls.vcf.gz \
     ../test/truth.vcf.gz \
     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
-    -b ../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
+    -b ../scripts/data/all_20.bed \
     -g 50

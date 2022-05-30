@@ -53,7 +53,7 @@ public:
 class vcfData {
 public:
     vcfData(htsFile* vcf);
-    std::vector< std::string > contigs;
+    std::vector<std::string> contigs;
     std::unordered_map<std::string, variantCalls> calls;
     std::vector< std::unordered_map<std::string, variantCalls> > hapcalls;
 };

@@ -3,6 +3,7 @@
 
 #include "dist.h"
 #include "print.h"
+#include "cluster.h"
 
 
 int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
@@ -390,10 +391,11 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
 /******************************************************************************/
 
-int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
+clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
 
     // iterate over each contig
     int distance = 0;
+    clusterData clusters(calls->contigs);
     for (std::string ctg : calls->contigs) {
 
         // initialize variant call info
@@ -406,7 +408,6 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             hap2_vars = &truth->hapcalls[1][ctg];
         } catch (const std::exception & e) {
             ERROR("truth VCF does not contain contig '%s'", ctg.data());
-            return EXIT_FAILURE;
         }
 
         // for each cluster of variants (merge calls and truth haps)
@@ -1161,15 +1162,31 @@ int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 } // 4 alignments
             } // debug print
 
+            // get cluster phasing
+            int orig_phase_dist = s[CAL1_HAP1] + s[CAL2_HAP2];
+            int swap_phase_dist = s[CAL2_HAP1] + s[CAL1_HAP2];
+            int phase = PHASE_NONE; // default either way
+            if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
+            if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
+
+            // save alignment information
+            clusters.clusters[ctg].add(
+                    cal1_vars, cal1_clust_beg_idx, cal1_clust_end_idx,
+                    cal2_vars, cal2_clust_beg_idx, cal2_clust_end_idx,
+                    hap1_vars, hap1_clust_beg_idx, hap1_clust_end_idx,
+                    hap2_vars, hap2_clust_beg_idx, hap2_clust_end_idx,
+                    phase, orig_phase_dist, swap_phase_dist);
+
             // reset for next merged cluster
             cal1_clust_beg_idx = cal1_clust_end_idx;
             cal2_clust_beg_idx = cal2_clust_end_idx;
             hap1_clust_beg_idx = hap1_clust_end_idx;
             hap2_clust_beg_idx = hap2_clust_end_idx;
-            distance += std::min(s[CAL1_HAP1]+s[CAL2_HAP2], s[CAL2_HAP1]+s[CAL1_HAP2]);
+            distance += std::min(orig_phase_dist, swap_phase_dist);
+
         } // each cluster
     } // each contig
     INFO("Total edit distance: %d", distance);
 
-    return distance;
+    return clusters;
 }

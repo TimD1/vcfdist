@@ -3,6 +3,7 @@
 
 #include "fasta.h"
 #include "vcf.h"
+#include "cluster.h"
 
 #define PTR_NONE 0
 #define PTR_UP   1
@@ -17,6 +18,6 @@
 #define CAL2_HAP2 3
 
 int edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
-int edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);
+clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);
 
 #endif
