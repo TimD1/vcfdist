@@ -190,7 +190,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
         // 2      1           4           0  reference
         // 4      2           8           1  alternate1
         // 6      3           12          2  alternate2
-        switch ( (gt[0] >> 1) + (gt[1] << 1) ) {
+        switch ( (gt[0] >> 1) + ((gt[1] >> 1) << 2) ) {
             case 0:  ngts[GT_DOT_DOT]++;   break;
             case 5:  ngts[GT_REF_REF]++;   break;
             case 6:  ngts[GT_ALT1_REF]++;  break;
