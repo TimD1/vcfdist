@@ -21,9 +21,13 @@ int main(int argc, char **argv) {
     g.parse_args(argc, argv);
     fastaData ref(g.ref_fasta_fp);
 
+    INFO(" ");
+    INFO("Parsing Calls VCF '%s'", g.calls_vcf_fn.data());
     vcfData calls(g.calls_vcf_fp);
     /* edit_dist_realign(&calls, &ref); */
 
+    INFO(" ");
+    INFO("Parsing Truth VCF '%s'", g.truth_vcf_fn.data());
     vcfData truth(g.truth_vcf_fp);
     /* edit_dist_realign(&truth, &ref); */
 

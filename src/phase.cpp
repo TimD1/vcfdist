@@ -89,6 +89,7 @@ void phaseData::phase()
     
 
     // print
+    int switch_errors = 0;
     for (auto ctg : this->contigs) {
 
         if (g.print_verbosity >= 2) {
@@ -112,8 +113,7 @@ void phaseData::phase()
             for(int i = 0; i < this->phasings[ctg].nswitches; i++)
                 printf("%d ", this->phasings[ctg].phase_blocks[i]);
         }
-
-        INFO("switch errors: %d", this->phasings[ctg].nswitches);
+        switch_errors += this->phasings[ctg].nswitches;
     }
-
+    INFO("Total switch errors: %d", switch_errors);
 }

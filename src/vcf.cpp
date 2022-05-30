@@ -36,7 +36,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     std::vector< std::vector<int> > 
         ntypes(2, std::vector<int>(type_strs.size(), 0));
     int n      = 0;                     // total number of records in file
-    int npass  = 0;                     // records PASSing all filters
+    std::vector<int> npass  = {0, 0};   // records PASSing all filters
 
     // data
     std::vector<int> prev_end = {-g.gap*2, -g.gap*2};
@@ -135,7 +135,6 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             if (prev_rids.find(rec->rid) != prev_rids.end()) {
                 ERROR("unsorted VCF, contig %s already parsed", seq.data());
             } else {
-                INFO("parsing contig %s", seq.data());
                 this->contigs.push_back(seq);
                 prev_end = {-g.gap*2, -g.gap*2};
                 hap_var_idx = {0, 0};
@@ -340,7 +339,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             }
 
             prev_end[hap] = pos + rlen;
-            npass++;
+            npass[hap]++;
             ntypes[hap][type]++;
         }
     }
@@ -348,8 +347,12 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     this->hapcalls[0][seq].add_cluster(hap_var_idx[0]);
     this->hapcalls[1][seq].add_cluster(hap_var_idx[1]);
 
-    INFO("VCF contains %i sample(s) and %i records", bcf_hdr_nsamples(hdr), n);
-    INFO("After splitting by haplotype, %i PASS all filters", npass);
+    INFO("Overview:");
+    INFO("  SAMPLES   %d", bcf_hdr_nsamples(hdr));
+    INFO("  VARIANTS  %d", n);
+    INFO("  KEPT HAP1 %d", npass[0]);
+    INFO("  KEPT HAP2 %d", npass[1]);
+    INFO(" ");
 
     INFO("Contigs:");
     for (size_t i = 0; i < this->contigs.size(); i++) {
@@ -381,9 +384,9 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
             INFO("    %s  %i", type_strs[i].data(), ntypes[h][i]);
         }
     }
+    INFO(" ");
 
     if (g.print_verbosity >= 1) {
-        INFO(" ");
         INFO("Groups:");
         for(int i = 0; i < nseq; i++) {
             if (this->calls[seqnames[i]].poss.size())  {
@@ -398,6 +401,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 }
             }
         }
+        INFO(" ");
     }
 
     free(gq);
