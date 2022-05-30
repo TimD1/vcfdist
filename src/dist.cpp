@@ -9,8 +9,8 @@
 int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
     // iterate over each haplotype
-    int groups = 0;
-    int new_ed_groups = 0;
+    int clusters = 0;
+    int new_ed_clusters = 0;
     int old_ed = 0;
     int new_ed = 0;
     for (int h = 0; h < 2; h++) {
@@ -22,7 +22,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
             variantCalls vars = itr->second;
             if (vars.poss.size() == 0) continue;
 
-            // iterate over each group of variants
+            // iterate over each cluster of variants
             for (size_t var_grp = 0; var_grp < vars.clusters.size()-1; var_grp++) {
                 int beg_idx = vars.clusters[var_grp];
                 int end_idx = vars.clusters[var_grp+1];
@@ -346,7 +346,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     printf("\n");
                 }
 
-                // print group info, and old/new alignments
+                // print cluster info, and old/new alignments
                 if (g.print_verbosity >= 1) {
                     if (subs*2 + inss + dels != s) {
                         const char* var_ref;
@@ -377,14 +377,14 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 // update counters
                 old_ed += subs*2 + inss + dels;
                 new_ed += s;
-                if (subs*2 + inss + dels > s) new_ed_groups++;
-                groups++;
+                if (subs*2 + inss + dels > s) new_ed_clusters++;
+                clusters++;
 
-            } // group
+            } // cluster
         } // contig
     } // hap
-    INFO("Edit dist reduced in %i of %i groups, from %i to %i.", 
-            new_ed_groups, groups, old_ed, new_ed);
+    INFO("Edit dist reduced in %i of %i clusters, from %i to %i.", 
+            new_ed_clusters, clusters, old_ed, new_ed);
     return 0;
 
 }
@@ -1041,7 +1041,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     s[CAL2_HAP1]+s[CAL1_HAP2]);
             if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
-                printf("\n\nCAL1: %zu groups\n", cal1_clust_end_idx-cal1_clust_beg_idx);
+                printf("\n\nCAL1: %zu clusters\n", cal1_clust_end_idx-cal1_clust_beg_idx);
                 for(size_t i = cal1_clust_beg_idx; i < cal1_clust_end_idx; i++) {
                     printf("\tGroup %zu: %d variants\n", i, cal1_vars->clusters[i+1]-cal1_vars->clusters[i]);
                     for(int j = cal1_vars->clusters[i]; j < cal1_vars->clusters[i+1]; j++) {
@@ -1050,7 +1050,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 cal1_vars->alts[j].size() ? cal1_vars->alts[j].data() : "_");
                     }
                 }
-                printf("CAL2: %zu groups\n", cal2_clust_end_idx-cal2_clust_beg_idx);
+                printf("CAL2: %zu clusters\n", cal2_clust_end_idx-cal2_clust_beg_idx);
                 for(size_t i = cal2_clust_beg_idx; i < cal2_clust_end_idx; i++) {
                     printf("\tGroup %zu: %d variants\n", i, cal2_vars->clusters[i+1]-cal2_vars->clusters[i]);
                     for(int j = cal2_vars->clusters[i]; j < cal2_vars->clusters[i+1]; j++) {
@@ -1059,7 +1059,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 cal2_vars->alts[j].size() ? cal2_vars->alts[j].data() : "_");
                     }
                 }
-                printf("HAP1: %zu groups\n", hap1_clust_end_idx-hap1_clust_beg_idx);
+                printf("HAP1: %zu clusters\n", hap1_clust_end_idx-hap1_clust_beg_idx);
                 for(size_t i = hap1_clust_beg_idx; i < hap1_clust_end_idx; i++) {
                     printf("\tGroup %zu: %d variants\n", i, hap1_vars->clusters[i+1]-hap1_vars->clusters[i]);
                     for(int j = hap1_vars->clusters[i]; j < hap1_vars->clusters[i+1]; j++) {
@@ -1068,7 +1068,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 hap1_vars->alts[j].size() ? hap1_vars->alts[j].data() : "_");
                     }
                 }
-                printf("HAP2: %zu groups\n", hap2_clust_end_idx-hap2_clust_beg_idx);
+                printf("HAP2: %zu clusters\n", hap2_clust_end_idx-hap2_clust_beg_idx);
                 for(size_t i = hap2_clust_beg_idx; i < hap2_clust_end_idx; i++) {
                     printf("\tGroup %zu: %d variants\n", i, hap2_vars->clusters[i+1]-hap2_vars->clusters[i]);
                     for(int j = hap2_vars->clusters[i]; j < hap2_vars->clusters[i+1]; j++) {
