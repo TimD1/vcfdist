@@ -114,6 +114,7 @@ void phaseData::phase()
                 printf("%d ", this->phasings[ctg].phase_blocks[i]);
         }
         switch_errors += this->phasings[ctg].nswitches;
+        printf("\n");
     }
     INFO("Total switch errors: %d", switch_errors);
 }

@@ -31,11 +31,11 @@ int main(int argc, char **argv) {
     vcfData truth(g.truth_vcf_fp);
     edit_dist_realign(&truth, &ref, true);
 
-    // save per-cluster alignment info
-    clusterData clusters = edit_dist(&calls, &truth, &ref);
+    /* // save per-cluster alignment info */
+    /* clusterData clusters = edit_dist(&calls, &truth, &ref); */
 
-    // phase clusters
-    phaseData phasings(&clusters);
+    /* // phase clusters */
+    /* phaseData phasings(&clusters); */
 
     return EXIT_SUCCESS;
 }

@@ -72,33 +72,33 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
 
                 // colored alignment
                 int var = beg_idx;
-                std::string ref_str = "";
+                std::string ref_out_str = "";
+                std::string alt_out_str = "";
                 std::string alt_str = "";
-                std::string alt = "";
                 for (int ref_pos = beg; ref_pos < end;) {
                     if (ref_pos == vars.poss[var]) { // in variant
                         switch (vars.types[var]) {
                             case TYPE_INS:
-                                alt += vars.alts[var];
-                                alt_str += GREEN(vars.alts[var]);
-                                ref_str += std::string(vars.alts[var].size(), ' ');
+                                alt_str += vars.alts[var];
+                                alt_out_str += GREEN(vars.alts[var]);
+                                ref_out_str += std::string(vars.alts[var].size(), ' ');
                                 break;
                             case TYPE_DEL:
-                                alt_str += std::string(vars.refs[var].size(), ' ');
-                                ref_str += RED(vars.refs[var]);
+                                alt_out_str += std::string(vars.refs[var].size(), ' ');
+                                ref_out_str += RED(vars.refs[var]);
                                 ref_pos += vars.refs[var].size();
                                 break;
                             case TYPE_SUB:
-                                alt += vars.alts[var];
-                                alt_str += " " + GREEN(vars.alts[var]);
-                                ref_str += RED(vars.refs[var]) + " ";
+                                alt_str += vars.alts[var];
+                                alt_out_str += " " + GREEN(vars.alts[var]);
+                                ref_out_str += RED(vars.refs[var]) + " ";
                                 ref_pos++;
                                 break;
                             case TYPE_GRP:
-                                alt += vars.alts[var];
-                                alt_str += std::string(vars.refs[var].size(), ' ') 
+                                alt_str += vars.alts[var];
+                                alt_out_str += std::string(vars.refs[var].size(), ' ') 
                                     + GREEN(vars.alts[var]);
-                                ref_str += RED(vars.refs[var]) + std::string(
+                                ref_out_str += RED(vars.refs[var]) + std::string(
                                         vars.alts[var].size(), ' ');
                                 ref_pos += vars.refs[var].size();
                                 break;
@@ -107,9 +107,9 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                     }
                     else { // match
                         try {
-                            alt += ref->fasta.at(ctg)[ref_pos];
-                            ref_str += ref->fasta.at(ctg)[ref_pos];
                             alt_str += ref->fasta.at(ctg)[ref_pos];
+                            ref_out_str += ref->fasta.at(ctg)[ref_pos];
+                            alt_out_str += ref->fasta.at(ctg)[ref_pos];
                             ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -135,7 +135,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                         int max_off = std::min(
                                 reflen - diags[s][d], altlen) - 1;
                         int off = offs[s][d];
-                        while (off < max_off && alt[off+1] == 
+                        while (off < max_off && alt_str[off+1] == 
                                 ref->fasta.at(ctg)[diags[s][d]+off+beg+1]) {
                             off++;
                         }
@@ -230,7 +230,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                                     ptr_str[altpos][refpos] = '|';
                             }
                             while (altpos < altlen-1 && refpos < reflen-1 && 
-                                    alt[++altpos] == ref->fasta.at(ctg)[beg + ++refpos]) {
+                                    alt_str[++altpos] == ref->fasta.at(ctg)[beg + ++refpos]) {
                                 ptr_str[altpos][refpos] = '\\';
                             }
                         }
@@ -249,7 +249,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                             else if (i < 0) {
                                 printf("%c", ref->fasta.at(ctg)[beg+j]);
                             } else if (j < 0) {
-                                printf("\n%c ", alt[i]);
+                                printf("\n%c ", alt_str[i]);
                             } else {
                                 printf("%c", ptr_str[i][j]);
                             }
@@ -330,22 +330,22 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                 int alt_ptr = 0;
                 int new_inss = 0;
                 int new_dels = 0;
-                std::string new_ref_str, new_alt_str;
+                std::string new_ref_out_str, new_alt_out_str;
                 for(size_t i = 0; i < cig.size(); i++) {
                     switch(cig[i]) {
                         case PTR_DIAG:
-                            new_ref_str += ref->fasta.at(ctg)[beg+ref_ptr++];
-                            new_alt_str += alt[alt_ptr++];
+                            new_ref_out_str += ref->fasta.at(ctg)[beg+ref_ptr++];
+                            new_alt_out_str += alt_str[alt_ptr++];
                             i++;
                             break;
                         case PTR_UP:
-                            new_ref_str += " ";
-                            new_alt_str += GREEN(alt[alt_ptr++]);
+                            new_ref_out_str += " ";
+                            new_alt_out_str += GREEN(alt_str[alt_ptr++]);
                             new_inss++;
                             break;
                         case PTR_LEFT:
-                            new_ref_str += RED(ref->fasta.at(ctg)[beg+ref_ptr++]);
-                            new_alt_str += " ";
+                            new_ref_out_str += RED(ref->fasta.at(ctg)[beg+ref_ptr++]);
+                            new_alt_out_str += " ";
                             new_dels++;
                             break;
                     }
@@ -360,7 +360,7 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                     printf("\nCIGAR: ");
                     for(size_t i = 0; i < cig.size(); i++) {
                         switch(cig[i]) {
-                            case PTR_DIAG:
+                            case PTR_DIAG: // match is two movements
                                 if (cig[++i] != PTR_DIAG)
                                     ERROR("cig should be PTR_DIAG");
                                 printf("M"); break;
@@ -393,11 +393,11 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                                     var_ref, var_alt);
                         }
                         printf("      REF: %s\n      ALT: %s\n", 
-                                ref_str.data(), alt_str.data());
+                                ref_out_str.data(), alt_out_str.data());
                         printf("\n    new edit distance: %i (%iI %iD)\n", 
                                 s, new_inss, new_dels);
                         printf("      REF: %s\n      ALT: %s\n", 
-                                new_ref_str.data(), new_alt_str.data());
+                                new_ref_out_str.data(), new_alt_out_str.data());
                     }
                 }
 
@@ -407,8 +407,69 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                 if (subs*2 + inss + dels > s) new_ed_clusters++;
                 clusters++;
 
-                /* fprintf(out_vcf, "%s\t%d\t.\t%s\t%s\t%d\tPASS\t.\t.\t.\n", */
-                /*         ctg.data(), pos, ref.data(), alt.data(), qual) */
+                // write new alignment to VCF
+                std::string ref_str = ref->fasta.at(ctg).substr(beg, end-beg);
+                int ref_idx = 0, alt_idx = 0;
+                for(size_t cig_idx = 0; cig_idx < cig.size();) {
+                    int indel_len = 0;
+                    switch (cig[cig_idx]) {
+
+                        case PTR_DIAG: // no variant, update pointers
+                            cig_idx += 2;
+                            ref_idx++;
+                            alt_idx++;
+                            break;
+
+                        case PTR_LEFT: // deletion
+                            cig_idx++; indel_len++;
+
+                            /* // actually sub */
+                            /* if (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) { */
+                            /*     cig_idx++; */ 
+                            /*     fprintf(out_vcf, "%s\t%d\t.\t%c\t%c\t60\tPASS\t.\t.\t.\n", */
+                            /*             ctg.data(), beg+ref_idx+1, */ 
+                            /*             ref_str[ref_idx], alt_str[alt_idx]); */
+                            /*     ref_idx++; alt_idx++; */
+                            /*     continue; */
+                            /* } */
+
+                            // multi-base deletion
+                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) {
+                                cig_idx++; indel_len++;
+                            }
+                            fprintf(out_vcf, "%s\t%d\t.\t%s\t%c\t60\tPASS\t.\t.\t.\n",
+                                    ctg.data(), beg+ref_idx, 
+                                    ref_str.substr(ref_idx-1, indel_len+1).data(), 
+                                    ref_str[ref_idx-1]);
+                            ref_idx += indel_len;
+                            break;
+
+                        case PTR_UP: // insertion
+                            cig_idx++; indel_len++;
+
+                            /* // actually sub */
+                            /* if (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) { */
+                            /*     cig_idx++; */ 
+                            /*     fprintf(out_vcf, "%s\t%d\t.\t%c\t%c\t60\tPASS\t.\t.\t.\n", */
+                            /*             ctg.data(), beg+ref_idx+1, */ 
+                            /*             ref_str[ref_idx], alt_str[alt_idx]); */
+                            /*     ref_idx++; alt_idx++; */
+                            /*     continue; */
+                            /* } */
+
+                            // multi-base insertion
+                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) {
+                                cig_idx++; indel_len++;
+                            }
+                            fprintf(out_vcf, "%s\t%d\t.\t%c\t%s\t60\tPASS\t.\t.\t.\n",
+                                    ctg.data(), beg+ref_idx, 
+                                    ref_str[ref_idx-1], 
+                                    (ref_str[ref_idx-1] + alt_str.substr(alt_idx, indel_len)).data());
+                            alt_idx += indel_len;
+                            break;
+                    }
+                }
+
 
             } // cluster
         } // contig
