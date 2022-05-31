@@ -13,3 +13,4 @@ scripts/data
 scripts/results
 src/compare
 test/
+out/

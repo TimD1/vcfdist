@@ -1,4 +1,4 @@
-#include<filesystem>
+#include <filesystem>
 
 #include "globals.h"
 #include "print.h"
@@ -22,12 +22,14 @@ void Globals::parse_args(int argc, char ** argv) {
 
     /* verify input VCF/FASTA filepaths */
     this->calls_vcf_fn = std::string(argv[1]);
+    this->calls_vcf_path = std::filesystem::path(this->calls_vcf_fn);
     this->calls_vcf_fp = bcf_open(calls_vcf_fn.data(), "r");
     if (calls_vcf_fp == NULL) {
         ERROR("failed to open calls_vcf file '%s'", calls_vcf_fn.data());
     }
 
     this->truth_vcf_fn = std::string(argv[2]);
+    this->truth_vcf_path = std::filesystem::path(this->truth_vcf_fn);
     this->truth_vcf_fp = bcf_open(truth_vcf_fn.data(), "r");
     if (truth_vcf_fp == NULL) {
         ERROR("failed to open truth_vcf file '%s'", truth_vcf_fn.data());
@@ -59,11 +61,12 @@ void Globals::parse_args(int argc, char ** argv) {
         else if (std::string(argv[i]) == "-o") {
             i++;
             if (i == argc) {
-                ERROR("option '-o' used without providing DIR");
+                ERROR("option '-o' used without providing PREFIX");
             }
             try {
-                this->out_dir = std::string(argv[i++]);
-                std::filesystem::create_directory(out_dir);
+                this->out_prefix = std::string(argv[i++]);
+                std::filesystem::create_directory(
+                        std::filesystem::path(out_prefix).parent_path());
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
@@ -138,7 +141,7 @@ void Globals::print_usage() const
     printf("  FILE\tref.fasta\tFASTA file containing reference sequence \n");
     printf("Options:\n");
     printf("  -b FILE\tBED file containing regions to evaluate\n");
-    printf("  -o DIR\toutput directory\n");
+    printf("  -o PREFIX\toutput filepath prefix (dir should contain '/')\n");
     printf("  -q MIN_QUAL\tminimum variant quality [0]\n");
     printf("  -g GAP\tsize for independent groups [50]\n");
     printf("  -p VERBOSITY\tprinting verbosity (0,1,2) [0]\n");

@@ -1,6 +1,8 @@
 #ifndef _GLOBALS_H_
 #define _GLOBALS_H_
 
+#include <filesystem>
+
 #include "htslib/vcf.h"
 
 #include "bed.h"
@@ -12,15 +14,17 @@ public:
     FILE* ref_fasta_fp;
 
     std::string calls_vcf_fn;
+    std::filesystem::path calls_vcf_path;
     htsFile * calls_vcf_fp;
 
     std::string truth_vcf_fn;
+    std::filesystem::path truth_vcf_path;
     htsFile * truth_vcf_fp;
 
     std::string bed_fn;
     bedData bed;
 
-    std::string out_dir;
+    std::string out_prefix;
 
     int gap = 50;
     int print_verbosity = 0;

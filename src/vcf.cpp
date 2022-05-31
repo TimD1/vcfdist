@@ -42,6 +42,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     std::vector<int> prev_end = {-g.gap*2, -g.gap*2};
     std::unordered_map<int, bool> prev_rids;
     int prev_rid = -1;
+    std::unordered_map<int, int> seqlens;
     std::string seq;
     std::vector<int> nregions(region_strs.size(), 0);
     std::vector<int> pass_min_qual = {0, 0};
@@ -72,30 +73,52 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     int pass_filter_id = 0;
     bool pass = false;
     bool pass_found = false;
-    for(int i = 0; i < hdr->nhrec; i++) {
+    for (int i = 0; i < hdr->nhrec; i++) {
+
+        /* // DEBUG HEADER PRINT */
+        /* printf("%s=%s\n", hdr->hrec[i]->key, hdr->hrec[i]->value); */
+        /* for (int j = 0; j < hdr->hrec[i]->nkeys; j++) { */
+        /*     printf("  %s=%s\n", hdr->hrec[i]->keys[j], hdr->hrec[i]->vals[j]); */
+        /* } */
 
         // search all FILTER lines
         if (hdr->hrec[i]->type == BCF_HL_FLT) {
 
             // select PASS filter
             bool is_pass_filter = false;
-            for(int j = 0; j < hdr->hrec[i]->nkeys; j++)
+            for (int j = 0; j < hdr->hrec[i]->nkeys; j++)
                 if (hdr->hrec[i]->keys[j] == std::string("ID") && 
                         hdr->hrec[i]->vals[j] == std::string("PASS"))
                     is_pass_filter = true;
 
             // save PASS filter index to keep only passing reads
             if (is_pass_filter)
-                for(int j = 0; j < hdr->hrec[i]->nkeys; j++)
+                for (int j = 0; j < hdr->hrec[i]->nkeys; j++)
                     if (hdr->hrec[i]->keys[j] == std::string("IDX")) {
                         pass_filter_id = std::stoi(hdr->hrec[i]->vals[j]);
                         pass_found = true;
                     }
         }
+
+        // store contig lengths (for output VCF)
+        else if (hdr->hrec[i]->type == BCF_HL_CTG) {
+            int length = -1;
+            int idx = -1;
+            for (int j = 0; j < hdr->hrec[i]->nkeys; j++) {
+                if (hdr->hrec[i]->keys[j] == std::string("IDX"))
+                    idx = std::stoi(hdr->hrec[i]->vals[j]);
+                else if (hdr->hrec[i]->keys[j] == std::string("length"))
+                    length = std::stoi(hdr->hrec[i]->vals[j]);
+            }
+            if (length >= 0 && idx >= 0) seqlens[idx] = length;
+            else ERROR("VCF header contig line didn't have 'IDX' and 'length'");
+        }
     }
-    if (!pass_found) {
+    if (!pass_found)
         ERROR("failed to find PASS FILTER in VCF");
-    }
+    if (bcf_hdr_nsamples(hdr) != 1) 
+        ERROR("expected 1 sample, found %d", bcf_hdr_nsamples(hdr));
+    this->sample = hdr->samples[0];
 
     // report names of all the sequences in the VCF file
     const char **seqnames = NULL;
@@ -136,6 +159,7 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 ERROR("unsorted VCF, contig %s already parsed", seq.data());
             } else {
                 this->contigs.push_back(seq);
+                this->lengths.push_back(seqlens[rec->rid]);
                 prev_end = {-g.gap*2, -g.gap*2};
                 hap_var_idx = {0, 0};
                 var_idx = 0;
@@ -289,8 +313,8 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
                 case BORDER:
                     nregions[BORDER]++;
                     break;
-                case OTHER_CTG:
-                    nregions[OTHER_CTG]++;
+                case OFF_CTG:
+                    nregions[OFF_CTG]++;
                     continue;
                 default:
                     ERROR("unexpected BED region type: %d", 
@@ -348,7 +372,6 @@ vcfData::vcfData(htsFile* vcf) : hapcalls(2) {
     this->hapcalls[1][seq].add_cluster(hap_var_idx[1]);
 
     INFO("Overview:");
-    INFO("  SAMPLES   %d", bcf_hdr_nsamples(hdr));
     INFO("  VARIANTS  %d", n);
     INFO("  KEPT HAP1 %d", npass[0]);
     INFO("  KEPT HAP2 %d", npass[1]);
