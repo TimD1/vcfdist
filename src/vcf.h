@@ -7,6 +7,8 @@
 
 #include "htslib/vcf.h"
 
+#include "fasta.h"
+
 #define TYPE_REF 0
 #define TYPE_SUB 1
 #define TYPE_INS 2
@@ -33,15 +35,13 @@ public:
 
     // helper functions
     void add_cluster(int g);
-    void add_var(int pos, int rlen, int off0, int off1, uint8_t hap, 
-            uint8_t type, std::string ref, std::string alt, float gq, float vq);
+    void add_var(int pos, int rlen, uint8_t hap, uint8_t type, 
+            std::string ref, std::string alt, float gq, float vq);
 
     // data
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
-    std::vector<int> poss;          // variant start positions
+    std::vector<int> poss;          // variant start positions (0-based)
     std::vector<int> rlens;         // reference lengths
-    std::vector< std::vector<int> > offs; 
-                                    // offsets for each hap within group
     std::vector<uint8_t> haps;      // variant haplotype
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
     std::vector<std::string> refs;  // variant reference allele
@@ -52,12 +52,23 @@ public:
 
 class vcfData {
 public:
-    vcfData(htsFile* vcf);
+    // constructors
+    vcfData();
+    vcfData(std::string vcf_fn, fastaData* reference);
+
+    // functions
+    void write(std::string vcf_fn);
+    void print_variant(FILE* out_fp, std::string ctg, int pos, int type,
+        std::string ref, std::string alt, float qual, std::string gt);
+
+    // data
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
     std::unordered_map<std::string, variantCalls> calls;
     std::vector< std::unordered_map<std::string, variantCalls> > hapcalls;
+
+    fastaData* ref;
 };
 
 #endif

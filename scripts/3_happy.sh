@@ -1,46 +1,43 @@
 #!/bin/bash
 
 main_dir="/home/timdunn/vcfdist/scripts/data"
+out_dir="/home/timdunn/vcfdist/out"
 ont_dir="/home/timdunn/vcfdist/r10.4_chr20/ont-case-study/input/data"
 pfda_dir="/home/timdunn/vcfdist/pfda-v2/submission_vcfs"
 
 chr=20
 
-# callvcfs=(
-#     # "$main_dir/truth_orig.vcf.gz"
-#     # "$main_dir/truth_npore.vcf.gz"
-#     "$pfda_dir/0GOOR/0GOOR_HG002.vcf.gz"
-#     "$pfda_dir/0O7FL/0O7FL_HG002.vcf.gz"
-#     "$pfda_dir/13678/13678_HG002.vcf.gz"
-#     "$pfda_dir/23O09/23O09_HG002.vcf.gz"
-#     "$pfda_dir/2OT9Q/2OT9Q_HG002.vcf.gz"
-# )
-# callvcfnames=(
-#     # 'truth_orig'
-#     # 'truth_npore'
-#     '0GOOR'
-#     '0O7FL'
-#     '13678'
-#     '23O09'
-#     '2OT9Q'
-# )
+callvcfs=(
+    # "$main_dir/truth_orig.vcf.gz"
+    # "$main_dir/truth_npore.vcf.gz"
+    # "$pfda_dir/2OT9Q/2OT9Q_HG002.vcf.gz"
+    "$out_dir/orig_truth.vcf.gz"
+    "$out_dir/truth.vcf.gz"
+)
+callvcfnames=(
+    # 'truth_orig'
+    # 'truth_npore'
+    # '2OT9Q'
+    'out_truth_orig'
+    'out_truth_min_ed'
+)
 
-callvcfnames=( $(ls $pfda_dir) )
-callvcfs=()
-for callvcf in ${callvcfnames[@]}; do
-    callvcfs+=($pfda_dir/${callvcf}/${callvcf}_HG002.vcf.gz)
-done
+# callvcfnames=( $(ls $pfda_dir) )
+# callvcfs=()
+# for callvcf in ${callvcfnames[@]}; do
+#     callvcfs+=($pfda_dir/${callvcf}/${callvcf}_HG002.vcf.gz)
+# done
 
 truthvcfs=(
     # "$ont_dir/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz"
     "$main_dir/truth_orig.vcf.gz"
-    "$main_dir/truth_npore.vcf.gz"
+    # "$main_dir/truth_npore.vcf.gz"
 )
 
 truthvcfnames=(
     # 'truth421'
     'truth_orig'
-    'truth_npore'
+    # 'truth_npore'
 )
 
 fullbeds=(

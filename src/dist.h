@@ -17,7 +17,7 @@
 #define CAL2_HAP1 2
 #define CAL2_HAP2 3
 
-int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool is_truth);
+vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
 clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);
 
 #endif

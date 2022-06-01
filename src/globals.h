@@ -3,8 +3,6 @@
 
 #include <filesystem>
 
-#include "htslib/vcf.h"
-
 #include "bed.h"
 
 class Globals {
@@ -15,11 +13,9 @@ public:
 
     std::string calls_vcf_fn;
     std::filesystem::path calls_vcf_path;
-    htsFile * calls_vcf_fp;
 
     std::string truth_vcf_fn;
     std::filesystem::path truth_vcf_path;
-    htsFile * truth_vcf_fp;
 
     std::string bed_fn;
     bedData bed;

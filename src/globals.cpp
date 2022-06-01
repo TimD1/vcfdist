@@ -1,5 +1,7 @@
 #include <filesystem>
 
+#include "htslib/vcf.h"
+
 #include "globals.h"
 #include "print.h"
 
@@ -23,16 +25,20 @@ void Globals::parse_args(int argc, char ** argv) {
     /* verify input VCF/FASTA filepaths */
     this->calls_vcf_fn = std::string(argv[1]);
     this->calls_vcf_path = std::filesystem::path(this->calls_vcf_fn);
-    this->calls_vcf_fp = bcf_open(calls_vcf_fn.data(), "r");
+    htsFile* calls_vcf_fp = bcf_open(calls_vcf_fn.data(), "r");
     if (calls_vcf_fp == NULL) {
         ERROR("failed to open calls_vcf file '%s'", calls_vcf_fn.data());
+    } else {
+        bcf_close(calls_vcf_fp);
     }
 
     this->truth_vcf_fn = std::string(argv[2]);
     this->truth_vcf_path = std::filesystem::path(this->truth_vcf_fn);
-    this->truth_vcf_fp = bcf_open(truth_vcf_fn.data(), "r");
+    htsFile* truth_vcf_fp = bcf_open(truth_vcf_fn.data(), "r");
     if (truth_vcf_fp == NULL) {
         ERROR("failed to open truth_vcf file '%s'", truth_vcf_fn.data());
+    } else {
+        bcf_close(truth_vcf_fp);
     }
 
     // load reference FASTA

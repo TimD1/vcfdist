@@ -8,39 +8,24 @@
 #include "cluster.h"
 
 
-int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth) {
+vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
+
+    // copy vcf header data over to results vcf
+    vcfData results;
+    results.sample = vcf->sample;
+    results.contigs = vcf->contigs;
+    results.lengths = vcf->lengths;
+    results.ref = vcf->ref;
+    for (auto ctg : results.contigs) 
+        for (int hap = 0; hap < 2; hap++) 
+            results.hapcalls[hap][ctg] = variantCalls();
 
     // iterate over each haplotype
     int clusters = 0;
     int new_ed_clusters = 0;
     int old_ed = 0;
     int new_ed = 0;
-    FILE* out_vcf;
     for (int h = 0; h < 2; h++) {
-
-        // create output stream
-        std::string out_vcf_fn;
-        if (truth)
-            out_vcf_fn = g.out_prefix + std::string(g.truth_vcf_path.stem()) + 
-                std::to_string(h); // stem: .vcf.gz -> .vcf
-        else
-            out_vcf_fn = g.out_prefix + std::string(g.calls_vcf_path.stem()) + 
-                std::to_string(h); // stem: .vcf.gz -> .vcf
-        out_vcf = fopen(out_vcf_fn.data(), "w");
-
-        // VCF header
-        const std::chrono::time_point now{std::chrono::system_clock::now()};
-        time_t tt = std::chrono::system_clock::to_time_t(now);
-        tm local_time = *localtime(&tt);
-        fprintf(out_vcf, "##fileformat=VCFv4.2\n");
-        fprintf(out_vcf, "##fileDate=%04d%02d%02d\n", local_time.tm_year + 1900, 
-                local_time.tm_mon + 1, local_time.tm_mday);
-        for (size_t i = 0; i < vcf->contigs.size(); i++)
-            fprintf(out_vcf, "##contig=<ID=%s,length=%d>\n", 
-                    vcf->contigs[i].data(), vcf->lengths[i]);
-        fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
-        fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n",
-                vcf->sample.data());
 
         // iterate over each contig
         for (auto itr = vcf->hapcalls[h].begin(); 
@@ -423,48 +408,27 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
                         case PTR_LEFT: // deletion
                             cig_idx++; indel_len++;
 
-                            /* // actually sub */
-                            /* if (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) { */
-                            /*     cig_idx++; */ 
-                            /*     fprintf(out_vcf, "%s\t%d\t.\t%c\t%c\t60\tPASS\t.\t.\t.\n", */
-                            /*             ctg.data(), beg+ref_idx+1, */ 
-                            /*             ref_str[ref_idx], alt_str[alt_idx]); */
-                            /*     ref_idx++; alt_idx++; */
-                            /*     continue; */
-                            /* } */
-
                             // multi-base deletion
                             while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) {
                                 cig_idx++; indel_len++;
                             }
-                            fprintf(out_vcf, "%s\t%d\t.\t%s\t%c\t60\tPASS\t.\t.\t.\n",
-                                    ctg.data(), beg+ref_idx, 
-                                    ref_str.substr(ref_idx-1, indel_len+1).data(), 
-                                    ref_str[ref_idx-1]);
+                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
+                                    indel_len, h, TYPE_DEL, 
+                                    ref_str.substr(ref_idx, indel_len),
+                                    "", 60, 60);
                             ref_idx += indel_len;
                             break;
 
                         case PTR_UP: // insertion
                             cig_idx++; indel_len++;
 
-                            /* // actually sub */
-                            /* if (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) { */
-                            /*     cig_idx++; */ 
-                            /*     fprintf(out_vcf, "%s\t%d\t.\t%c\t%c\t60\tPASS\t.\t.\t.\n", */
-                            /*             ctg.data(), beg+ref_idx+1, */ 
-                            /*             ref_str[ref_idx], alt_str[alt_idx]); */
-                            /*     ref_idx++; alt_idx++; */
-                            /*     continue; */
-                            /* } */
-
                             // multi-base insertion
                             while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) {
                                 cig_idx++; indel_len++;
                             }
-                            fprintf(out_vcf, "%s\t%d\t.\t%c\t%s\t60\tPASS\t.\t.\t.\n",
-                                    ctg.data(), beg+ref_idx, 
-                                    ref_str[ref_idx-1], 
-                                    (ref_str[ref_idx-1] + alt_str.substr(alt_idx, indel_len)).data());
+                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
+                                    0, h, TYPE_INS, "", 
+                                    alt_str.substr(alt_idx, indel_len), 60, 60);
                             alt_idx += indel_len;
                             break;
                     }
@@ -476,7 +440,8 @@ int edit_dist_realign(const vcfData* vcf, const fastaData* const ref, bool truth
     } // hap
     INFO("Edit dist reduced in %i of %i clusters, from %i to %i.", 
             new_ed_clusters, clusters, old_ed, new_ed);
-    return 0;
+
+    return results;
 
 }
 

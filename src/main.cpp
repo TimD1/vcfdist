@@ -19,23 +19,27 @@ int main(int argc, char **argv) {
 
     // parse and store command-line args
     g.parse_args(argc, argv);
+
+    // parse reference fasta
     fastaData ref(g.ref_fasta_fp);
 
-    INFO(" ");
-    INFO("Parsing Calls VCF '%s'", g.calls_vcf_fn.data());
-    vcfData calls(g.calls_vcf_fp);
-    edit_dist_realign(&calls, &ref, false);
+    // parse calls VCF
+    vcfData calls(g.calls_vcf_fn, &ref);
+    vcfData calls_min_ed = edit_dist_realign(&calls, &ref);
+    calls.write(g.out_prefix + "orig_calls.vcf");
+    calls_min_ed.write(g.out_prefix + "calls.vcf");
 
-    INFO(" ");
-    INFO("Parsing Truth VCF '%s'", g.truth_vcf_fn.data());
-    vcfData truth(g.truth_vcf_fp);
-    edit_dist_realign(&truth, &ref, true);
+    // parse ground truth VCF
+    vcfData truth(g.truth_vcf_fn, &ref);
+    vcfData truth_min_ed = edit_dist_realign(&truth, &ref);
+    truth.write(g.out_prefix + "orig_truth.vcf");
+    truth_min_ed.write(g.out_prefix + "truth.vcf");
 
-    /* // save per-cluster alignment info */
-    /* clusterData clusters = edit_dist(&calls, &truth, &ref); */
+    // save per-cluster alignment info
+    clusterData clusters = edit_dist(&calls, &truth, &ref);
 
-    /* // phase clusters */
-    /* phaseData phasings(&clusters); */
+    // phase clusters
+    phaseData phasings(&clusters);
 
     return EXIT_SUCCESS;
 }
