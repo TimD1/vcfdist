@@ -112,9 +112,9 @@ void phaseData::phase()
             printf("phase block cluster indices: ");
             for(int i = 0; i < this->phasings[ctg].nswitches; i++)
                 printf("%d ", this->phasings[ctg].phase_blocks[i]);
+            printf("\n");
         }
         switch_errors += this->phasings[ctg].nswitches;
-        printf("\n");
     }
     INFO("Total switch errors: %d", switch_errors);
 }
