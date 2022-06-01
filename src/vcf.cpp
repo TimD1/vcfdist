@@ -168,10 +168,6 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
     std::vector<int> nregions(region_strs.size(), 0);
     std::vector<int> pass_min_qual = {0, 0};
 
-    // need two versions, since grouping is different if hap only vs both
-    int var_idx = 0;                       // variant indices
-    std::vector<int> hap_var_idx = {0, 0}; // indices per hap/contig
-
     // quality data for each call
     int ngq_arr = 0;
     int ngq     = 0;
@@ -265,13 +261,6 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
         seq = seqnames[rec->rid];
         if (rec->rid != prev_rid) {
 
-            // end prev contig if this isn't the first contig
-            if (prev_rid >= 0) {
-                this->calls[seqnames[prev_rid]].add_cluster(var_idx);
-                this->hapcalls[0][seqnames[prev_rid]].add_cluster(hap_var_idx[0]);
-                this->hapcalls[1][seqnames[prev_rid]].add_cluster(hap_var_idx[1]);
-            }
-
             // start new contig
             prev_rid = rec->rid;
             if (prev_rids.find(rec->rid) != prev_rids.end()) {
@@ -280,8 +269,6 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
                 this->contigs.push_back(seq);
                 this->lengths.push_back(seqlens[rec->rid]);
                 prev_end = {-g.gap*2, -g.gap*2};
-                hap_var_idx = {0, 0};
-                var_idx = 0;
             }
         }
 
@@ -398,7 +385,7 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
                 }
             }
 
-            // TODO: keep overlaps, test all non-overlapping subsets
+            // TODO: keep overlaps, test all non-overlapping subsets?
             // skip overlapping variants
             if (prev_end[hap] > pos) { // warn if overlap
                 WARN("VCF variant overlap at %s:%i, skipping", seq.data(), pos);
@@ -442,35 +429,25 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
             }
 
             // add to all calls info
-            if (pos - std::max(prev_end[0], prev_end[1]) > g.gap) {
-                this->calls[seq].add_cluster(var_idx);
-            }
             if (type == TYPE_GRP) { // split GRP into INS+DEL
                 this->calls[seq].add_var(pos, 0, hap, TYPE_INS,
                         "", alt, gq[0], rec->qual); // add INS
                 this->calls[seq].add_var(pos, rlen, hap, TYPE_DEL,
                         ref, "", gq[0], rec->qual); // add DEL
-                var_idx += 2;
             } else {
                 this->calls[seq].add_var(pos, rlen, hap, type,
                         ref, alt, gq[0], rec->qual);
-                var_idx++;
             }
 
             // add to haplotype-specific calls info
-            if (pos - prev_end[hap] > g.gap) {
-                this->hapcalls[hap][seq].add_cluster(hap_var_idx[hap]);
-            }
             if (type == TYPE_GRP) { // split GRP into INS+DEL
                 this->hapcalls[hap][seq].add_var(pos, 0, // INS
                     hap, TYPE_INS, "", alt, gq[0], rec->qual);
                 this->hapcalls[hap][seq].add_var(pos, rlen, // DEL
                     hap, TYPE_DEL, ref, "", gq[0], rec->qual);
-                hap_var_idx[hap] += 2;
             } else {
                 this->hapcalls[hap][seq].add_var(pos, rlen,
                         hap, type, ref, alt, gq[0], rec->qual);
-                hap_var_idx[hap]++;
             }
 
             prev_end[hap] = pos + rlen;
@@ -478,9 +455,6 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
             ntypes[hap][type]++;
         }
     }
-    this->calls[seq].add_cluster(var_idx);
-    this->hapcalls[0][seq].add_cluster(hap_var_idx[0]);
-    this->hapcalls[1][seq].add_cluster(hap_var_idx[1]);
 
     INFO("Contigs:");
     for (size_t i = 0; i < this->contigs.size(); i++) {

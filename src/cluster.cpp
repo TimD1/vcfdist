@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 
+#include "globals.h"
 #include "cluster.h"
 #include "vcf.h"
 
@@ -31,4 +32,46 @@ void ctgClusters::add(
     this->swap_phase_dist.push_back(swap_phase_dist);
 
     this->n++;
+}
+
+/******************************************************************************/
+
+void cluster(vcfData* vcf) {
+    /* Add single-VCF cluster indices to `vcfData` */
+
+    // cluster each contig
+    for (std::string ctg : vcf->contigs) {
+
+        // cluster per-haplotype variants
+        for (int hap = 0; hap < 2; hap++) {
+            int prev_end = -g.gap * 2;
+            int pos = 0;
+            int end = 0;
+            size_t var_idx = 0;
+            for (; 
+                    var_idx < vcf->hapcalls[hap][ctg].poss.size(); var_idx++) {
+                pos = vcf->hapcalls[hap][ctg].poss[var_idx];
+                end = pos + vcf->hapcalls[hap][ctg].rlens[var_idx];
+                if (pos - prev_end > g.gap)
+                    vcf->hapcalls[hap][ctg].add_cluster(var_idx);
+                prev_end = std::max(prev_end, end);
+            }
+            vcf->hapcalls[hap][ctg].add_cluster(var_idx);
+        }
+
+        // cluster all variants
+        int prev_end = -g.gap * 2;
+        int pos = 0;
+        int end = 0;
+        size_t var_idx = 0;
+        for (; 
+                var_idx < vcf->calls[ctg].poss.size(); var_idx++) {
+            pos = vcf->calls[ctg].poss[var_idx];
+            end = pos + vcf->calls[ctg].rlens[var_idx];
+            if (pos - prev_end > g.gap)
+                vcf->calls[ctg].add_cluster(var_idx);
+            prev_end = std::max(prev_end, end);
+        }
+        vcf->calls[ctg].add_cluster(var_idx);
+    }
 }

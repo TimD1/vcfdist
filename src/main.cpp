@@ -23,17 +23,20 @@ int main(int argc, char **argv) {
     // parse reference fasta
     fastaData ref(g.ref_fasta_fp);
 
-    // parse calls VCF
+    // parse calls VCF, cluster variants, get min edit dist
     vcfData calls(g.calls_vcf_fn, &ref);
-    vcfData calls_min_ed = edit_dist_realign(&calls, &ref);
-    /* calls.write(g.out_prefix + "orig_calls.vcf"); */
-    /* calls_min_ed.write(g.out_prefix + "calls.vcf"); */
+    cluster(&calls);
 
-    // parse ground truth VCF
+    vcfData calls_min_ed = edit_dist_realign(&calls, &ref);
+    calls.write(g.out_prefix + "orig_calls.vcf");
+    calls_min_ed.write(g.out_prefix + "calls.vcf");
+
+    // parse ground truth VCF, cluster variants, get min edit dist
     vcfData truth(g.truth_vcf_fn, &ref);
+    cluster(&truth);
     vcfData truth_min_ed = edit_dist_realign(&truth, &ref);
-    /* truth.write(g.out_prefix + "orig_truth.vcf"); */
-    /* truth_min_ed.write(g.out_prefix + "truth.vcf"); */
+    truth.write(g.out_prefix + "orig_truth.vcf");
+    truth_min_ed.write(g.out_prefix + "truth.vcf");
 
     // save per-cluster alignment info
     clusterData clusters = edit_dist(&calls, &truth, &ref);

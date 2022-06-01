@@ -53,4 +53,6 @@ public:
     std::unordered_map<std::string, ctgClusters> clusters;
 };
 
+void cluster(vcfData* vcf);
+
 #endif
