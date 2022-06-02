@@ -2,6 +2,8 @@
 #include <vector>
 #include <cstdio>
 #include <chrono>
+#include <utility>
+#include <queue>
 
 #include "dist.h"
 #include "print.h"
@@ -105,334 +107,322 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 }
 
                 // do alignment
-                int s = 0;
-                int reflen = end-beg;
-                int altlen = reflen + inss - dels;
-                std::vector< std::vector<int> > diags, offs, ptrs;
-                diags.push_back(std::vector<int>(1,0));
-                offs.push_back(std::vector<int>(1,-1));
-                ptrs.push_back(std::vector<int>(1,0));
-                bool done = false;
-                while (true) {
+                std::string ref_str = ref->fasta.at(ctg).substr(beg, end-beg);
+                int reflen = ref_str.size();
+                int altlen = alt_str.size();
+                int curr_score = 0;
+                std::vector< std::vector<int> > ptrs(altlen, std::vector<int>(reflen));
+                std::vector< std::vector<bool> > done(altlen, std::vector<bool>(reflen));
+                std::queue< std::pair<int,int> > curr_q, next_q;
 
-                    // EXTEND WAVEFRONT
-                    for (int d = 0; d < s+1; d++) {
-                        int max_off = std::min(
-                                reflen - diags[s][d], altlen) - 1;
-                        int off = offs[s][d];
-                        while (off < max_off && alt_str[off+1] == 
-                                ref->fasta.at(ctg)[diags[s][d]+off+beg+1]) {
-                            off++;
-                        }
-                        offs[s][d] = off;
-                        if (off == altlen-1 && 
-                                off+diags[s][d] == reflen-1)
-                        { done = true; break; }
+                // init
+                ptrs[0][0] = PTR_DIAG;
+                done[0][0] = true;
+
+                // set first diag (wavefront)
+                curr_q.push({0,0});
+                for(int n = 1; n < std::min(reflen, altlen); n++) {
+                    if (ref_str[n] == alt_str[n]) {
+                        curr_q.push({n,n});
+                        ptrs[n][n] = PTR_DIAG;
+                        done[n][n] = true;
+                    } else  {
+                        break;
                     }
-                    if (done) break;
+                }
 
+                // continue alignment waves until fully aligned
+                while (!done[altlen-1][reflen-1]) {
 
-                    // NEXT WAVEFRONT
-                    
-                    // add wavefront, fill edge cells
-                    diags.push_back(std::vector<int>(s+2));
-                    offs.push_back(std::vector<int>(s+2));
-                    ptrs.push_back(std::vector<int>(s+2));
-                    diags[s+1][0] = diags[s][0] - 1;
-                    offs[s+1][0] = offs[s][0] + 1;
-                    ptrs[s+1][0] = PTR_UP;
-                    diags[s+1][s+1] = diags[s][s] + 1;
-                    offs[s+1][s+1] = offs[s][s];
-                    ptrs[s+1][s+1] = PTR_LEFT;
+                    // expand to next wavefront
+                    while (!curr_q.empty()) {
 
-                    // central cells
-                    for (int d = 1; d <= s; d++) {
-                        if (offs[s][d-1] >= offs[s][d]+1) {
-                            diags[s+1][d] = diags[s][d-1] + 1;
-                            offs[s+1][d] = offs[s][d-1];
-                            ptrs[s+1][d] = PTR_LEFT;
-                        } else {
-                            diags[s+1][d] = diags[s][d] - 1;
-                            offs[s+1][d] = offs[s][d]+1;
-                            ptrs[s+1][d] = PTR_UP;
+                        // get current cell
+                        std::pair<int,int> cell = curr_q.front(); curr_q.pop();
+                        int alt_idx = cell.first;
+                        int ref_idx = cell.second;
+
+                        // expand down, then diagonally
+                        if (alt_idx+1 < altlen && !done[alt_idx+1][ref_idx]) {
+                            next_q.push({alt_idx+1, ref_idx});
+                            ptrs[alt_idx+1][ref_idx] |= PTR_UP;
+                            int off = 1;
+                            while (alt_idx+1+off < altlen && 
+                                    ref_idx+off < reflen && 
+                                    !done[alt_idx+1+off][ref_idx+off] &&
+                                    alt_str[alt_idx+1+off] == ref_str[ref_idx+off]) {
+                                next_q.push({alt_idx+1+off, ref_idx+off});
+                                ptrs[alt_idx+1+off][ref_idx+off] |= PTR_DIAG;
+                                off++;
+                            }
+                        }
+
+                        // expand right, then diagonally
+                        if (ref_idx+1 < reflen && !done[alt_idx][ref_idx+1]) {
+                            next_q.push({alt_idx, ref_idx+1});
+                            ptrs[alt_idx][ref_idx+1] |= PTR_LEFT;
+                            int off = 1;
+                            while (alt_idx+off < altlen && 
+                                    ref_idx+1+off < reflen && 
+                                    !done[alt_idx+off][ref_idx+1+off] &&
+                                    alt_str[alt_idx+off] == ref_str[ref_idx+1+off]) {
+                                next_q.push({alt_idx+off, ref_idx+1+off});
+                                ptrs[alt_idx+off][ref_idx+1+off] |= PTR_DIAG;
+                                off++;
+                            }
                         }
                     }
-                    ++s;
+
+                    // current queue empty, transfer next over
+                    while (!next_q.empty()) {
+
+                        // get current cell
+                        std::pair<int,int> cell = next_q.front(); next_q.pop();
+                        int alt_idx = cell.first;
+                        int ref_idx = cell.second;
+
+                        if (!done[alt_idx][ref_idx]) {
+                            // add to current wavefront, if new
+                            curr_q.push(cell);
+
+                            // mark cell as traversed
+                            done[alt_idx][ref_idx] = true;
+                        }
+                    }
+                    curr_score++;
                 }
 
                 // DEBUG PRINT
-
                 if (g.print_verbosity >= 2) {
-                    printf("\noffs:\n");
-                    printf("s= ");
-                    for(int i = 0; i <= s; i++) printf("%2i ", i);
-                    printf("\n ");
-                    for(int i = 0; i <= s; i++) printf("  /");
-                    printf("\n");
-                    for(int r = 0; r <= s; r++) {
-                        for(int c = 0; c <= s-r; c++) {
-                            printf(" %2d", offs[r+c][c]);
-                        }
-                        printf("\n");
-                    }
 
                     // create array
                     std::vector< std::vector<char> > ptr_str;
-                    for (int i = 0; i < altlen; i++)
-                        ptr_str.push_back(std::vector<char>(reflen, '.'));
+                    for (int i = 0; i < altlen*2; i++)
+                        ptr_str.push_back(std::vector<char>(reflen*2, ' '));
 
-                    // modify array with pointers
-                    int altpos, refpos;
-                    for (int si = 0; si <= s; si++) {
-                        for(int di = 0; di <= si; di++) {
-                            if (di == 0) {
-                                if (si == 0) {
-                                    altpos = 0;
-                                    refpos = 0;
-                                } else {
-                                    altpos = offs[si-1][di] + 1;
-                                    refpos = diags[si-1][di] + offs[si-1][di];
-                                    if (altpos < altlen && refpos < reflen)
-                                        ptr_str[altpos][refpos] = '|';
-                                }
-                            } 
-                            else if (di == si) {
-                                altpos = offs[si-1][di-1];
-                                refpos = diags[si-1][di-1] + offs[si-1][di-1] + 1;
-                                if (altpos < altlen && refpos < reflen)
-                                    ptr_str[altpos][refpos] = '-';
-                            } 
-                            else if (offs[si-1][di-1] > offs[si-1][di]+1) {
-                                altpos = offs[si-1][di-1];
-                                refpos = diags[si-1][di-1] + offs[si-1][di-1] + 1;
-                                if (altpos < altlen && refpos < reflen)
-                                    ptr_str[altpos][refpos] = '-';
-                            } 
-                            else {
-                                altpos = offs[si-1][di] + 1;
-                                refpos = diags[si-1][di] + offs[si-1][di];
-                                if (altpos < altlen && refpos < reflen)
-                                    ptr_str[altpos][refpos] = '|';
-                            }
-                            while (altpos < altlen-1 && refpos < reflen-1 && 
-                                    alt_str[++altpos] == ref->fasta.at(ctg)[beg + ++refpos]) {
-                                ptr_str[altpos][refpos] = '\\';
-                            }
+                    // set arrows
+                    for (int altpos = 0; altpos < altlen; altpos++) {
+                        for(int refpos = 0; refpos < reflen; refpos++) {
+                            ptr_str[altpos*2+1][refpos*2+1] = '*';
+                            if (ptrs[altpos][refpos] & PTR_DIAG)
+                                ptr_str[altpos*2][refpos*2] = '\\';
+                            if (ptrs[altpos][refpos] & PTR_LEFT)
+                                ptr_str[altpos*2+1][refpos*2] = '-';
+                            if (ptrs[altpos][refpos] & PTR_UP)
+                                ptr_str[altpos*2][refpos*2+1] = '|';
                         }
                     }
-                    // NOTE: first base will ALWAYS match, due to grabbing 
-                    // previous ref base before variant. This is required 
-                    // for correctness of algorithm
-                    ptr_str[0][0] = '\\';
 
                     // print array
-                    for (int i = -1; i < altlen; i++) {
-                        for (int j = -1; j < reflen; j++) {
+                    for (int i = -1; i < altlen*2; i++) {
+                        for (int j = -1; j < reflen*2; j++) {
                             if (i < 0 && j < 0) {
                                 printf("\n  ");
                             }
                             else if (i < 0) {
-                                printf("%c", ref->fasta.at(ctg)[beg+j]);
+                                if (!(j%2)) printf("%c ", ref_str[j>>1]);
                             } else if (j < 0) {
-                                printf("\n%c ", alt_str[i]);
+                                if (!(i%2)) printf("%c ", alt_str[i>>1]);
+                                else printf("  ");
                             } else {
                                 printf("%c", ptr_str[i][j]);
                             }
                         }
+                        printf("\n");
                     }
                 }
+                printf("score: %d\n", curr_score);
 
-                // BACKTRACK
+                /* // BACKTRACK */
                 
-                // init
-                std::vector<int> cig(reflen+altlen);
-                int cig_ptr = reflen + altlen - 1;
-                int score = s;
-                int diag = (reflen-altlen+score) / 2; // idx of last cell in WF
-                int ptr;
+                /* // init */
+                /* std::vector<int> cig(reflen+altlen); */
+                /* int cig_ptr = reflen + altlen - 1; */
+                /* int score = s; */
+                /* int diag = (reflen-altlen+score) / 2; // idx of last cell in WF */
+                /* int ptr; */
 
-                while (score > 0) {
+                /* while (score > 0) { */
 
-                    // find previous wavefront
-                    int off = offs[score][diag];
-                    int prev_off, up_off, left_off;
-                    if (diag == 0) { // left edge, must go up
-                        if (score == 0) {
-                            ERROR("score should not be zero.");
-                        }
-                        up_off = offs[score-1][diag]+1;
-                        prev_off = up_off;
-                        ptr = PTR_UP;
+                /*     // find previous wavefront */
+                /*     int off = offs[score][diag]; */
+                /*     int prev_off, up_off, left_off; */
+                /*     if (diag == 0) { // left edge, must go up */
+                /*         if (score == 0) { */
+                /*             ERROR("score should not be zero."); */
+                /*         } */
+                /*         up_off = offs[score-1][diag]+1; */
+                /*         prev_off = up_off; */
+                /*         ptr = PTR_UP; */
 
-                    } else if (diag == score) { // right edge, must go left
-                        left_off = offs[score-1][diag-1];
-                        prev_off = left_off;
-                        ptr = PTR_LEFT;
+                /*     } else if (diag == score) { // right edge, must go left */
+                /*         left_off = offs[score-1][diag-1]; */
+                /*         prev_off = left_off; */
+                /*         ptr = PTR_LEFT; */
 
-                    } else { // get predecessor
-                        left_off = offs[score-1][diag-1];
-                        up_off = offs[score-1][diag]+1;
-                        if (left_off > up_off) {
-                            prev_off = left_off;
-                            ptr = PTR_LEFT;
-                        } else {
-                            prev_off = up_off;
-                            ptr = PTR_UP;
-                        }
-                    }
+                /*     } else { // get predecessor */
+                /*         left_off = offs[score-1][diag-1]; */
+                /*         up_off = offs[score-1][diag]+1; */
+                /*         if (left_off > up_off) { */
+                /*             prev_off = left_off; */
+                /*             ptr = PTR_LEFT; */
+                /*         } else { */
+                /*             prev_off = up_off; */
+                /*             ptr = PTR_UP; */
+                /*         } */
+                /*     } */
 
-                    // slide up diagonally
-                    while (off > prev_off) {
-                        cig[cig_ptr--] = PTR_DIAG;
-                        cig[cig_ptr--] = PTR_DIAG;
-                        off--;
-                    }
+                /*     // slide up diagonally */
+                /*     while (off > prev_off) { */
+                /*         cig[cig_ptr--] = PTR_DIAG; */
+                /*         cig[cig_ptr--] = PTR_DIAG; */
+                /*         off--; */
+                /*     } */
 
-                    // go to previous wavefront
-                    cig[cig_ptr--] = ptr;
-                    score--;
-                    switch(ptr) {
-                    case PTR_LEFT:
-                        diag--;
-                        break;
-                    case PTR_UP:
-                        off--;
-                        break;
-                    default:
-                        ERROR("Pointer type unexpected: ptr=%i", ptr);
-                        break;
-                    }
+                /*     // go to previous wavefront */
+                /*     cig[cig_ptr--] = ptr; */
+                /*     score--; */
+                /*     switch(ptr) { */
+                /*     case PTR_LEFT: */
+                /*         diag--; */
+                /*         break; */
+                /*     case PTR_UP: */
+                /*         off--; */
+                /*         break; */
+                /*     default: */
+                /*         ERROR("Pointer type unexpected: ptr=%i", ptr); */
+                /*         break; */
+                /*     } */
 
-                }
-                // slide up diagonally to end
-                for (int i = 0; i <= offs[0][0]; i++) {
-                    cig[cig_ptr--] = PTR_DIAG;
-                    cig[cig_ptr--] = PTR_DIAG;
-                }
+                /* } */
+                /* // slide up diagonally to end */
+                /* for (int i = 0; i <= offs[0][0]; i++) { */
+                /*     cig[cig_ptr--] = PTR_DIAG; */
+                /*     cig[cig_ptr--] = PTR_DIAG; */
+                /* } */
 
-                // get ref/alt strings for printing
-                int ref_ptr = 0;
-                int alt_ptr = 0;
-                int new_inss = 0;
-                int new_dels = 0;
-                std::string new_ref_out_str, new_alt_out_str;
-                for(size_t i = 0; i < cig.size(); i++) {
-                    switch(cig[i]) {
-                        case PTR_DIAG:
-                            new_ref_out_str += ref->fasta.at(ctg)[beg+ref_ptr++];
-                            new_alt_out_str += alt_str[alt_ptr++];
-                            i++;
-                            break;
-                        case PTR_UP:
-                            new_ref_out_str += " ";
-                            new_alt_out_str += GREEN(alt_str[alt_ptr++]);
-                            new_inss++;
-                            break;
-                        case PTR_LEFT:
-                            new_ref_out_str += RED(ref->fasta.at(ctg)[beg+ref_ptr++]);
-                            new_alt_out_str += " ";
-                            new_dels++;
-                            break;
-                    }
-                }
+                /* // get ref/alt strings for printing */
+                /* int ref_ptr = 0; */
+                /* int alt_ptr = 0; */
+                /* int new_inss = 0; */
+                /* int new_dels = 0; */
+                /* std::string new_ref_out_str, new_alt_out_str; */
+                /* for(size_t i = 0; i < cig.size(); i++) { */
+                /*     switch(cig[i]) { */
+                /*         case PTR_DIAG: */
+                /*             new_ref_out_str += ref->fasta.at(ctg)[beg+ref_ptr++]; */
+                /*             new_alt_out_str += alt_str[alt_ptr++]; */
+                /*             i++; */
+                /*             break; */
+                /*         case PTR_UP: */
+                /*             new_ref_out_str += " "; */
+                /*             new_alt_out_str += GREEN(alt_str[alt_ptr++]); */
+                /*             new_inss++; */
+                /*             break; */
+                /*         case PTR_LEFT: */
+                /*             new_ref_out_str += RED(ref->fasta.at(ctg)[beg+ref_ptr++]); */
+                /*             new_alt_out_str += " "; */
+                /*             new_dels++; */
+                /*             break; */
+                /*     } */
+                /* } */
 
-                if (g.print_verbosity >= 2) {
-                    printf("\nPTRS: ");
-                    for(size_t i = 0; i < cig.size(); i++) {
-                        printf("%i ", cig[i]);
-                    }
+                /* if (g.print_verbosity >= 2) { */
+                /*     printf("\nPTRS: "); */
+                /*     for(size_t i = 0; i < cig.size(); i++) { */
+                /*         printf("%i ", cig[i]); */
+                /*     } */
 
-                    printf("\nCIGAR: ");
-                    for(size_t i = 0; i < cig.size(); i++) {
-                        switch(cig[i]) {
-                            case PTR_DIAG: // match is two movements
-                                if (cig[++i] != PTR_DIAG)
-                                    ERROR("cig should be PTR_DIAG");
-                                printf("M"); break;
-                            case PTR_UP:
-                                printf("I"); break;
-                            case PTR_LEFT:
-                                printf("D"); break;
-                        }
-                    }
-                    printf("\n");
-                }
+                /*     printf("\nCIGAR: "); */
+                /*     for(size_t i = 0; i < cig.size(); i++) { */
+                /*         switch(cig[i]) { */
+                /*             case PTR_DIAG: // match is two movements */
+                /*                 if (cig[++i] != PTR_DIAG) */
+                /*                     ERROR("cig should be PTR_DIAG"); */
+                /*                 printf("M"); break; */
+                /*             case PTR_UP: */
+                /*                 printf("I"); break; */
+                /*             case PTR_LEFT: */
+                /*                 printf("D"); break; */
+                /*         } */
+                /*     } */
+                /*     printf("\n"); */
+                /* } */
 
-                // print cluster info, and old/new alignments
-                if (g.print_verbosity >= 1) {
-                    if (subs*2 + inss + dels != s) {
-                        const char* var_ref;
-                        const char* var_alt;
-                        printf("\n\n  Group %i: %d variants, %s:%d-%d\n\n"
-                                "    old edit distance: %d (%dS %dI %dD)\n",
-                                int(var_grp), end_idx-beg_idx, ctg.data(), 
-                                beg, end, subs*2 + inss + dels, subs, inss, dels);
-                        for (int var = beg_idx; var < end_idx; var++) {
-                            if (vars.refs[var].size() == 0) var_ref = "-"; 
-                            else var_ref = vars.refs[var].data();
-                            if (vars.alts[var].size() == 0) var_alt = "-"; 
-                            else var_alt = vars.alts[var].data();
-                            printf("      %s:%i hap%i %s\t%s\t%s\n", 
-                                    ctg.data(), vars.poss[var], h, 
-                                    type_strs[vars.types[var]].data(), 
-                                    var_ref, var_alt);
-                        }
-                        printf("      REF: %s\n      ALT: %s\n", 
-                                ref_out_str.data(), alt_out_str.data());
-                        printf("\n    new edit distance: %i (%iI %iD)\n", 
-                                s, new_inss, new_dels);
-                        printf("      REF: %s\n      ALT: %s\n", 
-                                new_ref_out_str.data(), new_alt_out_str.data());
-                    }
-                }
+                /* // print cluster info, and old/new alignments */
+                /* if (g.print_verbosity >= 1) { */
+                /*     if (subs*2 + inss + dels != s) { */
+                /*         const char* var_ref; */
+                /*         const char* var_alt; */
+                /*         printf("\n\n  Group %i: %d variants, %s:%d-%d\n\n" */
+                /*                 "    old edit distance: %d (%dS %dI %dD)\n", */
+                /*                 int(var_grp), end_idx-beg_idx, ctg.data(), */ 
+                /*                 beg, end, subs*2 + inss + dels, subs, inss, dels); */
+                /*         for (int var = beg_idx; var < end_idx; var++) { */
+                /*             if (vars.refs[var].size() == 0) var_ref = "-"; */ 
+                /*             else var_ref = vars.refs[var].data(); */
+                /*             if (vars.alts[var].size() == 0) var_alt = "-"; */ 
+                /*             else var_alt = vars.alts[var].data(); */
+                /*             printf("      %s:%i hap%i %s\t%s\t%s\n", */ 
+                /*                     ctg.data(), vars.poss[var], h, */ 
+                /*                     type_strs[vars.types[var]].data(), */ 
+                /*                     var_ref, var_alt); */
+                /*         } */
+                /*         printf("      REF: %s\n      ALT: %s\n", */ 
+                /*                 ref_out_str.data(), alt_out_str.data()); */
+                /*         printf("\n    new edit distance: %i (%iI %iD)\n", */ 
+                /*                 s, new_inss, new_dels); */
+                /*         printf("      REF: %s\n      ALT: %s\n", */ 
+                /*                 new_ref_out_str.data(), new_alt_out_str.data()); */
+                /*     } */
+                /* } */
 
-                // update counters
-                old_ed += subs*2 + inss + dels;
-                new_ed += s;
-                if (subs*2 + inss + dels > s) new_ed_clusters++;
-                clusters++;
+                /* // update counters */
+                /* old_ed += subs*2 + inss + dels; */
+                /* new_ed += s; */
+                /* if (subs*2 + inss + dels > s) new_ed_clusters++; */
+                /* clusters++; */
 
-                // write new alignment to VCF
-                std::string ref_str = ref->fasta.at(ctg).substr(beg, end-beg);
-                int ref_idx = 0, alt_idx = 0;
-                for(size_t cig_idx = 0; cig_idx < cig.size();) {
-                    int indel_len = 0;
-                    switch (cig[cig_idx]) {
+                /* // write new alignment to VCF */
+                /* int ref_idx = 0, alt_idx = 0; */
+                /* for(size_t cig_idx = 0; cig_idx < cig.size();) { */
+                /*     int indel_len = 0; */
+                /*     switch (cig[cig_idx]) { */
 
-                        case PTR_DIAG: // no variant, update pointers
-                            cig_idx += 2;
-                            ref_idx++;
-                            alt_idx++;
-                            break;
+                /*         case PTR_DIAG: // no variant, update pointers */
+                /*             cig_idx += 2; */
+                /*             ref_idx++; */
+                /*             alt_idx++; */
+                /*             break; */
 
-                        case PTR_LEFT: // deletion
-                            cig_idx++; indel_len++;
+                /*         case PTR_LEFT: // deletion */
+                /*             cig_idx++; indel_len++; */
 
-                            // multi-base deletion
-                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) {
-                                cig_idx++; indel_len++;
-                            }
-                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
-                                    indel_len, h, TYPE_DEL, 
-                                    ref_str.substr(ref_idx, indel_len),
-                                    "", 60, 60);
-                            ref_idx += indel_len;
-                            break;
+                /*             // multi-base deletion */
+                /*             while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) { */
+                /*                 cig_idx++; indel_len++; */
+                /*             } */
+                /*             results.hapcalls[h][ctg].add_var(beg+ref_idx, */
+                /*                     indel_len, h, TYPE_DEL, */ 
+                /*                     ref_str.substr(ref_idx, indel_len), */
+                /*                     "", 60, 60); */
+                /*             ref_idx += indel_len; */
+                /*             break; */
 
-                        case PTR_UP: // insertion
-                            cig_idx++; indel_len++;
+                /*         case PTR_UP: // insertion */
+                /*             cig_idx++; indel_len++; */
 
-                            // multi-base insertion
-                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) {
-                                cig_idx++; indel_len++;
-                            }
-                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
-                                    0, h, TYPE_INS, "", 
-                                    alt_str.substr(alt_idx, indel_len), 60, 60);
-                            alt_idx += indel_len;
-                            break;
-                    }
-                }
+                /*             // multi-base insertion */
+                /*             while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) { */
+                /*                 cig_idx++; indel_len++; */
+                /*             } */
+                /*             results.hapcalls[h][ctg].add_var(beg+ref_idx, */
+                /*                     0, h, TYPE_INS, "", */ 
+                /*                     alt_str.substr(alt_idx, indel_len), 60, 60); */
+                /*             alt_idx += indel_len; */
+                /*             break; */
+                /*     } */
+                /* } */
 
 
             } // cluster
