@@ -13,6 +13,10 @@ std::string RED(std::string str);
 std::string BLUE(int i);
 std::string BLUE(char c);
 std::string BLUE(std::string str);
+std::string YELLOW(char c);
+std::string YELLOW(std::string str);
+std::string PURPLE(char c);
+std::string PURPLE(std::string str);
 
 /* --------------------------------------------------------------------------- */
 

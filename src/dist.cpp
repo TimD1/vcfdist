@@ -108,11 +108,11 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
                 // do alignment
                 std::string ref_str = ref->fasta.at(ctg).substr(beg, end-beg);
-                int reflen = ref_str.size();
-                int altlen = alt_str.size();
+                int ref_len = ref_str.size();
+                int alt_len = alt_str.size();
                 int curr_score = 0;
-                std::vector< std::vector<int> > ptrs(altlen, std::vector<int>(reflen));
-                std::vector< std::vector<bool> > done(altlen, std::vector<bool>(reflen));
+                std::vector< std::vector<int> > ptrs(alt_len, std::vector<int>(ref_len));
+                std::vector< std::vector<bool> > done(alt_len, std::vector<bool>(ref_len));
                 std::queue< std::pair<int,int> > curr_q, next_q;
 
                 // init
@@ -121,7 +121,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
                 // set first diag (wavefront)
                 curr_q.push({0,0});
-                for(int n = 1; n < std::min(reflen, altlen); n++) {
+                for(int n = 1; n < std::min(ref_len, alt_len); n++) {
                     if (ref_str[n] == alt_str[n]) {
                         curr_q.push({n,n});
                         ptrs[n][n] = PTR_DIAG;
@@ -132,7 +132,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 }
 
                 // continue alignment waves until fully aligned
-                while (!done[altlen-1][reflen-1]) {
+                while (!done[alt_len-1][ref_len-1]) {
 
                     // expand to next wavefront
                     while (!curr_q.empty()) {
@@ -143,12 +143,12 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                         int ref_idx = cell.second;
 
                         // expand down, then diagonally
-                        if (alt_idx+1 < altlen && !done[alt_idx+1][ref_idx]) {
+                        if (alt_idx+1 < alt_len && !done[alt_idx+1][ref_idx]) {
                             next_q.push({alt_idx+1, ref_idx});
                             ptrs[alt_idx+1][ref_idx] |= PTR_UP;
                             int off = 1;
-                            while (alt_idx+1+off < altlen && 
-                                    ref_idx+off < reflen && 
+                            while (alt_idx+1+off < alt_len && 
+                                    ref_idx+off < ref_len && 
                                     !done[alt_idx+1+off][ref_idx+off] &&
                                     alt_str[alt_idx+1+off] == ref_str[ref_idx+off]) {
                                 next_q.push({alt_idx+1+off, ref_idx+off});
@@ -158,12 +158,12 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                         }
 
                         // expand right, then diagonally
-                        if (ref_idx+1 < reflen && !done[alt_idx][ref_idx+1]) {
+                        if (ref_idx+1 < ref_len && !done[alt_idx][ref_idx+1]) {
                             next_q.push({alt_idx, ref_idx+1});
                             ptrs[alt_idx][ref_idx+1] |= PTR_LEFT;
                             int off = 1;
-                            while (alt_idx+off < altlen && 
-                                    ref_idx+1+off < reflen && 
+                            while (alt_idx+off < alt_len && 
+                                    ref_idx+1+off < ref_len && 
                                     !done[alt_idx+off][ref_idx+1+off] &&
                                     alt_str[alt_idx+off] == ref_str[ref_idx+1+off]) {
                                 next_q.push({alt_idx+off, ref_idx+1+off});
@@ -192,30 +192,69 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     curr_score++;
                 }
 
+                // left backtrack (prioritize LEFT)
+                int alt_idx = alt_len-1;
+                int ref_idx = ref_len-1;
+                std::vector< std::pair<int,int> > left_path;
+                while (alt_idx >= 0 || ref_idx >= 0) {
+                    left_path.push_back({alt_idx, ref_idx});
+                    ptrs[alt_idx][ref_idx] |= LEFT_PATH;
+                    if (ptrs[alt_idx][ref_idx] & PTR_LEFT) {
+                        ref_idx--;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
+                        ref_idx--; alt_idx--;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_UP) {
+                        alt_idx--;
+                    } else {
+                        ERROR("no pointer during left backtrack at (%d,%d)", alt_idx, ref_idx);
+                    }
+                }
+                std::reverse(left_path.begin(), left_path.end());
+
+                // right backtrack (prioritize UP)
+                alt_idx = alt_len-1;
+                ref_idx = ref_len-1;
+                std::vector< std::pair<int,int> > right_path;
+                while (alt_idx >= 0 || ref_idx >= 0) {
+                    right_path.push_back({alt_idx, ref_idx});
+                    ptrs[alt_idx][ref_idx] |= RIGHT_PATH;
+                    if (ptrs[alt_idx][ref_idx] & PTR_UP) {
+                        alt_idx--;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
+                        ref_idx--; alt_idx--;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_LEFT) {
+                        ref_idx--;
+                    } else {
+                        ERROR("no pointer during right backtrack at (%d,%d)", alt_idx, ref_idx);
+                    }
+                }
+                std::reverse(right_path.begin(), right_path.end());
+                
+
                 // DEBUG PRINT
                 if (g.print_verbosity >= 2) {
 
                     // create array
                     std::vector< std::vector<char> > ptr_str;
-                    for (int i = 0; i < altlen*2; i++)
-                        ptr_str.push_back(std::vector<char>(reflen*2, ' '));
+                    for (int i = 0; i < alt_len*2; i++)
+                        ptr_str.push_back(std::vector<char>(ref_len*2, ' '));
 
                     // set arrows
-                    for (int altpos = 0; altpos < altlen; altpos++) {
-                        for(int refpos = 0; refpos < reflen; refpos++) {
-                            ptr_str[altpos*2+1][refpos*2+1] = '*';
-                            if (ptrs[altpos][refpos] & PTR_DIAG)
-                                ptr_str[altpos*2][refpos*2] = '\\';
-                            if (ptrs[altpos][refpos] & PTR_LEFT)
-                                ptr_str[altpos*2+1][refpos*2] = '-';
-                            if (ptrs[altpos][refpos] & PTR_UP)
-                                ptr_str[altpos*2][refpos*2+1] = '|';
+                    for (int alt_idx = 0; alt_idx < alt_len; alt_idx++) {
+                        for(int ref_idx = 0; ref_idx < ref_len; ref_idx++) {
+                            ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
+                            if (ptrs[alt_idx][ref_idx] & PTR_DIAG)
+                                ptr_str[alt_idx*2][ref_idx*2] = '\\';
+                            if (ptrs[alt_idx][ref_idx] & PTR_LEFT)
+                                ptr_str[alt_idx*2+1][ref_idx*2] = '-';
+                            if (ptrs[alt_idx][ref_idx] & PTR_UP)
+                                ptr_str[alt_idx*2][ref_idx*2+1] = '|';
                         }
                     }
 
                     // print array
-                    for (int i = -1; i < altlen*2; i++) {
-                        for (int j = -1; j < reflen*2; j++) {
+                    for (int i = -1; i < alt_len*2; i++) {
+                        for (int j = -1; j < ref_len*2; j++) {
                             if (i < 0 && j < 0) {
                                 printf("\n  ");
                             }
@@ -225,7 +264,78 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                                 if (!(i%2)) printf("%c ", alt_str[i>>1]);
                                 else printf("  ");
                             } else {
-                                printf("%c", ptr_str[i][j]);
+                                switch(ptr_str[i][j]) {
+                                    case '*':
+                                        if (ptrs[i>>1][j>>1] & LEFT_PATH) {
+                                            if (ptrs[i>>1][j>>1] & RIGHT_PATH) { // both
+                                                printf("%s", GREEN('*').data());
+                                            } else { // left
+                                                printf("%s", YELLOW('*').data());
+                                            }
+                                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH) { // right
+                                            printf("%s", BLUE('*').data());
+                                        } else { // none
+                                            printf("*");
+                                        }
+                                        break;
+                                    case '\\':
+                                        if (ptrs[i>>1][j>>1] & LEFT_PATH && 
+                                                (i>>1) > 0 && (j>>1) > 0 &&
+                                                ptrs[(i>>1)-1][(j>>1)-1] & LEFT_PATH) {
+                                            if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
+                                                    ptrs[(i>>1)-1][(j>>1)-1] & RIGHT_PATH) { // both
+                                                printf("%s", GREEN('\\').data());
+                                            } else { // left
+                                                printf("%s", YELLOW('\\').data());
+                                            }
+                                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
+                                                (i>>1) > 0 && (j>>1) > 0 &&
+                                                ptrs[(i>>1)-1][(j>>1)-1] & RIGHT_PATH) { // right
+                                            printf("%s", BLUE('\\').data());
+                                        } else { // none
+                                            printf("\\");
+                                        }
+                                        break;
+                                    case '-':
+                                        if (ptrs[i>>1][j>>1] & LEFT_PATH && 
+                                                (j>>1) > 0 &&
+                                                ptrs[i>>1][(j>>1)-1] & LEFT_PATH) {
+                                            if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
+                                                    ptrs[i>>1][(j>>1)-1] & RIGHT_PATH) { // both
+                                                printf("%s", GREEN('-').data());
+                                            } else { // left
+                                                printf("%s", YELLOW('-').data());
+                                            }
+                                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH && 
+                                                (j>>1) > 0 &&
+                                                ptrs[i>>1][(j>>1)-1] & RIGHT_PATH) { // right
+                                            printf("%s", BLUE('-').data());
+                                        } else { // none
+                                            printf("-");
+                                        }
+                                        break;
+                                    case '|':
+                                        if (ptrs[i>>1][j>>1] & LEFT_PATH && 
+                                                (i>>1) > 0 &&
+                                                ptrs[(i>>1)-1][j>>1] & LEFT_PATH) {
+                                            if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
+                                                    ptrs[(i>>1)-1][j>>1] & RIGHT_PATH) { // both
+                                                printf("%s", GREEN('|').data());
+                                            } else { // left
+                                                printf("%s", YELLOW('|').data());
+                                            }
+                                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH && 
+                                                (i>>1) > 0 &&
+                                                ptrs[(i>>1)-1][j>>1] & RIGHT_PATH) { // right
+                                            printf("%s", BLUE('|').data());
+                                        } else { // none
+                                            printf("|");
+                                        }
+                                        break;
+                                    case ' ':
+                                            printf("%c", ptr_str[i][j]);
+                                        break;
+                                }
                             }
                         }
                         printf("\n");
@@ -236,10 +346,10 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 /* // BACKTRACK */
                 
                 /* // init */
-                /* std::vector<int> cig(reflen+altlen); */
-                /* int cig_ptr = reflen + altlen - 1; */
+                /* std::vector<int> cig(ref_len+alt_len); */
+                /* int cig_ptr = ref_len + alt_len - 1; */
                 /* int score = s; */
-                /* int diag = (reflen-altlen+score) / 2; // idx of last cell in WF */
+                /* int diag = (ref_len-alt_len+score) / 2; // idx of last cell in WF */
                 /* int ptr; */
 
                 /* while (score > 0) { */
