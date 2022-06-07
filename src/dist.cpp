@@ -341,7 +341,109 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                         printf("\n");
                     }
                 }
+
+                ref_idx = 0;
+                alt_idx = 0;
+                size_t left_idx = 1; // first base always matches
+                size_t leftmost_idx = 1;
+                size_t right_idx = 1;
+                while (left_idx < left_path.size() || right_idx < right_path.size()) {
+
+                    // follow matching paths (we know first base matches)
+                    while (left_path[left_idx] == right_path[right_idx]) {
+                        left_idx++; right_idx++;
+                    }
+                    if (left_idx >= left_path.size() && right_idx >= right_path.size()) break;
+
+                    // init stats for diverged region
+                    int area = 0;
+                    int inss = 0;
+                    int dels = 0;
+
+                    // get right-most position of left path in this row
+                    leftmost_idx = left_idx;
+                    while (left_idx < left_path.size() - 1 && 
+                            left_path[left_idx+1].first == left_path[left_idx].first) {
+
+                        // count inss/dels on this path
+                        if (left_path[left_idx].first > left_path[left_idx-1].first &&
+                            left_path[left_idx].second == left_path[left_idx-1].second)
+                            inss++;
+                        if (left_path[left_idx].second > left_path[left_idx-1].second &&
+                            left_path[left_idx].first == left_path[left_idx-1].first)
+                            dels++;
+
+                        left_idx++;
+                    }
+                    if (left_path[left_idx].first > left_path[left_idx-1].first &&
+                        left_path[left_idx].second == left_path[left_idx-1].second)
+                        inss++;
+                    if (left_path[left_idx].second > left_path[left_idx-1].second &&
+                        left_path[left_idx].first == left_path[left_idx-1].first)
+                        dels++;
+
+                    // get start of diverged region
+                    int alt_beg = left_path[leftmost_idx-1].first;
+                    int ref_beg = left_path[leftmost_idx-1].second;
+
+                    // path has diverged; continue until merged
+                    bool merged = false;
+                    while (!merged) {
+
+                        // follow right path until same row as left
+                        while(left_path[left_idx].first > right_path[right_idx].first)
+                            right_idx++;
+                        area += std::max(0, right_path[right_idx].second - 
+                                left_path[leftmost_idx].second);
+
+                        // check if paths merge
+                        if (left_path[left_idx] == right_path[right_idx]) { // next cell same
+                            if ((left_idx == left_path.size() - 1 &&  // matrix end
+                                right_idx == right_path.size() - 1) || // next step diagonal for l/r
+                                (left_path[left_idx+1] == right_path[right_idx+1] &&
+                                 left_path[left_idx+1].first - left_path[left_idx].first == 1 &&
+                                 left_path[left_idx+1].second - left_path[left_idx].second == 1)) {
+                                merged = true;
+                                int alt_end = left_path[left_idx].first + 1;
+                                int ref_end = left_path[left_idx].second + 1;
+                                printf("I=%d D=%d ref[%d:%d]=%s alt[%d:%d]=%s, area=%d\n",
+                                        inss, dels, ref_beg, ref_end, 
+                                        ref_str.substr(ref_beg, ref_end-ref_beg).data(),
+                                        alt_beg, alt_end, 
+                                        alt_str.substr(alt_beg, alt_end-alt_beg).data(), area);
+                            }
+                        }
+
+                        // no merge, next positions
+                        right_idx++;
+                        left_idx++; 
+
+                        // get right-most position of left path in this row
+                        leftmost_idx = left_idx;
+                        while (left_idx < left_path.size() - 1 && 
+                                left_path[left_idx+1].first == left_path[left_idx].first) {
+
+                            // count inss/dels on this path
+                            if (left_path[left_idx].first > left_path[left_idx-1].first &&
+                                left_path[left_idx].second == left_path[left_idx-1].second)
+                                inss++;
+                            if (left_path[left_idx].second > left_path[left_idx-1].second &&
+                                left_path[left_idx].first == left_path[left_idx-1].first)
+                                dels++;
+
+                            left_idx++;
+                        }
+                        if (left_path[left_idx].first > left_path[left_idx-1].first &&
+                            left_path[left_idx].second == left_path[left_idx-1].second)
+                            inss++;
+                        if (left_path[left_idx].second > left_path[left_idx-1].second &&
+                            left_path[left_idx].first == left_path[left_idx-1].first)
+                            dels++;
+                    }
+                }
                 printf("score: %d\n", curr_score);
+
+                /* int ref_pos = beg; */
 
                 /* // BACKTRACK */
                 
