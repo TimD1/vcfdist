@@ -13,6 +13,9 @@
 #define PTR_SWAP 8
 #define LEFT_PATH 16
 #define RIGHT_PATH 32
+#define PTR_SUB 64
+#define PTR_DONE 128
+#define PTR_NEXT 256
 
 #define CAL1_HAP1 0
 #define CAL1_HAP2 1

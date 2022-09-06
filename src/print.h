@@ -18,6 +18,9 @@ std::string YELLOW(std::string str);
 std::string PURPLE(char c);
 std::string PURPLE(std::string str);
 
+void print_ptrs(std::vector< std::vector<int> > ptrs, 
+        std::string alt_str, std::string ref_str);
+
 /* --------------------------------------------------------------------------- */
 
 #define WARN(f_, ...)                                           \
