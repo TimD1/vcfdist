@@ -149,7 +149,7 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
     this->ref = reference;
 
     INFO(" ");
-    INFO("parsing VCF '%s'", vcf_fn.data());
+    INFO("Parsing VCF '%s'", vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
     // counters

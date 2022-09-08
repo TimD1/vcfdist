@@ -26,7 +26,6 @@ int main(int argc, char **argv) {
     // parse calls VCF, cluster variants, get min edit dist
     vcfData calls(g.calls_vcf_fn, &ref);
     cluster(&calls);
-
     vcfData calls_min_ed = edit_dist_realign(&calls, &ref);
     calls.write(g.out_prefix + "orig_calls.vcf");
     calls_min_ed.write(g.out_prefix + "calls.vcf");

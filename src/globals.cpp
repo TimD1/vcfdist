@@ -141,11 +141,11 @@ void Globals::print_version() const
 void Globals::print_usage() const
 {
     printf("Usage: vcfdist <calls.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
-    printf("Required:\n");
+    printf("\nRequired:\n");
     printf("  FILE\tcalls.vcf\tphased VCF file containing variant calls to evaluate \n");
     printf("  FILE\ttruth.vcf\tphased VCF file containing ground truth variant calls \n");
     printf("  FILE\tref.fasta\tFASTA file containing reference sequence \n");
-    printf("Options:\n");
+    printf("\nOptions:\n");
     printf("  -b FILE\tBED file containing regions to evaluate\n");
     printf("  -o PREFIX\toutput filepath prefix (dir should contain '/')\n");
     printf("  -q MIN_QUAL\tminimum variant quality [0]\n");

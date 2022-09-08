@@ -96,10 +96,10 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
         int next_region_start = this->regions[contig].starts[stop_idx];
         int prev_region_stop = this->regions[contig].stops[start_idx];
         if (start >= prev_region_stop && stop <= next_region_start) 
-            return OUTSIDE;
-        return BORDER;
+            return OUTSIDE; // between
+        return BORDER; // both
     }
-    return BORDER;
+    return BORDER; // spans multiple regions
 }
 
 bedData::operator std::string() const {

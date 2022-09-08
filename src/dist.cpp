@@ -23,10 +23,14 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
             results.hapcalls[hap][ctg] = variantCalls();
 
     // iterate over each haplotype
-    int clusters = 0;
-    int new_ed_clusters = 0;
-    int old_ed = 0;
-    int new_ed = 0;
+    int old_subs = 0;
+    int old_inss = 0;
+    int old_dels = 0;
+    int old_edits = 0;
+    int new_subs = 0;
+    int new_inss = 0;
+    int new_dels = 0;
+    int new_edits = 0;
     for (int h = 0; h < 2; h++) {
 
         // iterate over each contig
@@ -42,16 +46,16 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 int end_idx = vars.clusters[cluster+1];
                 int beg = vars.poss[beg_idx]-1;
                 int end = vars.poss[end_idx-1] + vars.rlens[end_idx-1]+1;
-                int subs = 0;
-                int inss = 0;
-                int dels = 0;
+                int old_subs_cluster = 0;
+                int old_inss_cluster = 0;
+                int old_dels_cluster = 0;
 
                 // iterate over variants, summing edit distance
                 for (int var = beg_idx; var < end_idx; var++) {
                     switch (vars.types[var]) {
-                        case TYPE_SUB: subs++; break;
-                        case TYPE_INS: inss += vars.alts[var].size(); break;
-                        case TYPE_DEL: dels += vars.refs[var].size(); break;
+                        case TYPE_SUB: old_subs_cluster++; break;
+                        case TYPE_INS: old_inss_cluster += vars.alts[var].size(); break;
+                        case TYPE_DEL: old_dels_cluster += vars.refs[var].size(); break;
                         default: ERROR("unexpected variant type (%i)", vars.types[var]) 
                                  std::exit(1); break;
                     }
@@ -106,7 +110,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     }
                 }
 
-                // FORWARD PASS ALIGNMENT
+                // do alignment
                 std::string ref_str = ref->fasta.at(ctg).substr(beg, end-beg);
                 int ref_len = ref_str.size();
                 int alt_len = alt_str.size();
@@ -141,6 +145,22 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                         std::pair<int,int> cell = curr_q.front(); curr_q.pop();
                         int alt_idx = cell.first;
                         int ref_idx = cell.second;
+
+                        // expand diagonal sub, then diagonally
+                        if (alt_idx+1 < alt_len && ref_idx+1 < ref_len &&
+                                !done[alt_idx+1][ref_idx+1]) {
+                            next_q.push({alt_idx+1, ref_idx+1});
+                            ptrs[alt_idx+1][ref_idx+1] |= PTR_SUB;
+                            int off = 1;
+                            while (alt_idx+1+off < alt_len && 
+                                    ref_idx+1+off < ref_len && 
+                                    !done[alt_idx+1+off][ref_idx+1+off] &&
+                                    alt_str[alt_idx+1+off] == ref_str[ref_idx+1+off]) {
+                                next_q.push({alt_idx+1+off, ref_idx+1+off});
+                                ptrs[alt_idx+1+off][ref_idx+1+off] |= PTR_DIAG;
+                                off++;
+                            }
+                        }
 
                         // expand down, then diagonally
                         if (alt_idx+1 < alt_len && !done[alt_idx+1][ref_idx]) {
@@ -192,369 +212,55 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     curr_score++;
                 }
 
-                // left backtrack (prioritize LEFT)
+                // backtrack
                 int alt_idx = alt_len-1;
                 int ref_idx = ref_len-1;
-                std::vector< std::pair<int,int> > left_path;
+                int new_subs_cluster = 0;
+                int new_inss_cluster = 0;
+                int new_dels_cluster = 0;
+                std::vector< std::pair<int,int> > path;
                 while (alt_idx >= 0 || ref_idx >= 0) {
-                    left_path.push_back({alt_idx, ref_idx});
+                    path.push_back({alt_idx, ref_idx});
                     ptrs[alt_idx][ref_idx] |= LEFT_PATH;
-                    if (ptrs[alt_idx][ref_idx] & PTR_LEFT) {
-                        ref_idx--;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
+                    if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
                         ref_idx--; alt_idx--;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_UP) {
-                        alt_idx--;
-                    } else {
-                        ERROR("no pointer during left backtrack at (%d,%d)", alt_idx, ref_idx);
-                    }
-                }
-                std::reverse(left_path.begin(), left_path.end());
-
-                // right backtrack (prioritize UP)
-                alt_idx = alt_len-1;
-                ref_idx = ref_len-1;
-                std::vector< std::pair<int,int> > right_path;
-                while (alt_idx >= 0 || ref_idx >= 0) {
-                    right_path.push_back({alt_idx, ref_idx});
-                    ptrs[alt_idx][ref_idx] |= RIGHT_PATH;
-                    if (ptrs[alt_idx][ref_idx] & PTR_UP) {
-                        alt_idx--;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
-                        ref_idx--; alt_idx--;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_SUB) {
+                        ref_idx--; alt_idx--; new_subs_cluster++;
                     } else if (ptrs[alt_idx][ref_idx] & PTR_LEFT) {
-                        ref_idx--;
+                        ref_idx--; new_dels_cluster++;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_UP) {
+                        alt_idx--; new_inss_cluster++;
                     } else {
-                        ERROR("no pointer during right backtrack at (%d,%d)", alt_idx, ref_idx);
+                        ERROR("no pointer during backtrack at (%d,%d)", alt_idx, ref_idx);
                     }
                 }
-                std::reverse(right_path.begin(), right_path.end());
-                
+                std::reverse(path.begin(), path.end());
 
-                // BACKWARD PASS ALIGNMENT (MIN EDIT EVENTS)
-                int curr_edits = 0;
-                std::vector< std::vector<int> > bt_ptrs(alt_len, std::vector<int>(ref_len));
-                curr_q = {}; next_q = {};
-                std::queue< std::pair<int,int> > sub_q;
+                // update totals
+                int old_edits_cluster = old_subs_cluster + 
+                    old_inss_cluster + old_dels_cluster;
+                int new_edits_cluster = new_subs_cluster + 
+                    new_inss_cluster + new_dels_cluster;
+                old_subs += old_subs_cluster;
+                new_subs += new_subs_cluster;
+                old_inss += old_inss_cluster;
+                new_inss += new_inss_cluster;
+                old_dels += old_dels_cluster;
+                new_dels += new_dels_cluster;
+                old_edits += old_edits_cluster;
+                new_edits += new_edits_cluster;
 
-                // set first diag (wavefront)
-                alt_idx = alt_len-1;
-                ref_idx = ref_len-1;
-                while (alt_idx >= 0 && ref_idx >= 0 && 
-                        ptrs[alt_idx][ref_idx] & PTR_DIAG) {
-                    bt_ptrs[alt_idx][ref_idx] |= (PTR_DIAG | PTR_DONE);
-                    alt_idx--; ref_idx--;
-                }
-                if (alt_idx >= 0 && ref_idx >= 0) {
-                    bt_ptrs[alt_idx][ref_idx] |= PTR_DONE;
-                    curr_q.push({alt_idx, ref_idx});
-                    sub_q.push({alt_idx, ref_idx});
-                }
-
-                // continue alignment waves until fully aligned
-                while (!(bt_ptrs[0][0] & PTR_DONE)) {
-
-                    // expand to next wavefront
-                    while (!curr_q.empty()) {
-
-                        // get current cell
-                        std::pair<int,int> cell = curr_q.front(); curr_q.pop();
-                        alt_idx = cell.first;
-                        ref_idx = cell.second;
-
-                        // expand up, then diagonally
-                        int alt_idx_ins = alt_idx;
-                        int ref_idx_ins = ref_idx;
-                        while (alt_idx_ins > 0 && 
-                                !(bt_ptrs[alt_idx_ins-1][ref_idx_ins] & PTR_DONE) &&
-                                ptrs[alt_idx_ins][ref_idx_ins] & PTR_UP) {
-                            bt_ptrs[alt_idx_ins][ref_idx_ins] |= PTR_UP;
-                            int alt_idx_ins_slide = alt_idx_ins - 1;
-                            int ref_idx_ins_slide = ref_idx_ins;
-                            while (alt_idx_ins_slide > 0 && ref_idx_ins_slide > 0 &&
-                                    !(bt_ptrs[alt_idx_ins_slide-1][ref_idx_ins_slide-1] & PTR_DONE) &&
-                                    !(bt_ptrs[alt_idx_ins_slide-1][ref_idx_ins_slide-1] & PTR_NEXT && 
-                                        ptrs[alt_idx_ins_slide-1][ref_idx_ins_slide-1] & PTR_UP && 
-                                        ptrs[alt_idx_ins_slide][ref_idx_ins_slide-1] & PTR_UP) &&
-                                    !(bt_ptrs[alt_idx_ins_slide-1][ref_idx_ins_slide-1] & PTR_NEXT && 
-                                        ptrs[alt_idx_ins_slide-1][ref_idx_ins_slide-1] & PTR_LEFT && 
-                                        ptrs[alt_idx_ins_slide-1][ref_idx_ins_slide] & PTR_LEFT) &&
-                                    ptrs[alt_idx_ins_slide][ref_idx_ins_slide] & PTR_DIAG) {
-                                bt_ptrs[alt_idx_ins_slide][ref_idx_ins_slide] |= (PTR_DIAG | PTR_NEXT);
-                                alt_idx_ins_slide--; ref_idx_ins_slide--;
-                            }
-                            if (alt_idx_ins_slide >= 0 && ref_idx_ins_slide >= 0) {
-                                bt_ptrs[alt_idx_ins_slide][ref_idx_ins_slide] |= PTR_NEXT;
-                                next_q.push({alt_idx_ins_slide, ref_idx_ins_slide});
-                            }
-                            alt_idx_ins--;
-                        }
-
-                        // expand left, then diagonally
-                        int alt_idx_del = alt_idx;
-                        int ref_idx_del = ref_idx;
-                        while (ref_idx_del > 0 && 
-                                !(bt_ptrs[alt_idx_del][ref_idx_del-1] & PTR_DONE) &&
-                                ptrs[alt_idx_del][ref_idx_del] & PTR_LEFT) {
-                            bt_ptrs[alt_idx_del][ref_idx_del] |= PTR_LEFT;
-                            int alt_idx_del_slide = alt_idx_del;
-                            int ref_idx_del_slide = ref_idx_del - 1;
-                            while (alt_idx_del_slide > 0 && ref_idx_del_slide > 0 &&
-                                    !(bt_ptrs[alt_idx_del_slide-1][ref_idx_del_slide-1] & PTR_DONE) &&
-                                    !(bt_ptrs[alt_idx_del_slide-1][ref_idx_del_slide-1] & PTR_NEXT && 
-                                        ptrs[alt_idx_del_slide-1][ref_idx_del_slide-1] & PTR_UP && 
-                                        ptrs[alt_idx_del_slide][ref_idx_del_slide-1] & PTR_UP) &&
-                                    !(bt_ptrs[alt_idx_del_slide-1][ref_idx_del_slide-1] & PTR_NEXT && 
-                                        ptrs[alt_idx_del_slide-1][ref_idx_del_slide-1] & PTR_LEFT && 
-                                        ptrs[alt_idx_del_slide-1][ref_idx_del_slide] & PTR_LEFT) &&
-                                        ptrs[alt_idx_del_slide][ref_idx_del_slide] & PTR_DIAG) {
-                                bt_ptrs[alt_idx_del_slide][ref_idx_del_slide] |= (PTR_DIAG | PTR_NEXT);
-                                alt_idx_del_slide--; ref_idx_del_slide--;
-                            }
-                            if (alt_idx_del_slide >= 0 && ref_idx_del_slide >= 0) {
-                                bt_ptrs[alt_idx_del_slide][ref_idx_del_slide] |= PTR_NEXT;
-                                next_q.push({alt_idx_del_slide, ref_idx_del_slide});
-                            }
-                            ref_idx_del--;
-                        }
-                    }
-
-                    while (!sub_q.empty()) {
-                        // get current cell
-                        std::pair<int,int> cell = sub_q.front(); sub_q.pop();
-                        alt_idx = cell.first;
-                        ref_idx = cell.second;
-
-                        // expand sub, then continue diagonally
-                        if (alt_idx > 0 && ref_idx > 0 && 
-                                !(ptrs[alt_idx][ref_idx] & PTR_DIAG) &&
-                                !(bt_ptrs[alt_idx-1][ref_idx-1] & PTR_DONE) &&
-                                !(bt_ptrs[alt_idx-1][ref_idx-1] & PTR_NEXT && 
-                                    ptrs[alt_idx-1][ref_idx-1] & PTR_UP && 
-                                    ptrs[alt_idx][ref_idx-1] & PTR_UP) &&
-                                !(bt_ptrs[alt_idx-1][ref_idx-1] & PTR_NEXT && 
-                                    ptrs[alt_idx-1][ref_idx-1] & PTR_LEFT && 
-                                    ptrs[alt_idx-1][ref_idx] & PTR_LEFT)
-                                ) {
-                            bt_ptrs[alt_idx][ref_idx] |= PTR_SUB;
-                            int alt_idx_sub = alt_idx - 1;
-                            int ref_idx_sub = ref_idx - 1;
-                            while (alt_idx_sub > 0 && ref_idx_sub > 0 &&
-                                    !(bt_ptrs[alt_idx_sub-1][ref_idx_sub-1] & PTR_DONE) &&
-                                    ptrs[alt_idx_sub][ref_idx_sub] & PTR_DIAG) {
-                                bt_ptrs[alt_idx_sub][ref_idx_sub] |= (PTR_DIAG | PTR_NEXT);
-                                alt_idx_sub--; ref_idx_sub--;
-                            }
-                            if (alt_idx_sub >= 0 && ref_idx_sub >= 0) {
-                                bt_ptrs[alt_idx_sub][ref_idx_sub] |= PTR_NEXT;
-                                next_q.push({alt_idx_sub, ref_idx_sub});
-                            }
-                        }
-
-                    }
-
-                    /* if (cluster == 43531) { */
-                    /*     print_ptrs(ptrs, alt_str, ref_str); */
-                    /*     print_ptrs(bt_ptrs, alt_str, ref_str); */
-                    /* } */
-
-                    // current queue empty, transfer next over
-                    while (!next_q.empty()) {
-
-                        // get current cell
-                        std::pair<int,int> cell = next_q.front(); next_q.pop();
-                        int alt_idx = cell.first;
-                        int ref_idx = cell.second;
-
-                        if (alt_idx >= 0 && ref_idx >= 0 && 
-                                !(bt_ptrs[alt_idx][ref_idx] & PTR_DONE)) {
-                            bt_ptrs[alt_idx][ref_idx] |= PTR_DONE;
-                            curr_q.push(cell);
-                            sub_q.push(cell);
-                        } 
-                    }
-
-                    // update completed cells
-                    for (alt_idx = 0; alt_idx < alt_len; alt_idx++) {
-                        for (ref_idx = 0; ref_idx < ref_len; ref_idx++) {
-                            if (bt_ptrs[alt_idx][ref_idx] & PTR_NEXT) {
-                                bt_ptrs[alt_idx][ref_idx] |= PTR_DONE;
-                                bt_ptrs[alt_idx][ref_idx] &= (~PTR_NEXT);
-                            }
-                        }
-                    }
-
-                    curr_edits++;
-                }
-                bt_ptrs[0][0] |= PTR_DIAG;
-
-                /* if (g.print_verbosity >= 2 && 2*subs + inss + dels != curr_score) { */
-                /*     print_ptrs(ptrs, alt_str, ref_str); */
-                /*     print_ptrs(bt_ptrs, alt_str, ref_str); */
-                /* } */
-
-                // forward-pass finish
-                ref_idx = 0; alt_idx = 0;
-                int new_subs = 0;
-                int new_inss = 0;
-                int new_dels = 0;
-                while (ref_idx < ref_len || alt_idx < alt_len) {
-                    if (bt_ptrs[alt_idx][ref_idx] & PTR_DIAG) {
-                        bt_ptrs[alt_idx][ref_idx] |= LEFT_PATH;
-                        alt_idx++; ref_idx++;
-                    } else if (bt_ptrs[alt_idx][ref_idx] & PTR_SUB) {
-                        bt_ptrs[alt_idx][ref_idx] |= LEFT_PATH;
-                        new_subs++; alt_idx++; ref_idx++;
-                    } else if (ref_idx > 0 && bt_ptrs[alt_idx][ref_idx-1] & PTR_UP) {
-                        bt_ptrs[alt_idx][ref_idx-1] |= LEFT_PATH;
-                        new_inss++; alt_idx++;
-                    } else if (alt_idx > 0 && bt_ptrs[alt_idx-1][ref_idx] & PTR_LEFT) {
-                        bt_ptrs[alt_idx-1][ref_idx] |= LEFT_PATH;
-                        new_dels++; ref_idx++;
-                    } else {
-                        ERROR("error during second forward pass");
-                    }
-                }
-
-                // DEBUG PRINT EDIT FINDING
-                if (g.print_verbosity >= 2 && subs + inss + dels != new_subs + new_inss + new_dels) 
-                /* if (g.print_verbosity >= 2 && 2*subs + inss + dels != curr_score) */ 
-                {
-                    std::string var_ref;
-                    std::string var_alt;
-                    printf("\n\n  Cluster %i: %s:%d-%d\n\n"
-                            "    old edit distance: %d, %d variants (%dS %dI %dD)\n",
-                            int(cluster), ctg.data(), beg, end, 
-                            subs*2 + inss + dels, end_idx-beg_idx, subs, inss, dels);
-                    for (int var = beg_idx; var < end_idx; var++) {
-                        if (vars.refs[var].size() == 0) var_ref = "-"; 
-                        else var_ref = vars.refs[var];
-                        if (vars.alts[var].size() == 0) var_alt = "-"; 
-                        else var_alt = vars.alts[var];
-                        printf("      %s:%i hap%i %s\t%s\t%s\n", 
-                                ctg.data(), vars.poss[var], h, 
-                                type_strs[vars.types[var]].data(), 
-                                var_ref.data(), var_alt.data());
-                    }
-                    printf("      REF: %s\n      ALT: %s\n", 
-                            ref_out_str.data(), alt_out_str.data());
-                    printf("\n    new edit distance: %d, %d variants (%dS %dI %dD)\n", 
-                            curr_score, curr_edits, new_subs, new_inss, new_dels);
+                // debug print alignment
+                if (g.print_verbosity > 1 && old_edits_cluster != new_edits_cluster) {
+                    printf("\n\nREF: %s\n", ref_out_str.data());
+                    printf("ALT: %s\n", alt_out_str.data());
                     print_ptrs(ptrs, alt_str, ref_str);
-                    print_ptrs(bt_ptrs, alt_str, ref_str);
+                    printf("OLD: S=%d\tI=%d\tD=%d\tX=%d\n", old_subs_cluster, 
+                            old_inss_cluster, old_dels_cluster, old_edits_cluster);
+                    printf("NEW: S=%d\tI=%d\tD=%d\tX=%d\n", new_subs_cluster, 
+                            new_inss_cluster, new_dels_cluster, new_edits_cluster);
                 }
 
-                // init (first base always matches)
-                size_t left_idx = 1;
-                size_t leftmost_idx = 1;
-                size_t right_idx = 1;
-
-                // follow both entire paths
-                while (left_idx < left_path.size() || right_idx < right_path.size()) {
-
-                    // follow matching paths (we know first base matches)
-                    while (left_path[left_idx] == right_path[right_idx] && 
-                            left_path[left_idx].first - left_path[left_idx-1].first == 1 &&
-                            left_path[left_idx].second - left_path[left_idx-1].second == 1) {
-                        left_idx++; right_idx++;
-                    }
-                    if (left_idx >= left_path.size() && right_idx >= right_path.size()) break;
-
-                    // init stats for diverged region
-                    int area = 0;
-                    int grp_inss = 0;
-                    int grp_dels = 0;
-
-                    // get right-most position of left path in this row
-                    leftmost_idx = left_idx;
-                    while (left_idx < left_path.size() - 1 && 
-                            left_path[left_idx+1].first == left_path[left_idx].first) {
-
-                        // count inss/dels on this path
-                        if (left_path[left_idx].first > left_path[left_idx-1].first &&
-                            left_path[left_idx].second == left_path[left_idx-1].second)
-                            grp_inss++;
-                        if (left_path[left_idx].second > left_path[left_idx-1].second &&
-                            left_path[left_idx].first == left_path[left_idx-1].first)
-                            grp_dels++;
-
-                        left_idx++;
-                    }
-                    if (left_path[left_idx].first > left_path[left_idx-1].first &&
-                        left_path[left_idx].second == left_path[left_idx-1].second)
-                        grp_inss++;
-                    if (left_path[left_idx].second > left_path[left_idx-1].second &&
-                        left_path[left_idx].first == left_path[left_idx-1].first)
-                        grp_dels++;
-
-                    // get start of diverged region
-                    int alt_beg = left_path[leftmost_idx-1].first;
-                    int ref_beg = left_path[leftmost_idx-1].second;
-
-                    // path has diverged; continue until merged
-                    bool merged = false;
-                    while (!merged) {
-
-                        // follow right path until same row as left
-                        while(left_path[left_idx].first > right_path[right_idx].first)
-                            right_idx++;
-                        area += std::max(0, right_path[right_idx].second - 
-                                left_path[leftmost_idx].second);
-
-                        // check if paths merge
-                        if (left_path[left_idx] == right_path[right_idx]) { // next cell same
-                            if ((left_idx == left_path.size() - 1 &&  // matrix end
-                                right_idx == right_path.size() - 1) || // next step diagonal for l/r
-                                (left_path[left_idx+1] == right_path[right_idx+1] &&
-                                 left_path[left_idx+1].first - left_path[left_idx].first == 1 &&
-                                 left_path[left_idx+1].second - left_path[left_idx].second == 1)) {
-                                merged = true;
-
-                                /* int alt_end = left_path[left_idx].first + 1; */
-                                /* int ref_end = left_path[left_idx].second + 1; */
-                                /* if (subs*2 + inss + dels != curr_score) */ 
-                                /* printf("I=%d D=%d ref[%d:%d]=%s alt[%d:%d]=%s, area=%d\n", */
-                                /*         grp_inss, grp_dels, ref_beg, ref_end, */ 
-                                /*         ref_str.substr(ref_beg, ref_end-ref_beg).data(), */
-                                /*         alt_beg, alt_end, */ 
-                                /*         alt_str.substr(alt_beg, alt_end-alt_beg).data(), area); */
-
-                            }
-                        }
-
-                        // no merge, next positions
-                        right_idx++;
-                        left_idx++; 
-
-                        // get right-most position of left path in this row
-                        leftmost_idx = left_idx;
-                        while (left_idx < left_path.size() - 1 && 
-                                left_path[left_idx+1].first == left_path[left_idx].first) {
-
-                            // count inss/dels on this path
-                            if (left_path[left_idx].first > left_path[left_idx-1].first &&
-                                left_path[left_idx].second == left_path[left_idx-1].second)
-                                grp_inss++;
-                            if (left_path[left_idx].second > left_path[left_idx-1].second &&
-                                left_path[left_idx].first == left_path[left_idx-1].first)
-                                grp_dels++;
-
-                            left_idx++;
-                        }
-                        if (left_path[left_idx].first > left_path[left_idx-1].first &&
-                            left_path[left_idx].second == left_path[left_idx-1].second)
-                            grp_inss++;
-                        if (left_path[left_idx].second > left_path[left_idx-1].second &&
-                            left_path[left_idx].first == left_path[left_idx-1].first)
-                            grp_dels++;
-                    }
-                }
-
-                /* // update counters */
-                /* old_ed += subs*2 + inss + dels; */
-                /* new_ed += curr_score; */
-                /* if (subs*2 + inss + dels > s) new_ed_clusters++; */
-                /* clusters++; */
 
                 /* // write new alignment to VCF */
                 /* int ref_idx = 0, alt_idx = 0; */
@@ -601,8 +307,9 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
             } // cluster
         } // contig
     } // hap
-    INFO("Edit dist reduced in %i of %i clusters, from %i to %i.", 
-            new_ed_clusters, clusters, old_ed, new_ed);
+    INFO("Edit distance reduced from %d to %d.", old_edits, new_edits);
+    INFO("OLD: S=%d  I=%d  D=%d  X=%d", old_subs, old_inss, old_dels, old_edits);
+    INFO("NEW: S=%d  I=%d  D=%d  X=%d", new_subs, new_inss, new_dels, new_edits);
 
     return results;
 
