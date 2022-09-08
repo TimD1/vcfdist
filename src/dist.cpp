@@ -951,9 +951,14 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     // central cells
                     for (int d = 1; d < mat_len-1; d++) {
                         int offleft = offs[i][s[i]][d-1];
-                        int offtop = (offs[i][s[i]][d+1] == -2) ? 
+                        int offtop  = (offs[i][s[i]][d+1] == -2) ? 
                             -2 : offs[i][s[i]][d+1]+1;
-                        if (offleft >= offtop) {
+                        int offdiag = (offs[i][s[i]][d] == -2) ? 
+                            -2 : offs[i][s[i]][d]+1;
+                        if (offdiag >= offtop && offdiag >= offleft) {
+                            offs[i][s[i]+1][d] = offdiag;
+                            ptrs[i][s[i]+1][d] = PTR_SUB;
+                        } else if (offleft >= offtop) {
                             offs[i][s[i]+1][d] = offleft;
                             ptrs[i][s[i]+1][d] = PTR_LEFT;
                         } else {
@@ -1058,12 +1063,18 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                                 // follow diagonal
                                 int top_off = (di < mat_len-1) ? offs[h][si-1][di+1]+1 : -2;
                                 int left_off = (di > 0) ? offs[h][si-1][di-1] : -2;
+                                int diag_off = offs[h][si-1][di]+1;
                                 while (cal_pos > 0 && hap_pos > 0 && 
-                                        cal_pos > top_off && cal_pos > left_off) {
+                                        cal_pos > top_off && 
+                                        cal_pos > left_off && 
+                                        cal_pos > diag_off) {
                                     ptr_str[cal_pos--][hap_pos--] = '\\';
                                 }
                                 // check left/up
-                                if (cal_pos == top_off) {
+                                if (cal_pos == diag_off) {
+                                    ptr_str[cal_pos][hap_pos] = 'X';
+                                }
+                                else if (cal_pos == top_off) {
                                     ptr_str[cal_pos][hap_pos] = '|';
                                 } else if (cal_pos == left_off) {
                                     ptr_str[cal_pos][hap_pos] = '-';
@@ -1095,7 +1106,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             // get cluster phasing
             int orig_phase_dist = s[CAL1_HAP1] + s[CAL2_HAP2];
             int swap_phase_dist = s[CAL2_HAP1] + s[CAL1_HAP2];
-            int phase = PHASE_NONE; // default either way
+            int phase = PHASE_NONE; // default either way if equal dist
             if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
             if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
 
