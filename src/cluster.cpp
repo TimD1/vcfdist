@@ -10,6 +10,7 @@ void ctgClusters::add(
            variantCalls* cal2_vars, int cal2_beg_idx, int cal2_end_idx, 
            variantCalls* hap1_vars, int hap1_beg_idx, int hap1_end_idx, 
            variantCalls* hap2_vars, int hap2_beg_idx, int hap2_end_idx, 
+           int start, int end,
            int phase, int orig_phase_dist, int swap_phase_dist) {
 
     // save pointers to variant data
@@ -25,6 +26,8 @@ void ctgClusters::add(
     this->hap2_vars = hap2_vars;
     this->hap2_beg_idx.push_back(hap2_beg_idx);
     this->hap2_end_idx.push_back(hap2_end_idx);
+    this->starts.push_back(start);
+    this->ends.push_back(end);
 
     // store phasing info
     this->phase.push_back(phase);

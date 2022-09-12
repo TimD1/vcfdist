@@ -5,6 +5,7 @@
 #include <sys/time.h>
 
 #include "globals.h"
+#include "phase.h"
 
 std::string GREEN(char c);
 std::string GREEN(std::string str);
@@ -20,6 +21,8 @@ std::string PURPLE(std::string str);
 
 void print_ptrs(std::vector< std::vector<int> > ptrs, 
         std::string alt_str, std::string ref_str);
+
+void write_results(const phaseData & phasings);
 
 /* --------------------------------------------------------------------------- */
 

@@ -360,7 +360,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                hap1_clust_beg_idx < hap1_vars->clusters.size()-1 ||
                hap2_clust_beg_idx < hap2_vars->clusters.size()-1) {
 
-            // set all start positions
+            // init: empty supercluster
             size_t cal1_clust_end_idx = cal1_clust_beg_idx;
             size_t cal2_clust_end_idx = cal2_clust_beg_idx;
             size_t hap1_clust_end_idx = hap1_clust_beg_idx;
@@ -1131,6 +1131,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                     cal2_vars, cal2_clust_beg_idx, cal2_clust_end_idx,
                     hap1_vars, hap1_clust_beg_idx, hap1_clust_end_idx,
                     hap2_vars, hap2_clust_beg_idx, hap2_clust_end_idx,
+                    beg_pos, end_pos,
                     phase, orig_phase_dist, swap_phase_dist);
 
             // reset for next merged cluster

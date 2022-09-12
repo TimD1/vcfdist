@@ -142,3 +142,35 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
         printf("\n");
     }
 }
+
+
+
+void write_results(const phaseData & phasings) {
+
+    // print phasing information
+    std::string out_phasings_fn = g.out_prefix + "phasings.tsv";
+    FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
+    fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
+    for (auto & ctg_name : phasings.contigs) {
+        ctgPhasings ctg_phase = phasings.phasings[ctg_name];
+        int nblocks = ctg_phase.nswitches;
+        ctgClusters* clusters = ctg_phase.clusters;
+        for (int n = 0; n < nblocks-1; n++) {
+            int supercluster_idx_start = ctg_phase.phase_blocks[n];
+            int supercluster_idx_end = ctg_phase.phase_blocks[n+1]-1;
+            int start = clusters->starts[supercluster_idx_start];
+            int end = clusters->ends[supercluster_idx_end];
+            fprintf(out_phasings, "%s\t%d\t%d\t%d\n", ctg_name.data(), start,
+                    end, end-start);
+        }
+    }
+
+    /* std::string out_calls_fn = g.out_prefix + "calls.tsv" */
+    /* FILE* out_calls = fopen(out_calls_fn.data(), "w"); */
+    /* fprintf(out_calls, "CONTIG\tPOS\tREF\tALT\tTYPE\tERRTYPE\tORIG_GT\tGT\tCLUSTER\tLOCATION\n"); */
+    /* for (auto & ctg : phasings->contigs) { */
+    /*     phasings.phasings[ctg].clusters */
+    /* } */
+
+    return;
+}

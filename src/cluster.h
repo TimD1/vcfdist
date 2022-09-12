@@ -21,20 +21,25 @@ public:
     // constructor
     ctgClusters() {;}
 
-    // helper functions
+    // add supercluster info
     void add(
            variantCalls* cal1_vars, int cal1_beg_idx, int cal1_end_idx, 
            variantCalls* cal2_vars, int cal2_beg_idx, int cal2_end_idx, 
            variantCalls* hap1_vars, int hap1_beg_idx, int hap1_end_idx, 
            variantCalls* hap2_vars, int hap2_beg_idx, int hap2_end_idx, 
+           int start, int end,
            int phase, int orig_phase_dist, int swap_phase_dist);
 
+    // pointers to variant/cluster data
     variantCalls* cal1_vars = nullptr; 
     variantCalls* cal2_vars = nullptr; 
     variantCalls* hap1_vars = nullptr;
     variantCalls* hap2_vars = nullptr;
+
+    // cluster indices of superclusters
     std::vector<int> cal1_beg_idx, cal1_end_idx, cal2_beg_idx, cal2_end_idx,
         hap1_beg_idx, hap1_end_idx, hap2_beg_idx, hap2_end_idx;
+    std::vector<int> starts, ends; // ref positions
 
     std::vector<int> phase;
     std::vector<int> orig_phase_dist, swap_phase_dist;

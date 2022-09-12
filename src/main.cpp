@@ -44,5 +44,8 @@ int main(int argc, char **argv) {
     // phase clusters
     phaseData phasings(&clusters);
 
+    // store results in CSV format
+    write_results(phasings);
+
     return EXIT_SUCCESS;
 }

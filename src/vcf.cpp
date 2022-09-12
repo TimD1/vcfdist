@@ -496,17 +496,15 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
     INFO(" ");
 
     if (g.print_verbosity >= 1) {
-        INFO("Groups:");
+        INFO("Clusters:");
         for(int i = 0; i < nseq; i++) {
             if (this->calls[seqnames[i]].poss.size())  {
-                INFO("  Contig %s: %lu variants, %lu groups total", 
+                INFO("  Contig %s: %lu variants", 
                         seqnames[i],
-                        this->calls[seqnames[i]].poss.size(),
-                        this->calls[seqnames[i]].clusters.size());
+                        this->calls[seqnames[i]].poss.size());
                 for (int h = 0; h < 2; h++) {
-                    INFO("    Haplotype %i: %lu variants, %lu groups total", h+1,
-                            this->hapcalls[h][seqnames[i]].poss.size(),
-                            this->hapcalls[h][seqnames[i]].clusters.size());
+                    INFO("    Haplotype %i: %lu variants", h+1,
+                            this->hapcalls[h][seqnames[i]].poss.size());
                 }
             }
         }

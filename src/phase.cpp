@@ -109,7 +109,7 @@ void phaseData::phase()
         }
 
         if (g.print_verbosity >= 1) {
-            printf("phase block cluster indices: ");
+            printf("Contig '%s' phase block cluster indices: ", ctg.data());
             for(int i = 0; i < this->phasings[ctg].nswitches; i++)
                 printf("%d ", this->phasings[ctg].phase_blocks[i]);
             printf("\n");

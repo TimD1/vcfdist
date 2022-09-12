@@ -1,5 +1,5 @@
 CC = /opt/rh/devtoolset-8/root/bin/g++
-CFLAGS = -g -Wall -std=c++2a -O2
+CFLAGS = -g -Wall -std=c++2a -O2 -fpermissive
 IFLAGS = /usr/local/include/
 OBJS = globals.o print.o vcf.o dist.o bed.o cluster.o phase.o
 TARGET = vcfdist
