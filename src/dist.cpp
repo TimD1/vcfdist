@@ -212,29 +212,34 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     curr_score++;
                 }
 
-                // backtrack
+                // backtrack: count S/I/D, color path, set CIGAR
                 int alt_idx = alt_len-1;
                 int ref_idx = ref_len-1;
                 int new_subs_cluster = 0;
                 int new_inss_cluster = 0;
                 int new_dels_cluster = 0;
-                std::vector< std::pair<int,int> > path;
+                std::vector<int> cig(ref_len + alt_len);
+                int cig_ptr = cig.size()-1;
                 while (alt_idx >= 0 || ref_idx >= 0) {
-                    path.push_back({alt_idx, ref_idx});
-                    ptrs[alt_idx][ref_idx] |= LEFT_PATH;
+                    ptrs[alt_idx][ref_idx] |= LEFT_PATH; // color print path
                     if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
                         ref_idx--; alt_idx--;
+                        cig[cig_ptr--] = PTR_DIAG;
+                        cig[cig_ptr--] = PTR_DIAG;
                     } else if (ptrs[alt_idx][ref_idx] & PTR_SUB) {
                         ref_idx--; alt_idx--; new_subs_cluster++;
+                        cig[cig_ptr--] = PTR_SUB;
+                        cig[cig_ptr--] = PTR_SUB;
                     } else if (ptrs[alt_idx][ref_idx] & PTR_LEFT) {
                         ref_idx--; new_dels_cluster++;
+                        cig[cig_ptr--] = PTR_LEFT;
                     } else if (ptrs[alt_idx][ref_idx] & PTR_UP) {
                         alt_idx--; new_inss_cluster++;
+                        cig[cig_ptr--] = PTR_UP;
                     } else {
                         ERROR("no pointer during backtrack at (%d,%d)", alt_idx, ref_idx);
                     }
                 }
-                std::reverse(path.begin(), path.end());
 
                 // update totals
                 int old_edits_cluster = old_subs_cluster + 
@@ -255,61 +260,70 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                     printf("\n\nREF: %s\n", ref_out_str.data());
                     printf("ALT: %s\n", alt_out_str.data());
                     print_ptrs(ptrs, alt_str, ref_str);
-                    printf("OLD: S=%d\tI=%d\tD=%d\tX=%d\n", old_subs_cluster, 
+                    printf("OLD: SUBs=%d  INSs=%d  DELs=%d  Total=%d\n", old_subs_cluster, 
                             old_inss_cluster, old_dels_cluster, old_edits_cluster);
-                    printf("NEW: S=%d\tI=%d\tD=%d\tX=%d\n", new_subs_cluster, 
+                    printf("NEW: SUBs=%d  INSs=%d  DELs=%d  Total=%d\n", new_subs_cluster, 
                             new_inss_cluster, new_dels_cluster, new_edits_cluster);
                 }
 
 
-                /* // write new alignment to VCF */
-                /* int ref_idx = 0, alt_idx = 0; */
-                /* for(size_t cig_idx = 0; cig_idx < cig.size();) { */
-                /*     int indel_len = 0; */
-                /*     switch (cig[cig_idx]) { */
+                // write new alignment to VCF
+                ref_idx = 0, alt_idx = 0;
+                for(size_t cig_idx = 0; cig_idx < cig.size();) {
+                    int indel_len = 0;
+                    switch (cig[cig_idx]) {
 
-                /*         case PTR_DIAG: // no variant, update pointers */
-                /*             cig_idx += 2; */
-                /*             ref_idx++; */
-                /*             alt_idx++; */
-                /*             break; */
+                        case PTR_DIAG: // no variant, update pointers
+                            cig_idx += 2;
+                            ref_idx++;
+                            alt_idx++;
+                            break;
 
-                /*         case PTR_LEFT: // deletion */
-                /*             cig_idx++; indel_len++; */
+                        case PTR_SUB: // substitution
+                            cig_idx += 2;
+                            results.hapcalls[h][ctg].add_var(beg+ref_idx, 1, h, 
+                                    TYPE_SUB, std::string(1,ref_str[ref_idx]), 
+                                    std::string(1,alt_str[alt_idx]), 60, 60);
+                            ref_idx++;
+                            alt_idx++;
+                            break;
 
-                /*             // multi-base deletion */
-                /*             while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) { */
-                /*                 cig_idx++; indel_len++; */
-                /*             } */
-                /*             results.hapcalls[h][ctg].add_var(beg+ref_idx, */
-                /*                     indel_len, h, TYPE_DEL, */ 
-                /*                     ref_str.substr(ref_idx, indel_len), */
-                /*                     "", 60, 60); */
-                /*             ref_idx += indel_len; */
-                /*             break; */
+                        case PTR_LEFT: // deletion
+                            cig_idx++; indel_len++;
 
-                /*         case PTR_UP: // insertion */
-                /*             cig_idx++; indel_len++; */
+                            // multi-base deletion
+                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) {
+                                cig_idx++; indel_len++;
+                            }
+                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
+                                    indel_len, h, TYPE_DEL, 
+                                    ref_str.substr(ref_idx, indel_len),
+                                    "", 60, 60);
+                            ref_idx += indel_len;
+                            break;
 
-                /*             // multi-base insertion */
-                /*             while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) { */
-                /*                 cig_idx++; indel_len++; */
-                /*             } */
-                /*             results.hapcalls[h][ctg].add_var(beg+ref_idx, */
-                /*                     0, h, TYPE_INS, "", */ 
-                /*                     alt_str.substr(alt_idx, indel_len), 60, 60); */
-                /*             alt_idx += indel_len; */
-                /*             break; */
-                /*     } */
-                /* } */
+                        case PTR_UP: // insertion
+                            cig_idx++; indel_len++;
+
+                            // multi-base insertion
+                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) {
+                                cig_idx++; indel_len++;
+                            }
+                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
+                                    0, h, TYPE_INS, "", 
+                                    alt_str.substr(alt_idx, indel_len), 60, 60);
+                            alt_idx += indel_len;
+                            break;
+                    }
+                }
 
 
             } // cluster
         } // contig
     } // hap
     INFO("Edit distance reduced from %d to %d.", old_edits, new_edits);
-    INFO("OLD: S=%d  I=%d  D=%d  X=%d", old_subs, old_inss, old_dels, old_edits);
-    INFO("NEW: S=%d  I=%d  D=%d  X=%d", new_subs, new_inss, new_dels, new_edits);
+    INFO("OLD: SUBs=%d  INSs=%d  DELs=%d  Total=%d", old_subs, old_inss, old_dels, old_edits);
+    INFO("NEW: SUBs=%d  INSs=%d  DELs=%d  Total=%d", new_subs, new_inss, new_dels, new_edits);
 
     return results;
 
@@ -1018,6 +1032,7 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
                 printf("CAL2: %s\n", cal2_str.data());
                 printf("HAP1: %s\n", hap1_str.data());
                 printf("HAP2: %s\n", hap2_str.data());
+                printf("Edit Distance: %d\n", dist);
             }
 
             // DEBUG PRINT

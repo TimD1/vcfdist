@@ -174,6 +174,7 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
     int * gq    = (int*) malloc(sizeof(int));
     float * fgq = (float*) malloc(sizeof(float));
     bool int_qual = true;
+    int total_overlaps = 0;
 
     // genotype data for each call
     int ngt_arr   = 0;
@@ -388,7 +389,10 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
             // TODO: keep overlaps, test all non-overlapping subsets?
             // skip overlapping variants
             if (prev_end[hap] > pos) { // warn if overlap
-                WARN("VCF variant overlap at %s:%i, skipping", seq.data(), pos);
+                if (g.print_verbosity >= 1) {
+                    WARN("VCF variant overlap at %s:%i, skipping", seq.data(), pos);
+                }
+                total_overlaps++;
                 continue;
             }
 
@@ -412,7 +416,7 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
             switch (g.bed.contains(seq, pos, pos + rlen)) {
                 case OUTSIDE: 
                     nregions[OUTSIDE]++;
-                    continue;
+                    continue; // discard variant
                 case INSIDE: 
                     nregions[INSIDE]++;
                     break;
@@ -421,7 +425,7 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
                     break;
                 case OFF_CTG:
                     nregions[OFF_CTG]++;
-                    continue;
+                    continue; // discard variant
                 default:
                     ERROR("unexpected BED region type: %d", 
                             g.bed.contains(seq, pos, pos+rlen));
@@ -455,6 +459,9 @@ vcfData::vcfData(std::string vcf_fn, fastaData* reference) : hapcalls(2) {
             ntypes[hap][type]++;
         }
     }
+
+    if (total_overlaps)
+        WARN("%d total VCF variant overlaps skipped", total_overlaps);
 
     INFO("Contigs:");
     for (size_t i = 0; i < this->contigs.size(); i++) {

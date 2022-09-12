@@ -22,6 +22,14 @@
 #define CAL2_HAP1 2
 #define CAL2_HAP2 3
 
+#define ERRTYPES 6
+#define ERRTYPE_TP 0 // true positive
+#define ERRTYPE_FP 1 // false positive
+#define ERRTYPE_FN 2 // false negative
+#define ERRTYPE_PP 3 // partial positive (reduces ED, but not TP)
+#define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
+#define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
+
 vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
 clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);
 

@@ -9,6 +9,7 @@
 
 Globals g;
 std::vector<std::string> type_strs = { "REF", "SUB", "INS", "DEL", "GRP"};
+std::vector<std::string> error_strs = { "TP", "FP", "FN", "PP", "PE", "GE"};
 std::vector<std::string> gt_strs = {
 ".|.", "0|0", "0|1", "0|2", "1|0", "1|1", "1|2", "2|0", "2|1", "2|2", "?|?" };
 std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CTG"};

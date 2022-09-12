@@ -16,15 +16,15 @@ void ctgClusters::add(
     this->cal1_vars = cal1_vars;
     this->cal1_beg_idx.push_back(cal1_beg_idx);
     this->cal1_end_idx.push_back(cal1_end_idx);
-    this->cal2_vars = cal1_vars;
-    this->cal2_beg_idx.push_back(cal1_beg_idx);
-    this->cal2_end_idx.push_back(cal1_end_idx);
+    this->cal2_vars = cal2_vars;
+    this->cal2_beg_idx.push_back(cal2_beg_idx);
+    this->cal2_end_idx.push_back(cal2_end_idx);
     this->hap1_vars = hap1_vars;
     this->hap1_beg_idx.push_back(hap1_beg_idx);
     this->hap1_end_idx.push_back(hap1_end_idx);
-    this->hap2_vars = hap1_vars;
-    this->hap2_beg_idx.push_back(hap1_beg_idx);
-    this->hap2_end_idx.push_back(hap1_end_idx);
+    this->hap2_vars = hap2_vars;
+    this->hap2_beg_idx.push_back(hap2_beg_idx);
+    this->hap2_end_idx.push_back(hap2_end_idx);
 
     // store phasing info
     this->phase.push_back(phase);
@@ -42,7 +42,7 @@ void cluster(vcfData* vcf) {
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
 
-        // cluster per-haplotype variants
+        // cluster per-haplotype variants: vcf->hapcalls[hap]
         for (int hap = 0; hap < 2; hap++) {
             int prev_end = -g.gap * 2;
             int pos = 0;
@@ -59,7 +59,7 @@ void cluster(vcfData* vcf) {
             vcf->hapcalls[hap][ctg].add_cluster(var_idx);
         }
 
-        // cluster all variants
+        // cluster all variants: vcf->calls
         int prev_end = -g.gap * 2;
         int pos = 0;
         int end = 0;

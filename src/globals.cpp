@@ -147,9 +147,9 @@ void Globals::print_usage() const
     printf("  FILE\tref.fasta\tFASTA file containing reference sequence \n");
     printf("\nOptions:\n");
     printf("  -b FILE\tBED file containing regions to evaluate\n");
-    printf("  -o PREFIX\toutput filepath prefix (dir should contain '/')\n");
+    printf("  -o PREFIX\toutput filepath prefix (dir should contain trailing slash)\n");
     printf("  -q MIN_QUAL\tminimum variant quality [0]\n");
-    printf("  -g GAP\tsize for independent groups [50]\n");
+    printf("  -g GAP\tminimum base gap between independent clusters [50]\n");
     printf("  -p VERBOSITY\tprinting verbosity (0,1,2) [0]\n");
     printf("  -h\t\tshow this help message\n");
     printf("  -v\t\tshow version number\n");
