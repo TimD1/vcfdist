@@ -16,7 +16,7 @@ public:
     int n = 0;                       // number of superclusters
     std::vector<int> phasings;       // phasing for each supercluster (keep/swap)
 
-    ctgClusters* clusters = nullptr;
+    std::shared_ptr<ctgClusters> ctg_superclusters = nullptr;
     int nswitches = 0;               // number of phasing errors
     std::vector<int> phase_blocks;   // indices of superclusters where phasing switches
 };
@@ -24,14 +24,14 @@ public:
 class phaseData {
 public:
     //constructor
-    phaseData(std::shared_ptr<clusterData> clusters_ptr); 
+    phaseData(std::shared_ptr<clusterData> clusterdata_ptr); 
 
     // member
     void phase();
 
     // data
     std::vector<std::string> contigs;
-    std::unordered_map<std::string, ctgPhasings> phasings;
+    std::unordered_map<std::string, ctgPhasings> ctg_phasings;
 };
 
 #endif

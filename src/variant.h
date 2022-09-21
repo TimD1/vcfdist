@@ -16,6 +16,12 @@
 #define TYPE_DEL 3
 #define TYPE_GRP 4
 
+#define HAP1 0
+#define HAP2 1
+
+#define FAIL 0
+#define PASS 1
+
 #define GT_DOT_DOT   0
 #define GT_REF_REF   1
 #define GT_REF_ALT1  2
@@ -28,11 +34,11 @@
 #define GT_ALT2_ALT2 9
 #define GT_OTHER     10
 
-class variantCalls {
+class ctgVariants {
 public:
 
     // constructor
-    variantCalls();
+    ctgVariants();
 
     // helper functions
     void add_cluster(int g);
@@ -52,11 +58,11 @@ public:
     int n = 0;
 };
 
-class vcfData {
+class variantData {
 public:
     // constructors
-    vcfData();
-    vcfData(std::string vcf_fn, std::shared_ptr<fastaData> reference);
+    variantData();
+    variantData(std::string vcf_fn, std::shared_ptr<fastaData> reference);
 
     // functions
     void write(std::string vcf_fn);
@@ -67,8 +73,7 @@ public:
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
-    std::unordered_map<std::string, variantCalls> calls;
-    std::vector< std::unordered_map<std::string, std::shared_ptr<variantCalls> > > hapcalls;
+    std::vector< std::unordered_map<std::string, std::shared_ptr<ctgVariants> > > ctg_variants;
 
     std::shared_ptr<fastaData> ref;
 };

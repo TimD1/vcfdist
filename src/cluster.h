@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "vcf.h"
+#include "variant.h"
 
 #define PHASE_ORIG 0
 #define PHASE_SWAP 1
@@ -23,28 +23,28 @@ public:
 
     // add supercluster info
     void set_variants(
-           std::shared_ptr<variantCalls> cal1_vars,
-           std::shared_ptr<variantCalls> cal2_vars,
-           std::shared_ptr<variantCalls> hap1_vars,
-           std::shared_ptr<variantCalls> hap2_vars);
+           std::shared_ptr<ctgVariants> calls1_vars,
+           std::shared_ptr<ctgVariants> calls2_vars,
+           std::shared_ptr<ctgVariants> truth1_vars,
+           std::shared_ptr<ctgVariants> truth2_vars);
     void add_supercluster(
-           int cal1_beg_idx, int cal1_end_idx, 
-           int cal2_beg_idx, int cal2_end_idx, 
-           int hap1_beg_idx, int hap1_end_idx, 
-           int hap2_beg_idx, int hap2_end_idx, 
-           int start, int end,
+           int calls1_beg_idx, int calls1_end_idx, 
+           int calls2_beg_idx, int calls2_end_idx, 
+           int truth1_beg_idx, int truth1_end_idx, 
+           int truth2_beg_idx, int truth2_end_idx, 
+           int beg, int end,
            int phase, int orig_phase_dist, int swap_phase_dist);
 
     // pointers to variant/cluster data
-    std::shared_ptr<variantCalls> cal1_vars = nullptr; 
-    std::shared_ptr<variantCalls> cal2_vars = nullptr; 
-    std::shared_ptr<variantCalls> hap1_vars = nullptr;
-    std::shared_ptr<variantCalls> hap2_vars = nullptr;
+    std::shared_ptr<ctgVariants> calls1_vars = nullptr; 
+    std::shared_ptr<ctgVariants> calls2_vars = nullptr; 
+    std::shared_ptr<ctgVariants> truth1_vars = nullptr;
+    std::shared_ptr<ctgVariants> truth2_vars = nullptr;
 
     // cluster indices of superclusters
-    std::vector<int> cal1_beg_idx, cal1_end_idx, cal2_beg_idx, cal2_end_idx,
-        hap1_beg_idx, hap1_end_idx, hap2_beg_idx, hap2_end_idx;
-    std::vector<int> starts, ends; // ref positions
+    std::vector<int> calls1_beg_idx, calls1_end_idx, calls2_beg_idx, calls2_end_idx,
+        truth1_beg_idx, truth1_end_idx, truth2_beg_idx, truth2_end_idx;
+    std::vector<int> begs, ends; // ref positions
 
     std::vector<int> phase;
     std::vector<int> orig_phase_dist, swap_phase_dist;
@@ -56,13 +56,13 @@ public:
     clusterData(std::vector<std::string> ctgs) {
         for (auto ctg : ctgs) {
             this->contigs.push_back(ctg);
-            clusters[ctg] = ctgClusters();
+            ctg_superclusters[ctg] = std::shared_ptr<ctgClusters>(new ctgClusters());
         }
     }
     std::vector<std::string> contigs;
-    std::unordered_map<std::string, ctgClusters> clusters;
+    std::unordered_map<std::string, std::shared_ptr<ctgClusters> > ctg_superclusters;
 };
 
-void cluster(std::unique_ptr<vcfData> & vcf);
+void cluster(std::unique_ptr<variantData> & vcf);
 
 #endif
