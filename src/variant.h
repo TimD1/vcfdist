@@ -42,8 +42,9 @@ public:
 
     // helper functions
     void add_cluster(int g);
-    void add_var(int pos, int rlen, uint8_t hap, uint8_t type, 
-            std::string ref, std::string alt, float gq, float vq);
+    void add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
+            std::string ref, std::string alt, uint8_t orig_gt,
+            float gq, float vq);
 
     // data
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
@@ -51,8 +52,10 @@ public:
     std::vector<int> rlens;         // reference lengths
     std::vector<uint8_t> haps;      // variant haplotype
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
+    std::vector<uint8_t> locs;       // BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  // variant reference allele
     std::vector<std::string> alts;  // variant alternate allele (always one)
+    std::vector<uint8_t> orig_gts;  // simple genotype (0|1, 1|0, or 1|1)
     std::vector<float> gt_quals;    // genotype quality (0-60)
     std::vector<float> var_quals;   // variant quality (0-60)
     int n = 0;

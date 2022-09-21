@@ -73,19 +73,22 @@ void phaseData::phase()
         }
 
         // backwards pass
-        int i = this->ctg_phasings[ctg].n;
-        int phase = 0;
-        while (i > 0) {
-            if (ptrs[phase][i] == PHASE_PTR_SWAP) {
-                phase ^= 1;
-                this->ctg_phasings[ctg].nswitches++;
-                this->ctg_phasings[ctg].phase_blocks.push_back(i+1);
+        if (this->ctg_phasings[ctg].n > 0) { // skip empty contigs
+            int i = this->ctg_phasings[ctg].n;
+            int phase = 0;
+            this->ctg_phasings[ctg].phase_blocks.push_back(i);
+            while (i > 0) {
+                if (ptrs[phase][i] == PHASE_PTR_SWAP) {
+                    phase ^= 1;
+                    this->ctg_phasings[ctg].nswitches++;
+                    this->ctg_phasings[ctg].phase_blocks.push_back(i+1);
+                }
+                i--;
             }
-            i--;
+            this->ctg_phasings[ctg].phase_blocks.push_back(0);
+            std::reverse(this->ctg_phasings[ctg].phase_blocks.begin(),
+                    this->ctg_phasings[ctg].phase_blocks.end());
         }
-        this->ctg_phasings[ctg].phase_blocks.push_back(0);
-        std::reverse(this->ctg_phasings[ctg].phase_blocks.begin(),
-                this->ctg_phasings[ctg].phase_blocks.end());
     }
     
 

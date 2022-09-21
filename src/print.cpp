@@ -151,70 +151,180 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     std::string out_phasings_fn = g.out_prefix + "phasings.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
     INFO(" ");
-    INFO("Printing phasing to '%s'", out_phasings_fn.data());
+    INFO("Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         ctgPhasings ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
-        int nblocks = ctg_phasings.nswitches;
         std::shared_ptr<ctgClusters> ctg_superclusters = ctg_phasings.ctg_superclusters;
-        for (int n = 0; n < nblocks-1; n++) {
-            int beg_idx = ctg_phasings.phase_blocks[n];
-            int end_idx = ctg_phasings.phase_blocks[n+1]-1;
+        for (int i = 0; i <= ctg_phasings.nswitches && ctg_phasings.nswitches > 0; i++) {
+            int beg_idx = ctg_phasings.phase_blocks[i];
+            int end_idx = ctg_phasings.phase_blocks[i+1]-1;
             int beg = ctg_superclusters->begs[beg_idx];
             int end = ctg_superclusters->ends[end_idx];
-            fprintf(out_phasings, "%s\t%d\t%d\t%d\n", ctg_name.data(), beg,
-                    end, end-beg);
+            fprintf(out_phasings, "%s\t%d\t%d\t%d\n", 
+                    ctg_name.data(), beg, end, end-beg);
         }
     }
     fclose(out_phasings);
 
-    // print variant information
+    // print clustering information
+    std::string out_clusterings_fn = g.out_prefix + "clusterings.tsv";
+    FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
+    INFO("Printing clustering results to '%s'", out_clusterings_fn.data());
+    fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tCALLS1_VARS\tCALLS2_VARS\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
+    for (auto ctg_name : phasedata_ptr->contigs) {
+        auto ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
+        std::shared_ptr<ctgClusters> ctg_supclusts = ctg_phasings.ctg_superclusters;
+        int phase_block_idx = 0;
+        for (int i = 0; i < ctg_supclusts->n; i++) {
+
+            // we've entered the next phase block
+            if (i >= ctg_phasings.phase_blocks[phase_block_idx]) {
+                phase_block_idx++;
+            }
+
+            // print data
+            fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
+                ctg_name.data(), 
+                ctg_supclusts->begs[i],
+                ctg_supclusts->ends[i],
+                ctg_supclusts->ends[i] - ctg_supclusts->begs[i],
+                ctg_supclusts->calls1_end_idx[i] - ctg_supclusts->calls1_beg_idx[i],
+                ctg_supclusts->calls2_end_idx[i] - ctg_supclusts->calls2_beg_idx[i],
+                ctg_supclusts->truth1_end_idx[i] - ctg_supclusts->truth1_beg_idx[i],
+                ctg_supclusts->truth2_end_idx[i] - ctg_supclusts->truth2_beg_idx[i],
+                ctg_supclusts->orig_phase_dist[i],
+                ctg_supclusts->swap_phase_dist[i],
+                phase_strs[ctg_supclusts->phase[i]].data(),
+                phase_block_idx
+           );
+        }
+    }
+    fclose(out_clusterings);
+
+    // print calls variant information
     std::string out_calls_fn = g.out_prefix + "calls.tsv";
-    INFO("Printing calls to '%s'", out_calls_fn.data());
+    INFO("Printing call variant results to '%s'", out_calls_fn.data());
     FILE* out_calls = fopen(out_calls_fn.data(), "w");
-    fprintf(out_calls, "CONTIG\tPOS\tREF\tALT\tTYPE\tERRTYPE\tORIG_GT\tGT\tCLUSTER\tLOCATION\n");
+    fprintf(out_calls, "CONTIG\tPOS\tHAP\tREF\tALT\tTYPE\tERRTYPE\tORIG_GT\tGT\tCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
 
+        // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> calls1_vars = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->calls1_vars;
         std::shared_ptr<ctgVariants> calls2_vars = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->calls2_vars;
+        std::shared_ptr<ctgClusters> ctg_supclusts = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
+
         int calls1_var_ptr = 0;
         int calls2_var_ptr = 0;
+        int supercluster_idx = 0;
         while (calls1_var_ptr < calls1_vars->n || calls2_var_ptr < calls2_vars->n) {
             if (calls2_var_ptr >= calls2_vars->n || // only calls1 has remaining vars
                     calls1_vars->poss[calls1_var_ptr] < calls2_vars->poss[calls2_var_ptr]) { // calls1 var next
-                fprintf(out_calls, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+
+                // we've entered the next supercluster
+                if (calls1_vars->poss[calls1_var_ptr] >= ctg_supclusts->begs[supercluster_idx]) {
+                    supercluster_idx++;
+                }
+                fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
                         ctg_name.data(),
                         calls1_vars->poss[calls1_var_ptr],
+                        calls1_vars->haps[calls1_var_ptr],
                         calls1_vars->refs[calls1_var_ptr].data(),
                         calls1_vars->alts[calls1_var_ptr].data(),
                         type_strs[calls1_vars->types[calls1_var_ptr]].data(),
                         "TODO",
+                        gt_strs[calls1_vars->orig_gts[calls1_var_ptr]].data(),
                         "TODO",
-                        "TODO",
-                        0,
-                        "TODO"
+                        supercluster_idx,
+                        region_strs[calls1_vars->locs[calls1_var_ptr]].data()
                        );
                 calls1_var_ptr++;
             } else { // process calls2 var
-                fprintf(out_calls, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+                if (calls2_vars->poss[calls2_var_ptr] >= ctg_supclusts->begs[supercluster_idx]) {
+                    supercluster_idx++;
+                }
+                fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
                         ctg_name.data(),
                         calls2_vars->poss[calls2_var_ptr],
+                        calls1_vars->haps[calls1_var_ptr],
                         calls2_vars->refs[calls2_var_ptr].data(),
                         calls2_vars->alts[calls2_var_ptr].data(),
                         type_strs[calls2_vars->types[calls2_var_ptr]].data(),
                         "TODO",
+                        gt_strs[calls2_vars->orig_gts[calls2_var_ptr]].data(),
                         "TODO",
-                        "TODO",
-                        0,
-                        "TODO"
+                        supercluster_idx,
+                        region_strs[calls2_vars->locs[calls2_var_ptr]].data()
                        );
                 calls2_var_ptr++;
             }
         }
     }
     fclose(out_calls);
+    
+    //print truth variant information
+    std::string out_truth_fn = g.out_prefix + "truth.tsv";
+    INFO("Printing truth variant results to '%s'", out_truth_fn.data());
+    FILE* out_truth = fopen(out_truth_fn.data(), "w");
+    fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tTYPE\tERRTYPE\tORIG_GT\tGT\tCLUSTER\tLOCATION\n");
+    for (auto ctg_name : phasedata_ptr->contigs) {
+
+        // set pointers to variants and superclusters
+        std::shared_ptr<ctgVariants> truth1_vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth1_vars;
+        std::shared_ptr<ctgVariants> truth2_vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth2_vars;
+        std::shared_ptr<ctgClusters> ctg_supclusts = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
+
+        int truth1_var_ptr = 0;
+        int truth2_var_ptr = 0;
+        int supercluster_idx = 0;
+        while (truth1_var_ptr < truth1_vars->n || truth2_var_ptr < truth2_vars->n) {
+            if (truth2_var_ptr >= truth2_vars->n || // only truth1 has remaining vars
+                    truth1_vars->poss[truth1_var_ptr] < truth2_vars->poss[truth2_var_ptr]) { // truth1 var next
+                if (truth1_vars->poss[truth1_var_ptr] >= ctg_supclusts->begs[supercluster_idx]) {
+                    supercluster_idx++;
+                }
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+                        ctg_name.data(),
+                        truth1_vars->poss[truth1_var_ptr],
+                        truth1_vars->haps[truth1_var_ptr],
+                        truth1_vars->refs[truth1_var_ptr].data(),
+                        truth1_vars->alts[truth1_var_ptr].data(),
+                        type_strs[truth1_vars->types[truth1_var_ptr]].data(),
+                        "TODO",
+                        gt_strs[truth1_vars->orig_gts[truth1_var_ptr]].data(),
+                        "TODO",
+                        supercluster_idx,
+                        region_strs[truth1_vars->locs[truth1_var_ptr]].data()
+                       );
+                truth1_var_ptr++;
+            } else { // process truth2 var
+                if (truth2_vars->poss[truth2_var_ptr] >= ctg_supclusts->begs[supercluster_idx]) {
+                    supercluster_idx++;
+                }
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+                        ctg_name.data(),
+                        truth2_vars->poss[truth2_var_ptr],
+                        truth1_vars->haps[truth1_var_ptr],
+                        truth2_vars->refs[truth2_var_ptr].data(),
+                        truth2_vars->alts[truth2_var_ptr].data(),
+                        type_strs[truth2_vars->types[truth2_var_ptr]].data(),
+                        "TODO",
+                        gt_strs[truth2_vars->orig_gts[truth2_var_ptr]].data(),
+                        "TODO",
+                        supercluster_idx,
+                        region_strs[truth2_vars->locs[truth2_var_ptr]].data()
+                       );
+                truth2_var_ptr++;
+            }
+        }
+    }
+    fclose(out_truth);
 
     return;
 }

@@ -283,8 +283,8 @@ variantData edit_dist_realign(
                         case PTR_SUB: // substitution
                             cig_idx += 2;
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx, 1, h, 
-                                    TYPE_SUB, std::string(1,ref_str[ref_idx]), 
-                                    std::string(1,alt_str[alt_idx]), 60, 60);
+                                    TYPE_SUB, INSIDE, std::string(1,ref_str[ref_idx]), 
+                                    std::string(1,alt_str[alt_idx]), GT_REF_REF, 60, 60);
                             ref_idx++;
                             alt_idx++;
                             break;
@@ -297,9 +297,9 @@ variantData edit_dist_realign(
                                 cig_idx++; indel_len++;
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
-                                    indel_len, h, TYPE_DEL, 
+                                    indel_len, h, TYPE_DEL, INSIDE,
                                     ref_str.substr(ref_idx, indel_len),
-                                    "", 60, 60);
+                                    "", GT_REF_REF, 60, 60);
                             ref_idx += indel_len;
                             break;
 
@@ -311,8 +311,8 @@ variantData edit_dist_realign(
                                 cig_idx++; indel_len++;
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
-                                    0, h, TYPE_INS, "", 
-                                    alt_str.substr(alt_idx, indel_len), 60, 60);
+                                    0, h, TYPE_INS, INSIDE, "", 
+                                    alt_str.substr(alt_idx, indel_len), GT_REF_REF, 60, 60);
                             alt_idx += indel_len;
                             break;
                     }

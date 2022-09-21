@@ -15,14 +15,16 @@ ctgVariants::ctgVariants() {
 
 void ctgVariants::add_cluster(int g) { this->clusters.push_back(g); }
 
-void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, 
-        std::string ref, std::string alt, float gq, float vq) {
+void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
+        std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq) {
     this->poss.push_back(pos);
     this->rlens.push_back(rlen);
     this->haps.push_back(hap);
     this->types.push_back(type);
+    this->locs.push_back(loc);
     this->refs.push_back(ref);
     this->alts.push_back(alt);
+    this->orig_gts.push_back(orig_gt);
     this->gt_quals.push_back(gq);
     this->var_quals.push_back(vq);
     this->n++;
@@ -322,22 +324,29 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         // 2      1           4           0  reference
         // 4      2           8           1  alternate1
         // 6      3           12          2  alternate2
+        int orig_gt;
         switch ( (gt[0] >> 1) + ((gt[1] >> 1) << 2) ) {
-            case 0:  ngts[GT_DOT_DOT]++;   break;
-            case 5:  ngts[GT_REF_REF]++;   break;
-            case 6:  ngts[GT_ALT1_REF]++;  break;
-            case 7:  ngts[GT_ALT2_REF]++;  break;
-            case 9:  ngts[GT_REF_ALT1]++;  break;
-            case 10: ngts[GT_ALT1_ALT1]++; break;
-            case 11: ngts[GT_ALT2_ALT1]++; break;
-            case 13: ngts[GT_REF_ALT2]++;  break;
-            case 14: ngts[GT_ALT1_ALT2]++; break;
-            case 15: ngts[GT_ALT2_ALT2]++; break;
-            default: ngts[GT_OTHER]++;     break; // 3|1 etc
+            case 0:  orig_gt = GT_DOT_DOT;   break;
+            case 5:  orig_gt = GT_REF_REF;   break;
+            case 6:  orig_gt = GT_ALT1_REF;  break;
+            case 7:  orig_gt = GT_ALT2_REF;  break;
+            case 9:  orig_gt = GT_REF_ALT1;  break;
+            case 10: orig_gt = GT_ALT1_ALT1; break;
+            case 11: orig_gt = GT_ALT2_ALT1; break;
+            case 13: orig_gt = GT_REF_ALT2;  break;
+            case 14: orig_gt = GT_ALT1_ALT2; break;
+            case 15: orig_gt = GT_ALT2_ALT2; break;
+            default: orig_gt = GT_OTHER;     break; // 3|1 etc
         }
+        ngts[orig_gt]++;
 
         // parse variant type
         for (int hap = 0; hap < 2; hap++) {
+
+            // set simplified GT (0|1, 1|0, or 1|1), (0|0 skipped)
+            int simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0
+            if (orig_gt == GT_ALT1_ALT1 || orig_gt == GT_ALT2_ALT2) // 1|1
+                simple_gt = GT_ALT1_ALT1;
 
             // get ref and allele, skipping ref calls
             std::string ref = rec->d.allele[0];
@@ -415,34 +424,30 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             }
 
             // check that variant is in region of interest
-            switch (g.bed.contains(seq, pos, pos + rlen)) {
+            uint8_t loc = g.bed.contains(seq, pos, pos + rlen);
+            switch (loc) {
                 case OUTSIDE: 
-                    nregions[OUTSIDE]++;
+                case OFF_CTG:
+                    nregions[loc]++;
                     continue; // discard variant
                 case INSIDE: 
-                    nregions[INSIDE]++;
-                    break;
                 case BORDER:
-                    nregions[BORDER]++;
+                    nregions[loc]++;
                     break;
-                case OFF_CTG:
-                    nregions[OFF_CTG]++;
-                    continue; // discard variant
                 default:
-                    ERROR("unexpected BED region type: %d", 
-                            g.bed.contains(seq, pos, pos+rlen));
+                    ERROR("unexpected BED region type: %d", loc);
                     break;
             }
 
             // add to haplotype-specific calls info
             if (type == TYPE_GRP) { // split GRP into INS+DEL
                 this->ctg_variants[hap][seq]->add_var(pos, 0, // INS
-                    hap, TYPE_INS, "", alt, gq[0], rec->qual);
+                    hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], rec->qual);
                 this->ctg_variants[hap][seq]->add_var(pos, rlen, // DEL
-                    hap, TYPE_DEL, ref, "", gq[0], rec->qual);
+                    hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], rec->qual);
             } else {
                 this->ctg_variants[hap][seq]->add_var(pos, rlen,
-                        hap, type, ref, alt, gq[0], rec->qual);
+                        hap, type, loc, ref, alt, simple_gt, gq[0], rec->qual);
             }
 
             prev_end[hap] = pos + rlen;
