@@ -24,7 +24,7 @@ public:
 class phaseData {
 public:
     //constructor
-    phaseData(clusterData* clusters); 
+    phaseData(std::shared_ptr<clusterData> clusters_ptr); 
 
     // member
     void phase();

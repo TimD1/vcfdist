@@ -18,7 +18,7 @@ void Globals::parse_args(int argc, char ** argv) {
     }
 
     if (argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-') {
-        WARN("optional arguments should be provided AFTER mandatory arguments");
+        WARN("Optional arguments should be provided AFTER mandatory arguments");
         this->print_usage();
     }
 
@@ -27,7 +27,7 @@ void Globals::parse_args(int argc, char ** argv) {
     this->calls_vcf_path = std::filesystem::path(this->calls_vcf_fn);
     htsFile* calls_vcf_fp = bcf_open(calls_vcf_fn.data(), "r");
     if (calls_vcf_fp == NULL) {
-        ERROR("failed to open calls_vcf file '%s'", calls_vcf_fn.data());
+        ERROR("Failed to open calls_vcf file '%s'", calls_vcf_fn.data());
     } else {
         bcf_close(calls_vcf_fp);
     }
@@ -36,17 +36,17 @@ void Globals::parse_args(int argc, char ** argv) {
     this->truth_vcf_path = std::filesystem::path(this->truth_vcf_fn);
     htsFile* truth_vcf_fp = bcf_open(truth_vcf_fn.data(), "r");
     if (truth_vcf_fp == NULL) {
-        ERROR("failed to open truth_vcf file '%s'", truth_vcf_fn.data());
+        ERROR("Failed to open truth_vcf file '%s'", truth_vcf_fn.data());
     } else {
         bcf_close(truth_vcf_fp);
     }
 
     // load reference FASTA
     this->ref_fasta_fn = std::string(argv[3]);
-    INFO("loading reference FASTA '%s'", ref_fasta_fn.data());
+    INFO("Loading reference FASTA '%s'", ref_fasta_fn.data());
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
-        ERROR("failed to open ref_fasta file '%s'", ref_fasta_fn.data());
+        ERROR("Failed to open ref_fasta file '%s'", ref_fasta_fn.data());
     }
 
     /* handle optional arguments */
@@ -54,20 +54,20 @@ void Globals::parse_args(int argc, char ** argv) {
         if (std::string(argv[i]) == "-b") {
             i++;
             if (i == argc) {
-                ERROR("option '-b' used without providing BED");
+                ERROR("Option '-b' used without providing BED");
             }
             try {
                 this->bed_fn = std::string(argv[i]);
                 this->bed = bedData(std::string(argv[i++]));
                 this->bed.check();
             } catch (const std::exception & e) {
-                ERROR("invalid BED file provided");
+                ERROR("Invalid BED file provided");
             }
         }
         else if (std::string(argv[i]) == "-o") {
             i++;
             if (i == argc) {
-                ERROR("option '-o' used without providing PREFIX");
+                ERROR("Option '-o' used without providing PREFIX");
             }
             try {
                 this->out_prefix = std::string(argv[i++]);
@@ -80,26 +80,26 @@ void Globals::parse_args(int argc, char ** argv) {
         else if (std::string(argv[i]) == "-q") {
             i++;
             if (i == argc) {
-                ERROR("option '-q' used without providing MIN_QUAL");
+                ERROR("Option '-q' used without providing MIN_QUAL");
             }
             try {
                 this->min_qual = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
-                ERROR("invalid minimum variant quality provided");
+                ERROR("Invalid minimum variant quality provided");
             }
         }
         else if (std::string(argv[i]) == "-p") {
             i++;
             if (i == argc) {
-                ERROR("option '-p' used without providing VERBOSITY");
+                ERROR("Option '-p' used without providing VERBOSITY");
             }
             try {
                 this->print_verbosity = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
-                ERROR("invalid print verbosity provided");
+                ERROR("Invalid print verbosity provided");
             }
             if (this->print_verbosity < 0 || this->print_verbosity > 2) {
-                ERROR("print verbosity %d not a valid option (0,1,2)", 
+                ERROR("Print verbosity %d not a valid option (0,1,2)", 
                         this->print_verbosity);
             }
         }
@@ -114,19 +114,19 @@ void Globals::parse_args(int argc, char ** argv) {
         else if (std::string(argv[i]) == "-g") {
             i++;
             if (i == argc) {
-                ERROR("option '-g' used without providing GAP size");
+                ERROR("Option '-g' used without providing GAP size");
             }
             try {
                 this->gap = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
-                ERROR("invalid gap size provided");
+                ERROR("Invalid gap size provided");
             }
             if (g.gap <= 0) {
-                ERROR("must provide positive gap size");
+                ERROR("Must provide positive gap size");
             }
         }
         else {
-            ERROR("unexpected option '%s'", argv[i]);
+            ERROR("Unexpected option '%s'", argv[i]);
         }
     }
 }

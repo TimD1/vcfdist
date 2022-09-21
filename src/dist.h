@@ -30,7 +30,13 @@
 #define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
 #define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
 
-vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref);
-clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref);
+vcfData edit_dist_realign(
+        std::unique_ptr<vcfData> & vcf, 
+        std::shared_ptr<fastaData> ref_ptr);
+
+std::shared_ptr<clusterData> edit_dist(
+        std::unique_ptr<vcfData> & calls, 
+        std::unique_ptr<vcfData> & truth, 
+        std::shared_ptr<fastaData> ref_ptr);
 
 #endif

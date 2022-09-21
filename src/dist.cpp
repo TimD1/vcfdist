@@ -7,10 +7,11 @@
 
 #include "dist.h"
 #include "print.h"
-#include "cluster.h"
 
 
-vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
+vcfData edit_dist_realign(
+        std::unique_ptr<vcfData> & vcf, 
+        std::shared_ptr<fastaData> ref) {
 
     // copy vcf header data over to results vcf
     vcfData results;
@@ -20,7 +21,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
     results.ref = vcf->ref;
     for (auto ctg : results.contigs) 
         for (int hap = 0; hap < 2; hap++) 
-            results.hapcalls[hap][ctg] = variantCalls();
+            results.hapcalls[hap][ctg] = std::shared_ptr<variantCalls>(new variantCalls());
 
     // iterate over each haplotype
     int old_subs = 0;
@@ -37,26 +38,26 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
         for (auto itr = vcf->hapcalls[h].begin(); 
                 itr != vcf->hapcalls[h].end(); itr++) {
             std::string ctg = itr->first;
-            variantCalls vars = itr->second;
-            if (vars.poss.size() == 0) continue;
+            std::shared_ptr<variantCalls> vars = itr->second;
+            if (vars->poss.size() == 0) continue;
 
             // iterate over each cluster of variants
-            for (size_t cluster = 0; cluster < vars.clusters.size()-1; cluster++) {
-                int beg_idx = vars.clusters[cluster];
-                int end_idx = vars.clusters[cluster+1];
-                int beg = vars.poss[beg_idx]-1;
-                int end = vars.poss[end_idx-1] + vars.rlens[end_idx-1]+1;
+            for (size_t cluster = 0; cluster < vars->clusters.size()-1; cluster++) {
+                int beg_idx = vars->clusters[cluster];
+                int end_idx = vars->clusters[cluster+1];
+                int beg = vars->poss[beg_idx]-1;
+                int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1]+1;
                 int old_subs_cluster = 0;
                 int old_inss_cluster = 0;
                 int old_dels_cluster = 0;
 
                 // iterate over variants, summing edit distance
                 for (int var = beg_idx; var < end_idx; var++) {
-                    switch (vars.types[var]) {
+                    switch (vars->types[var]) {
                         case TYPE_SUB: old_subs_cluster++; break;
-                        case TYPE_INS: old_inss_cluster += vars.alts[var].size(); break;
-                        case TYPE_DEL: old_dels_cluster += vars.refs[var].size(); break;
-                        default: ERROR("unexpected variant type (%i)", vars.types[var]) 
+                        case TYPE_INS: old_inss_cluster += vars->alts[var].size(); break;
+                        case TYPE_DEL: old_dels_cluster += vars->refs[var].size(); break;
+                        default: ERROR("unexpected variant type (%i)", vars->types[var]) 
                                  std::exit(1); break;
                     }
                 }
@@ -67,31 +68,31 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                 std::string alt_out_str = "";
                 std::string alt_str = "";
                 for (int ref_pos = beg; ref_pos < end;) {
-                    if (ref_pos == vars.poss[var]) { // in variant
-                        switch (vars.types[var]) {
+                    if (ref_pos == vars->poss[var]) { // in variant
+                        switch (vars->types[var]) {
                             case TYPE_INS:
-                                alt_str += vars.alts[var];
-                                alt_out_str += GREEN(vars.alts[var]);
-                                ref_out_str += std::string(vars.alts[var].size(), ' ');
+                                alt_str += vars->alts[var];
+                                alt_out_str += GREEN(vars->alts[var]);
+                                ref_out_str += std::string(vars->alts[var].size(), ' ');
                                 break;
                             case TYPE_DEL:
-                                alt_out_str += std::string(vars.refs[var].size(), ' ');
-                                ref_out_str += RED(vars.refs[var]);
-                                ref_pos += vars.refs[var].size();
+                                alt_out_str += std::string(vars->refs[var].size(), ' ');
+                                ref_out_str += RED(vars->refs[var]);
+                                ref_pos += vars->refs[var].size();
                                 break;
                             case TYPE_SUB:
-                                alt_str += vars.alts[var];
-                                alt_out_str += " " + GREEN(vars.alts[var]);
-                                ref_out_str += RED(vars.refs[var]) + " ";
+                                alt_str += vars->alts[var];
+                                alt_out_str += " " + GREEN(vars->alts[var]);
+                                ref_out_str += RED(vars->refs[var]) + " ";
                                 ref_pos++;
                                 break;
                             case TYPE_GRP:
-                                alt_str += vars.alts[var];
-                                alt_out_str += std::string(vars.refs[var].size(), ' ') 
-                                    + GREEN(vars.alts[var]);
-                                ref_out_str += RED(vars.refs[var]) + std::string(
-                                        vars.alts[var].size(), ' ');
-                                ref_pos += vars.refs[var].size();
+                                alt_str += vars->alts[var];
+                                alt_out_str += std::string(vars->refs[var].size(), ' ') 
+                                    + GREEN(vars->alts[var]);
+                                ref_out_str += RED(vars->refs[var]) + std::string(
+                                        vars->alts[var].size(), ' ');
+                                ref_pos += vars->refs[var].size();
                                 break;
                         }
                         var++; // next variant
@@ -281,7 +282,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
                         case PTR_SUB: // substitution
                             cig_idx += 2;
-                            results.hapcalls[h][ctg].add_var(beg+ref_idx, 1, h, 
+                            results.hapcalls[h][ctg]->add_var(beg+ref_idx, 1, h, 
                                     TYPE_SUB, std::string(1,ref_str[ref_idx]), 
                                     std::string(1,alt_str[alt_idx]), 60, 60);
                             ref_idx++;
@@ -295,7 +296,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                             while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) {
                                 cig_idx++; indel_len++;
                             }
-                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
+                            results.hapcalls[h][ctg]->add_var(beg+ref_idx,
                                     indel_len, h, TYPE_DEL, 
                                     ref_str.substr(ref_idx, indel_len),
                                     "", 60, 60);
@@ -309,7 +310,7 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
                             while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) {
                                 cig_idx++; indel_len++;
                             }
-                            results.hapcalls[h][ctg].add_var(beg+ref_idx,
+                            results.hapcalls[h][ctg]->add_var(beg+ref_idx,
                                     0, h, TYPE_INS, "", 
                                     alt_str.substr(alt_idx, indel_len), 60, 60);
                             alt_idx += indel_len;
@@ -331,24 +332,28 @@ vcfData edit_dist_realign(const vcfData* vcf, const fastaData* const ref) {
 
 /******************************************************************************/
 
-clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
+std::shared_ptr<clusterData> edit_dist(
+        std::unique_ptr<vcfData> & calls, 
+        std::unique_ptr<vcfData> & truth, 
+        std::shared_ptr<fastaData> ref) {
 
     // iterate over each contig
     int distance = 0;
-    clusterData clusters(calls->contigs);
+    std::shared_ptr<clusterData> clusters(new clusterData(calls->contigs));
     for (std::string ctg : calls->contigs) {
 
         // initialize variant call info
-        variantCalls* cal1_vars = &calls->hapcalls[0][ctg];
-        variantCalls* cal2_vars = &calls->hapcalls[1][ctg];
-        variantCalls* hap1_vars;
-        variantCalls* hap2_vars;
+        std::shared_ptr<variantCalls> cal1_vars = calls->hapcalls[0][ctg];
+        std::shared_ptr<variantCalls> cal2_vars = calls->hapcalls[1][ctg];
+        std::shared_ptr<variantCalls> hap1_vars;
+        std::shared_ptr<variantCalls> hap2_vars;
         try {
-            hap1_vars = &truth->hapcalls[0][ctg];
-            hap2_vars = &truth->hapcalls[1][ctg];
+            hap1_vars = truth->hapcalls[0][ctg];
+            hap2_vars = truth->hapcalls[1][ctg];
         } catch (const std::exception & e) {
             ERROR("truth VCF does not contain contig '%s'", ctg.data());
         }
+        clusters->clusters[ctg].set_variants(cal1_vars, cal2_vars, hap1_vars, hap2_vars);
 
         // for each cluster of variants (merge calls and truth haps)
         size_t cal1_clust_beg_idx = 0;
@@ -1126,11 +1131,11 @@ clusterData edit_dist(vcfData* calls, vcfData* truth, fastaData* ref) {
             if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
 
             // save alignment information
-            clusters.clusters[ctg].add(
-                    cal1_vars, cal1_clust_beg_idx, cal1_clust_end_idx,
-                    cal2_vars, cal2_clust_beg_idx, cal2_clust_end_idx,
-                    hap1_vars, hap1_clust_beg_idx, hap1_clust_end_idx,
-                    hap2_vars, hap2_clust_beg_idx, hap2_clust_end_idx,
+            clusters->clusters[ctg].add_supercluster(
+                    cal1_clust_beg_idx, cal1_clust_end_idx,
+                    cal2_clust_beg_idx, cal2_clust_end_idx,
+                    hap1_clust_beg_idx, hap1_clust_end_idx,
+                    hap2_clust_beg_idx, hap2_clust_end_idx,
                     beg_pos, end_pos,
                     phase, orig_phase_dist, swap_phase_dist);
 

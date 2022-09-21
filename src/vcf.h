@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 
 #include "htslib/vcf.h"
 
@@ -48,13 +49,14 @@ public:
     std::vector<std::string> alts;  // variant alternate allele (always one)
     std::vector<float> gt_quals;    // genotype quality (0-60)
     std::vector<float> var_quals;   // variant quality (0-60)
+    int n = 0;
 };
 
 class vcfData {
 public:
     // constructors
     vcfData();
-    vcfData(std::string vcf_fn, fastaData* reference);
+    vcfData(std::string vcf_fn, std::shared_ptr<fastaData> reference);
 
     // functions
     void write(std::string vcf_fn);
@@ -66,9 +68,9 @@ public:
     std::vector<std::string> contigs;
     std::vector<int> lengths;
     std::unordered_map<std::string, variantCalls> calls;
-    std::vector< std::unordered_map<std::string, variantCalls> > hapcalls;
+    std::vector< std::unordered_map<std::string, std::shared_ptr<variantCalls> > > hapcalls;
 
-    fastaData* ref;
+    std::shared_ptr<fastaData> ref;
 };
 
 #endif

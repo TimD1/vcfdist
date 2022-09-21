@@ -22,19 +22,24 @@ public:
     ctgClusters() {;}
 
     // add supercluster info
-    void add(
-           variantCalls* cal1_vars, int cal1_beg_idx, int cal1_end_idx, 
-           variantCalls* cal2_vars, int cal2_beg_idx, int cal2_end_idx, 
-           variantCalls* hap1_vars, int hap1_beg_idx, int hap1_end_idx, 
-           variantCalls* hap2_vars, int hap2_beg_idx, int hap2_end_idx, 
+    void set_variants(
+           std::shared_ptr<variantCalls> cal1_vars,
+           std::shared_ptr<variantCalls> cal2_vars,
+           std::shared_ptr<variantCalls> hap1_vars,
+           std::shared_ptr<variantCalls> hap2_vars);
+    void add_supercluster(
+           int cal1_beg_idx, int cal1_end_idx, 
+           int cal2_beg_idx, int cal2_end_idx, 
+           int hap1_beg_idx, int hap1_end_idx, 
+           int hap2_beg_idx, int hap2_end_idx, 
            int start, int end,
            int phase, int orig_phase_dist, int swap_phase_dist);
 
     // pointers to variant/cluster data
-    variantCalls* cal1_vars = nullptr; 
-    variantCalls* cal2_vars = nullptr; 
-    variantCalls* hap1_vars = nullptr;
-    variantCalls* hap2_vars = nullptr;
+    std::shared_ptr<variantCalls> cal1_vars = nullptr; 
+    std::shared_ptr<variantCalls> cal2_vars = nullptr; 
+    std::shared_ptr<variantCalls> hap1_vars = nullptr;
+    std::shared_ptr<variantCalls> hap2_vars = nullptr;
 
     // cluster indices of superclusters
     std::vector<int> cal1_beg_idx, cal1_end_idx, cal2_beg_idx, cal2_end_idx,
@@ -58,6 +63,6 @@ public:
     std::unordered_map<std::string, ctgClusters> clusters;
 };
 
-void cluster(vcfData* vcf);
+void cluster(std::unique_ptr<vcfData> & vcf);
 
 #endif

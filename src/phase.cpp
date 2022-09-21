@@ -5,7 +5,7 @@
 #include "print.h"
 #include "globals.h"
 
-phaseData::phaseData(clusterData* clusters)
+phaseData::phaseData(std::shared_ptr<clusterData> clusters)
 {
     // copy contigs
     for (auto ctg : clusters->contigs) {

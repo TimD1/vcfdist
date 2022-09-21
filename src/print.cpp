@@ -145,14 +145,16 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
 
 
 
-void write_results(const phaseData & phasings) {
+void write_results(std::unique_ptr<phaseData> & phasings) {
 
     // print phasing information
     std::string out_phasings_fn = g.out_prefix + "phasings.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
+    INFO(" ");
+    INFO("Printing phasing to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
-    for (auto & ctg_name : phasings.contigs) {
-        ctgPhasings ctg_phase = phasings.phasings[ctg_name];
+    for (auto ctg_name : phasings->contigs) {
+        ctgPhasings ctg_phase = phasings->phasings[ctg_name];
         int nblocks = ctg_phase.nswitches;
         ctgClusters* clusters = ctg_phase.clusters;
         for (int n = 0; n < nblocks-1; n++) {
@@ -164,13 +166,56 @@ void write_results(const phaseData & phasings) {
                     end, end-start);
         }
     }
+    fclose(out_phasings);
 
-    /* std::string out_calls_fn = g.out_prefix + "calls.tsv" */
-    /* FILE* out_calls = fopen(out_calls_fn.data(), "w"); */
-    /* fprintf(out_calls, "CONTIG\tPOS\tREF\tALT\tTYPE\tERRTYPE\tORIG_GT\tGT\tCLUSTER\tLOCATION\n"); */
-    /* for (auto & ctg : phasings->contigs) { */
-    /*     phasings.phasings[ctg].clusters */
-    /* } */
+    // print variant information
+    std::string out_calls_fn = g.out_prefix + "calls.tsv";
+    INFO("Printing calls to '%s'", out_calls_fn.data());
+    FILE* out_calls = fopen(out_calls_fn.data(), "w");
+    fprintf(out_calls, "CONTIG\tPOS\tREF\tALT\tTYPE\tERRTYPE\tORIG_GT\tGT\tCLUSTER\tLOCATION\n");
+    for (auto ctg_name : phasings->contigs) {
+
+        // nothing on this contig
+        /* if (phasings->phasings[ctg_name].clusters == nullptr) continue; */
+
+        std::shared_ptr<variantCalls> cal1_vars = phasings->phasings[ctg_name].clusters->cal1_vars;
+        std::shared_ptr<variantCalls> cal2_vars = phasings->phasings[ctg_name].clusters->cal2_vars;
+        int cal1_var_ptr = 0;
+        int cal2_var_ptr = 0;
+        while (cal1_var_ptr < cal1_vars->n || cal2_var_ptr < cal2_vars->n) {
+            if (cal2_var_ptr >= cal2_vars->n || // only cal1 has remaining vars
+                    cal1_vars->poss[cal1_var_ptr] < cal2_vars->poss[cal2_var_ptr]) { // cal1 var next
+                fprintf(out_calls, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+                        ctg_name.data(),
+                        cal1_vars->poss[cal1_var_ptr],
+                        cal1_vars->refs[cal1_var_ptr].data(),
+                        cal1_vars->alts[cal1_var_ptr].data(),
+                        type_strs[cal1_vars->types[cal1_var_ptr]].data(),
+                        "TODO",
+                        "TODO",
+                        "TODO",
+                        0,
+                        "TODO"
+                       );
+                cal1_var_ptr++;
+            } else { // process cal2 var
+                fprintf(out_calls, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+                        ctg_name.data(),
+                        cal2_vars->poss[cal2_var_ptr],
+                        cal2_vars->refs[cal2_var_ptr].data(),
+                        cal2_vars->alts[cal2_var_ptr].data(),
+                        type_strs[cal2_vars->types[cal2_var_ptr]].data(),
+                        "TODO",
+                        "TODO",
+                        "TODO",
+                        0,
+                        "TODO"
+                       );
+                cal2_var_ptr++;
+            }
+        }
+    }
+    fclose(out_calls);
 
     return;
 }

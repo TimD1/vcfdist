@@ -22,27 +22,27 @@ int main(int argc, char **argv) {
     g.parse_args(argc, argv);
 
     // parse reference fasta
-    fastaData ref(g.ref_fasta_fp);
+    std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
     // parse calls VCF, cluster variants, get min edit dist
-    vcfData calls(g.calls_vcf_fn, &ref);
-    cluster(&calls);
-    vcfData calls_min_ed = edit_dist_realign(&calls, &ref);
-    calls.write(g.out_prefix + "orig_calls.vcf");
+    std::unique_ptr<vcfData> calls_ptr(new vcfData(g.calls_vcf_fn, ref_ptr));
+    cluster(calls_ptr);
+    vcfData calls_min_ed = edit_dist_realign(calls_ptr, ref_ptr);
+    calls_ptr->write(g.out_prefix + "orig_calls.vcf");
     calls_min_ed.write(g.out_prefix + "calls.vcf");
 
     // parse ground truth VCF, cluster variants, get min edit dist
-    vcfData truth(g.truth_vcf_fn, &ref);
-    cluster(&truth);
-    vcfData truth_min_ed = edit_dist_realign(&truth, &ref);
-    truth.write(g.out_prefix + "orig_truth.vcf");
+    std::unique_ptr<vcfData> truth_ptr(new vcfData(g.truth_vcf_fn, ref_ptr));
+    cluster(truth_ptr);
+    vcfData truth_min_ed = edit_dist_realign(truth_ptr, ref_ptr);
+    truth_ptr->write(g.out_prefix + "orig_truth.vcf");
     truth_min_ed.write(g.out_prefix + "truth.vcf");
 
     // save per-cluster alignment info
-    clusterData clusters = edit_dist(&calls, &truth, &ref);
+    std::shared_ptr<clusterData> clusters_ptr = edit_dist(calls_ptr, truth_ptr, ref_ptr);
 
     // phase clusters
-    phaseData phasings(&clusters);
+    std::unique_ptr<phaseData> phasings(new phaseData(clusters_ptr));
 
     // store results in CSV format
     write_results(phasings);
