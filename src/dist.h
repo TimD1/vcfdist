@@ -34,9 +34,6 @@ variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_ptr);
 
-std::shared_ptr<clusterData> edit_dist(
-        std::unique_ptr<variantData> & calls, 
-        std::unique_ptr<variantData> & truth, 
-        std::shared_ptr<fastaData> ref_ptr);
+void  edit_dist(std::shared_ptr<clusterData> clusterdata_ptr);
 
 #endif

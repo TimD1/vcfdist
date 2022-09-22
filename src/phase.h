@@ -9,8 +9,6 @@
 
 class ctgPhasings {
 public:
-
-    // constructor
     ctgPhasings() {;}
 
     int n = 0;                       // number of superclusters
@@ -23,13 +21,10 @@ public:
 
 class phaseData {
 public:
-    //constructor
     phaseData(std::shared_ptr<clusterData> clusterdata_ptr); 
 
-    // member
     void phase();
 
-    // data
     std::vector<std::string> contigs;
     std::unordered_map<std::string, ctgPhasings> ctg_phasings;
 };

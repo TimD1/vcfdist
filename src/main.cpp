@@ -38,10 +38,13 @@ int main(int argc, char **argv) {
     truth_ptr->write(g.out_prefix + "orig_truth.vcf");
     truth_min_ed.write(g.out_prefix + "truth.vcf");
 
-    // save per-cluster alignment info
-    std::shared_ptr<clusterData> clusterdata_ptr = edit_dist(calls_ptr, truth_ptr, ref_ptr);
+    // calculate superclusters
+    std::shared_ptr<clusterData> clusterdata_ptr(new clusterData(calls_ptr, truth_ptr, ref_ptr));
 
-    // phase clusters
+    // calculate edit distance and local phasing
+    edit_dist(clusterdata_ptr);
+
+    // calculate global phasings
     std::unique_ptr<phaseData> phasedata_ptr(new phaseData(clusterdata_ptr));
 
     // store results in CSV format

@@ -7,6 +7,7 @@
 
 #include "dist.h"
 #include "print.h"
+#include "cluster.h"
 
 
 variantData edit_dist_realign(
@@ -330,179 +331,41 @@ variantData edit_dist_realign(
 
 }
 
+
 /******************************************************************************/
 
-std::shared_ptr<clusterData> edit_dist(
-        std::unique_ptr<variantData> & calls, 
-        std::unique_ptr<variantData> & truth, 
-        std::shared_ptr<fastaData> ref) {
 
-    // iterate over each contig
+void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
+
     int distance = 0;
-    std::shared_ptr<clusterData> clusterdata_ptr(new clusterData(calls->contigs));
-    for (std::string ctg : calls->contigs) {
+    for (std::string ctg : clusterdata_ptr->contigs) {
 
-        // initialize variant call info
-        std::shared_ptr<ctgVariants> calls1_vars = calls->ctg_variants[0][ctg];
-        std::shared_ptr<ctgVariants> calls2_vars = calls->ctg_variants[1][ctg];
-        std::shared_ptr<ctgVariants> truth1_vars;
-        std::shared_ptr<ctgVariants> truth2_vars;
-        try {
-            truth1_vars = truth->ctg_variants[0][ctg];
-            truth2_vars = truth->ctg_variants[1][ctg];
-        } catch (const std::exception & e) {
-            ERROR("truth VCF does not contain contig '%s'", ctg.data());
-        }
-        clusterdata_ptr->ctg_superclusters[ctg]->set_variants(
-                calls1_vars, calls2_vars, truth1_vars, truth2_vars);
+        // set variant pointers
+        std::shared_ptr<ctgVariants> calls1_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
+        std::shared_ptr<ctgVariants> calls2_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls2_vars;
+        std::shared_ptr<ctgVariants> truth1_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
+        std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
 
-        // for each cluster of variants (merge calls and truth haps)
-        size_t calls1_clust_beg_idx = 0;
-        size_t calls2_clust_beg_idx = 0;
-        size_t truth1_clust_beg_idx = 0;
-        size_t truth2_clust_beg_idx = 0;
-        while (calls1_clust_beg_idx < calls1_vars->clusters.size()-1 || // last cluster added for end
-               calls2_clust_beg_idx < calls2_vars->clusters.size()-1 ||
-               truth1_clust_beg_idx < truth1_vars->clusters.size()-1 ||
-               truth2_clust_beg_idx < truth2_vars->clusters.size()-1) {
+        // set superclusters pointer
+        std::shared_ptr<ctgClusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
 
-            // init: empty supercluster
-            size_t calls1_clust_end_idx = calls1_clust_beg_idx;
-            size_t calls2_clust_end_idx = calls2_clust_beg_idx;
-            size_t truth1_clust_end_idx = truth1_clust_beg_idx;
-            size_t truth2_clust_end_idx = truth2_clust_beg_idx;
+        // iterate over superclusters
+        for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
-            int calls1_pos = (calls1_clust_beg_idx < calls1_vars->clusters.size()-1) ? 
-                    calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            int calls2_pos = (calls2_clust_beg_idx < calls2_vars->clusters.size()-1) ? 
-                    calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            int truth1_pos = (truth1_clust_beg_idx < truth1_vars->clusters.size()-1) ? 
-                    truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            int truth2_pos = (truth2_clust_beg_idx < truth2_vars->clusters.size()-1) ? 
-                    truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-
-            // initialize cluster merging with first to start
-            int curr_end_pos = 0;
-            if (calls1_pos <= truth1_pos && calls1_pos <= calls2_pos && calls1_pos <= truth2_pos) {
-                calls1_clust_end_idx += 1;
-                curr_end_pos = calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] +
-                        calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1] + 1;
-                calls1_pos = (calls1_clust_end_idx < calls1_vars->clusters.size()-1) ? 
-                    calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            } 
-            else if (calls2_pos <= truth1_pos && calls2_pos <= calls1_pos && 
-                    calls2_pos <= truth2_pos) {
-                calls2_clust_end_idx += 1;
-                curr_end_pos = calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] +
-                        calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1] + 1;
-                calls2_pos = (calls2_clust_end_idx < calls2_vars->clusters.size()-1) ? 
-                    calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            } 
-            else if (truth1_pos <= calls1_pos && truth1_pos <= calls2_pos && 
-                    truth1_pos <= truth2_pos) {
-                truth1_clust_end_idx += 1;
-                curr_end_pos = truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] +
-                        truth1_vars->rlens[truth1_vars->clusters[truth1_clust_end_idx]-1] + 1;
-                truth1_pos = (truth1_clust_end_idx < truth1_vars->clusters.size()-1) ? 
-                    truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            } 
-            else {
-                truth2_clust_end_idx += 1;
-                curr_end_pos = truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] +
-                        truth2_vars->rlens[truth2_vars->clusters[truth2_clust_end_idx]-1] + 1;
-                truth2_pos = (truth2_clust_end_idx < truth2_vars->clusters.size()-1) ? 
-                    truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]]-1 : 
-                    std::numeric_limits<int>::max();
-            }
-
-
-            // keep expanding cluster while possible
-            bool just_merged = true;
-            while (just_merged) {
-                just_merged = false;
-                while (truth1_pos < curr_end_pos + g.gap) {
-                    truth1_clust_end_idx += 1;
-                    curr_end_pos = std::max(curr_end_pos,
-                            truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] + 
-                            truth1_vars->rlens[truth1_vars->clusters[truth1_clust_end_idx]-1] + 1);
-                    truth1_pos = (truth1_clust_end_idx < truth1_vars->clusters.size()-1) ? 
-                        truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
-                        std::numeric_limits<int>::max();
-                    just_merged = true;
-                }
-                while (truth2_pos < curr_end_pos + g.gap) {
-                    truth2_clust_end_idx += 1;
-                    curr_end_pos = std::max(curr_end_pos,
-                            truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] + 
-                            truth2_vars->rlens[truth2_vars->clusters[truth2_clust_end_idx]-1] + 1);
-                    truth2_pos = (truth2_clust_end_idx < truth2_vars->clusters.size()-1) ? 
-                        truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]]-1 : 
-                        std::numeric_limits<int>::max();
-                    just_merged = true;
-                }
-                while (calls1_pos < curr_end_pos + g.gap) {
-                    calls1_clust_end_idx += 1;
-                    curr_end_pos = std::max(curr_end_pos, 
-                            calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] + 
-                            calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1] + 1);
-                    calls1_pos = (calls1_clust_end_idx < calls1_vars->clusters.size()-1) ? 
-                        calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
-                        std::numeric_limits<int>::max();
-                    just_merged = true;
-                }
-                while (calls2_pos < curr_end_pos + g.gap) {
-                    calls2_clust_end_idx += 1;
-                    curr_end_pos = std::max(curr_end_pos,
-                            calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] + 
-                            calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1] + 1);
-                    calls2_pos = (calls2_clust_end_idx < calls2_vars->clusters.size()-1) ? 
-                        calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
-                        std::numeric_limits<int>::max();
-                    just_merged = true;
-                }
-            }
-
-            // get supercluster start/end positions (allowing empty haps)
-            int beg_pos = std::numeric_limits<int>::max();
-            int end_pos = -1;
-            if (calls1_clust_end_idx - calls1_clust_beg_idx) { // calls1 vars present
-                beg_pos = std::min(beg_pos, 
-                        calls1_vars->poss[calls1_vars->clusters[calls1_clust_beg_idx]]-1);
-                end_pos = std::max(end_pos, 
-                        calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] + 
-                        calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1]+1);
-            }
-            if (calls2_clust_end_idx - calls2_clust_beg_idx) { // calls2 vars present
-                beg_pos = std::min(beg_pos, 
-                        calls2_vars->poss[calls2_vars->clusters[calls2_clust_beg_idx]]-1);
-                end_pos = std::max(end_pos, 
-                        calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] + 
-                        calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1]+1);
-            }
-            if (truth1_clust_end_idx - truth1_clust_beg_idx) { // truth1 vars present
-                beg_pos = std::min(beg_pos, 
-                        truth1_vars->poss[truth1_vars->clusters[truth1_clust_beg_idx]]-1);
-                end_pos = std::max(end_pos, 
-                        truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] + 
-                        truth1_vars->rlens[truth1_vars->clusters[truth1_clust_end_idx]-1]+1);
-            }
-            if (truth2_clust_end_idx - truth2_clust_beg_idx) { // truth2 vars present
-                beg_pos = std::min(beg_pos, 
-                        truth2_vars->poss[truth2_vars->clusters[truth2_clust_beg_idx]]-1);
-                end_pos = std::max(end_pos, 
-                        truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] + 
-                        truth2_vars->rlens[truth2_vars->clusters[truth2_clust_end_idx]-1]+1);
-            }
+            // for this supercluster, set variant beginning/end indices and pos
+            size_t calls1_clust_beg_idx = sc->calls1_beg_idx[sc_idx];
+            size_t calls2_clust_beg_idx = sc->calls2_beg_idx[sc_idx];
+            size_t truth1_clust_beg_idx = sc->truth1_beg_idx[sc_idx];
+            size_t truth2_clust_beg_idx = sc->truth2_beg_idx[sc_idx];
+            size_t calls1_clust_end_idx = sc->calls1_end_idx[sc_idx];
+            size_t calls2_clust_end_idx = sc->calls2_end_idx[sc_idx];
+            size_t truth1_clust_end_idx = sc->truth1_end_idx[sc_idx];
+            size_t truth2_clust_end_idx = sc->truth2_end_idx[sc_idx];
+            int beg_pos = sc->begs[sc_idx];
+            int end_pos = sc->ends[sc_idx];
 
             // generate ref string
-            std::string ref_str = ref->fasta.at(ctg).substr(beg_pos, end_pos-beg_pos);
+            std::string ref_str = clusterdata_ptr->ref->fasta.at(ctg).substr(beg_pos, end_pos-beg_pos);
 
             // generate calls1 and calls2 strings and pointers
             int calls1_var_idx = calls1_vars->clusters[calls1_clust_beg_idx];
@@ -541,9 +404,9 @@ std::shared_ptr<clusterData> edit_dist(
                         calls1_var_idx++; // next variant
                     } else { // no calls1 variant, in calls2 variant
                         try {
-                            calls1 += ref->fasta.at(ctg)[calls1_ref_pos];
+                            calls1 += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
                             calls1_ptrs.push_back(-1);
-                            calls1_str += ref->fasta.at(ctg)[calls1_ref_pos];
+                            calls1_str += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
                             calls1_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -583,9 +446,9 @@ std::shared_ptr<clusterData> edit_dist(
                         calls2_var_idx++; // next variant
                     } else { // match
                         try {
-                            calls2 += ref->fasta.at(ctg)[calls2_ref_pos];
+                            calls2 += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
                             calls2_ptrs.push_back(-1);
-                            calls2_str += ref->fasta.at(ctg)[calls2_ref_pos];
+                            calls2_str += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
                             calls2_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -661,9 +524,9 @@ std::shared_ptr<clusterData> edit_dist(
                     // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
                     if (!calls1_var && calls2_var) {
                         try {
-                            calls1 += ref->fasta.at(ctg)[calls1_ref_pos];
+                            calls1 += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
                             calls1_ptrs.push_back(-1);
-                            calls1_str += ref->fasta.at(ctg)[calls1_ref_pos];
+                            calls1_str += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
                             calls1_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -673,9 +536,9 @@ std::shared_ptr<clusterData> edit_dist(
                     }
                     if (calls1_var && !calls2_var) {
                         try {
-                            calls2 += ref->fasta.at(ctg)[calls2_ref_pos];
+                            calls2 += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
                             calls2_ptrs.push_back(-1);
-                            calls2_str += ref->fasta.at(ctg)[calls2_ref_pos];
+                            calls2_str += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
                             calls2_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -689,11 +552,11 @@ std::shared_ptr<clusterData> edit_dist(
                         try {
                             calls1_ptrs.push_back(calls2.size());
                             calls2_ptrs.push_back(calls1.size());
-                            calls1 += ref->fasta.at(ctg)[calls1_ref_pos];
-                            calls1_str += BLUE(ref->fasta.at(ctg)[calls1_ref_pos]);
+                            calls1 += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
+                            calls1_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos]);
                             calls1_ref_pos++;
-                            calls2 += ref->fasta.at(ctg)[calls2_ref_pos];
-                            calls2_str += BLUE(ref->fasta.at(ctg)[calls2_ref_pos]);
+                            calls2 += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
+                            calls2_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos]);
                             calls2_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -741,9 +604,9 @@ std::shared_ptr<clusterData> edit_dist(
                         truth1_var_idx++; // next variant
                     } else { // no truth1 variant, in truth2 variant
                         try {
-                            truth1 += ref->fasta.at(ctg)[truth1_ref_pos];
+                            truth1 += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
                             truth1_ptrs.push_back(-1);
-                            truth1_str += ref->fasta.at(ctg)[truth1_ref_pos];
+                            truth1_str += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
                             truth1_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -783,9 +646,9 @@ std::shared_ptr<clusterData> edit_dist(
                         truth2_var_idx++; // next variant
                     } else { // match
                         try {
-                            truth2 += ref->fasta.at(ctg)[truth2_ref_pos];
+                            truth2 += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
                             truth2_ptrs.push_back(-1);
-                            truth2_str += ref->fasta.at(ctg)[truth2_ref_pos];
+                            truth2_str += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
                             truth2_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -861,9 +724,9 @@ std::shared_ptr<clusterData> edit_dist(
                     // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
                     if (!truth1_var && truth2_var) {
                         try {
-                            truth1 += ref->fasta.at(ctg)[truth1_ref_pos];
+                            truth1 += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
                             truth1_ptrs.push_back(-1);
-                            truth1_str += ref->fasta.at(ctg)[truth1_ref_pos];
+                            truth1_str += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
                             truth1_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -873,9 +736,9 @@ std::shared_ptr<clusterData> edit_dist(
                     }
                     if (truth1_var && !truth2_var) {
                         try {
-                            truth2 += ref->fasta.at(ctg)[truth2_ref_pos];
+                            truth2 += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
                             truth2_ptrs.push_back(-1);
-                            truth2_str += ref->fasta.at(ctg)[truth2_ref_pos];
+                            truth2_str += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
                             truth2_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -889,11 +752,11 @@ std::shared_ptr<clusterData> edit_dist(
                         try {
                             truth1_ptrs.push_back(truth2.size());
                             truth2_ptrs.push_back(truth1.size());
-                            truth1 += ref->fasta.at(ctg)[truth1_ref_pos];
-                            truth1_str += BLUE(ref->fasta.at(ctg)[truth1_ref_pos]);
+                            truth1 += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
+                            truth1_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos]);
                             truth1_ref_pos++;
-                            truth2 += ref->fasta.at(ctg)[truth2_ref_pos];
-                            truth2_str += BLUE(ref->fasta.at(ctg)[truth2_ref_pos]);
+                            truth2 += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
+                            truth2_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos]);
                             truth2_ref_pos++;
                         } catch (const std::out_of_range & e) {
                             ERROR("contig %s not present in reference FASTA",
@@ -1132,24 +995,11 @@ std::shared_ptr<clusterData> edit_dist(
             if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
 
             // save alignment information
-            clusterdata_ptr->ctg_superclusters[ctg]->add_supercluster(
-                    calls1_clust_beg_idx, calls1_clust_end_idx,
-                    calls2_clust_beg_idx, calls2_clust_end_idx,
-                    truth1_clust_beg_idx, truth1_clust_end_idx,
-                    truth2_clust_beg_idx, truth2_clust_end_idx,
-                    beg_pos, end_pos,
+            clusterdata_ptr->ctg_superclusters[ctg]->add_phasing(
                     phase, orig_phase_dist, swap_phase_dist);
-
-            // reset for next merged cluster
-            calls1_clust_beg_idx = calls1_clust_end_idx;
-            calls2_clust_beg_idx = calls2_clust_end_idx;
-            truth1_clust_beg_idx = truth1_clust_end_idx;
-            truth2_clust_beg_idx = truth2_clust_end_idx;
             distance += std::min(orig_phase_dist, swap_phase_dist);
 
         } // each cluster
     } // each contig
     INFO("Total edit distance: %d", distance);
-
-    return clusterdata_ptr;
 }
