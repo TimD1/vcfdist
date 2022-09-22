@@ -30,6 +30,16 @@
 #define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
 #define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
 
+void generate_ptrs_strs(
+        std::string & hap1, std::string & hap2,          // actual strings 
+        std::string & hap1_str, std::string & hap2_str,  // colored debug strs
+        std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
+        std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
+        size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
+        size_t hap1_clust_end_idx, size_t hap2_clust_end_idx,
+        int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
+        );
+
 variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_ptr);

@@ -335,6 +335,220 @@ variantData edit_dist_realign(
 /******************************************************************************/
 
 
+void generate_ptrs_strs(
+        std::string & hap1, std::string & hap2,          // actual strings 
+        std::string & hap1_str, std::string & hap2_str,  // colored debug strs
+        std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
+        std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
+        size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
+        size_t hap1_clust_end_idx, size_t hap2_clust_end_idx,
+        int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
+        ) {
+
+    // generate hap1 and hap2 strings and pointers
+    int hap1_var_idx = hap1_vars->clusters[hap1_clust_beg_idx];
+    int hap2_var_idx = hap2_vars->clusters[hap2_clust_beg_idx];
+    for (int hap1_ref_pos = beg_pos, hap2_ref_pos = beg_pos; 
+            hap1_ref_pos < end_pos || hap2_ref_pos < end_pos; ) {
+
+        // CONSIDER TRUTH1 ONLY, PRIOR REFERENCE POSITION
+        if (hap1_ref_pos < hap2_ref_pos) {
+            if (hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
+                switch (hap1_vars->types[hap1_var_idx]) {
+                    case TYPE_INS:
+                        hap1 += hap1_vars->alts[hap1_var_idx];
+                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
+                        break;
+                    case TYPE_DEL:
+                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ');
+                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                        break;
+                    case TYPE_SUB:
+                        hap1 += hap1_vars->alts[hap1_var_idx];
+                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
+                        hap1_ref_pos++;
+                        break;
+                    case TYPE_GRP:
+                        hap1 += hap1_vars->alts[hap1_var_idx];
+                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ') 
+                            + GREEN(hap1_vars->alts[hap1_var_idx]);
+                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                        break;
+                }
+                hap1_var_idx++; // next variant
+            } else { // no hap1 variant, in hap2 variant
+                try {
+                    hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
+                    hap1_ptrs.push_back(-1);
+                    hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
+                    hap1_ref_pos++;
+                } catch (const std::out_of_range & e) {
+                    ERROR("contig %s not present in reference FASTA",
+                            ctg.data());
+                    exit(1);
+                }
+            }
+        }
+
+        // CONSIDER TRUTH2 ONLY, PRIOR REFERENCE POSITION
+        else if (hap2_ref_pos < hap1_ref_pos) {
+            if (hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
+                switch (hap2_vars->types[hap2_var_idx]) {
+                    case TYPE_INS:
+                        hap2 += hap2_vars->alts[hap2_var_idx];
+                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
+                        break;
+                    case TYPE_DEL:
+                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ');
+                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                        break;
+                    case TYPE_SUB:
+                        hap2 += hap2_vars->alts[hap2_var_idx];
+                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
+                        hap2_ref_pos++;
+                        break;
+                    case TYPE_GRP:
+                        hap2 += hap2_vars->alts[hap2_var_idx];
+                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ') 
+                            + GREEN(hap2_vars->alts[hap2_var_idx]);
+                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                        break;
+                }
+                hap2_var_idx++; // next variant
+            } else { // match
+                try {
+                    hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
+                    hap2_ptrs.push_back(-1);
+                    hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
+                    hap2_ref_pos++;
+                } catch (const std::out_of_range & e) {
+                    ERROR("contig %s not present in reference FASTA",
+                            ctg.data());
+                    exit(1);
+                }
+            }
+        }
+
+        // REFERENCE POSITIONS MATCH! POTENTIAL TRANSITIONS
+        else {
+            bool hap1_var = false;
+            if (hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
+                hap1_var = true;
+                switch (hap1_vars->types[hap1_var_idx]) {
+                    case TYPE_INS:
+                        hap1 += hap1_vars->alts[hap1_var_idx];
+                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
+                        break;
+                    case TYPE_DEL:
+                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ');
+                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                        break;
+                    case TYPE_SUB:
+                        hap1 += hap1_vars->alts[hap1_var_idx];
+                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
+                        hap1_ref_pos++;
+                        break;
+                    case TYPE_GRP:
+                        hap1 += hap1_vars->alts[hap1_var_idx];
+                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ') 
+                            + GREEN(hap1_vars->alts[hap1_var_idx]);
+                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
+                        break;
+                }
+                hap1_var_idx++; // next variant
+            } 
+
+            bool hap2_var = false;
+            if (hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
+                hap2_var = true;
+                switch (hap2_vars->types[hap2_var_idx]) {
+                    case TYPE_INS:
+                        hap2 += hap2_vars->alts[hap2_var_idx];
+                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
+                        break;
+                    case TYPE_DEL:
+                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ');
+                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                        break;
+                    case TYPE_SUB:
+                        hap2 += hap2_vars->alts[hap2_var_idx];
+                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
+                        hap2_ref_pos++;
+                        break;
+                    case TYPE_GRP:
+                        hap2 += hap2_vars->alts[hap2_var_idx];
+                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ') 
+                            + GREEN(hap2_vars->alts[hap2_var_idx]);
+                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
+                        break;
+                }
+                hap2_var_idx++; // next variant
+
+            } 
+            
+            // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
+            if (!hap1_var && hap2_var) {
+                try {
+                    hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
+                    hap1_ptrs.push_back(-1);
+                    hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
+                    hap1_ref_pos++;
+                } catch (const std::out_of_range & e) {
+                    ERROR("Contig '%s' not present in reference FASTA",
+                            ctg.data());
+                    exit(1);
+                }
+            }
+            if (hap1_var && !hap2_var) {
+                try {
+                    hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
+                    hap2_ptrs.push_back(-1);
+                    hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
+                    hap2_ref_pos++;
+                } catch (const std::out_of_range & e) {
+                    ERROR("Contig '%s' not present in reference FASTA",
+                            ctg.data());
+                    exit(1);
+                }
+            }
+
+            // BOTH MATCH REFERENCE, ADD POINTERS
+            if (!hap1_var && !hap2_var) { // add pointers
+                try {
+                    hap1_ptrs.push_back(hap2.size());
+                    hap2_ptrs.push_back(hap1.size());
+                    hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
+                    hap1_str += BLUE(ref->fasta.at(ctg)[hap1_ref_pos]);
+                    hap1_ref_pos++;
+                    hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
+                    hap2_str += BLUE(ref->fasta.at(ctg)[hap2_ref_pos]);
+                    hap2_ref_pos++;
+                } catch (const std::out_of_range & e) {
+                    ERROR("Contig '%s' not present in reference FASTA",
+                            ctg.data());
+                    exit(1);
+                }
+            }
+        }
+    }
+}
+
+
+/******************************************************************************/
+
+
 void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
 
     int distance = 0;
@@ -352,420 +566,25 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
-            // for this supercluster, set variant beginning/end indices and pos
-            size_t calls1_clust_beg_idx = sc->calls1_beg_idx[sc_idx];
-            size_t calls2_clust_beg_idx = sc->calls2_beg_idx[sc_idx];
-            size_t truth1_clust_beg_idx = sc->truth1_beg_idx[sc_idx];
-            size_t truth2_clust_beg_idx = sc->truth2_beg_idx[sc_idx];
-            size_t calls1_clust_end_idx = sc->calls1_end_idx[sc_idx];
-            size_t calls2_clust_end_idx = sc->calls2_end_idx[sc_idx];
-            size_t truth1_clust_end_idx = sc->truth1_end_idx[sc_idx];
-            size_t truth2_clust_end_idx = sc->truth2_end_idx[sc_idx];
-            int beg_pos = sc->begs[sc_idx];
-            int end_pos = sc->ends[sc_idx];
-
-            // generate ref string
-            std::string ref_str = clusterdata_ptr->ref->fasta.at(ctg).substr(beg_pos, end_pos-beg_pos);
-
-            // generate calls1 and calls2 strings and pointers
-            int calls1_var_idx = calls1_vars->clusters[calls1_clust_beg_idx];
-            int calls2_var_idx = calls2_vars->clusters[calls2_clust_beg_idx];
             std::string calls1 = "", calls2 = "", calls1_str = "", calls2_str = ""; 
             std::vector<int> calls1_ptrs, calls2_ptrs;
-            for (int calls1_ref_pos = beg_pos, calls2_ref_pos = beg_pos; calls1_ref_pos < end_pos || calls2_ref_pos < end_pos; ) {
+            generate_ptrs_strs(
+                    calls1, calls2, calls1_str, calls2_str, 
+                    calls1_ptrs, calls2_ptrs, calls1_vars, calls2_vars,
+                    sc->calls1_beg_idx[sc_idx], sc->calls2_beg_idx[sc_idx],
+                    sc->calls1_end_idx[sc_idx], sc->calls2_end_idx[sc_idx],
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
 
-                // CONSIDER TRUTH1 ONLY, PRIOR REFERENCE POSITION
-                if (calls1_ref_pos < calls2_ref_pos) {
-                    if (calls1_ref_pos == calls1_vars->poss[calls1_var_idx]) { // in calls1 variant
-                        switch (calls1_vars->types[calls1_var_idx]) {
-                            case TYPE_INS:
-                                calls1 += calls1_vars->alts[calls1_var_idx];
-                                calls1_ptrs.insert(calls1_ptrs.end(), calls1_vars->alts[calls1_var_idx].size(), -1);
-                                calls1_str += GREEN(calls1_vars->alts[calls1_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                calls1_str += std::string(calls1_vars->refs[calls1_var_idx].size(), ' ');
-                                calls1_ref_pos += calls1_vars->refs[calls1_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                calls1 += calls1_vars->alts[calls1_var_idx];
-                                calls1_ptrs.insert(calls1_ptrs.end(), calls1_vars->alts[calls1_var_idx].size(), -1);
-                                calls1_str += GREEN(calls1_vars->alts[calls1_var_idx]);
-                                calls1_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                calls1 += calls1_vars->alts[calls1_var_idx];
-                                calls1_ptrs.insert(calls1_ptrs.end(), calls1_vars->alts[calls1_var_idx].size(), -1);
-                                calls1_str += std::string(calls1_vars->refs[calls1_var_idx].size(), ' ') 
-                                    + GREEN(calls1_vars->alts[calls1_var_idx]);
-                                calls1_ref_pos += calls1_vars->refs[calls1_var_idx].size();
-                                break;
-                        }
-                        calls1_var_idx++; // next variant
-                    } else { // no calls1 variant, in calls2 variant
-                        try {
-                            calls1 += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
-                            calls1_ptrs.push_back(-1);
-                            calls1_str += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
-                            calls1_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                }
-
-                // CONSIDER TRUTH2 ONLY, PRIOR REFERENCE POSITION
-                else if (calls2_ref_pos < calls1_ref_pos) {
-                    if (calls2_ref_pos == calls2_vars->poss[calls2_var_idx]) { // in calls2 variant
-                        switch (calls2_vars->types[calls2_var_idx]) {
-                            case TYPE_INS:
-                                calls2 += calls2_vars->alts[calls2_var_idx];
-                                calls2_ptrs.insert(calls2_ptrs.end(), calls2_vars->alts[calls2_var_idx].size(), -1);
-                                calls2_str += GREEN(calls2_vars->alts[calls2_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                calls2_str += std::string(calls2_vars->refs[calls2_var_idx].size(), ' ');
-                                calls2_ref_pos += calls2_vars->refs[calls2_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                calls2 += calls2_vars->alts[calls2_var_idx];
-                                calls2_ptrs.insert(calls2_ptrs.end(), calls2_vars->alts[calls2_var_idx].size(), -1);
-                                calls2_str += GREEN(calls2_vars->alts[calls2_var_idx]);
-                                calls2_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                calls2 += calls2_vars->alts[calls2_var_idx];
-                                calls2_ptrs.insert(calls2_ptrs.end(), calls2_vars->alts[calls2_var_idx].size(), -1);
-                                calls2_str += std::string(calls2_vars->refs[calls2_var_idx].size(), ' ') 
-                                    + GREEN(calls2_vars->alts[calls2_var_idx]);
-                                calls2_ref_pos += calls2_vars->refs[calls2_var_idx].size();
-                                break;
-                        }
-                        calls2_var_idx++; // next variant
-                    } else { // match
-                        try {
-                            calls2 += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
-                            calls2_ptrs.push_back(-1);
-                            calls2_str += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
-                            calls2_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                }
-
-                // REFERENCE POSITIONS MATCH! POTENTIAL TRANSITIONS
-                else {
-                    bool calls1_var = false;
-                    if (calls1_ref_pos == calls1_vars->poss[calls1_var_idx]) { // in calls1 variant
-                        calls1_var = true;
-                        switch (calls1_vars->types[calls1_var_idx]) {
-                            case TYPE_INS:
-                                calls1 += calls1_vars->alts[calls1_var_idx];
-                                calls1_ptrs.insert(calls1_ptrs.end(), calls1_vars->alts[calls1_var_idx].size(), -1);
-                                calls1_str += GREEN(calls1_vars->alts[calls1_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                calls1_str += std::string(calls1_vars->refs[calls1_var_idx].size(), ' ');
-                                calls1_ref_pos += calls1_vars->refs[calls1_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                calls1 += calls1_vars->alts[calls1_var_idx];
-                                calls1_ptrs.insert(calls1_ptrs.end(), calls1_vars->alts[calls1_var_idx].size(), -1);
-                                calls1_str += GREEN(calls1_vars->alts[calls1_var_idx]);
-                                calls1_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                calls1 += calls1_vars->alts[calls1_var_idx];
-                                calls1_ptrs.insert(calls1_ptrs.end(), calls1_vars->alts[calls1_var_idx].size(), -1);
-                                calls1_str += std::string(calls1_vars->refs[calls1_var_idx].size(), ' ') 
-                                    + GREEN(calls1_vars->alts[calls1_var_idx]);
-                                calls1_ref_pos += calls1_vars->refs[calls1_var_idx].size();
-                                break;
-                        }
-                        calls1_var_idx++; // next variant
-                    } 
-
-                    bool calls2_var = false;
-                    if (calls2_ref_pos == calls2_vars->poss[calls2_var_idx]) { // in calls2 variant
-                        calls2_var = true;
-                        switch (calls2_vars->types[calls2_var_idx]) {
-                            case TYPE_INS:
-                                calls2 += calls2_vars->alts[calls2_var_idx];
-                                calls2_ptrs.insert(calls2_ptrs.end(), calls2_vars->alts[calls2_var_idx].size(), -1);
-                                calls2_str += GREEN(calls2_vars->alts[calls2_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                calls2_str += std::string(calls2_vars->refs[calls2_var_idx].size(), ' ');
-                                calls2_ref_pos += calls2_vars->refs[calls2_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                calls2 += calls2_vars->alts[calls2_var_idx];
-                                calls2_ptrs.insert(calls2_ptrs.end(), calls2_vars->alts[calls2_var_idx].size(), -1);
-                                calls2_str += GREEN(calls2_vars->alts[calls2_var_idx]);
-                                calls2_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                calls2 += calls2_vars->alts[calls2_var_idx];
-                                calls2_ptrs.insert(calls2_ptrs.end(), calls2_vars->alts[calls2_var_idx].size(), -1);
-                                calls2_str += std::string(calls2_vars->refs[calls2_var_idx].size(), ' ') 
-                                    + GREEN(calls2_vars->alts[calls2_var_idx]);
-                                calls2_ref_pos += calls2_vars->refs[calls2_var_idx].size();
-                                break;
-                        }
-                        calls2_var_idx++; // next variant
-
-                    } 
-                    
-                    // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
-                    if (!calls1_var && calls2_var) {
-                        try {
-                            calls1 += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
-                            calls1_ptrs.push_back(-1);
-                            calls1_str += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
-                            calls1_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                    if (calls1_var && !calls2_var) {
-                        try {
-                            calls2 += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
-                            calls2_ptrs.push_back(-1);
-                            calls2_str += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
-                            calls2_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-
-                    // BOTH MATCH REFERENCE, ADD POINTERS
-                    if (!calls1_var && !calls2_var) { // add pointers
-                        try {
-                            calls1_ptrs.push_back(calls2.size());
-                            calls2_ptrs.push_back(calls1.size());
-                            calls1 += clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos];
-                            calls1_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[calls1_ref_pos]);
-                            calls1_ref_pos++;
-                            calls2 += clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos];
-                            calls2_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[calls2_ref_pos]);
-                            calls2_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                }
-            }
-
-            // generate truth1 and truth2 strings and pointers
-            int truth1_var_idx = truth1_vars->clusters[truth1_clust_beg_idx];
-            int truth2_var_idx = truth2_vars->clusters[truth2_clust_beg_idx];
             std::string truth1 = "", truth2 = "", truth1_str = "", truth2_str = ""; 
             std::vector<int> truth1_ptrs, truth2_ptrs;
-            for (int truth1_ref_pos = beg_pos, truth2_ref_pos = beg_pos; truth1_ref_pos < end_pos || truth2_ref_pos < end_pos; ) {
-
-                // CONSIDER TRUTH1 ONLY, PRIOR REFERENCE POSITION
-                if (truth1_ref_pos < truth2_ref_pos) {
-                    if (truth1_ref_pos == truth1_vars->poss[truth1_var_idx]) { // in truth1 variant
-                        switch (truth1_vars->types[truth1_var_idx]) {
-                            case TYPE_INS:
-                                truth1 += truth1_vars->alts[truth1_var_idx];
-                                truth1_ptrs.insert(truth1_ptrs.end(), truth1_vars->alts[truth1_var_idx].size(), -1);
-                                truth1_str += GREEN(truth1_vars->alts[truth1_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                truth1_str += std::string(truth1_vars->refs[truth1_var_idx].size(), ' ');
-                                truth1_ref_pos += truth1_vars->refs[truth1_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                truth1 += truth1_vars->alts[truth1_var_idx];
-                                truth1_ptrs.insert(truth1_ptrs.end(), truth1_vars->alts[truth1_var_idx].size(), -1);
-                                truth1_str += GREEN(truth1_vars->alts[truth1_var_idx]);
-                                truth1_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                truth1 += truth1_vars->alts[truth1_var_idx];
-                                truth1_ptrs.insert(truth1_ptrs.end(), truth1_vars->alts[truth1_var_idx].size(), -1);
-                                truth1_str += std::string(truth1_vars->refs[truth1_var_idx].size(), ' ') 
-                                    + GREEN(truth1_vars->alts[truth1_var_idx]);
-                                truth1_ref_pos += truth1_vars->refs[truth1_var_idx].size();
-                                break;
-                        }
-                        truth1_var_idx++; // next variant
-                    } else { // no truth1 variant, in truth2 variant
-                        try {
-                            truth1 += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
-                            truth1_ptrs.push_back(-1);
-                            truth1_str += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
-                            truth1_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                }
-
-                // CONSIDER TRUTH2 ONLY, PRIOR REFERENCE POSITION
-                else if (truth2_ref_pos < truth1_ref_pos) {
-                    if (truth2_ref_pos == truth2_vars->poss[truth2_var_idx]) { // in truth2 variant
-                        switch (truth2_vars->types[truth2_var_idx]) {
-                            case TYPE_INS:
-                                truth2 += truth2_vars->alts[truth2_var_idx];
-                                truth2_ptrs.insert(truth2_ptrs.end(), truth2_vars->alts[truth2_var_idx].size(), -1);
-                                truth2_str += GREEN(truth2_vars->alts[truth2_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                truth2_str += std::string(truth2_vars->refs[truth2_var_idx].size(), ' ');
-                                truth2_ref_pos += truth2_vars->refs[truth2_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                truth2 += truth2_vars->alts[truth2_var_idx];
-                                truth2_ptrs.insert(truth2_ptrs.end(), truth2_vars->alts[truth2_var_idx].size(), -1);
-                                truth2_str += GREEN(truth2_vars->alts[truth2_var_idx]);
-                                truth2_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                truth2 += truth2_vars->alts[truth2_var_idx];
-                                truth2_ptrs.insert(truth2_ptrs.end(), truth2_vars->alts[truth2_var_idx].size(), -1);
-                                truth2_str += std::string(truth2_vars->refs[truth2_var_idx].size(), ' ') 
-                                    + GREEN(truth2_vars->alts[truth2_var_idx]);
-                                truth2_ref_pos += truth2_vars->refs[truth2_var_idx].size();
-                                break;
-                        }
-                        truth2_var_idx++; // next variant
-                    } else { // match
-                        try {
-                            truth2 += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
-                            truth2_ptrs.push_back(-1);
-                            truth2_str += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
-                            truth2_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                }
-
-                // REFERENCE POSITIONS MATCH! POTENTIAL TRANSITIONS
-                else {
-                    bool truth1_var = false;
-                    if (truth1_ref_pos == truth1_vars->poss[truth1_var_idx]) { // in truth1 variant
-                        truth1_var = true;
-                        switch (truth1_vars->types[truth1_var_idx]) {
-                            case TYPE_INS:
-                                truth1 += truth1_vars->alts[truth1_var_idx];
-                                truth1_ptrs.insert(truth1_ptrs.end(), truth1_vars->alts[truth1_var_idx].size(), -1);
-                                truth1_str += GREEN(truth1_vars->alts[truth1_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                truth1_str += std::string(truth1_vars->refs[truth1_var_idx].size(), ' ');
-                                truth1_ref_pos += truth1_vars->refs[truth1_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                truth1 += truth1_vars->alts[truth1_var_idx];
-                                truth1_ptrs.insert(truth1_ptrs.end(), truth1_vars->alts[truth1_var_idx].size(), -1);
-                                truth1_str += GREEN(truth1_vars->alts[truth1_var_idx]);
-                                truth1_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                truth1 += truth1_vars->alts[truth1_var_idx];
-                                truth1_ptrs.insert(truth1_ptrs.end(), truth1_vars->alts[truth1_var_idx].size(), -1);
-                                truth1_str += std::string(truth1_vars->refs[truth1_var_idx].size(), ' ') 
-                                    + GREEN(truth1_vars->alts[truth1_var_idx]);
-                                truth1_ref_pos += truth1_vars->refs[truth1_var_idx].size();
-                                break;
-                        }
-                        truth1_var_idx++; // next variant
-                    } 
-
-                    bool truth2_var = false;
-                    if (truth2_ref_pos == truth2_vars->poss[truth2_var_idx]) { // in truth2 variant
-                        truth2_var = true;
-                        switch (truth2_vars->types[truth2_var_idx]) {
-                            case TYPE_INS:
-                                truth2 += truth2_vars->alts[truth2_var_idx];
-                                truth2_ptrs.insert(truth2_ptrs.end(), truth2_vars->alts[truth2_var_idx].size(), -1);
-                                truth2_str += GREEN(truth2_vars->alts[truth2_var_idx]);
-                                break;
-                            case TYPE_DEL:
-                                truth2_str += std::string(truth2_vars->refs[truth2_var_idx].size(), ' ');
-                                truth2_ref_pos += truth2_vars->refs[truth2_var_idx].size();
-                                break;
-                            case TYPE_SUB:
-                                truth2 += truth2_vars->alts[truth2_var_idx];
-                                truth2_ptrs.insert(truth2_ptrs.end(), truth2_vars->alts[truth2_var_idx].size(), -1);
-                                truth2_str += GREEN(truth2_vars->alts[truth2_var_idx]);
-                                truth2_ref_pos++;
-                                break;
-                            case TYPE_GRP:
-                                truth2 += truth2_vars->alts[truth2_var_idx];
-                                truth2_ptrs.insert(truth2_ptrs.end(), truth2_vars->alts[truth2_var_idx].size(), -1);
-                                truth2_str += std::string(truth2_vars->refs[truth2_var_idx].size(), ' ') 
-                                    + GREEN(truth2_vars->alts[truth2_var_idx]);
-                                truth2_ref_pos += truth2_vars->refs[truth2_var_idx].size();
-                                break;
-                        }
-                        truth2_var_idx++; // next variant
-
-                    } 
-                    
-                    // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
-                    if (!truth1_var && truth2_var) {
-                        try {
-                            truth1 += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
-                            truth1_ptrs.push_back(-1);
-                            truth1_str += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
-                            truth1_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                    if (truth1_var && !truth2_var) {
-                        try {
-                            truth2 += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
-                            truth2_ptrs.push_back(-1);
-                            truth2_str += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
-                            truth2_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-
-                    // BOTH MATCH REFERENCE, ADD POINTERS
-                    if (!truth1_var && !truth2_var) { // add pointers
-                        try {
-                            truth1_ptrs.push_back(truth2.size());
-                            truth2_ptrs.push_back(truth1.size());
-                            truth1 += clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos];
-                            truth1_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[truth1_ref_pos]);
-                            truth1_ref_pos++;
-                            truth2 += clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos];
-                            truth2_str += BLUE(clusterdata_ptr->ref->fasta.at(ctg)[truth2_ref_pos]);
-                            truth2_ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
-                                    ctg.data());
-                            exit(1);
-                        }
-                    }
-                }
-            }
+            generate_ptrs_strs(
+                    truth1, truth2, truth1_str, truth2_str, 
+                    truth1_ptrs, truth2_ptrs, truth1_vars, truth2_vars,
+                    sc->truth1_beg_idx[sc_idx], sc->truth2_beg_idx[sc_idx],
+                    sc->truth1_end_idx[sc_idx], sc->truth2_end_idx[sc_idx],
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
 
             // ALIGNMENT
             std::vector<int> s(4);
@@ -859,43 +678,47 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
                     s[CALLS2_TRUTH1]+s[CALLS1_TRUTH2]);
             if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
-                printf("\n\nCALLS1: %zu clusters\n", calls1_clust_end_idx-calls1_clust_beg_idx);
-                for(size_t i = calls1_clust_beg_idx; i < calls1_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, calls1_vars->clusters[i+1]-calls1_vars->clusters[i]);
+                printf("\n\nCALLS1: %d clusters\n", sc->calls1_end_idx[sc_idx] - sc->calls1_beg_idx[sc_idx]);
+                for(int i = sc->calls1_beg_idx[sc_idx]; i < sc->calls1_end_idx[sc_idx]; i++) {
+                    printf("\tGroup %d: %d variants\n", i, calls1_vars->clusters[i+1]-calls1_vars->clusters[i]);
                     for(int j = calls1_vars->clusters[i]; j < calls1_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), calls1_vars->poss[j], 
                                 calls1_vars->refs[j].size() ? calls1_vars->refs[j].data() : "_", 
                                 calls1_vars->alts[j].size() ? calls1_vars->alts[j].data() : "_");
                     }
                 }
-                printf("CALLS2: %zu clusters\n", calls2_clust_end_idx-calls2_clust_beg_idx);
-                for(size_t i = calls2_clust_beg_idx; i < calls2_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, calls2_vars->clusters[i+1]-calls2_vars->clusters[i]);
+                printf("CALLS2: %d clusters\n", sc->calls2_end_idx[sc_idx] - sc->calls2_beg_idx[sc_idx]);
+                for(int i = sc->calls2_beg_idx[sc_idx]; i < sc->calls2_end_idx[sc_idx]; i++) {
+                    printf("\tGroup %d: %d variants\n", i, calls2_vars->clusters[i+1]-calls2_vars->clusters[i]);
                     for(int j = calls2_vars->clusters[i]; j < calls2_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), calls2_vars->poss[j], 
                                 calls2_vars->refs[j].size() ? calls2_vars->refs[j].data() : "_", 
                                 calls2_vars->alts[j].size() ? calls2_vars->alts[j].data() : "_");
                     }
                 }
-                printf("TRUTH1: %zu clusters\n", truth1_clust_end_idx-truth1_clust_beg_idx);
-                for(size_t i = truth1_clust_beg_idx; i < truth1_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, truth1_vars->clusters[i+1]-truth1_vars->clusters[i]);
+                printf("TRUTH1: %d clusters\n", sc->truth1_end_idx[sc_idx] - sc->truth1_beg_idx[sc_idx]);
+                for(int i = sc->truth1_beg_idx[sc_idx]; i < sc->truth1_end_idx[sc_idx]; i++) {
+                    printf("\tGroup %d: %d variants\n", i, truth1_vars->clusters[i+1]-truth1_vars->clusters[i]);
                     for(int j = truth1_vars->clusters[i]; j < truth1_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), truth1_vars->poss[j], 
                                 truth1_vars->refs[j].size() ? truth1_vars->refs[j].data() : "_", 
                                 truth1_vars->alts[j].size() ? truth1_vars->alts[j].data() : "_");
                     }
                 }
-                printf("TRUTH2: %zu clusters\n", truth2_clust_end_idx-truth2_clust_beg_idx);
-                for(size_t i = truth2_clust_beg_idx; i < truth2_clust_end_idx; i++) {
-                    printf("\tGroup %zu: %d variants\n", i, truth2_vars->clusters[i+1]-truth2_vars->clusters[i]);
+                printf("TRUTH2: %d clusters\n", sc->truth2_end_idx[sc_idx] - sc->truth2_beg_idx[sc_idx]);
+                for(int i = sc->truth2_beg_idx[sc_idx]; i < sc->truth2_end_idx[sc_idx]; i++) {
+                    printf("\tGroup %d: %d variants\n", i, truth2_vars->clusters[i+1]-truth2_vars->clusters[i]);
                     for(int j = truth2_vars->clusters[i]; j < truth2_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), truth2_vars->poss[j], 
                                 truth2_vars->refs[j].size() ? truth2_vars->refs[j].data() : "_", 
                                 truth2_vars->alts[j].size() ? truth2_vars->alts[j].data() : "_");
                     }
                 }
-                
+
+                // generate ref string
+                std::string ref_str = clusterdata_ptr->ref->fasta.at(ctg).
+                    substr(sc->begs[sc_idx], sc->ends[sc_idx] - sc->begs[sc_idx]);
+
                 printf("ORIG: %s\n", ref_str.data());
                 printf("CALLS1: %s\n", calls1_str.data());
                 printf("CALLS2: %s\n", calls2_str.data());
