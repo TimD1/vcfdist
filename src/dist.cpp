@@ -549,7 +549,108 @@ void generate_ptrs_strs(
 /******************************************************************************/
 
 
-void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
+void edit_dist(
+        std::string calls1, std::string calls2, 
+        std::vector<int> calls1_ptrs,
+        std::vector<int> calls2_ptrs, 
+        std::string truth1, std::string truth2,
+        std::vector<int> truth1_ptrs,
+        std::vector<int> truth2_ptrs, 
+        std::vector<int> & s, 
+        std::vector< std::vector< std::vector<int> > > & offs,
+        std::vector< std::vector< std::vector<int> > > & ptrs
+        ) {
+
+    // ALIGNMENT
+    std::vector<std::string> calls {calls1, calls1, calls2, calls2};
+    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
+    std::vector<int> calls_lens = 
+            {int(calls1.size()), int(calls1.size()), int(calls2.size()), int(calls2.size())};
+    std::vector<int> truth_lens = 
+            {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
+
+    // for each combination of calls and truth
+    for(int i = 0; i < 4; i++) {
+
+        int mat_len = calls_lens[i] + truth_lens[i] - 1;
+        offs[i].push_back(std::vector<int>(mat_len,-2));
+        offs[i][0][calls_lens[i]-1] = -1;
+        ptrs[i].push_back(std::vector<int>(mat_len,PTR_NONE));
+        bool done = false;
+        while (true) {
+
+            // EXTEND WAVEFRONT
+            for (int d = 0; d < mat_len; d++) {
+                int off = offs[i][s[i]][d];
+                int diag = d + 1 - calls_lens[i];
+
+                // don't allow starting from untouched cells
+                if (off == -2) continue;
+
+                // check that it's within matrix
+                if (diag + off + 1 < 0) continue;
+                if (off > calls_lens[i] - 1) continue;
+                if (diag + off > truth_lens[i] - 1) continue;
+
+                // extend
+                while (off < calls_lens[i] - 1 && 
+                       diag + off < truth_lens[i] - 1) {
+                    if (calls[i][off+1] == truth[i][diag+off+1]) off++;
+                    else break;
+                }
+                offs[i][s[i]][d] = off;
+
+                // finish if done
+                if (off == calls_lens[i] - 1 && 
+                    off + diag == truth_lens[i] - 1)
+                { done = true; break; }
+
+            }
+            if (done) break;
+
+
+            // NEXT WAVEFRONT
+            // add wavefront, fill edge cells
+            offs[i].push_back(std::vector<int>(mat_len, -2));
+            // bottom left cells
+            if (s[i]+1 == calls_lens[i]-1)
+                offs[i][s[i]+1][0] = s[i]+1;
+            // top right cells
+            if (s[i]+1 == mat_len-1)
+                offs[i][s[i]+1][mat_len-1] = s[i]+1;
+
+            ptrs[i].push_back(std::vector<int>(mat_len));
+            ptrs[i][s[i]+1][0] = PTR_UP;
+            ptrs[i][s[i]+1][s[i]+1] = PTR_LEFT;
+
+            // central cells
+            for (int d = 1; d < mat_len-1; d++) {
+                int offleft = offs[i][s[i]][d-1];
+                int offtop  = (offs[i][s[i]][d+1] == -2) ? 
+                    -2 : offs[i][s[i]][d+1]+1;
+                int offdiag = (offs[i][s[i]][d] == -2) ? 
+                    -2 : offs[i][s[i]][d]+1;
+                if (offdiag >= offtop && offdiag >= offleft) {
+                    offs[i][s[i]+1][d] = offdiag;
+                    ptrs[i][s[i]+1][d] = PTR_SUB;
+                } else if (offleft >= offtop) {
+                    offs[i][s[i]+1][d] = offleft;
+                    ptrs[i][s[i]+1][d] = PTR_LEFT;
+                } else {
+                    offs[i][s[i]+1][d] = offtop;
+                    ptrs[i][s[i]+1][d] = PTR_UP;
+                }
+            }
+            ++s[i];
+        }
+    }
+}
+
+
+/******************************************************************************/
+
+
+void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
     int distance = 0;
     for (std::string ctg : clusterdata_ptr->contigs) {
@@ -566,6 +667,7 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
+            // generate pointers and strings
             std::string calls1 = "", calls2 = "", calls1_str = "", calls2_str = ""; 
             std::vector<int> calls1_ptrs, calls2_ptrs;
             generate_ptrs_strs(
@@ -575,7 +677,6 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
                     sc->calls1_end_idx[sc_idx], sc->calls2_end_idx[sc_idx],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-
             std::string truth1 = "", truth2 = "", truth1_str = "", truth2_str = ""; 
             std::vector<int> truth1_ptrs, truth2_ptrs;
             generate_ptrs_strs(
@@ -586,96 +687,33 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            // ALIGNMENT
+            // edit distance alignment
             std::vector<int> s(4);
+            std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
+            edit_dist(calls1, calls2, calls1_ptrs, calls2_ptrs, truth1, truth2,
+                    truth1_ptrs, truth2_ptrs, s, offs, ptrs);
+
+            // get cluster phasing
+            int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
+            int swap_phase_dist = s[CALLS2_TRUTH1] + s[CALLS1_TRUTH2];
+            int dist = std::min(orig_phase_dist, swap_phase_dist);
+            int phase = PHASE_NONE; // default either way if equal dist
+            if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
+            if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
+            distance += dist; // update total distance
+
+            // save alignment information
+            clusterdata_ptr->ctg_superclusters[ctg]->add_phasing(
+                    phase, orig_phase_dist, swap_phase_dist);
+
+
+            // DEBUG PRINTING
             std::vector<std::string> calls {calls1, calls1, calls2, calls2};
             std::vector<std::string> truth {truth1, truth2, truth1, truth2};
             std::vector<int> calls_lens = 
                     {int(calls1.size()), int(calls1.size()), int(calls2.size()), int(calls2.size())};
             std::vector<int> truth_lens = 
                     {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
-            std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
-
-            // for each combination of calls and truth
-            for(int i = 0; i < 4; i++) {
-
-                int mat_len = calls_lens[i] + truth_lens[i] - 1;
-                offs[i].push_back(std::vector<int>(mat_len,-2));
-                offs[i][0][calls_lens[i]-1] = -1;
-                ptrs[i].push_back(std::vector<int>(mat_len,PTR_NONE));
-                bool done = false;
-                while (true) {
-
-                    // EXTEND WAVEFRONT
-                    for (int d = 0; d < mat_len; d++) {
-                        int off = offs[i][s[i]][d];
-                        int diag = d + 1 - calls_lens[i];
-
-                        // don't allow starting from untouched cells
-                        if (off == -2) continue;
-
-                        // check that it's within matrix
-                        if (diag + off + 1 < 0) continue;
-                        if (off > calls_lens[i] - 1) continue;
-                        if (diag + off > truth_lens[i] - 1) continue;
-
-                        // extend
-                        while (off < calls_lens[i] - 1 && 
-                               diag + off < truth_lens[i] - 1) {
-                            if (calls[i][off+1] == truth[i][diag+off+1]) off++;
-                            else break;
-                        }
-                        offs[i][s[i]][d] = off;
-
-                        // finish if done
-                        if (off == calls_lens[i] - 1 && 
-                            off + diag == truth_lens[i] - 1)
-                        { done = true; break; }
-
-                    }
-                    if (done) break;
-
-
-                    // NEXT WAVEFRONT
-                    // add wavefront, fill edge cells
-                    offs[i].push_back(std::vector<int>(mat_len, -2));
-                    // bottom left cells
-                    if (s[i]+1 == calls_lens[i]-1)
-                        offs[i][s[i]+1][0] = s[i]+1;
-                    // top right cells
-                    if (s[i]+1 == mat_len-1)
-                        offs[i][s[i]+1][mat_len-1] = s[i]+1;
-
-                    ptrs[i].push_back(std::vector<int>(mat_len));
-                    ptrs[i][s[i]+1][0] = PTR_UP;
-                    ptrs[i][s[i]+1][s[i]+1] = PTR_LEFT;
-
-                    // central cells
-                    for (int d = 1; d < mat_len-1; d++) {
-                        int offleft = offs[i][s[i]][d-1];
-                        int offtop  = (offs[i][s[i]][d+1] == -2) ? 
-                            -2 : offs[i][s[i]][d+1]+1;
-                        int offdiag = (offs[i][s[i]][d] == -2) ? 
-                            -2 : offs[i][s[i]][d]+1;
-                        if (offdiag >= offtop && offdiag >= offleft) {
-                            offs[i][s[i]+1][d] = offdiag;
-                            ptrs[i][s[i]+1][d] = PTR_SUB;
-                        } else if (offleft >= offtop) {
-                            offs[i][s[i]+1][d] = offleft;
-                            ptrs[i][s[i]+1][d] = PTR_LEFT;
-                        } else {
-                            offs[i][s[i]+1][d] = offtop;
-                            ptrs[i][s[i]+1][d] = PTR_UP;
-                        }
-                    }
-                    ++s[i];
-                }
-            }
-
-
-            // PRINT RESULTS
-            int dist = std::min(s[CALLS1_TRUTH1]+s[CALLS2_TRUTH2], 
-                    s[CALLS2_TRUTH1]+s[CALLS1_TRUTH2]);
             if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
                 printf("\n\nCALLS1: %d clusters\n", sc->calls1_end_idx[sc_idx] - sc->calls1_beg_idx[sc_idx]);
@@ -727,7 +765,7 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
                 printf("Edit Distance: %d\n", dist);
             }
 
-            // DEBUG PRINT
+            // MORE DEBUG PRINTING
             if (g.print_verbosity >= 2 && dist) {
                 for(int h = 0; h < 4; h++) { // 4 alignments
                     printf("\n%s ALIGNMENT (distance %d)\n", 
@@ -809,18 +847,6 @@ void edit_dist(std::shared_ptr<clusterData> clusterdata_ptr) {
 
                 } // 4 alignments
             } // debug print
-
-            // get cluster phasing
-            int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
-            int swap_phase_dist = s[CALLS2_TRUTH1] + s[CALLS1_TRUTH2];
-            int phase = PHASE_NONE; // default either way if equal dist
-            if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
-            if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
-
-            // save alignment information
-            clusterdata_ptr->ctg_superclusters[ctg]->add_phasing(
-                    phase, orig_phase_dist, swap_phase_dist);
-            distance += std::min(orig_phase_dist, swap_phase_dist);
 
         } // each cluster
     } // each contig

@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     std::shared_ptr<clusterData> clusterdata_ptr(new clusterData(calls_ptr, truth_ptr, ref_ptr));
 
     // calculate edit distance and local phasing
-    edit_dist(clusterdata_ptr);
+    alignment_wrapper(clusterdata_ptr);
 
     // calculate global phasings
     std::unique_ptr<phaseData> phasedata_ptr(new phaseData(clusterdata_ptr));
