@@ -528,17 +528,200 @@ void generate_ptrs_strs(
 
 
 void calc_prec_recall_aln(
-        std::string calls1, std::string calls2, 
-        std::vector<int> calls1_ptrs,
-        std::vector<int> calls2_ptrs, 
-        std::string truth1, std::string truth2,
-        std::vector<int> truth1_ptrs,
-        std::vector<int> truth2_ptrs, 
+        std::string calls1, std::string calls2,
+        std::string truth1, std::string truth2, std::string ref,
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs
         ) {
-    //TODO
+    
+    std::vector<std::string> calls {calls1, calls1, calls2, calls2};
+    std::vector< std::vector<int> > calls_ref_ptrs {
+        calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs
+    };
+    std::vector< std::vector<int> > ref_calls_ptrs {
+        ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs
+    };
+    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
+    std::vector<int> calls_lens = 
+            {int(calls1.size()), int(calls1.size()), int(calls2.size()), int(calls2.size())};
+    std::vector<int> truth_lens = 
+            {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
+    int ref_len = ref.size();
+
+    // for each combination of calls and truth
+    for(int i = 0; i < 4; i++) {
+        int ci = 2*i;   // calls index (offs and ptrs)
+        int ri = 2*i+1; // ref index   (offs and ptrs)
+
+        int calls_mat_len = calls_lens[i] + truth_lens[i] - 1;
+        int ref_mat_len = ref_len + truth_lens[i] - 1;
+
+        // init calls mat
+        offs[ci].push_back(std::vector<int>(calls_mat_len,-2)); // init invalid (s=0,d=-2)
+        offs[ci][0][calls_lens[i]-1] = -1; // allow extension from top left
+        ptrs[ci].push_back(std::vector<int>(calls_mat_len,PTR_NONE));
+
+        // init ref mat
+        offs[ri].push_back(std::vector<int>(ref_mat_len,-2)); // init invalid (s=0,d=-2)
+        offs[ri][0][ref_len-1] = -1; // allow extension from top left
+        ptrs[ri].push_back(std::vector<int>(ref_mat_len,PTR_NONE));
+
+        bool done = false;
+        bool extend = true;
+        while (true) {
+
+            // EXTEND WAVEFRONT
+            extend = true;
+            while (extend) {
+
+                // extend calls, allow calls -> ref transition
+                for (int d = 0; d < calls_mat_len; d++) {
+                    int off = offs[ci][s[i]][d];
+                    int diag = d + 1 - calls_lens[i];
+
+                    // don't allow starting from untouched cells
+                    if (off == -2) continue;
+
+                    // check that it's within matrix
+                    if (diag + off + 1 < 0) continue;
+                    if (off > calls_lens[i] - 1) continue;
+                    if (diag + off > truth_lens[i] - 1) continue;
+
+                    // extend
+                    while (off < calls_lens[i] - 1 && 
+                           diag + off < truth_lens[i] - 1) {
+
+                        // extend to reference if possible
+                        if (off >= 0 &&
+                            calls_ref_ptrs[i][off] >= 0) {
+                            int rd = diag + off - calls_ref_ptrs[i][off] + ref_len-1;
+                            if (off > offs[ri][s[i]][rd]) {
+                                /* printf("switch calls->ref: off=%d roff=%d s[i]=%d rd=%d diag=%d\n", */
+                                /*         off, offs[ri][s[i]][rd], s[i], rd, diag); */
+                                offs[ri][s[i]][rd] = off;
+                                ptrs[ri][s[i]][rd] |= PTR_SWAP;
+                            }
+                        }
+
+                        // extend on calls if possible
+                        if (calls[i][off+1] == truth[i][diag+off+1])
+                            off++;
+                        else
+                            break;
+                    }
+                    offs[ci][s[i]][d] = off;
+
+                    // finish if done
+                    if (off == calls_lens[i] - 1 && 
+                        off + diag == truth_lens[i] - 1)
+                    { done = true; break; }
+
+                }
+                if (done) break;
+
+                // extend ref, allow ref->calls transition, redo if taken
+                extend = false;
+                for (int rd = 0; rd < ref_mat_len; rd++) {
+                    int roff = offs[ri][s[i]][rd];
+                    int rdiag = rd + 1 - ref_len;
+
+                    // don't allow starting from untouched cells
+                    if (roff == -2) continue;
+
+                    // check that it's within matrix
+                    if (rdiag + roff + 1 < 0) continue;
+                    if (roff > ref_len - 1) continue;
+                    if (rdiag + roff > truth_lens[i] - 1) continue;
+
+                    // extend
+                    while (roff < ref_len - 1 && 
+                           rdiag + roff < truth_lens[i] - 1) {
+
+                        // extend to other hap if possible
+                        if (roff >= 0 &&
+                            ref_calls_ptrs[i][roff] >= 0) {
+                            int d = rdiag + roff - ref_calls_ptrs[i][roff] + calls_lens[i]-1;
+                            if (roff > offs[ci][s[i]][d]) {
+                                extend = true;
+                                /* printf("switch ref->calls: roff=%d off=%d s[i]=%d d=%d rdiag=%d\n", */
+                                /*         roff, offs[ci][s][d], s[i], d, rdiag); */
+                                offs[ci][s[i]][d] = roff;
+                                ptrs[ri][s[i]][rd] |= PTR_SWAP;
+                            }
+                        }
+
+                        // extend on reference if possible
+                        if (ref[roff+1] == truth[i][rdiag+roff+1])
+                            roff++;
+                        else
+                            break;
+                    }
+                    offs[ri][s[i]][rd] = roff;
+
+                    // finish if done
+                    if (roff == ref_len - 1 && 
+                        roff + rdiag == truth_lens[i] - 1)
+                    { done = true; break; }
+
+                }
+                if (done) break;
+            }
+            if (done) break;
+
+
+            // NEXT WAVEFRONT
+            
+            // add wavefront, init edge cells
+            offs[ci].push_back(std::vector<int>(calls_mat_len, -2));
+            offs[ri].push_back(std::vector<int>(ref_mat_len, -2));
+            if (s[i]+1 == calls_lens[i]-1) { // bottom left cells
+                offs[ci][s[i]+1][0] = s[i]+1;
+                offs[ri][s[i]+1][0] = s[i]+1;
+            }
+            if (s[i]+1 == calls_mat_len-1) // top right cells
+                offs[ci][s[i]+1][calls_mat_len-1] = s[i]+1;
+            if (s[i]+1 == ref_mat_len-1)
+                offs[ri][s[i]+1][ref_mat_len-1] = s[i]+1;
+
+            // init edge pointer cells
+            ptrs[ci].push_back(std::vector<int>(calls_mat_len));
+            ptrs[ci][s[i]+1][0] = PTR_UP;
+            ptrs[ci][s[i]+1][s[i]+1] = PTR_LEFT;
+            ptrs[ri].push_back(std::vector<int>(ref_mat_len));
+            ptrs[ri][s[i]+1][0] = PTR_UP;
+            ptrs[ri][s[i]+1][s[i]+1] = PTR_LEFT;
+
+            // central cells
+            for (int d = 1; d < calls_mat_len-1; d++) {
+                int offleft = offs[ci][s[i]][d-1];
+                int offtop = (offs[ci][s[i]][d+1] == -2) ? 
+                    -2 : offs[ci][s[i]][d+1]+1;
+                if (offleft >= offtop) {
+                    offs[ci][s[i]+1][d] = offleft;
+                    ptrs[ci][s[i]+1][d] = PTR_LEFT;
+                } else {
+                    offs[ci][s[i]+1][d] = offtop;
+                    ptrs[ci][s[i]+1][d] = PTR_UP;
+                }
+            }
+            for (int rd = 1; rd < ref_mat_len-1; rd++) {
+                int offleft = offs[ri][s[i]][rd-1];
+                int offtop = (offs[ri][s[i]][rd+1] == -2) ? 
+                    -2 : offs[ri][s[i]][rd+1]+1;
+                if (offleft >= offtop) {
+                    offs[ri][s[i]+1][rd] = offleft;
+                    ptrs[ri][s[i]+1][rd] = PTR_LEFT;
+                } else {
+                    offs[ri][s[i]+1][rd] = offtop;
+                    ptrs[ri][s[i]+1][rd] = PTR_UP;
+                }
+            }
+            ++s[i];
+        }
+    }
 }
 
 
@@ -697,6 +880,22 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
+            // precision-recall alignment
+            std::vector<int> pr_score(4);
+            std::vector< std::vector< std::vector<int> > > pr_offs(8), pr_ptrs(8);
+            calc_prec_recall_aln(
+                    calls1_c1, calls2_c2, truth1_t1, truth2_t2, ref_c1,
+                    calls1_ref_ptrs, ref_calls1_ptrs, 
+                    calls2_ref_ptrs, ref_calls2_ptrs,
+                    pr_score, pr_offs, pr_ptrs
+            );
+
+            /* calc_prec_recall( */
+            /*         calls1_ref_ptrs, ref_calls1_ptrs, */ 
+            /*         calls2_ref_ptrs, ref_calls2_ptrs, */
+            /*         pr_score, pr_offs, pr_ptrs */
+            /* ); */
+
             // EDIT DISTANCE
             // generate pointers and strings
             std::string calls1 = "", calls2 = "", calls1_str = "", calls2_str = ""; 
@@ -797,7 +996,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
                 printf("ORIG_C1:   %s\n", ref_str_c1.data());
                 printf("CALLS1_C1: %s\n", calls1_str_c1.data());
-
                 printf("CALLS1_REF: ");
                 for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) {
                     printf("%d ", calls1_ref_ptrs[i]);
@@ -809,7 +1007,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
                 printf("ORIG_C2:   %s\n", ref_str_c2.data());
                 printf("CALLS2_C2: %s\n", calls2_str_c2.data());
-
                 printf("CALLS2_REF: ");
                 for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) {
                     printf("%d ", calls2_ref_ptrs[i]);
@@ -817,30 +1014,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 printf("REF_CALLS2: ");
                 for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) {
                     printf("%d ", ref_calls2_ptrs[i]);
-                } printf("\n");
-
-                printf("ORIG_T1:   %s\n", ref_str_t1.data());
-                printf("TRUTH1_T1: %s\n", truth1_str_t1.data());
-
-                printf("TRUTH1_REF: ");
-                for(size_t i = 0; i < truth1_ref_ptrs.size(); i++) {
-                    printf("%d ", truth1_ref_ptrs[i]);
-                } printf("\n");
-                printf("REF_TRUTH1: ");
-                for(size_t i = 0; i < ref_truth1_ptrs.size(); i++) {
-                    printf("%d ", ref_truth1_ptrs[i]);
-                } printf("\n");
-
-                printf("ORIG_T2:   %s\n", ref_str_t2.data());
-                printf("TRUTH2_T2: %s\n", truth2_str_t2.data());
-
-                printf("TRUTH2_REF: ");
-                for(size_t i = 0; i < truth2_ref_ptrs.size(); i++) {
-                    printf("%d ", truth2_ref_ptrs[i]);
-                } printf("\n");
-                printf("REF_TRUTH2: ");
-                for(size_t i = 0; i < ref_truth2_ptrs.size(); i++) {
-                    printf("%d ", ref_truth2_ptrs[i]);
                 } printf("\n");
             }
 
