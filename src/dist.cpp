@@ -335,6 +335,10 @@ variantData edit_dist_realign(
 /******************************************************************************/
 
 
+/* For each position on hap1 and hap2, it generates pointers from one hap to the
+ * other if both match the reference, or else -1. This method also generates the
+ * strings for alignment, and the pretty-printing strings for debug output.
+ */
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,          // actual strings 
         std::string & hap1_str, std::string & hap2_str,  // colored debug strs
@@ -386,7 +390,7 @@ void generate_ptrs_strs(
                     hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
                     hap1_ref_pos++;
                 } catch (const std::out_of_range & e) {
-                    ERROR("contig %s not present in reference FASTA",
+                    ERROR("Contig %s not present in reference FASTA",
                             ctg.data());
                     exit(1);
                 }
@@ -428,7 +432,7 @@ void generate_ptrs_strs(
                     hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
                     hap2_ref_pos++;
                 } catch (const std::out_of_range & e) {
-                    ERROR("contig %s not present in reference FASTA",
+                    ERROR("Contig %s not present in reference FASTA",
                             ctg.data());
                     exit(1);
                 }
@@ -497,34 +501,8 @@ void generate_ptrs_strs(
                 hap2_var_idx++; // next variant
 
             } 
-            
-            // ONE HAPLOTYPE WAS A VARIANT, INVALID POINTERS
-            if (!hap1_var && hap2_var) {
-                try {
-                    hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
-                    hap1_ptrs.push_back(-1);
-                    hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
-                    hap1_ref_pos++;
-                } catch (const std::out_of_range & e) {
-                    ERROR("Contig '%s' not present in reference FASTA",
-                            ctg.data());
-                    exit(1);
-                }
-            }
-            if (hap1_var && !hap2_var) {
-                try {
-                    hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
-                    hap2_ptrs.push_back(-1);
-                    hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
-                    hap2_ref_pos++;
-                } catch (const std::out_of_range & e) {
-                    ERROR("Contig '%s' not present in reference FASTA",
-                            ctg.data());
-                    exit(1);
-                }
-            }
 
-            // BOTH MATCH REFERENCE, ADD POINTERS
+            // BOTH MATCH REFERENCE, ADD POINTERS FOR TRANSITIONS
             if (!hap1_var && !hap2_var) { // add pointers
                 try {
                     hap1_ptrs.push_back(hap2.size());
@@ -549,13 +527,27 @@ void generate_ptrs_strs(
 /******************************************************************************/
 
 
-void edit_dist(
+void calc_prec_recall_aln(
         std::string calls1, std::string calls2, 
         std::vector<int> calls1_ptrs,
         std::vector<int> calls2_ptrs, 
         std::string truth1, std::string truth2,
         std::vector<int> truth1_ptrs,
         std::vector<int> truth2_ptrs, 
+        std::vector<int> & s, 
+        std::vector< std::vector< std::vector<int> > > & offs,
+        std::vector< std::vector< std::vector<int> > > & ptrs
+        ) {
+    //TODO
+}
+
+
+/******************************************************************************/
+
+
+void calc_edit_dist_aln(
+        std::string calls1, std::string calls2, 
+        std::string truth1, std::string truth2,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs
@@ -667,21 +659,60 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
+            // PRECISION-RECALL
+            std::string calls1_c1 = "", ref_c1 = "", calls1_str_c1 = "", ref_str_c1 = ""; 
+            std::vector<int> calls1_ref_ptrs, ref_calls1_ptrs;
+            generate_ptrs_strs( // calls1_vars[0:0] contains no variants -> ref
+                    calls1_c1, ref_c1, calls1_str_c1, ref_str_c1, 
+                    calls1_ref_ptrs, ref_calls1_ptrs, calls1_vars, calls1_vars,
+                    sc->calls1_beg_idx[sc_idx], 0,
+                    sc->calls1_end_idx[sc_idx], 0,
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
+            std::string calls2_c2 = "", ref_c2 = "", calls2_str_c2 = "", ref_str_c2 = ""; 
+            std::vector<int> calls2_ref_ptrs, ref_calls2_ptrs;
+            generate_ptrs_strs( // calls2_vars[0:0] contains no variants -> ref
+                    calls2_c2, ref_c2, calls2_str_c2, ref_str_c2, 
+                    calls2_ref_ptrs, ref_calls2_ptrs, calls2_vars, calls2_vars,
+                    sc->calls2_beg_idx[sc_idx], 0,
+                    sc->calls2_end_idx[sc_idx], 0,
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
+            std::string truth1_t1 = "", ref_t1 = "", truth1_str_t1 = "", ref_str_t1 = ""; 
+            std::vector<int> truth1_ref_ptrs, ref_truth1_ptrs;
+            generate_ptrs_strs( // truth1_vars[0:0] contains no variants -> ref
+                    truth1_t1, ref_t1, truth1_str_t1, ref_str_t1, 
+                    truth1_ref_ptrs, ref_truth1_ptrs, truth1_vars, truth1_vars,
+                    sc->truth1_beg_idx[sc_idx], 0,
+                    sc->truth1_end_idx[sc_idx], 0,
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
+            std::string truth2_t2 = "", ref_t2 = "", truth2_str_t2 = "", ref_str_t2 = ""; 
+            std::vector<int> truth2_ref_ptrs, ref_truth2_ptrs;
+            generate_ptrs_strs( // truth2_vars[0:0] contains no variants -> ref
+                    truth2_t2, ref_t2, truth2_str_t2, ref_str_t2, 
+                    truth2_ref_ptrs, ref_truth2_ptrs, truth2_vars, truth2_vars,
+                    sc->truth2_beg_idx[sc_idx], 0,
+                    sc->truth2_end_idx[sc_idx], 0,
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
+
+            // EDIT DISTANCE
             // generate pointers and strings
             std::string calls1 = "", calls2 = "", calls1_str = "", calls2_str = ""; 
-            std::vector<int> calls1_ptrs, calls2_ptrs;
+            std::vector<int> calls1_calls2_ptrs, calls2_calls1_ptrs;
             generate_ptrs_strs(
                     calls1, calls2, calls1_str, calls2_str, 
-                    calls1_ptrs, calls2_ptrs, calls1_vars, calls2_vars,
+                    calls1_calls2_ptrs, calls2_calls1_ptrs, calls1_vars, calls2_vars,
                     sc->calls1_beg_idx[sc_idx], sc->calls2_beg_idx[sc_idx],
                     sc->calls1_end_idx[sc_idx], sc->calls2_end_idx[sc_idx],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth1 = "", truth2 = "", truth1_str = "", truth2_str = ""; 
-            std::vector<int> truth1_ptrs, truth2_ptrs;
+            std::vector<int> truth1_truth2_ptrs, truth2_truth1_ptrs;
             generate_ptrs_strs(
                     truth1, truth2, truth1_str, truth2_str, 
-                    truth1_ptrs, truth2_ptrs, truth1_vars, truth2_vars,
+                    truth1_truth2_ptrs, truth2_truth1_ptrs, truth1_vars, truth2_vars,
                     sc->truth1_beg_idx[sc_idx], sc->truth2_beg_idx[sc_idx],
                     sc->truth1_end_idx[sc_idx], sc->truth2_end_idx[sc_idx],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
@@ -690,8 +721,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             // edit distance alignment
             std::vector<int> s(4);
             std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
-            edit_dist(calls1, calls2, calls1_ptrs, calls2_ptrs, truth1, truth2,
-                    truth1_ptrs, truth2_ptrs, s, offs, ptrs);
+            calc_edit_dist_aln(calls1, calls2, truth1, truth2, s, offs, ptrs);
 
             // get cluster phasing
             int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
@@ -757,12 +787,61 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 std::string ref_str = clusterdata_ptr->ref->fasta.at(ctg).
                     substr(sc->begs[sc_idx], sc->ends[sc_idx] - sc->begs[sc_idx]);
 
-                printf("ORIG: %s\n", ref_str.data());
-                printf("CALLS1: %s\n", calls1_str.data());
-                printf("CALLS2: %s\n", calls2_str.data());
-                printf("TRUTH1: %s\n", truth1_str.data());
-                printf("TRUTH2: %s\n", truth2_str.data());
+                // DEBUG STR/PTR PRINTING
+                printf("ORIG:      %s\n", ref_str.data());
+                printf("CALLS1:    %s\n", calls1_str.data());
+                printf("CALLS2:    %s\n", calls2_str.data());
+                printf("TRUTH1:    %s\n", truth1_str.data());
+                printf("TRUTH2:    %s\n", truth2_str.data());
                 printf("Edit Distance: %d\n", dist);
+
+                printf("ORIG_C1:   %s\n", ref_str_c1.data());
+                printf("CALLS1_C1: %s\n", calls1_str_c1.data());
+
+                printf("CALLS1_REF: ");
+                for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) {
+                    printf("%d ", calls1_ref_ptrs[i]);
+                } printf("\n");
+                printf("REF_CALLS1: ");
+                for(size_t i = 0; i < ref_calls1_ptrs.size(); i++) {
+                    printf("%d ", ref_calls1_ptrs[i]);
+                } printf("\n");
+
+                printf("ORIG_C2:   %s\n", ref_str_c2.data());
+                printf("CALLS2_C2: %s\n", calls2_str_c2.data());
+
+                printf("CALLS2_REF: ");
+                for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) {
+                    printf("%d ", calls2_ref_ptrs[i]);
+                } printf("\n");
+                printf("REF_CALLS2: ");
+                for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) {
+                    printf("%d ", ref_calls2_ptrs[i]);
+                } printf("\n");
+
+                printf("ORIG_T1:   %s\n", ref_str_t1.data());
+                printf("TRUTH1_T1: %s\n", truth1_str_t1.data());
+
+                printf("TRUTH1_REF: ");
+                for(size_t i = 0; i < truth1_ref_ptrs.size(); i++) {
+                    printf("%d ", truth1_ref_ptrs[i]);
+                } printf("\n");
+                printf("REF_TRUTH1: ");
+                for(size_t i = 0; i < ref_truth1_ptrs.size(); i++) {
+                    printf("%d ", ref_truth1_ptrs[i]);
+                } printf("\n");
+
+                printf("ORIG_T2:   %s\n", ref_str_t2.data());
+                printf("TRUTH2_T2: %s\n", truth2_str_t2.data());
+
+                printf("TRUTH2_REF: ");
+                for(size_t i = 0; i < truth2_ref_ptrs.size(); i++) {
+                    printf("%d ", truth2_ref_ptrs[i]);
+                } printf("\n");
+                printf("REF_TRUTH2: ");
+                for(size_t i = 0; i < ref_truth2_ptrs.size(); i++) {
+                    printf("%d ", ref_truth2_ptrs[i]);
+                } printf("\n");
             }
 
             // MORE DEBUG PRINTING

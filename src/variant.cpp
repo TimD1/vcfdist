@@ -236,16 +236,16 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         }
     }
     if (!pass_found)
-        ERROR("failed to find PASS FILTER in VCF");
+        ERROR("Failed to find PASS FILTER in VCF");
     if (bcf_hdr_nsamples(hdr) != 1) 
-        ERROR("expected 1 sample, found %d", bcf_hdr_nsamples(hdr));
+        ERROR("Expected 1 sample, found %d", bcf_hdr_nsamples(hdr));
     this->sample = hdr->samples[0];
 
     // report names of all the sequences in the VCF file
     const char **seqnames = NULL;
     seqnames = bcf_hdr_seqnames(hdr, &nseq);
     if (seqnames == NULL) {
-        ERROR("failed to read VCF header");
+        ERROR("Failed to read VCF header");
         goto error1;
     }
     for(int i = 0; i < nseq; i++) {
@@ -256,7 +256,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     // struct for storing each record
     rec = bcf_init();
     if (rec == NULL) {
-        ERROR("failed to read VCF records");
+        ERROR("Failed to read VCF records");
         goto error2;
     }
     
@@ -269,7 +269,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             // start new contig
             prev_rid = rec->rid;
             if (prev_rids.find(rec->rid) != prev_rids.end()) {
-                ERROR("unsorted VCF, contig %s already parsed", seq.data());
+                ERROR("Unsorted VCF, contig %s already parsed", seq.data());
             } else {
                 this->contigs.push_back(seq);
                 this->lengths.push_back(seqlens[rec->rid]);
@@ -495,8 +495,12 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         INFO("Clusters:");
         for(int i = 0; i < nseq; i++) {
             for (int h = 0; h < 2; h++) {
-                INFO("    Haplotype %i: %lu variants", h+1,
+                if (this->ctg_variants[h][seqnames[i]]->poss.size() > 0) {
+                    INFO("    '%s' hap %i: %lu variants", 
+                        this->contigs[i].data(),
+                        h+1,
                         this->ctg_variants[h][seqnames[i]]->poss.size());
+                }
             }
         }
         INFO(" ");
