@@ -69,6 +69,7 @@ variantData edit_dist_realign(
                 std::string alt_out_str = "";
                 std::string alt_str = "";
                 for (int ref_pos = beg; ref_pos < end;) {
+                    // TODO: VALGRIND: conditional jump or move depends on uninitialized value
                     if (ref_pos == vars->poss[var]) { // in variant
                         switch (vars->types[var]) {
                             case TYPE_INS:
@@ -536,38 +537,53 @@ void calc_prec_recall_aln(
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs
         ) {
-    
+    
+    // set call loop variables
     std::vector<std::string> calls {calls1, calls1, calls2, calls2};
     std::vector< std::vector<int> > calls_ref_ptrs {
-        calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs
-    };
+            calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
     std::vector< std::vector<int> > ref_calls_ptrs {
-        ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs
-    };
-    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
+            ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
     std::vector<int> calls_lens = 
             {int(calls1.size()), int(calls1.size()), int(calls2.size()), int(calls2.size())};
+
+    // set truth/ref loop variables
+    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
     std::vector<int> truth_lens = 
             {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
     int ref_len = ref.size();
 
     // for each combination of calls and truth
-    for(int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         int ci = 2*i;   // calls index (offs and ptrs)
         int ri = 2*i+1; // ref index   (offs and ptrs)
 
         int calls_mat_len = calls_lens[i] + truth_lens[i] - 1;
         int ref_mat_len = ref_len + truth_lens[i] - 1;
 
-        // init calls mat
+        // init offsets
         offs[ci].push_back(std::vector<int>(calls_mat_len,-2)); // init invalid (s=0,d=-2)
-        offs[ci][0][calls_lens[i]-1] = -1; // allow extension from top left
-        ptrs[ci].push_back(std::vector<int>(calls_mat_len,PTR_NONE));
+        offs[ci][0][calls_lens[i]-1] = -1;                      // allow extension from top left
+        offs[ri].push_back(std::vector<int>(ref_mat_len,-2));   // init invalid (s=0,d=-2)
+        offs[ri][0][ref_len-1] = -1;                            // allow extension from top left
 
-        // init ref mat
-        offs[ri].push_back(std::vector<int>(ref_mat_len,-2)); // init invalid (s=0,d=-2)
-        offs[ri][0][ref_len-1] = -1; // allow extension from top left
-        ptrs[ri].push_back(std::vector<int>(ref_mat_len,PTR_NONE));
+        // init full pointer matrices
+        ptrs.push_back(std::vector< std::vector<int> >(calls_lens[i], 
+                std::vector<int>(truth_lens[i], PTR_NONE)));
+        for (int p = 0; p < calls_lens[i]; p++) ptrs[ci][p][0] = PTR_UP;
+        for (int p = 0; p < truth_lens[i]; p++) ptrs[ci][0][p] = PTR_LEFT;
+        ptrs[ci][0][0] = PTR_DIAG;
+        ptrs.push_back(std::vector< std::vector<int> >(ref_len, 
+                std::vector<int>(truth_lens[i], PTR_NONE)));
+        for (int p = 0; p < ref_len; p++) ptrs[ri][p][0] = PTR_UP;
+        for (int p = 0; p < truth_lens[i]; p++) ptrs[ri][0][p] = PTR_LEFT;
+        ptrs[ri][0][0] = PTR_DIAG;
+
+        /* printf("%s\n", aln_strs[i].data()); */
+        /* printf("calls_ptrs: (%d,%d,%d)\n", ptrs.size(), */
+        /*         ptrs[ci].size(), ptrs[ci][0].size()); */
+        /* printf("ref_ptrs: (%d,%d,%d)\n", ptrs.size(), */
+        /*         ptrs[ri].size(), ptrs[ri][0].size()); */
 
         bool done = false;
         bool extend = true;
@@ -595,24 +611,25 @@ void calc_prec_recall_aln(
                            diag + off < truth_lens[i] - 1) {
 
                         // extend to reference if possible
-                        if (off >= 0 &&
-                            calls_ref_ptrs[i][off] >= 0) {
-                            int rd = diag + off - calls_ref_ptrs[i][off] + ref_len-1;
-                            if (off > offs[ri][s[i]][rd]) {
-                                /* printf("switch calls->ref: off=%d roff=%d s[i]=%d rd=%d diag=%d\n", */
-                                /*         off, offs[ri][s[i]][rd], s[i], rd, diag); */
-                                offs[ri][s[i]][rd] = off;
-                                ptrs[ri][s[i]][rd] |= PTR_SWAP;
+                        int roff = (off >= 0) ? calls_ref_ptrs[i][off] : -1;  // lookup corresponding ref pos
+                        if (off >= 0 && roff >= 0 && diag+off >= 0) {
+                            int rd = d + (off - roff) + (ref_len - calls_lens[i]);
+                            if (roff > offs[ri][s[i]][rd]) {
+                                /* printf("switch calls->ref: (%d, %d) to (%d, %d)\n", */
+                                /*         off, diag+off, roff, diag+off); */
+                                offs[ri][s[i]][rd] = roff;
+                                if (roff < ref_len)
+                                    ptrs[ri][roff][diag+off] = PTR_SWAP;
                             }
                         }
 
                         // extend on calls if possible
-                        if (calls[i][off+1] == truth[i][diag+off+1])
+                        if (calls[i][off+1] == truth[i][diag+off+1]) {
+                            ptrs[ci][off+1][diag+off+1] = PTR_DIAG;
                             off++;
-                        else
-                            break;
+                        } else { break; }
                     }
-                    offs[ci][s[i]][d] = off;
+                    offs[ci][s[i]][d] = std::max(off, offs[ci][s[i]][d]);
 
                     // finish if done
                     if (off == calls_lens[i] - 1 && 
@@ -641,25 +658,26 @@ void calc_prec_recall_aln(
                            rdiag + roff < truth_lens[i] - 1) {
 
                         // extend to other hap if possible
-                        if (roff >= 0 &&
-                            ref_calls_ptrs[i][roff] >= 0) {
-                            int d = rdiag + roff - ref_calls_ptrs[i][roff] + calls_lens[i]-1;
-                            if (roff > offs[ci][s[i]][d]) {
+                        int off = (roff >= 0) ? ref_calls_ptrs[i][roff] : -1;
+                        if (roff >= 0 && off >= 0 && rdiag+roff >= 0) {
+                            int d = rd + (roff - off) + (calls_lens[i] - ref_len);
+                            if (off > offs[ci][s[i]][d]) {
                                 extend = true;
-                                /* printf("switch ref->calls: roff=%d off=%d s[i]=%d d=%d rdiag=%d\n", */
-                                /*         roff, offs[ci][s][d], s[i], d, rdiag); */
-                                offs[ci][s[i]][d] = roff;
-                                ptrs[ri][s[i]][rd] |= PTR_SWAP;
+                                /* printf("switch ref->calls: (%d, %d) to (%d, %d)\n", */
+                                /*         roff, rdiag+roff, off, rdiag+roff); */
+                                offs[ci][s[i]][d] = off;
+                                if (off < calls_lens[i])
+                                    ptrs[ci][off][rdiag+roff] = PTR_SWAP;
                             }
                         }
 
                         // extend on reference if possible
-                        if (ref[roff+1] == truth[i][rdiag+roff+1])
+                        if (ref[roff+1] == truth[i][rdiag+roff+1]) {
+                            ptrs[ri][roff+1][rdiag+roff+1] = PTR_DIAG;
                             roff++;
-                        else
-                            break;
+                        } else { break; }
                     }
-                    offs[ri][s[i]][rd] = roff;
+                    offs[ri][s[i]][rd] = std::max(roff, offs[ri][s[i]][rd]);
 
                     // finish if done
                     if (roff == ref_len - 1 && 
@@ -686,42 +704,123 @@ void calc_prec_recall_aln(
             if (s[i]+1 == ref_mat_len-1)
                 offs[ri][s[i]+1][ref_mat_len-1] = s[i]+1;
 
-            // init edge pointer cells
-            ptrs[ci].push_back(std::vector<int>(calls_mat_len));
-            ptrs[ci][s[i]+1][0] = PTR_UP;
-            ptrs[ci][s[i]+1][s[i]+1] = PTR_LEFT;
-            ptrs[ri].push_back(std::vector<int>(ref_mat_len));
-            ptrs[ri][s[i]+1][0] = PTR_UP;
-            ptrs[ri][s[i]+1][s[i]+1] = PTR_LEFT;
-
             // central cells
             for (int d = 1; d < calls_mat_len-1; d++) {
+                int diag = d + 1 - calls_lens[i];
+                int off = offs[ci][s[i]][d];
                 int offleft = offs[ci][s[i]][d-1];
                 int offtop = (offs[ci][s[i]][d+1] == -2) ? 
                     -2 : offs[ci][s[i]][d+1]+1;
                 if (offleft >= offtop) {
                     offs[ci][s[i]+1][d] = offleft;
-                    ptrs[ci][s[i]+1][d] = PTR_LEFT;
+                    if (off >= 0 && off < calls_lens[i] &&
+                            diag+off >= 0 && diag+off < truth_lens[i])
+                        ptrs[ci][off][diag+off] = PTR_LEFT;
                 } else {
                     offs[ci][s[i]+1][d] = offtop;
-                    ptrs[ci][s[i]+1][d] = PTR_UP;
+                    if (off >= 0 && off < calls_lens[i] &&
+                            diag+off >= 0 && diag+off < truth_lens[i])
+                        ptrs[ci][off][diag+off] = PTR_UP;
                 }
             }
             for (int rd = 1; rd < ref_mat_len-1; rd++) {
+                int rdiag = rd + 1 - ref_len;
+                int roff = offs[ri][s[i]][rd];
                 int offleft = offs[ri][s[i]][rd-1];
                 int offtop = (offs[ri][s[i]][rd+1] == -2) ? 
                     -2 : offs[ri][s[i]][rd+1]+1;
                 if (offleft >= offtop) {
                     offs[ri][s[i]+1][rd] = offleft;
-                    ptrs[ri][s[i]+1][rd] = PTR_LEFT;
+                    if (roff >= 0 && roff < ref_len &&
+                            rdiag+roff >= 0 && rdiag+roff < truth_lens[i])
+                        ptrs[ri][roff][roff+rdiag] = PTR_LEFT;
                 } else {
                     offs[ri][s[i]+1][rd] = offtop;
-                    ptrs[ri][s[i]+1][rd] = PTR_UP;
+                    if (roff >= 0 && roff < ref_len &&
+                            rdiag+roff >= 0 && rdiag+roff < truth_lens[i])
+                        ptrs[ri][roff][roff+rdiag] = PTR_UP;
                 }
             }
             ++s[i];
         }
     }
+}
+
+
+/******************************************************************************/
+
+
+int store_phase( 
+        std::shared_ptr<clusterData> clusterdata_ptr, 
+        std::string ctg,
+        std::vector<int> & s
+        ) {
+
+    // calculate best phasing
+    int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
+    int swap_phase_dist = s[CALLS2_TRUTH1] + s[CALLS1_TRUTH2];
+    int phase = PHASE_NONE; // default either way if equal dist
+    if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
+    if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
+
+    // save alignment information
+    clusterdata_ptr->ctg_superclusters[ctg]->add_phasing(
+            phase, orig_phase_dist, swap_phase_dist);
+    return phase;
+}
+
+
+/******************************************************************************/
+
+
+void calc_paths(
+        std::vector< std::vector<int> > & calls1_path, 
+        std::vector< std::vector<int> > & calls2_path, 
+        std::vector< std::vector< std::vector<int> > > & pr_offs, 
+        std::vector< std::vector< std::vector<int> > > & pr_ptrs, 
+        int phase
+        ) {
+
+    // indices into ptr/off matrices depend on decided phasing
+    std::vector<int> calls_indices;
+    if (phase == PHASE_SWAP) {
+        calls_indices.push_back(CALLS1_TRUTH2);
+        calls_indices.push_back(CALLS2_TRUTH1);
+    } else if (phase == PHASE_ORIG || phase == PHASE_NONE) { // keep
+        calls_indices.push_back(CALLS1_TRUTH1);
+        calls_indices.push_back(CALLS2_TRUTH2);
+    } else {
+        ERROR("Unexpected phase (%d)", phase);
+    }
+
+    for (int i : calls_indices) {
+        int ci = 2*i;
+        int ri = 2*i + 1;
+        int si = pr_ptrs[ci].size()-1;
+
+    }
+}
+
+
+/******************************************************************************/
+
+
+void calc_prec_recall(
+        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> & s, 
+        std::vector< std::vector< std::vector<int> > > & offs,
+        std::vector< std::vector< std::vector<int> > > & ptrs
+        ) {
+
+    std::shared_ptr<ctgVariants> calls1_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
+    std::shared_ptr<ctgVariants> calls2_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls2_vars;
+    std::shared_ptr<ctgVariants> truth1_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
+    std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
+
+    printf("s = %d %d %d %d\n", s[0], s[1], s[2], s[3]);
+
 }
 
 
@@ -882,7 +981,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
             // precision-recall alignment
             std::vector<int> pr_score(4);
-            std::vector< std::vector< std::vector<int> > > pr_offs(8), pr_ptrs(8);
+            std::vector< std::vector< std::vector<int> > > pr_offs(8), pr_ptrs;
             calc_prec_recall_aln(
                     calls1_c1, calls2_c2, truth1_t1, truth2_t2, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
@@ -890,7 +989,14 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     pr_score, pr_offs, pr_ptrs
             );
 
+            // calculate optimal global phasing
+            int phase = store_phase(clusterdata_ptr, ctg, pr_score);
+
+            /* // calculate cigar from alignment */
+            /* std::vector< std::vector<int> > calls1_path, calls2_path; */
+            /* calc_paths(calls1_path, calls2_path, pr_offs, pr_ptrs, phase); */
             /* calc_prec_recall( */
+            /*         clusterdata_ptr, sc_idx, ctg, */
             /*         calls1_ref_ptrs, ref_calls1_ptrs, */ 
             /*         calls2_ref_ptrs, ref_calls2_ptrs, */
             /*         pr_score, pr_offs, pr_ptrs */
@@ -922,19 +1028,11 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
             calc_edit_dist_aln(calls1, calls2, truth1, truth2, s, offs, ptrs);
 
-            // get cluster phasing
+            // update total distance
             int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
             int swap_phase_dist = s[CALLS2_TRUTH1] + s[CALLS1_TRUTH2];
             int dist = std::min(orig_phase_dist, swap_phase_dist);
-            int phase = PHASE_NONE; // default either way if equal dist
-            if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
-            if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
-            distance += dist; // update total distance
-
-            // save alignment information
-            clusterdata_ptr->ctg_superclusters[ctg]->add_phasing(
-                    phase, orig_phase_dist, swap_phase_dist);
-
+            distance += dist;
 
             // DEBUG PRINTING
             std::vector<std::string> calls {calls1, calls1, calls2, calls2};
@@ -1015,6 +1113,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) {
                     printf("%d ", ref_calls2_ptrs[i]);
                 } printf("\n");
+
             }
 
             // MORE DEBUG PRINTING

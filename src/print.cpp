@@ -35,6 +35,8 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = 'o';
             else if (ptrs[alt_idx][ref_idx] & PTR_NEXT)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
+            else if (ptrs[alt_idx][ref_idx] & PTR_SWAP)
+                ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
             else
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
 
