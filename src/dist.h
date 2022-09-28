@@ -31,7 +31,8 @@
 #define ERRTYPE_PP 3 // partial positive (reduces ED, but not TP)
 #define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
 #define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
-#define ERRTYPES 6
+#define ERRTYPE_UN 6 // unknown
+#define ERRTYPES 7
 
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,          // actual strings 

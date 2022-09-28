@@ -802,19 +802,25 @@ void calc_prec_recall(
         std::vector<int> pr_calls_ref_end, int phase
         ) {
 
-    std::shared_ptr<ctgVariants> calls1_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
-    std::shared_ptr<ctgVariants> calls2_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls2_vars;
-    std::shared_ptr<ctgVariants> truth1_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
-    std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
-
+    // set useful vectors for indexing based on current alignment
+    std::shared_ptr<ctgVariants> calls1_vars = 
+            clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
+    std::shared_ptr<ctgVariants> calls2_vars = 
+            clusterdata_ptr->ctg_superclusters[ctg]->calls2_vars;
+    std::shared_ptr<ctgVariants> truth1_vars = 
+            clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
+    std::shared_ptr<ctgVariants> truth2_vars = 
+            clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
     std::vector< std::vector<int> > calls_ref_ptrs = { 
-        calls1_ref_ptrs, calls1_ref_ptrs,
-        calls2_ref_ptrs, calls2_ref_ptrs 
-    };
+            calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
     std::vector< std::vector<int> > ref_calls_ptrs = { 
-        ref_calls1_ptrs, ref_calls1_ptrs,
-        ref_calls2_ptrs, ref_calls2_ptrs 
-    };
+            ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
+    std::vector< std::vector<int> > truth_ref_ptrs = { 
+            truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
+    std::vector< std::shared_ptr<ctgVariants> > calls_vars = {
+            calls1_vars, calls1_vars, calls2_vars, calls2_vars };
+    std::vector< std::shared_ptr<ctgVariants> > truth_vars = {
+            truth1_vars, truth2_vars, truth1_vars, truth2_vars };
 
     // indices into ptr/off matrices depend on decided phasing
     std::vector<int> calls_indices;
@@ -828,15 +834,27 @@ void calc_prec_recall(
         ERROR("Unexpected phase (%d)", phase);
     }
 
+    // for only the selected phasing
     for (int aln : calls_indices) {
-        printf("\n%s:\n", aln_strs[aln].data());
+
+        // set indices
         int aln_idx = aln*2;
         int hap_idx = pr_calls_ref_end[aln];
         int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
-        while (ptr_refcalls >= 0 && ptr_truth >= 0) {
-            printf("%s (%d,%d) ", hap_idx ? "REF  " : "CALLS", 
+
+        printf("\n%s:\n", aln_strs[aln].data());
+        while (ptr_refcalls || ptr_truth) {
+
+            bool main_diag = hap_idx ? 
+                    (ptr_refcalls == truth_ref_ptrs[aln][ptr_truth]) : // CALLS
+                    (calls_ref_ptrs[aln][ptr_refcalls] == 
+                     truth_ref_ptrs[aln][ptr_truth]); // REF
+            printf("%s %s (%d,%d) ", 
+                    main_diag ? "*" : " ",
+                    hap_idx ? "REF  " : "CALLS", 
                     ptr_refcalls, ptr_truth);
+
             switch (ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]) {
                 case PTR_UP:
                     printf("INS\n");

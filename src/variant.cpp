@@ -6,6 +6,7 @@
 
 #include "variant.h"
 #include "print.h"
+#include "dist.h"
 
 /******************************************************************************/
 
@@ -28,6 +29,9 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
     this->gt_quals.push_back(gq);
     this->var_quals.push_back(vq);
     this->n++;
+
+    this->errtypes.push_back(ERRTYPE_UN);
+    this->credit.push_back(0);
 }
 
 /******************************************************************************/
@@ -308,14 +312,14 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         }
         if ( ngq == -3 ) {
             if (!gq_warn) {
-                WARN("no GQ tag at %s:%lu", seq.data(), rec->pos);
+                WARN("No GQ tag at %s:%lu", seq.data(), rec->pos);
                 gq_warn = true; // only warn once
             }
             gq[0] = 0;
         }
         ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
         if (ngt < 0) {
-            ERROR("failed to read GT at %s:%lu\n", seq.data(), rec->pos);
+            ERROR("Failed to read GT at %s:%lu\n", seq.data(), rec->pos);
         }
 
         // parse genotype info
@@ -344,8 +348,8 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         for (int hap = 0; hap < 2; hap++) {
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 skipped)
-            int simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0
-            if (orig_gt == GT_ALT1_ALT1 || orig_gt == GT_ALT2_ALT2) // 1|1
+            int simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
+            if (orig_gt == GT_ALT1_ALT1 || orig_gt == GT_ALT2_ALT2) // 1|1 overwrite
                 simple_gt = GT_ALT1_ALT1;
 
             // get ref and allele, skipping ref calls
@@ -419,7 +423,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                 case TYPE_GRP:
                     rlen = ref.size(); break;
                 default:
-                    ERROR("unexpected variant type: %d", type);
+                    ERROR("Unexpected variant type: %d", type);
                     break;
             }
 
@@ -435,7 +439,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                     nregions[loc]++;
                     break;
                 default:
-                    ERROR("unexpected BED region type: %d", loc);
+                    ERROR("Unexpected BED region type: %d", loc);
                     break;
             }
 

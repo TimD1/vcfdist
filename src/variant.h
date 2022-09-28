@@ -59,6 +59,10 @@ public:
     std::vector<float> gt_quals;    // genotype quality (0-60)
     std::vector<float> var_quals;   // variant quality (0-60)
     int n = 0;
+
+    // set during prec_recall_aln()
+    std::vector<uint8_t> errtypes;     // error type: TP, FP, FN, PP
+    std::vector<float> credit;
 };
 
 class variantData {
