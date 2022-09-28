@@ -22,13 +22,16 @@
 #define CALLS2_TRUTH1 2
 #define CALLS2_TRUTH2 3
 
-#define ERRTYPES 6
+#define CALLS 0
+#define REF 1
+
 #define ERRTYPE_TP 0 // true positive
 #define ERRTYPE_FP 1 // false positive
 #define ERRTYPE_FN 2 // false negative
 #define ERRTYPE_PP 3 // partial positive (reduces ED, but not TP)
 #define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
 #define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
+#define ERRTYPES 6
 
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,          // actual strings 

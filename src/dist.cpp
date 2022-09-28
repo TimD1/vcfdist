@@ -535,7 +535,8 @@ void calc_prec_recall_aln(
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & offs,
-        std::vector< std::vector< std::vector<int> > > & ptrs
+        std::vector< std::vector< std::vector<int> > > & ptrs,
+        std::vector<int> & pr_calls_ref_end
         ) {
     
     // set call loop variables
@@ -555,8 +556,8 @@ void calc_prec_recall_aln(
 
     // for each combination of calls and truth
     for (int i = 0; i < 4; i++) {
-        int ci = 2*i;   // calls index (offs and ptrs)
-        int ri = 2*i+1; // ref index   (offs and ptrs)
+        int ci = 2*i + CALLS; // calls index (offs and ptrs)
+        int ri = 2*i + REF;   // ref index   (offs and ptrs)
 
         int calls_mat_len = calls_lens[i] + truth_lens[i] - 1;
         int ref_mat_len = ref_len + truth_lens[i] - 1;
@@ -634,7 +635,11 @@ void calc_prec_recall_aln(
                     // finish if done
                     if (off == calls_lens[i] - 1 && 
                         off + diag == truth_lens[i] - 1)
-                    { done = true; break; }
+                    { 
+                        done = true; 
+                        pr_calls_ref_end[i] = CALLS;
+                        break; 
+                    }
 
                 }
                 if (done) break;
@@ -682,7 +687,11 @@ void calc_prec_recall_aln(
                     // finish if done
                     if (roff == ref_len - 1 && 
                         roff + rdiag == truth_lens[i] - 1)
-                    { done = true; break; }
+                    { 
+                        done = true; 
+                        pr_calls_ref_end[i] = REF;
+                        break; 
+                    }
 
                 }
                 if (done) break;
@@ -705,40 +714,51 @@ void calc_prec_recall_aln(
                 offs[ri][s[i]+1][ref_mat_len-1] = s[i]+1;
 
             // central cells
-            for (int d = 1; d < calls_mat_len-1; d++) {
-                int diag = d + 1 - calls_lens[i];
-                int off = offs[ci][s[i]][d];
+            for (int d = 1; d < calls_mat_len-1; d++) { // calls
+
+                // calculate best new offset
                 int offleft = offs[ci][s[i]][d-1];
-                int offtop = (offs[ci][s[i]][d+1] == -2) ? 
+                int offtop  = (offs[ci][s[i]][d+1] == -2) ? 
                     -2 : offs[ci][s[i]][d+1]+1;
-                if (offleft >= offtop) {
-                    offs[ci][s[i]+1][d] = offleft;
-                    if (off >= 0 && off < calls_lens[i] &&
-                            diag+off >= 0 && diag+off < truth_lens[i])
+                int offdiag = (offs[ci][s[i]][d] == -2) ? 
+                    -2 : offs[ci][s[i]][d]+1;
+                int off = std::max(offleft, std::max(offtop, offdiag));
+                offs[ci][s[i]+1][d] = off;
+
+                // store new offset and pointer
+                int diag = d + 1 - calls_lens[i];
+                if (off >= 0 && off < calls_lens[i] &&
+                        diag+off >= 0 && diag+off < truth_lens[i]) {
+                    if (offdiag >= offtop && offdiag >= offleft) {
+                        ptrs[ci][off][diag+off] = PTR_SUB;
+                    } else if (offleft >= offtop) {
                         ptrs[ci][off][diag+off] = PTR_LEFT;
-                } else {
-                    offs[ci][s[i]+1][d] = offtop;
-                    if (off >= 0 && off < calls_lens[i] &&
-                            diag+off >= 0 && diag+off < truth_lens[i])
+                    } else {
                         ptrs[ci][off][diag+off] = PTR_UP;
+                    }
                 }
             }
-            for (int rd = 1; rd < ref_mat_len-1; rd++) {
-                int rdiag = rd + 1 - ref_len;
-                int roff = offs[ri][s[i]][rd];
-                int offleft = offs[ri][s[i]][rd-1];
-                int offtop = (offs[ri][s[i]][rd+1] == -2) ? 
+            for (int rd = 1; rd < ref_mat_len-1; rd++) { // ref
+
+                // calculate best new offset
+                int roffleft = offs[ri][s[i]][rd-1];
+                int rofftop  = (offs[ri][s[i]][rd+1] == -2) ? 
                     -2 : offs[ri][s[i]][rd+1]+1;
-                if (offleft >= offtop) {
-                    offs[ri][s[i]+1][rd] = offleft;
-                    if (roff >= 0 && roff < ref_len &&
-                            rdiag+roff >= 0 && rdiag+roff < truth_lens[i])
-                        ptrs[ri][roff][roff+rdiag] = PTR_LEFT;
-                } else {
-                    offs[ri][s[i]+1][rd] = offtop;
-                    if (roff >= 0 && roff < ref_len &&
-                            rdiag+roff >= 0 && rdiag+roff < truth_lens[i])
-                        ptrs[ri][roff][roff+rdiag] = PTR_UP;
+                int roffdiag = (offs[ri][s[i]][rd] == -2) ? 
+                    -2 : offs[ri][s[i]][rd]+1;
+                int roff = std::max(roffleft, std::max(rofftop, roffdiag));
+
+                // store new offset and pointer
+                int rdiag = rd + 1 - ref_len;
+                if (roff >= 0 && roff < ref_len &&
+                        rdiag+roff >= 0 && rdiag+roff < truth_lens[i]) {
+                    if (roffdiag >= rofftop && roffdiag >= roffleft) {
+                        ptrs[ri][roff][rdiag+roff] = PTR_SUB;
+                    } else if (roffleft >= rofftop) {
+                        ptrs[ri][roff][rdiag+roff] = PTR_LEFT;
+                    } else {
+                        ptrs[ri][roff][rdiag+roff] = PTR_UP;
+                    }
                 }
             }
             ++s[i];
@@ -773,13 +793,28 @@ int store_phase(
 /******************************************************************************/
 
 
-void calc_paths(
-        std::vector< std::vector<int> > & calls1_path, 
-        std::vector< std::vector<int> > & calls2_path, 
-        std::vector< std::vector< std::vector<int> > > & pr_offs, 
-        std::vector< std::vector< std::vector<int> > > & pr_ptrs, 
-        int phase
+void calc_prec_recall(
+        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector< std::vector<int> > > & ptrs, 
+        std::vector<int> pr_calls_ref_end, int phase
         ) {
+
+    std::shared_ptr<ctgVariants> calls1_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
+    std::shared_ptr<ctgVariants> calls2_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls2_vars;
+    std::shared_ptr<ctgVariants> truth1_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
+    std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
+
+    std::vector< std::vector<int> > calls_ref_ptrs = { 
+        calls1_ref_ptrs, calls1_ref_ptrs,
+        calls2_ref_ptrs, calls2_ref_ptrs 
+    };
+    std::vector< std::vector<int> > ref_calls_ptrs = { 
+        ref_calls1_ptrs, ref_calls1_ptrs,
+        ref_calls2_ptrs, ref_calls2_ptrs 
+    };
 
     // indices into ptr/off matrices depend on decided phasing
     std::vector<int> calls_indices;
@@ -793,33 +828,60 @@ void calc_paths(
         ERROR("Unexpected phase (%d)", phase);
     }
 
-    for (int i : calls_indices) {
-        int ci = 2*i;
-        int ri = 2*i + 1;
-        int si = pr_ptrs[ci].size()-1;
+    for (int aln : calls_indices) {
+        printf("\n%s:\n", aln_strs[aln].data());
+        int aln_idx = aln*2;
+        int hap_idx = pr_calls_ref_end[aln];
+        int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
+        int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
+        while (ptr_refcalls >= 0 && ptr_truth >= 0) {
+            printf("%s (%d,%d) ", hap_idx ? "REF  " : "CALLS", 
+                    ptr_refcalls, ptr_truth);
+            switch (ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]) {
+                case PTR_UP:
+                    printf("INS\n");
+                    ptr_refcalls--;
+                    break;
 
+                case PTR_LEFT:
+                    printf("DEL\n");
+                    ptr_truth--;
+                    break;
+
+                case PTR_DIAG:
+                    printf("\n");
+                    ptr_refcalls--;
+                    ptr_truth--;
+                    break;
+
+                case PTR_SUB:
+                    printf("SUB\n");
+                    ptr_refcalls--;
+                    ptr_truth--;
+                    break;
+
+                case PTR_SWAP:
+                    printf("SWAP\n");
+                    if (hap_idx == CALLS) {
+                        ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
+                        if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                        hap_idx = REF;
+                    } else if (hap_idx == REF) {
+                        ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
+                        if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                        hap_idx = CALLS;
+                    } else {
+                        ERROR("Unexpected hap (%d)", hap_idx);
+                    }
+                    break;
+
+                default:
+                    ERROR("Unexpected alignment pointer (%d)", 
+                            ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
+                    break;
+            }
+        }
     }
-}
-
-
-/******************************************************************************/
-
-
-void calc_prec_recall(
-        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
-        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
-        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
-        std::vector<int> & s, 
-        std::vector< std::vector< std::vector<int> > > & offs,
-        std::vector< std::vector< std::vector<int> > > & ptrs
-        ) {
-
-    std::shared_ptr<ctgVariants> calls1_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
-    std::shared_ptr<ctgVariants> calls2_vars = clusterdata_ptr->ctg_superclusters[ctg]->calls2_vars;
-    std::shared_ptr<ctgVariants> truth1_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
-    std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
-
-    printf("s = %d %d %d %d\n", s[0], s[1], s[2], s[3]);
 
 }
 
@@ -979,28 +1041,31 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            // precision-recall alignment
-            std::vector<int> pr_score(4);
+            // precision/recall alignment
+            std::vector<int> pr_score(4), pr_calls_ref_end(4);
             std::vector< std::vector< std::vector<int> > > pr_offs(8), pr_ptrs;
             calc_prec_recall_aln(
                     calls1_c1, calls2_c2, truth1_t1, truth2_t2, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs,
-                    pr_score, pr_offs, pr_ptrs
+                    pr_score, pr_offs, pr_ptrs, pr_calls_ref_end
             );
 
             // calculate optimal global phasing
             int phase = store_phase(clusterdata_ptr, ctg, pr_score);
 
-            /* // calculate cigar from alignment */
-            /* std::vector< std::vector<int> > calls1_path, calls2_path; */
-            /* calc_paths(calls1_path, calls2_path, pr_offs, pr_ptrs, phase); */
-            /* calc_prec_recall( */
-            /*         clusterdata_ptr, sc_idx, ctg, */
-            /*         calls1_ref_ptrs, ref_calls1_ptrs, */ 
-            /*         calls2_ref_ptrs, ref_calls2_ptrs, */
-            /*         pr_score, pr_offs, pr_ptrs */
-            /* ); */
+            int orig_pd = pr_score[CALLS1_TRUTH1] + pr_score[CALLS2_TRUTH2];
+            int swap_pd = pr_score[CALLS2_TRUTH1] + pr_score[CALLS1_TRUTH2];
+            if (std::min(orig_pd, swap_pd) > 0) {
+                // calculate precision/recall from alignment
+                calc_prec_recall(
+                        clusterdata_ptr, sc_idx, ctg,
+                        calls1_ref_ptrs, ref_calls1_ptrs, 
+                        calls2_ref_ptrs, ref_calls2_ptrs,
+                        truth1_ref_ptrs, truth2_ref_ptrs,
+                        pr_ptrs, pr_calls_ref_end, phase
+                );
+            }
 
             // EDIT DISTANCE
             // generate pointers and strings
