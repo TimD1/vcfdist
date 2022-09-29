@@ -224,7 +224,7 @@ variantData edit_dist_realign(
                 std::vector<int> cig(ref_len + alt_len);
                 int cig_ptr = cig.size()-1;
                 while (alt_idx >= 0 || ref_idx >= 0) {
-                    ptrs[alt_idx][ref_idx] |= LEFT_PATH; // color print path
+                    ptrs[alt_idx][ref_idx] |= PTR_LPATH; // color print path
                     if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
                         ref_idx--; alt_idx--;
                         cig[cig_ptr--] = PTR_DIAG;
@@ -793,16 +793,74 @@ int store_phase(
 /******************************************************************************/
 
 
+void color_ptrs(
+        std::vector< std::vector< std::vector<int> > > & ptrs, 
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> pr_calls_ref_end
+        ) {
+
+    // calls <-> ref pointers
+    std::vector< std::vector<int> > calls_ref_ptrs = { 
+            calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
+    std::vector< std::vector<int> > ref_calls_ptrs = { 
+            ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
+
+    for (int aln = 0; aln < 4; aln++) {
+
+        // init
+        int aln_idx = aln*2;
+        int hap_idx = pr_calls_ref_end[aln];
+        int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
+        int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
+
+        while (ptr_refcalls >= 0 || ptr_truth >= 0) {
+            ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_RPATH;
+            if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_UP) {
+                ptr_refcalls--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_LEFT) {
+                ptr_truth--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_DIAG) {
+                ptr_refcalls--; ptr_truth--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SUB) {
+                ptr_refcalls--; ptr_truth--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SWAP) {
+                if (hap_idx == CALLS) {
+                    ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
+                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                    hap_idx = REF;
+                } else if (hap_idx == REF) {
+                    ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
+                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                    hap_idx = CALLS;
+                } else {
+                    ERROR("Unexpected hap (%d)", hap_idx);
+                }
+            } else {
+                ERROR("Unexpected alignment pointer (%d) in color_ptrs()", 
+                        ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
+            }
+        }
+    }
+}
+
+
+/******************************************************************************/
+
+
 void calc_prec_recall(
         std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::string calls1, std::string calls2, 
+        std::string truth1, std::string truth2, std::string ref,
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector< std::vector< std::vector<int> > > & ptrs, 
-        std::vector<int> pr_calls_ref_end, int phase
+        std::vector<int> pr_calls_ref_end, int phase, int print
         ) {
 
     // set useful vectors for indexing based on current alignment
+    int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
     std::shared_ptr<ctgVariants> calls1_vars = 
             clusterdata_ptr->ctg_superclusters[ctg]->calls1_vars;
     std::shared_ptr<ctgVariants> calls2_vars = 
@@ -811,6 +869,8 @@ void calc_prec_recall(
             clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
     std::shared_ptr<ctgVariants> truth2_vars = 
             clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
+    std::vector<std::string> calls = {calls1, calls1, calls2, calls2};
+    std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
     std::vector< std::vector<int> > calls_ref_ptrs = { 
             calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
     std::vector< std::vector<int> > ref_calls_ptrs = { 
@@ -821,28 +881,18 @@ void calc_prec_recall(
             calls1_vars, calls1_vars, calls2_vars, calls2_vars };
     std::vector< std::shared_ptr<ctgVariants> > truth_vars = {
             truth1_vars, truth2_vars, truth1_vars, truth2_vars };
-
-    // calculate reference range
-    int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
-    int end = clusterdata_ptr->ctg_superclusters[ctg]->ends[sc_idx];
-
-    // calculate beg/end indices for call variants
-    int calls1_beg_idx = 
-            calls1_vars->clusters[
-                clusterdata_ptr->ctg_superclusters[ctg]->calls1_beg_idx[sc_idx] ];
-    int calls2_beg_idx = 
-            calls2_vars->clusters[
-                clusterdata_ptr->ctg_superclusters[ctg]->calls2_beg_idx[sc_idx] ];
+    int calls1_beg_idx = calls1_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->calls1_beg_idx[sc_idx] ];
+    int calls2_beg_idx = calls2_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->calls2_beg_idx[sc_idx] ];
     std::vector<int> calls_beg_idx = {
-        calls1_beg_idx, calls1_beg_idx, calls2_beg_idx, calls2_beg_idx };
-    int calls1_end_idx = 
-            calls1_vars->clusters[
-                clusterdata_ptr->ctg_superclusters[ctg]->calls1_end_idx[sc_idx] ];
-    int calls2_end_idx = 
-            calls2_vars->clusters[
-                clusterdata_ptr->ctg_superclusters[ctg]->calls2_end_idx[sc_idx] ];
+            calls1_beg_idx, calls1_beg_idx, calls2_beg_idx, calls2_beg_idx };
+    int calls1_end_idx = calls1_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->calls1_end_idx[sc_idx] ];
+    int calls2_end_idx = calls2_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->calls2_end_idx[sc_idx] ];
     std::vector<int> calls_end_idx = {
-        calls1_end_idx, calls1_end_idx, calls2_end_idx, calls2_end_idx };
+            calls1_end_idx, calls1_end_idx, calls2_end_idx, calls2_end_idx };
 
     // indices into ptr/off matrices depend on decided phasing
     std::vector<int> calls_indices;
@@ -857,104 +907,156 @@ void calc_prec_recall(
     }
 
     // for only the selected phasing
+    if (print) printf("\n=======================================================================\n");
     for (int aln : calls_indices) {
 
-        // set indices
+        // init
         int aln_idx = aln*2;
         int hap_idx = pr_calls_ref_end[aln];
         int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
-
-
         int new_ed = 0;
-        bool prev_main_diag = true;
         bool main_diag = true;
         int calls_var_ptr = calls_end_idx[aln]-1;
-        int calls_leave_var_ptr = calls_end_idx[aln]-1;
         int calls_var_pos = calls_vars[aln]->poss[calls_var_ptr] - beg;
+        int prev_calls_var_ptr = calls_var_ptr;
 
-        printf("\n%s:\n", aln_strs[aln].data());
-        while (ptr_refcalls || ptr_truth) {
+        // debug print pointer matrices
+        if (print) print_ptrs(ptrs[aln_idx+CALLS], calls[aln], truth[aln]);
+        if (print) print_ptrs(ptrs[aln_idx+REF], ref, truth[aln]);
 
-            main_diag = (hap_idx == REF) ? 
-                    (ptr_refcalls == truth_ref_ptrs[aln][ptr_truth]) : // REF
-                    (calls_ref_ptrs[aln][ptr_refcalls] == 
-                     truth_ref_ptrs[aln][ptr_truth]); // CALLS
-            printf("%s %s (%d,%d) ", 
-                    main_diag ? "*" : " ",
-                    hap_idx ? "REF  " : "CALLS", 
-                    ptr_refcalls, ptr_truth);
-
-            switch (ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]) {
-                case PTR_UP:
-                    printf("INS\n");
-                    ptr_refcalls--;
-                    new_ed++;
-                    break;
-
-                case PTR_LEFT:
-                    printf("DEL\n");
-                    ptr_truth--;
-                    new_ed++;
-                    break;
-
-                case PTR_DIAG:
-                    printf("\n");
-                    ptr_refcalls--;
-                    ptr_truth--;
-                    break;
-
-                case PTR_SUB:
-                    printf("SUB\n");
-                    ptr_refcalls--;
-                    ptr_truth--;
-                    new_ed++;
-                    break;
-
-                case PTR_SWAP:
-                    printf("SWAP\n");
-                    if (hap_idx == CALLS) {
-                        ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
-                        if (ptr_refcalls < 0) ERROR("Backtracking OOB");
-                        hap_idx = REF;
-                    } else if (hap_idx == REF) {
-                        ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
-                        if (ptr_refcalls < 0) ERROR("Backtracking OOB");
-                        hap_idx = CALLS;
-                    } else {
-                        ERROR("Unexpected hap (%d)", hap_idx);
-                    }
-                    break;
-
-                default:
-                    ERROR("Unexpected alignment pointer (%d)", 
-                            ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
-                    break;
-            }
+        if (print) printf("\n%s:\n", aln_strs[aln].data());
+        while (ptr_refcalls >= 0 || ptr_truth >= 0) {
 
             // set FP if necessary
             int ref_pos = (hap_idx == REF) ? ptr_refcalls : 
                     calls_ref_ptrs[aln][ptr_refcalls];
-            if (hap_idx == REF && ref_pos < calls_var_pos) {
-                calls_vars[aln]->errtypes[calls_var_ptr] = ERRTYPE_FP;
-                calls_vars[aln]->credit[calls_var_ptr] = 0;
-                printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                        calls_vars[aln]->refs[calls_var_ptr].data(),
-                        calls_vars[aln]->alts[calls_var_ptr].data(), "FP", 0.0f);
-                calls_var_pos = calls_vars[aln]->poss[--calls_var_ptr] - beg;
-                if (calls_var_ptr < calls_beg_idx[aln]) break;
+            if (ref_pos < calls_var_pos) {
+                if (hap_idx == REF) { // FP
+                    calls_vars[aln]->errtypes[calls_var_ptr] = ERRTYPE_FP;
+                    calls_vars[aln]->credit[calls_var_ptr] = 0;
+                    if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                            calls_vars[aln]->refs[calls_var_ptr].data(),
+                            calls_vars[aln]->alts[calls_var_ptr].data(), "FP", 0.0f);
+                    calls_var_ptr--;
+                } else { // passed variant
+                    calls_var_ptr--;
+                }
             }
 
-            /* if (main_diag && !prev_main_diag) { // rejoined main diag */
-            /* } else if (main_diag && prev_main_diag) { // stayed on main diag */
-            /* } else if (!main_diag && !prev_main_diag) { // stayed off main diag */
-            /* } else { // left main diag */
-            /* } */
+            // sync point: set TP/PP
+            if (main_diag) {
 
-            prev_main_diag = main_diag;
+                // calculate old edit distance
+                int old_ed = 0;
+                for (int calls_var_idx = prev_calls_var_ptr; 
+                        calls_var_idx > calls_var_ptr; calls_var_idx--) {
+                    switch (calls_vars[aln]->types[calls_var_idx]) {
+                        case TYPE_SUB:
+                            old_ed += 1;
+                            break;
+                        case TYPE_INS:
+                            old_ed += calls_vars[aln]->alts[calls_var_idx].length();
+                            break;
+                        case TYPE_DEL:
+                            old_ed += calls_vars[aln]->refs[calls_var_idx].length();
+                            break;
+                        case TYPE_GRP:
+                            old_ed += calls_vars[aln]->alts[calls_var_idx].length();
+                            old_ed += calls_vars[aln]->refs[calls_var_idx].length();
+                            break;
+                        default:
+                            ERROR("Unexpected variant type (%d) in calc_prec_recall().",
+                                    calls_vars[aln]->types[calls_var_idx]);
+                            break;
+                    }
+                }
+
+                for (int calls_var_idx = prev_calls_var_ptr; 
+                        calls_var_idx > calls_var_ptr; calls_var_idx--) {
+                    // don't overwrite FPs
+                    if (calls_vars[aln]->errtypes[calls_var_idx] == ERRTYPE_UN) {
+                        if (new_ed == 0) { // TP
+                            calls_vars[aln]->errtypes[calls_var_idx] = ERRTYPE_TP;
+                            calls_vars[aln]->credit[calls_var_idx] = 1;
+                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                    calls_vars[aln]->refs[calls_var_idx].data(),
+                                    calls_vars[aln]->alts[calls_var_idx].data(), 
+                                    "TP", 1.0f);
+                        } else { // PP
+                            calls_vars[aln]->errtypes[calls_var_idx] = ERRTYPE_PP;
+                            calls_vars[aln]->credit[calls_var_idx] = 1;
+                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                    calls_vars[aln]->refs[calls_var_idx].data(),
+                                    calls_vars[aln]->alts[calls_var_idx].data(), 
+                                    "PP", 1 - (float(new_ed)/old_ed));
+                        }
+                    }
+                }
+
+                if (print) printf("SYNC @%s(%d,%d)=REF(%d,%d), ED %d->%d, VARS %d-%d\n",
+                        (hap_idx == REF) ? "REF" : "CALLS", ptr_refcalls, ptr_truth,
+                        (hap_idx == REF) ? ptr_refcalls : ref_calls_ptrs[aln][ptr_refcalls],
+                        truth_ref_ptrs[aln][ptr_truth], old_ed, new_ed, 
+                        prev_calls_var_ptr, calls_var_ptr);
+
+                prev_calls_var_ptr = calls_var_ptr;
+                new_ed = 0;
+            }
+
+            // update pointers and edit distance
+            if (print) printf("%s %s (%d,%d)\n", 
+                    main_diag ? "*" : " ",
+                    hap_idx ? "REF  " : "CALLS", 
+                    ptr_refcalls, ptr_truth);
+
+            int ptr_val = ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth];
+            if (ptr_val & PTR_UP) {
+                if (print) printf("INS\n");
+                ptr_refcalls--;
+                new_ed++;
+            } else if (ptr_val & PTR_LEFT) {
+                if (print) printf("DEL\n");
+                ptr_truth--;
+                new_ed++;
+            } else if (ptr_val & PTR_DIAG) {
+                ptr_refcalls--;
+                ptr_truth--;
+            } else if (ptr_val & PTR_SUB) {
+                if (print) printf("SUB\n");
+                ptr_refcalls--;
+                ptr_truth--;
+                new_ed++;
+            } else if (ptr_val & PTR_SWAP) {
+                if (print) printf("SWAP\n");
+                if (hap_idx == CALLS) {
+                    ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
+                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                    hap_idx = REF;
+                } else if (hap_idx == REF) {
+                    ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
+                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                    hap_idx = CALLS;
+                } else {
+                    ERROR("Unexpected hap (%d)", hap_idx);
+                }
+            } else {
+                ERROR("Unexpected alignment pointer (%d) in calc_prec_recall()", 
+                        ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
+            }
+
+            // update if on main diag
+            main_diag = (hap_idx == REF) ? 
+                    (ptr_refcalls == truth_ref_ptrs[aln][ptr_truth]) : // REF
+                    (calls_ref_ptrs[aln][ptr_refcalls] == 
+                     truth_ref_ptrs[aln][ptr_truth] && 
+                     calls_ref_ptrs[aln][ptr_refcalls] >= 0); // CALLS
+
+            // update next variant position
+            calls_var_pos = (calls_var_ptr < calls_beg_idx[aln]) ? -1 :
+                calls_vars[aln]->poss[calls_var_ptr] - beg;
         }
     }
-
 }
 
 
@@ -1075,8 +1177,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
-            printf("\n=======================================================================\n");
-
             // PRECISION-RECALL
             std::string calls1_c1 = "", ref_c1 = "", calls1_str_c1 = "", ref_str_c1 = ""; 
             std::vector<int> calls1_ref_ptrs, ref_calls1_ptrs;
@@ -1128,15 +1228,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             // calculate optimal global phasing
             int phase = store_phase(clusterdata_ptr, ctg, pr_score);
 
-            // calculate precision/recall from alignment
-            calc_prec_recall(
-                    clusterdata_ptr, sc_idx, ctg,
-                    calls1_ref_ptrs, ref_calls1_ptrs, 
-                    calls2_ref_ptrs, ref_calls2_ptrs,
-                    truth1_ref_ptrs, truth2_ref_ptrs,
-                    pr_ptrs, pr_calls_ref_end, phase
-            );
-
             // EDIT DISTANCE
             // generate pointers and strings
             std::string calls1 = "", calls2 = "", calls1_str = "", calls2_str = ""; 
@@ -1169,6 +1260,18 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             int dist = std::min(orig_phase_dist, swap_phase_dist);
             distance += dist;
 
+            // calculate precision/recall from alignment
+            color_ptrs(pr_ptrs, calls1_ref_ptrs, ref_calls1_ptrs, 
+                    calls2_ref_ptrs, ref_calls2_ptrs, pr_calls_ref_end);
+            calc_prec_recall(
+                    clusterdata_ptr, sc_idx, ctg,
+                    calls1, calls2, truth1, truth2, ref_c1,
+                    calls1_ref_ptrs, ref_calls1_ptrs, 
+                    calls2_ref_ptrs, ref_calls2_ptrs,
+                    truth1_ref_ptrs, truth2_ref_ptrs,
+                    pr_ptrs, pr_calls_ref_end, phase, dist
+            );
+
             // DEBUG PRINTING
             std::vector<std::string> calls {calls1, calls1, calls2, calls2};
             std::vector<std::string> truth {truth1, truth2, truth1, truth2};
@@ -1180,7 +1283,9 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 // print cluster info
                 printf("\n\nCALLS1: %d clusters\n", sc->calls1_end_idx[sc_idx] - sc->calls1_beg_idx[sc_idx]);
                 for(int i = sc->calls1_beg_idx[sc_idx]; i < sc->calls1_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants\n", i, calls1_vars->clusters[i+1]-calls1_vars->clusters[i]);
+                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                            calls1_vars->clusters[i+1]-calls1_vars->clusters[i],
+                            calls1_vars->clusters[i], calls1_vars->clusters[i+1]);
                     for(int j = calls1_vars->clusters[i]; j < calls1_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), calls1_vars->poss[j], 
                                 calls1_vars->refs[j].size() ? calls1_vars->refs[j].data() : "_", 
@@ -1189,7 +1294,9 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 }
                 printf("CALLS2: %d clusters\n", sc->calls2_end_idx[sc_idx] - sc->calls2_beg_idx[sc_idx]);
                 for(int i = sc->calls2_beg_idx[sc_idx]; i < sc->calls2_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants\n", i, calls2_vars->clusters[i+1]-calls2_vars->clusters[i]);
+                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                            calls2_vars->clusters[i+1]-calls2_vars->clusters[i],
+                            calls2_vars->clusters[i], calls2_vars->clusters[i+1]);
                     for(int j = calls2_vars->clusters[i]; j < calls2_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), calls2_vars->poss[j], 
                                 calls2_vars->refs[j].size() ? calls2_vars->refs[j].data() : "_", 
@@ -1198,7 +1305,9 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 }
                 printf("TRUTH1: %d clusters\n", sc->truth1_end_idx[sc_idx] - sc->truth1_beg_idx[sc_idx]);
                 for(int i = sc->truth1_beg_idx[sc_idx]; i < sc->truth1_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants\n", i, truth1_vars->clusters[i+1]-truth1_vars->clusters[i]);
+                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                            truth1_vars->clusters[i+1]-truth1_vars->clusters[i],
+                            truth1_vars->clusters[i], truth1_vars->clusters[i+1]);
                     for(int j = truth1_vars->clusters[i]; j < truth1_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), truth1_vars->poss[j], 
                                 truth1_vars->refs[j].size() ? truth1_vars->refs[j].data() : "_", 
@@ -1207,7 +1316,9 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 }
                 printf("TRUTH2: %d clusters\n", sc->truth2_end_idx[sc_idx] - sc->truth2_beg_idx[sc_idx]);
                 for(int i = sc->truth2_beg_idx[sc_idx]; i < sc->truth2_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants\n", i, truth2_vars->clusters[i+1]-truth2_vars->clusters[i]);
+                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                            truth2_vars->clusters[i+1]-truth2_vars->clusters[i],
+                            truth2_vars->clusters[i], truth2_vars->clusters[i+1]);
                     for(int j = truth2_vars->clusters[i]; j < truth2_vars->clusters[i+1]; j++) {
                         printf("\t\t%s %d\t%s\t%s\n", ctg.data(), truth2_vars->poss[j], 
                                 truth2_vars->refs[j].size() ? truth2_vars->refs[j].data() : "_", 

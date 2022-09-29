@@ -68,13 +68,13 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
                     case 'o':
                     case '+':
                     case '*':
-                        if (ptrs[i>>1][j>>1] & LEFT_PATH) {
-                            if (ptrs[i>>1][j>>1] & RIGHT_PATH) { // both
+                        if (ptrs[i>>1][j>>1] & PTR_LPATH) {
+                            if (ptrs[i>>1][j>>1] & PTR_RPATH) { // both
                                 printf("%s", GREEN(ptr_str[i][j]).data());
                             } else { // left
                                 printf("%s", YELLOW(ptr_str[i][j]).data());
                             }
-                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH) { // right
+                        } else if (ptrs[i>>1][j>>1] & PTR_RPATH) { // right
                             printf("%s", BLUE(ptr_str[i][j]).data());
                         } else { // none
                             printf("%c", ptr_str[i][j]);
@@ -82,54 +82,54 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
                         break;
                     case 'X':
                     case '\\':
-                        if (ptrs[i>>1][j>>1] & LEFT_PATH && 
+                        if (ptrs[i>>1][j>>1] & PTR_LPATH && 
                                 (i>>1) > 0 && (j>>1) > 0 &&
-                                ptrs[(i>>1)-1][(j>>1)-1] & LEFT_PATH) {
-                            if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
-                                    ptrs[(i>>1)-1][(j>>1)-1] & RIGHT_PATH) { // both
+                                ptrs[(i>>1)-1][(j>>1)-1] & PTR_LPATH) {
+                            if (ptrs[i>>1][j>>1] & PTR_RPATH &&
+                                    ptrs[(i>>1)-1][(j>>1)-1] & PTR_RPATH) { // both
                                 printf("%s", GREEN(ptr_str[i][j]).data());
                             } else { // left
                                 printf("%s", YELLOW(ptr_str[i][j]).data());
                             }
-                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
+                        } else if (ptrs[i>>1][j>>1] & PTR_RPATH &&
                                 (i>>1) > 0 && (j>>1) > 0 &&
-                                ptrs[(i>>1)-1][(j>>1)-1] & RIGHT_PATH) { // right
+                                ptrs[(i>>1)-1][(j>>1)-1] & PTR_RPATH) { // right
                             printf("%s", BLUE(ptr_str[i][j]).data());
                         } else { // none
                             printf("%c", ptr_str[i][j]);
                         }
                         break;
                     case '-':
-                        if (ptrs[i>>1][j>>1] & LEFT_PATH && 
+                        if (ptrs[i>>1][j>>1] & PTR_LPATH && 
                                 (j>>1) > 0 &&
-                                ptrs[i>>1][(j>>1)-1] & LEFT_PATH) {
-                            if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
-                                    ptrs[i>>1][(j>>1)-1] & RIGHT_PATH) { // both
+                                ptrs[i>>1][(j>>1)-1] & PTR_LPATH) {
+                            if (ptrs[i>>1][j>>1] & PTR_RPATH &&
+                                    ptrs[i>>1][(j>>1)-1] & PTR_RPATH) { // both
                                 printf("%s", GREEN('-').data());
                             } else { // left
                                 printf("%s", YELLOW('-').data());
                             }
-                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH && 
+                        } else if (ptrs[i>>1][j>>1] & PTR_RPATH && 
                                 (j>>1) > 0 &&
-                                ptrs[i>>1][(j>>1)-1] & RIGHT_PATH) { // right
+                                ptrs[i>>1][(j>>1)-1] & PTR_RPATH) { // right
                             printf("%s", BLUE('-').data());
                         } else { // none
                             printf("-");
                         }
                         break;
                     case '|':
-                        if (ptrs[i>>1][j>>1] & LEFT_PATH && 
+                        if (ptrs[i>>1][j>>1] & PTR_LPATH && 
                                 (i>>1) > 0 &&
-                                ptrs[(i>>1)-1][j>>1] & LEFT_PATH) {
-                            if (ptrs[i>>1][j>>1] & RIGHT_PATH &&
-                                    ptrs[(i>>1)-1][j>>1] & RIGHT_PATH) { // both
+                                ptrs[(i>>1)-1][j>>1] & PTR_LPATH) {
+                            if (ptrs[i>>1][j>>1] & PTR_RPATH &&
+                                    ptrs[(i>>1)-1][j>>1] & PTR_RPATH) { // both
                                 printf("%s", GREEN('|').data());
                             } else { // left
                                 printf("%s", YELLOW('|').data());
                             }
-                        } else if (ptrs[i>>1][j>>1] & RIGHT_PATH && 
+                        } else if (ptrs[i>>1][j>>1] & PTR_RPATH && 
                                 (i>>1) > 0 &&
-                                ptrs[(i>>1)-1][j>>1] & RIGHT_PATH) { // right
+                                ptrs[(i>>1)-1][j>>1] & PTR_RPATH) { // right
                             printf("%s", BLUE('|').data());
                         } else { // none
                             printf("|");

@@ -11,8 +11,8 @@
 #define PTR_BOTH 3
 #define PTR_DIAG 4
 #define PTR_SWAP 8
-#define LEFT_PATH 16
-#define RIGHT_PATH 32
+#define PTR_LPATH 16
+#define PTR_RPATH 32
 #define PTR_SUB 64
 #define PTR_DONE 128
 #define PTR_NEXT 256
