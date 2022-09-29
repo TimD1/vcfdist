@@ -49,7 +49,7 @@ public:
     std::vector<int> calls1_beg_idx, calls1_end_idx, calls2_beg_idx, calls2_end_idx,
         truth1_beg_idx, truth1_end_idx, truth2_beg_idx, truth2_end_idx;
     std::vector<int> begs, ends; // ref positions
-    int n = 0; // number of superclisters
+    int n = 0; // number of superclusters
 
     // phasing information per supercluster
     std::vector<int> phase;

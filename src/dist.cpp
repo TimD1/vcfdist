@@ -822,6 +822,28 @@ void calc_prec_recall(
     std::vector< std::shared_ptr<ctgVariants> > truth_vars = {
             truth1_vars, truth2_vars, truth1_vars, truth2_vars };
 
+    // calculate reference range
+    int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
+    int end = clusterdata_ptr->ctg_superclusters[ctg]->ends[sc_idx];
+
+    // calculate beg/end indices for call variants
+    int calls1_beg_idx = 
+            calls1_vars->clusters[
+                clusterdata_ptr->ctg_superclusters[ctg]->calls1_beg_idx[sc_idx] ];
+    int calls2_beg_idx = 
+            calls2_vars->clusters[
+                clusterdata_ptr->ctg_superclusters[ctg]->calls2_beg_idx[sc_idx] ];
+    std::vector<int> calls_beg_idx = {
+        calls1_beg_idx, calls1_beg_idx, calls2_beg_idx, calls2_beg_idx };
+    int calls1_end_idx = 
+            calls1_vars->clusters[
+                clusterdata_ptr->ctg_superclusters[ctg]->calls1_end_idx[sc_idx] ];
+    int calls2_end_idx = 
+            calls2_vars->clusters[
+                clusterdata_ptr->ctg_superclusters[ctg]->calls2_end_idx[sc_idx] ];
+    std::vector<int> calls_end_idx = {
+        calls1_end_idx, calls1_end_idx, calls2_end_idx, calls2_end_idx };
+
     // indices into ptr/off matrices depend on decided phasing
     std::vector<int> calls_indices;
     if (phase == PHASE_SWAP) {
@@ -843,13 +865,21 @@ void calc_prec_recall(
         int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
 
+
+        int new_ed = 0;
+        bool prev_main_diag = true;
+        bool main_diag = true;
+        int calls_var_ptr = calls_end_idx[aln]-1;
+        int calls_leave_var_ptr = calls_end_idx[aln]-1;
+        int calls_var_pos = calls_vars[aln]->poss[calls_var_ptr] - beg;
+
         printf("\n%s:\n", aln_strs[aln].data());
         while (ptr_refcalls || ptr_truth) {
 
-            bool main_diag = hap_idx ? 
-                    (ptr_refcalls == truth_ref_ptrs[aln][ptr_truth]) : // CALLS
+            main_diag = (hap_idx == REF) ? 
+                    (ptr_refcalls == truth_ref_ptrs[aln][ptr_truth]) : // REF
                     (calls_ref_ptrs[aln][ptr_refcalls] == 
-                     truth_ref_ptrs[aln][ptr_truth]); // REF
+                     truth_ref_ptrs[aln][ptr_truth]); // CALLS
             printf("%s %s (%d,%d) ", 
                     main_diag ? "*" : " ",
                     hap_idx ? "REF  " : "CALLS", 
@@ -859,11 +889,13 @@ void calc_prec_recall(
                 case PTR_UP:
                     printf("INS\n");
                     ptr_refcalls--;
+                    new_ed++;
                     break;
 
                 case PTR_LEFT:
                     printf("DEL\n");
                     ptr_truth--;
+                    new_ed++;
                     break;
 
                 case PTR_DIAG:
@@ -876,6 +908,7 @@ void calc_prec_recall(
                     printf("SUB\n");
                     ptr_refcalls--;
                     ptr_truth--;
+                    new_ed++;
                     break;
 
                 case PTR_SWAP:
@@ -898,6 +931,27 @@ void calc_prec_recall(
                             ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
                     break;
             }
+
+            // set FP if necessary
+            int ref_pos = (hap_idx == REF) ? ptr_refcalls : 
+                    calls_ref_ptrs[aln][ptr_refcalls];
+            if (hap_idx == REF && ref_pos < calls_var_pos) {
+                calls_vars[aln]->errtypes[calls_var_ptr] = ERRTYPE_FP;
+                calls_vars[aln]->credit[calls_var_ptr] = 0;
+                printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                        calls_vars[aln]->refs[calls_var_ptr].data(),
+                        calls_vars[aln]->alts[calls_var_ptr].data(), "FP", 0.0f);
+                calls_var_pos = calls_vars[aln]->poss[--calls_var_ptr] - beg;
+                if (calls_var_ptr < calls_beg_idx[aln]) break;
+            }
+
+            /* if (main_diag && !prev_main_diag) { // rejoined main diag */
+            /* } else if (main_diag && prev_main_diag) { // stayed on main diag */
+            /* } else if (!main_diag && !prev_main_diag) { // stayed off main diag */
+            /* } else { // left main diag */
+            /* } */
+
+            prev_main_diag = main_diag;
         }
     }
 
@@ -1021,6 +1075,8 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
+            printf("\n=======================================================================\n");
+
             // PRECISION-RECALL
             std::string calls1_c1 = "", ref_c1 = "", calls1_str_c1 = "", ref_str_c1 = ""; 
             std::vector<int> calls1_ref_ptrs, ref_calls1_ptrs;
@@ -1072,18 +1128,14 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             // calculate optimal global phasing
             int phase = store_phase(clusterdata_ptr, ctg, pr_score);
 
-            int orig_pd = pr_score[CALLS1_TRUTH1] + pr_score[CALLS2_TRUTH2];
-            int swap_pd = pr_score[CALLS2_TRUTH1] + pr_score[CALLS1_TRUTH2];
-            if (std::min(orig_pd, swap_pd) > 0) {
-                // calculate precision/recall from alignment
-                calc_prec_recall(
-                        clusterdata_ptr, sc_idx, ctg,
-                        calls1_ref_ptrs, ref_calls1_ptrs, 
-                        calls2_ref_ptrs, ref_calls2_ptrs,
-                        truth1_ref_ptrs, truth2_ref_ptrs,
-                        pr_ptrs, pr_calls_ref_end, phase
-                );
-            }
+            // calculate precision/recall from alignment
+            calc_prec_recall(
+                    clusterdata_ptr, sc_idx, ctg,
+                    calls1_ref_ptrs, ref_calls1_ptrs, 
+                    calls2_ref_ptrs, ref_calls2_ptrs,
+                    truth1_ref_ptrs, truth2_ref_ptrs,
+                    pr_ptrs, pr_calls_ref_end, phase
+            );
 
             // EDIT DISTANCE
             // generate pointers and strings
