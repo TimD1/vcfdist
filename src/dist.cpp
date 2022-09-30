@@ -4,6 +4,7 @@
 #include <chrono>
 #include <utility>
 #include <queue>
+#include <unordered_set>
 
 #include "dist.h"
 #include "print.h"
@@ -528,243 +529,238 @@ void generate_ptrs_strs(
 /******************************************************************************/
 
 
+class idx {
+public:
+    int hi;  // hap idx
+    int cri; // calls/ref idx
+    int ti;  // truth idx
+
+    idx() : hi(0), cri(0), ti(0) {};
+    idx(int h, int c, int t) : hi(h), cri(c), ti(t) {};
+    bool operator<(const idx & idx2) const {
+        if (this->hi < idx2.hi) return true;
+        else if (this->hi == idx2.hi && this->cri < idx2.cri) return true;
+        else if (this->hi == idx2.hi && this->cri == idx2.cri && this->ti < idx2.ti) return true;
+        return false;
+    }
+    bool operator==(const idx & idx2) const {
+        return this->hi == idx2.hi && this->cri == idx2.cri && this->ti == idx2.ti;
+    }
+};
+
+namespace std {
+    template<> struct hash<idx> {
+        std::uint64_t operator()(const idx& idx1) const noexcept {
+            return uint64_t(idx1.hi)<<60 | uint64_t(idx1.cri) << 30 | uint64_t(idx1.ti);
+        }
+    };
+}
+
+bool contains(const std::unordered_set<idx> & wave, const idx & idx) {
+    return wave.find(idx) != wave.end();
+}
+
+
 void calc_prec_recall_aln(
         std::string calls1, std::string calls2,
         std::string truth1, std::string truth2, std::string ref,
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> & s, 
-        std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs,
         std::vector<int> & pr_calls_ref_end
         ) {
     
-    // set call loop variables
+    // set loop variables
+    int ref_len = ref.size();
     std::vector<std::string> calls {calls1, calls1, calls2, calls2};
+    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
     std::vector< std::vector<int> > calls_ref_ptrs {
             calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
     std::vector< std::vector<int> > ref_calls_ptrs {
             ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
     std::vector<int> calls_lens = 
             {int(calls1.size()), int(calls1.size()), int(calls2.size()), int(calls2.size())};
-
-    // set truth/ref loop variables
-    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
     std::vector<int> truth_lens = 
             {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
-    int ref_len = ref.size();
+
+    std::vector< std::vector< std::vector<bool> > > done;
 
     // for each combination of calls and truth
     for (int i = 0; i < 4; i++) {
         int ci = 2*i + CALLS; // calls index (offs and ptrs)
         int ri = 2*i + REF;   // ref index   (offs and ptrs)
 
-        int calls_mat_len = calls_lens[i] + truth_lens[i] - 1;
-        int ref_mat_len = ref_len + truth_lens[i] - 1;
-
-        // init offsets
-        offs[ci].push_back(std::vector<int>(calls_mat_len,-2)); // init invalid (s=0,d=-2)
-        offs[ci][0][calls_lens[i]-1] = -1;                      // allow extension from top left
-        offs[ri].push_back(std::vector<int>(ref_mat_len,-2));   // init invalid (s=0,d=-2)
-        offs[ri][0][ref_len-1] = -1;                            // allow extension from top left
-
-        // init full pointer matrices
+        // init full pointer/done matrices
         ptrs.push_back(std::vector< std::vector<int> >(calls_lens[i], 
                 std::vector<int>(truth_lens[i], PTR_NONE)));
-        for (int p = 0; p < calls_lens[i]; p++) ptrs[ci][p][0] = PTR_UP;
-        for (int p = 0; p < truth_lens[i]; p++) ptrs[ci][0][p] = PTR_LEFT;
-        ptrs[ci][0][0] = PTR_DIAG;
         ptrs.push_back(std::vector< std::vector<int> >(ref_len, 
                 std::vector<int>(truth_lens[i], PTR_NONE)));
-        for (int p = 0; p < ref_len; p++) ptrs[ri][p][0] = PTR_UP;
-        for (int p = 0; p < truth_lens[i]; p++) ptrs[ri][0][p] = PTR_LEFT;
+        ptrs[ci][0][0] = PTR_DIAG;
         ptrs[ri][0][0] = PTR_DIAG;
 
-        /* printf("%s\n", aln_strs[i].data()); */
-        /* printf("calls_ptrs: (%d,%d,%d)\n", ptrs.size(), */
-        /*         ptrs[ci].size(), ptrs[ci][0].size()); */
-        /* printf("ref_ptrs: (%d,%d,%d)\n", ptrs.size(), */
-        /*         ptrs[ri].size(), ptrs[ri][0].size()); */
+        done.push_back(std::vector< std::vector<bool> >(calls_lens[i], 
+                std::vector<bool>(truth_lens[i], false)));
+        done.push_back(std::vector< std::vector<bool> >(ref_len, 
+                std::vector<bool>(truth_lens[i], false)));
+        
+        // set first wavefront
+        std::queue< idx > queue;
+        queue.push({ci, 0, 0});
+        queue.push({ri, 0, 0});
+        ptrs[ri][0][0] |= PTR_DIAG;
+        done[ri][0][0] = true;
+        ptrs[ci][0][0] |= PTR_DIAG;
+        done[ci][0][0] = true;
 
-        bool done = false;
-        bool extend = true;
-        while (true) {
+        // continue looping until full alignment found
+        while (!done[ci][calls_lens[i]-1][truth_lens[i]-1] &&
+                !done[ri][ref_len-1][truth_lens[i]-1]) {
+            /* printf("s = %d\n", s[i]); */
+            if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
-            // EXTEND WAVEFRONT
-            extend = true;
-            while (extend) {
-
-                // extend calls, allow calls -> ref transition
-                for (int d = 0; d < calls_mat_len; d++) {
-                    int off = offs[ci][s[i]][d];
-                    int diag = d + 1 - calls_lens[i];
-
-                    // don't allow starting from untouched cells
-                    if (off == -2) continue;
-
-                    // check that it's within matrix
-                    if (diag + off + 1 < 0) continue;
-                    if (off > calls_lens[i] - 1) continue;
-                    if (diag + off > truth_lens[i] - 1) continue;
-
-                    // extend
-                    while (off < calls_lens[i] - 1 && 
-                           diag + off < truth_lens[i] - 1) {
-
-                        // extend to reference if possible
-                        int roff = (off >= 0) ? calls_ref_ptrs[i][off] : -1;  // lookup corresponding ref pos
-                        if (off >= 0 && roff >= 0 && diag+off >= 0) {
-                            int rd = d + (off - roff) + (ref_len - calls_lens[i]);
-                            if (roff > offs[ri][s[i]][rd]) {
-                                /* printf("switch calls->ref: (%d, %d) to (%d, %d)\n", */
-                                /*         off, diag+off, roff, diag+off); */
-                                offs[ri][s[i]][rd] = roff;
-                                if (roff < ref_len)
-                                    ptrs[ri][roff][diag+off] = PTR_SWAP;
-                            }
+            // EXTEND WAVEFRONT (stay at same score)
+            std::unordered_set< idx > this_wave;
+            std::unordered_set< idx > done_this_wave;
+            while (!queue.empty()) {
+                idx x = queue.front(); queue.pop();                  // next cell
+                /* printf("x = (%d, %d, %d)\n", x.hi, x.cri, x.ti); */
+                this_wave.insert(x);                                       // record visit
+                if (x.hi == ci) { // == CALLS
+                    // allow match
+                    if (calls[i][x.cri] == truth[i][x.ti] &&              // if match
+                            x.cri+1 < calls_lens[i] &&                    // if in range
+                            x.ti+1  < truth_lens[i]) {
+                        if (!done[x.hi][x.cri+1][x.ti+1] && 
+                                !contains(done_this_wave, idx(x.hi, x.cri+1,x.ti+1))) {
+                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
                         }
-
-                        // extend on calls if possible
-                        if (calls[i][off+1] == truth[i][diag+off+1]) {
-                            ptrs[ci][off+1][diag+off+1] = PTR_DIAG;
-                            off++;
-                        } else { break; }
+                        if (!done[x.hi][x.cri+1][x.ti+1])
+                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
                     }
-                    offs[ci][s[i]][d] = std::max(off, offs[ci][s[i]][d]);
-
-                    // finish if done
-                    if (off == calls_lens[i] - 1 && 
-                        off + diag == truth_lens[i] - 1)
-                    { 
-                        done = true; 
-                        pr_calls_ref_end[i] = CALLS;
-                        break; 
-                    }
-
-                }
-                if (done) break;
-
-                // extend ref, allow ref->calls transition, redo if taken
-                extend = false;
-                for (int rd = 0; rd < ref_mat_len; rd++) {
-                    int roff = offs[ri][s[i]][rd];
-                    int rdiag = rd + 1 - ref_len;
-
-                    // don't allow starting from untouched cells
-                    if (roff == -2) continue;
-
-                    // check that it's within matrix
-                    if (rdiag + roff + 1 < 0) continue;
-                    if (roff > ref_len - 1) continue;
-                    if (rdiag + roff > truth_lens[i] - 1) continue;
-
-                    // extend
-                    while (roff < ref_len - 1 && 
-                           rdiag + roff < truth_lens[i] - 1) {
-
-                        // extend to other hap if possible
-                        int off = (roff >= 0) ? ref_calls_ptrs[i][roff] : -1;
-                        if (roff >= 0 && off >= 0 && rdiag+roff >= 0) {
-                            int d = rd + (roff - off) + (calls_lens[i] - ref_len);
-                            if (off > offs[ci][s[i]][d]) {
-                                extend = true;
-                                /* printf("switch ref->calls: (%d, %d) to (%d, %d)\n", */
-                                /*         roff, rdiag+roff, off, rdiag+roff); */
-                                offs[ci][s[i]][d] = off;
-                                if (off < calls_lens[i])
-                                    ptrs[ci][off][rdiag+roff] = PTR_SWAP;
-                            }
+                    // allow phase swap
+                    if (calls_ref_ptrs[i][x.cri] >= 0) {                  // if swap allowed
+                        if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti] &&
+                                !contains(done_this_wave, idx(ri, calls_ref_ptrs[i][x.cri], x.ti))) {
+                            queue.push(idx(ri, 
+                                    calls_ref_ptrs[i][x.cri], 
+                                    x.ti));
+                            done_this_wave.insert(idx(ri, calls_ref_ptrs[i][x.cri], x.ti));
                         }
-
-                        // extend on reference if possible
-                        if (ref[roff+1] == truth[i][rdiag+roff+1]) {
-                            ptrs[ri][roff+1][rdiag+roff+1] = PTR_DIAG;
-                            roff++;
-                        } else { break; }
+                        if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti])
+                            ptrs[ri][calls_ref_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
                     }
-                    offs[ri][s[i]][rd] = std::max(roff, offs[ri][s[i]][rd]);
-
-                    // finish if done
-                    if (roff == ref_len - 1 && 
-                        roff + rdiag == truth_lens[i] - 1)
-                    { 
-                        done = true; 
-                        pr_calls_ref_end[i] = REF;
-                        break; 
+                } else { // x.hi == ri == REF
+                    // allow match
+                    if (ref[x.cri] == truth[i][x.ti] &&                     // if match
+                            x.cri+1 < ref_len &&                            // if in range
+                            x.ti+1  < truth_lens[i]) {
+                        if (!done[x.hi][x.cri+1][x.ti+1] &&
+                                !contains(done_this_wave, idx(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
+                        }
+                        if (!done[x.hi][x.cri+1][x.ti+1])
+                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
                     }
-
-                }
-                if (done) break;
-            }
-            if (done) break;
-
-
-            // NEXT WAVEFRONT
-            
-            // add wavefront, init edge cells
-            offs[ci].push_back(std::vector<int>(calls_mat_len, -2));
-            offs[ri].push_back(std::vector<int>(ref_mat_len, -2));
-            if (s[i]+1 == calls_lens[i]-1) { // bottom left cells
-                offs[ci][s[i]+1][0] = s[i]+1;
-                offs[ri][s[i]+1][0] = s[i]+1;
-            }
-            if (s[i]+1 == calls_mat_len-1) // top right cells
-                offs[ci][s[i]+1][calls_mat_len-1] = s[i]+1;
-            if (s[i]+1 == ref_mat_len-1)
-                offs[ri][s[i]+1][ref_mat_len-1] = s[i]+1;
-
-            // central cells
-            for (int d = 1; d < calls_mat_len-1; d++) { // calls
-
-                // calculate best new offset
-                int offleft = offs[ci][s[i]][d-1];
-                int offtop  = (offs[ci][s[i]][d+1] == -2) ? 
-                    -2 : offs[ci][s[i]][d+1]+1;
-                int offdiag = (offs[ci][s[i]][d] == -2) ? 
-                    -2 : offs[ci][s[i]][d]+1;
-                int off = std::max(offleft, std::max(offtop, offdiag));
-                offs[ci][s[i]+1][d] = off;
-
-                // store new offset and pointer
-                int diag = d + 1 - calls_lens[i];
-                if (off >= 0 && off < calls_lens[i] &&
-                        diag+off >= 0 && diag+off < truth_lens[i]) {
-                    if (offdiag >= offtop && offdiag >= offleft) {
-                        ptrs[ci][off][diag+off] = PTR_SUB;
-                    } else if (offleft >= offtop) {
-                        ptrs[ci][off][diag+off] = PTR_LEFT;
-                    } else {
-                        ptrs[ci][off][diag+off] = PTR_UP;
+                    // allow phase swap
+                    if (ref_calls_ptrs[i][x.cri] >= 0) {                    // if swap allowed
+                        if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti] &&
+                                !contains(this_wave, idx(ci, ref_calls_ptrs[i][x.cri], x.ti))) {
+                            queue.push(idx(ci, 
+                                        ref_calls_ptrs[i][x.cri], 
+                                        x.ti));
+                            done_this_wave.insert(idx(ci, ref_calls_ptrs[i][x.cri], x.ti));
+                        }
+                        if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti])
+                            ptrs[ci][ref_calls_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
                     }
                 }
             }
-            for (int rd = 1; rd < ref_mat_len-1; rd++) { // ref
 
-                // calculate best new offset
-                int roffleft = offs[ri][s[i]][rd-1];
-                int rofftop  = (offs[ri][s[i]][rd+1] == -2) ? 
-                    -2 : offs[ri][s[i]][rd+1]+1;
-                int roffdiag = (offs[ri][s[i]][rd] == -2) ? 
-                    -2 : offs[ri][s[i]][rd]+1;
-                int roff = std::max(roffleft, std::max(rofftop, roffdiag));
+            // mark all cells visited this wave as done
+            for (auto x : done_this_wave) { done[x.hi][x.cri][x.ti] = true; }
+            done_this_wave.clear();
 
-                // store new offset and pointer
-                int rdiag = rd + 1 - ref_len;
-                if (roff >= 0 && roff < ref_len &&
-                        rdiag+roff >= 0 && rdiag+roff < truth_lens[i]) {
-                    if (roffdiag >= rofftop && roffdiag >= roffleft) {
-                        ptrs[ri][roff][rdiag+roff] = PTR_SUB;
-                    } else if (roffleft >= rofftop) {
-                        ptrs[ri][roff][rdiag+roff] = PTR_LEFT;
-                    } else {
-                        ptrs[ri][roff][rdiag+roff] = PTR_UP;
+            // exit if we're done aligning
+            if (done[ci][calls_lens[i]-1][truth_lens[i]-1] ||
+                done[ri][ref_len-1][truth_lens[i]-1]) break;
+
+
+            // NEXT WAVEFRONT (increase score by one)
+            for (auto x : this_wave) {
+                if (x.hi == ci) {
+                    if (x.cri+1 < calls_lens[i]) {
+                        if (!done[x.hi][x.cri+1][x.ti] && 
+                                !contains(done_this_wave,
+                                    idx(x.hi, x.cri+1, x.ti))) {
+                            queue.push(idx(x.hi, x.cri+1, x.ti));
+                        }
+                        if (!done[x.hi][x.cri+1][x.ti])
+                            ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
+                    }
+                    if (x.ti+1 < truth_lens[i]) {
+                        if (!done[x.hi][x.cri][x.ti+1] &&
+                                !contains(done_this_wave,
+                                    idx(x.hi, x.cri, x.ti+1))) {
+                            queue.push(idx(x.hi, x.cri, x.ti+1));
+                        }
+                        if (!done[x.hi][x.cri][x.ti+1])
+                            ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
+                    }
+                    if (x.cri+1 < calls_lens[i] && x.ti+1 < truth_lens[i]) {
+                        if (!done[x.hi][x.cri+1][x.ti+1] &&
+                                !contains(done_this_wave,
+                                    idx(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
+                        }
+                        if (!done[x.hi][x.cri+1][x.ti+1])
+                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
+                    }
+                } else { //x.hi == REF
+                    if (x.cri+1 < ref_len) {
+                        if (!done[x.hi][x.cri+1][x.ti] &&
+                                !contains(done_this_wave,
+                                    idx(x.hi, x.cri+1, x.ti))) {
+                            queue.push(idx(x.hi, x.cri+1, x.ti));
+                        }
+                        if (!done[x.hi][x.cri+1][x.ti])
+                            ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
+                    }
+                    if (x.ti+1 < truth_lens[i]) {
+                        if (!done[x.hi][x.cri][x.ti+1] &&
+                                !contains(done_this_wave,
+                                    idx(x.hi, x.cri, x.ti+1))) {
+                            queue.push(idx(x.hi, x.cri, x.ti+1));
+                        }
+                        if (!done[x.hi][x.cri][x.ti+1])
+                            ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
+                    }
+                    if (x.cri+1 < ref_len && x.ti+1 < truth_lens[i]) {
+                        if (!done[x.hi][x.cri+1][x.ti+1] &&
+                                !contains(done_this_wave, 
+                                    idx(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
+                        }
+                        if (!done[x.hi][x.cri+1][x.ti+1])
+                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
                     }
                 }
             }
-            ++s[i];
-        }
-    }
-}
+            this_wave.clear();
+            s[i]++;
+        } // while loop (this alignment)
+
+        // save where to start backtrack (prefer ref: omit vars which don't reduce ED)
+        if (done[ri][ref_len-1][truth_lens[i]-1]) {
+            pr_calls_ref_end[i] = REF;
+        } else if (done[ci][calls_lens[i]-1][truth_lens[i]-1]) {
+            pr_calls_ref_end[i] = CALLS;
+        } else { ERROR("Alignment not finished in 'prec_recall_aln()'."); }
+
+    } // 4 alignments
+} // function
 
 
 /******************************************************************************/
@@ -1222,7 +1218,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     calls1_c1, calls2_c2, truth1_t1, truth2_t2, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs,
-                    pr_score, pr_offs, pr_ptrs, pr_calls_ref_end
+                    pr_score, pr_ptrs, pr_calls_ref_end
             );
 
             // calculate optimal global phasing
