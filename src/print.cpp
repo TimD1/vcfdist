@@ -96,7 +96,13 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
                                 ptrs[(i>>1)-1][(j>>1)-1] & PTR_RPATH) { // right
                             printf("%s", BLUE(ptr_str[i][j]).data());
                         } else { // none
-                            printf("%c", ptr_str[i][j]);
+                            if (i>>1 == 0 && j>>1 == 0 
+                                    && ptrs[i>>1][j>>1] & PTR_RPATH 
+                                    && ptrs[i>>1][j>>1] & PTR_LPATH 
+                                    )
+                                printf("%s", GREEN(ptr_str[i][j]).data());
+                            else 
+                                printf("%c", ptr_str[i][j]);
                         }
                         break;
                     case '-':

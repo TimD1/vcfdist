@@ -807,36 +807,74 @@ void color_ptrs(
         // init
         int aln_idx = aln*2;
         int hap_idx = pr_calls_ref_end[aln];
+        int prev_hap_idx = hap_idx;
         int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
 
+        // RIGHT PATH
         while (ptr_refcalls >= 0 || ptr_truth >= 0) {
             ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_RPATH;
-            if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_UP) {
+            // prefer REF (omit vars which don't reduce ED) but prevent loops
+            if (hap_idx == CALLS && prev_hap_idx == CALLS && 
+                    ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SWAP) {
+                ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
+                if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                prev_hap_idx = CALLS; hap_idx = REF; continue;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_UP) {
                 ptr_refcalls--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_DIAG) {
+                ptr_refcalls--; ptr_truth--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SUB) {
+                ptr_refcalls--; ptr_truth--;
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_LEFT) {
+                ptr_truth--;
+            } else if (hap_idx == REF) {
+                if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SWAP) {
+                    ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
+                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                    prev_hap_idx = REF; hap_idx = CALLS; continue;
+                }
+            } else {
+                ERROR("Unexpected alignment pointer (%d) in color_ptrs()", 
+                        ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
+            }
+            prev_hap_idx = hap_idx;
+        }
+
+        // LEFT PATH
+        hap_idx = pr_calls_ref_end[aln];
+        prev_hap_idx = hap_idx;
+        ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
+        ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
+        while (ptr_refcalls >= 0 || ptr_truth >= 0) {
+            ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_LPATH;
+            // prefer REF (omit vars which don't reduce ED) but prevent loops
+            if (hap_idx == CALLS && prev_hap_idx == CALLS &&
+                    ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SWAP) {
+                ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
+                if (ptr_refcalls < 0) ERROR("Backtracking OOB");
+                prev_hap_idx = CALLS; hap_idx = REF; continue;
             } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_LEFT) {
                 ptr_truth--;
             } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_DIAG) {
                 ptr_refcalls--; ptr_truth--;
             } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SUB) {
                 ptr_refcalls--; ptr_truth--;
-            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SWAP) {
-                if (hap_idx == CALLS) {
-                    ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
-                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
-                    hap_idx = REF;
-                } else if (hap_idx == REF) {
+            } else if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_UP) {
+                ptr_refcalls--;
+            } else if (hap_idx == REF) {
+                if (ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] & PTR_SWAP) {
                     ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
                     if (ptr_refcalls < 0) ERROR("Backtracking OOB");
-                    hap_idx = CALLS;
-                } else {
-                    ERROR("Unexpected hap (%d)", hap_idx);
+                    prev_hap_idx = REF; hap_idx = CALLS; continue;
                 }
             } else {
                 ERROR("Unexpected alignment pointer (%d) in color_ptrs()", 
                         ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
             }
+            prev_hap_idx = hap_idx;
         }
+
     }
 }
 
