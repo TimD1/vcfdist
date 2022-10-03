@@ -789,7 +789,9 @@ int store_phase(
 /******************************************************************************/
 
 
-void color_ptrs(
+void get_prec_recall_path(
+        std::vector< std::vector<idx> > & left_path, 
+        std::vector< std::vector<idx> > & right_path,
         std::vector< std::vector< std::vector<int> > > & ptrs, 
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
@@ -803,6 +805,8 @@ void color_ptrs(
             ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
 
     for (int aln = 0; aln < 4; aln++) {
+        left_path.push_back(std::vector<idx>());
+        right_path.push_back(std::vector<idx>());
 
         // init
         int aln_idx = aln*2;
@@ -813,6 +817,7 @@ void color_ptrs(
 
         // RIGHT PATH
         while (ptr_refcalls >= 0 || ptr_truth >= 0) {
+            right_path[aln].push_back(idx(aln_idx+hap_idx, ptr_refcalls, ptr_truth));
             ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_RPATH;
             // prefer REF (omit vars which don't reduce ED) but prevent loops
             if (hap_idx == CALLS && prev_hap_idx == CALLS && 
@@ -835,7 +840,7 @@ void color_ptrs(
                     prev_hap_idx = REF; hap_idx = CALLS; continue;
                 }
             } else {
-                ERROR("Unexpected alignment pointer (%d) in color_ptrs()", 
+                ERROR("Unexpected alignment pointer (%d) in get_prec_recall_path()", 
                         ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
             }
             prev_hap_idx = hap_idx;
@@ -847,6 +852,7 @@ void color_ptrs(
         ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
         while (ptr_refcalls >= 0 || ptr_truth >= 0) {
+            left_path[aln].push_back(idx(aln_idx+hap_idx, ptr_refcalls, ptr_truth));
             ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_LPATH;
             // prefer REF (omit vars which don't reduce ED) but prevent loops
             if (hap_idx == CALLS && prev_hap_idx == CALLS &&
@@ -869,12 +875,13 @@ void color_ptrs(
                     prev_hap_idx = REF; hap_idx = CALLS; continue;
                 }
             } else {
-                ERROR("Unexpected alignment pointer (%d) in color_ptrs()", 
+                ERROR("Unexpected alignment pointer (%d) in get_prec_recall_path()", 
                         ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
             }
             prev_hap_idx = hap_idx;
         }
-
+        std::reverse(right_path[aln].begin(), right_path[aln].end());
+        std::reverse(left_path[aln].begin(), left_path[aln].end());
     }
 }
 
@@ -889,6 +896,8 @@ void calc_prec_recall(
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<idx> > & left_path,
+        std::vector< std::vector<idx> > & right_path,
         std::vector< std::vector< std::vector<int> > > & ptrs, 
         std::vector<int> pr_calls_ref_end, int phase, int print
         ) {
@@ -943,6 +952,16 @@ void calc_prec_recall(
     // for only the selected phasing
     if (print) printf("\n=======================================================================\n");
     for (int aln : calls_indices) {
+        printf(" ALN %s:\n", aln_strs[aln].data());
+
+        printf("LEFT PATH:\n");
+        for(auto x : left_path[aln]) {
+            printf("(%s, %d, %d)\n", x.hi ? "REF   " : "CALLS", x.cri, x.ti);
+        }
+        printf("RIGHT PATH:\n");
+        for(auto x : right_path[aln]) {
+            printf("(%s, %d, %d)\n", x.hi ? "REF   " : "CALLS", x.cri, x.ti);
+        }
 
         // init
         int aln_idx = aln*2;
@@ -956,8 +975,11 @@ void calc_prec_recall(
         int prev_calls_var_ptr = calls_var_ptr;
 
         // debug print pointer matrices
+        printf("CALLS\n");
         if (print) print_ptrs(ptrs[aln_idx+CALLS], calls[aln], truth[aln]);
+        printf("REF\n");
         if (print) print_ptrs(ptrs[aln_idx+REF], ref, truth[aln]);
+        continue;
 
         if (print) printf("\n%s:\n", aln_strs[aln].data());
         while (ptr_refcalls >= 0 || ptr_truth >= 0) {
@@ -1294,15 +1316,21 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             int dist = std::min(orig_phase_dist, swap_phase_dist);
             distance += dist;
 
-            // calculate precision/recall from alignment
-            color_ptrs(pr_ptrs, calls1_ref_ptrs, ref_calls1_ptrs, 
+            // calculate paths from alignment
+            std::vector< std::vector<idx> > left_path, right_path;
+            get_prec_recall_path(left_path, right_path, pr_ptrs, 
+                    calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs, pr_calls_ref_end);
+
+            // calculate precision/recall from paths
+            if (dist)
             calc_prec_recall(
                     clusterdata_ptr, sc_idx, ctg,
                     calls1, calls2, truth1, truth2, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
+                    left_path, right_path,
                     pr_ptrs, pr_calls_ref_end, phase, dist
             );
 
@@ -1372,27 +1400,27 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 printf("TRUTH2:    %s\n", truth2_str.data());
                 printf("Edit Distance: %d\n", dist);
 
-                printf("ORIG_C1:   %s\n", ref_str_c1.data());
-                printf("CALLS1_C1: %s\n", calls1_str_c1.data());
-                printf("CALLS1_REF: ");
-                for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) {
-                    printf("%d ", calls1_ref_ptrs[i]);
-                } printf("\n");
-                printf("REF_CALLS1: ");
-                for(size_t i = 0; i < ref_calls1_ptrs.size(); i++) {
-                    printf("%d ", ref_calls1_ptrs[i]);
-                } printf("\n");
+                /* printf("ORIG_C1:   %s\n", ref_str_c1.data()); */
+                /* printf("CALLS1_C1: %s\n", calls1_str_c1.data()); */
+                /* printf("CALLS1_REF: "); */
+                /* for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) { */
+                /*     printf("%d ", calls1_ref_ptrs[i]); */
+                /* } printf("\n"); */
+                /* printf("REF_CALLS1: "); */
+                /* for(size_t i = 0; i < ref_calls1_ptrs.size(); i++) { */
+                /*     printf("%d ", ref_calls1_ptrs[i]); */
+                /* } printf("\n"); */
 
-                printf("ORIG_C2:   %s\n", ref_str_c2.data());
-                printf("CALLS2_C2: %s\n", calls2_str_c2.data());
-                printf("CALLS2_REF: ");
-                for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) {
-                    printf("%d ", calls2_ref_ptrs[i]);
-                } printf("\n");
-                printf("REF_CALLS2: ");
-                for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) {
-                    printf("%d ", ref_calls2_ptrs[i]);
-                } printf("\n");
+                /* printf("ORIG_C2:   %s\n", ref_str_c2.data()); */
+                /* printf("CALLS2_C2: %s\n", calls2_str_c2.data()); */
+                /* printf("CALLS2_REF: "); */
+                /* for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) { */
+                /*     printf("%d ", calls2_ref_ptrs[i]); */
+                /* } printf("\n"); */
+                /* printf("REF_CALLS2: "); */
+                /* for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) { */
+                /*     printf("%d ", ref_calls2_ptrs[i]); */
+                /* } printf("\n"); */
 
             }
 
