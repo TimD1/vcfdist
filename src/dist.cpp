@@ -537,6 +537,7 @@ public:
 
     idx() : hi(0), cri(0), ti(0) {};
     idx(int h, int c, int t) : hi(h), cri(c), ti(t) {};
+    idx(const idx & i2) : hi(i2.hi), cri(i2.cri), ti(i2.ti) {};
     bool operator<(const idx & idx2) const {
         if (this->hi < idx2.hi) return true;
         else if (this->hi == idx2.hi && this->cri < idx2.cri) return true;
@@ -545,6 +546,13 @@ public:
     }
     bool operator==(const idx & idx2) const {
         return this->hi == idx2.hi && this->cri == idx2.cri && this->ti == idx2.ti;
+    }
+    idx & operator=(const idx & other) {
+        if (this == &other) return *this;
+        this->hi = other.hi;
+        this->cri = other.cri;
+        this->ti = other.ti;
+        return *this;
     }
 };
 
@@ -597,7 +605,6 @@ void calc_prec_recall_aln(
         ptrs.push_back(std::vector< std::vector<int> >(ref_len, 
                 std::vector<int>(truth_lens[i], PTR_NONE)));
         ptrs[ci][0][0] = PTR_DIAG;
-        ptrs[ri][0][0] = PTR_DIAG;
 
         done.push_back(std::vector< std::vector<bool> >(calls_lens[i], 
                 std::vector<bool>(truth_lens[i], false)));
@@ -607,9 +614,6 @@ void calc_prec_recall_aln(
         // set first wavefront
         std::queue< idx > queue;
         queue.push({ci, 0, 0});
-        queue.push({ri, 0, 0});
-        ptrs[ri][0][0] |= PTR_DIAG;
-        done[ri][0][0] = true;
         ptrs[ci][0][0] |= PTR_DIAG;
         done[ci][0][0] = true;
 
@@ -816,8 +820,8 @@ void get_prec_recall_path(
         int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
 
         // RIGHT PATH
-        while (ptr_refcalls >= 0 || ptr_truth >= 0) {
-            right_path[aln].push_back(idx(aln_idx+hap_idx, ptr_refcalls, ptr_truth));
+        while (ptr_refcalls >= 0 || ptr_truth >= 0 || hap_idx > 0) {
+            right_path[aln].push_back(idx(hap_idx, ptr_refcalls, ptr_truth));
             ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_RPATH;
             // prefer REF (omit vars which don't reduce ED) but prevent loops
             if (hap_idx == CALLS && prev_hap_idx == CALLS && 
@@ -851,8 +855,8 @@ void get_prec_recall_path(
         prev_hap_idx = hap_idx;
         ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
-        while (ptr_refcalls >= 0 || ptr_truth >= 0) {
-            left_path[aln].push_back(idx(aln_idx+hap_idx, ptr_refcalls, ptr_truth));
+        while (ptr_refcalls >= 0 || ptr_truth >= 0 || hap_idx > 0) {
+            left_path[aln].push_back(idx(hap_idx, ptr_refcalls, ptr_truth));
             ptrs[aln_idx+hap_idx][ptr_refcalls][ptr_truth] |= PTR_LPATH;
             // prefer REF (omit vars which don't reduce ED) but prevent loops
             if (hap_idx == CALLS && prev_hap_idx == CALLS &&
@@ -952,19 +956,23 @@ void calc_prec_recall(
     // for only the selected phasing
     if (print) printf("\n=======================================================================\n");
     for (int aln : calls_indices) {
-        printf(" ALN %s:\n", aln_strs[aln].data());
 
-        printf("LEFT PATH:\n");
-        for(auto x : left_path[aln]) {
-            printf("(%s, %d, %d)\n", x.hi ? "REF   " : "CALLS", x.cri, x.ti);
-        }
-        printf("RIGHT PATH:\n");
-        for(auto x : right_path[aln]) {
-            printf("(%s, %d, %d)\n", x.hi ? "REF   " : "CALLS", x.cri, x.ti);
+        int aln_idx = aln*2;
+        if (print) printf("\nCALLS");
+        if (print) print_ptrs(ptrs[aln_idx+CALLS], calls[aln], truth[aln]);
+        if (print) printf("\nREF");
+        if (print) print_ptrs(ptrs[aln_idx+REF], ref, truth[aln]);
+
+        // find points on both paths
+        std::vector<bool> both_paths(left_path[aln].size(), false);
+        for(auto r : right_path[aln]) {
+            for (size_t li = 0; li < left_path[aln].size(); li++) {
+                if (r == left_path[aln][li])
+                    both_paths[li] = true;
+            }
         }
 
         // init
-        int aln_idx = aln*2;
         int hap_idx = pr_calls_ref_end[aln];
         int ptr_refcalls = ptrs[aln_idx+hap_idx].size()-1;
         int ptr_truth = ptrs[aln_idx+hap_idx][0].size()-1;
@@ -973,16 +981,10 @@ void calc_prec_recall(
         int calls_var_ptr = calls_end_idx[aln]-1;
         int calls_var_pos = calls_vars[aln]->poss[calls_var_ptr] - beg;
         int prev_calls_var_ptr = calls_var_ptr;
-
-        // debug print pointer matrices
-        printf("CALLS\n");
-        if (print) print_ptrs(ptrs[aln_idx+CALLS], calls[aln], truth[aln]);
-        printf("REF\n");
-        if (print) print_ptrs(ptrs[aln_idx+REF], ref, truth[aln]);
-        continue;
+        int lidx = left_path[aln].size()-1;
 
         if (print) printf("\n%s:\n", aln_strs[aln].data());
-        while (ptr_refcalls >= 0 || ptr_truth >= 0) {
+        while (lidx >= 0) {
 
             // set FP if necessary
             int ref_pos = (hap_idx == REF) ? ptr_refcalls : 
@@ -1001,7 +1003,7 @@ void calc_prec_recall(
             }
 
             // sync point: set TP/PP
-            if (main_diag) {
+            if (main_diag && both_paths[lidx]) {
 
                 // calculate old edit distance
                 int old_ed = 0;
@@ -1066,40 +1068,56 @@ void calc_prec_recall(
                     hap_idx ? "REF  " : "CALLS", 
                     ptr_refcalls, ptr_truth);
 
+            // update left/right pointers
+            lidx--;
+            if (lidx < 0) break;
+
+            // parse movement type
             int ptr_val = ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth];
-            if (ptr_val & PTR_UP) {
-                if (print) printf("INS\n");
-                ptr_refcalls--;
-                new_ed++;
-            } else if (ptr_val & PTR_LEFT) {
-                if (print) printf("DEL\n");
-                ptr_truth--;
-                new_ed++;
-            } else if (ptr_val & PTR_DIAG) {
-                ptr_refcalls--;
-                ptr_truth--;
-            } else if (ptr_val & PTR_SUB) {
-                if (print) printf("SUB\n");
-                ptr_refcalls--;
-                ptr_truth--;
-                new_ed++;
-            } else if (ptr_val & PTR_SWAP) {
-                if (print) printf("SWAP\n");
-                if (hap_idx == CALLS) {
-                    ptr_refcalls = calls_ref_ptrs[aln][ptr_refcalls];
-                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
-                    hap_idx = REF;
-                } else if (hap_idx == REF) {
-                    ptr_refcalls = ref_calls_ptrs[aln][ptr_refcalls];
-                    if (ptr_refcalls < 0) ERROR("Backtracking OOB");
-                    hap_idx = CALLS;
+            if(left_path[aln][lidx+1].hi == left_path[aln][lidx].hi) {
+                if (left_path[aln][lidx+1].cri - left_path[aln][lidx].cri == 1 &&
+                        left_path[aln][lidx+1].ti-left_path[aln][lidx].ti == 1) { // diag
+                    if (ptr_val & PTR_SUB) {
+                        if (print) printf("SUB\n");
+                        new_ed++;
+                    } else if (ptr_val & PTR_DIAG) {
+                        ;
+                    } else {
+                        ERROR("Unexpected pointer value (%d).", ptr_val);
+                    }
+                } else if (left_path[aln][lidx+1].cri - left_path[aln][lidx].cri == 0 &&
+                        left_path[aln][lidx+1].ti-left_path[aln][lidx].ti == 1) { // del
+                    if (ptr_val & PTR_LEFT) {
+                        if (print) printf("DEL\n");
+                        new_ed++;
+                    } else {
+                        ERROR("Unexpected pointer value (%d).", ptr_val);
+                    }
+                } else if (left_path[aln][lidx+1].cri - left_path[aln][lidx].cri == 1 &&
+                        left_path[aln][lidx+1].ti-left_path[aln][lidx].ti == 0) { // ins
+                    if (ptr_val & PTR_UP) {
+                        if (print) printf("INS\n");
+                        new_ed++;
+                    } else {
+                        ERROR("Unexpected pointer value (%d).", ptr_val);
+                    }
                 } else {
-                    ERROR("Unexpected hap (%d)", hap_idx);
+                        ERROR("Unexpected path (%d,%d,%d)->(%d,%d,%d).",
+                                left_path[aln][lidx+1].hi, 
+                                left_path[aln][lidx+1].cri, 
+                                left_path[aln][lidx+1].ti, 
+                                left_path[aln][lidx].hi, 
+                                left_path[aln][lidx].cri, 
+                                left_path[aln][lidx].ti);
                 }
             } else {
-                ERROR("Unexpected alignment pointer (%d) in calc_prec_recall()", 
-                        ptrs[aln_idx + hap_idx][ptr_refcalls][ptr_truth]);
+                if (print) printf("SWAP\n");
             }
+
+            // update location
+            ptr_refcalls = left_path[aln][lidx].cri;
+            ptr_truth = left_path[aln][lidx].ti;
+            hap_idx = left_path[aln][lidx].hi % 2;
 
             // update if on main diag
             main_diag = (hap_idx == REF) ? 
@@ -1323,7 +1341,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     calls2_ref_ptrs, ref_calls2_ptrs, pr_calls_ref_end);
 
             // calculate precision/recall from paths
-            if (dist)
             calc_prec_recall(
                     clusterdata_ptr, sc_idx, ctg,
                     calls1, calls2, truth1, truth2, ref_c1,
