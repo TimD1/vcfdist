@@ -618,8 +618,7 @@ void calc_prec_recall_aln(
         done[ci][0][0] = true;
 
         // continue looping until full alignment found
-        while (!done[ci][calls_lens[i]-1][truth_lens[i]-1] &&
-                !done[ri][ref_len-1][truth_lens[i]-1]) {
+        while (true) {
             /* printf("s = %d\n", s[i]); */
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
@@ -627,24 +626,24 @@ void calc_prec_recall_aln(
             std::unordered_set< idx > this_wave;
             std::unordered_set< idx > done_this_wave;
             while (!queue.empty()) {
-                idx x = queue.front(); queue.pop();                  // next cell
-                /* printf("x = (%d, %d, %d)\n", x.hi, x.cri, x.ti); */
-                this_wave.insert(x);                                       // record visit
+                idx x = queue.front(); queue.pop();
+                /* printf("  x = (%d, %d, %d)\n", x.hi, x.cri, x.ti); */
+                this_wave.insert(x);
                 if (x.hi == ci) { // == CALLS
                     // allow match
-                    if (calls[i][x.cri] == truth[i][x.ti] &&              // if match
-                            x.cri+1 < calls_lens[i] &&                    // if in range
-                            x.ti+1  < truth_lens[i]) {
+                    if (x.cri+1 < calls_lens[i] && x.ti+1 < truth_lens[i] &&
+                            calls[i][x.cri+1] == truth[i][x.ti+1]) {
                         if (!done[x.hi][x.cri+1][x.ti+1] && 
                                 !contains(done_this_wave, idx(x.hi, x.cri+1,x.ti+1))) {
                             queue.push(idx(x.hi, x.cri+1, x.ti+1));
                             done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
                         }
-                        if (!done[x.hi][x.cri+1][x.ti+1])
+                        if (!done[x.hi][x.cri+1][x.ti+1]) {
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
+                        }
                     }
                     // allow phase swap
-                    if (calls_ref_ptrs[i][x.cri] >= 0) {                  // if swap allowed
+                    if (calls_ref_ptrs[i][x.cri] >= 0) {
                         if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti] &&
                                 !contains(done_this_wave, idx(ri, calls_ref_ptrs[i][x.cri], x.ti))) {
                             queue.push(idx(ri, 
@@ -652,24 +651,25 @@ void calc_prec_recall_aln(
                                     x.ti));
                             done_this_wave.insert(idx(ri, calls_ref_ptrs[i][x.cri], x.ti));
                         }
-                        if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti])
+                        if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti]) {
                             ptrs[ri][calls_ref_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
+                        }
                     }
                 } else { // x.hi == ri == REF
                     // allow match
-                    if (ref[x.cri] == truth[i][x.ti] &&                     // if match
-                            x.cri+1 < ref_len &&                            // if in range
-                            x.ti+1  < truth_lens[i]) {
+                    if (x.cri+1 < ref_len && x.ti+1  < truth_lens[i] &&
+                            ref[x.cri+1] == truth[i][x.ti+1]) {
                         if (!done[x.hi][x.cri+1][x.ti+1] &&
                                 !contains(done_this_wave, idx(x.hi, x.cri+1, x.ti+1))) {
                             queue.push(idx(x.hi, x.cri+1, x.ti+1));
                             done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
                         }
-                        if (!done[x.hi][x.cri+1][x.ti+1])
+                        if (!done[x.hi][x.cri+1][x.ti+1]) {
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
+                        }
                     }
                     // allow phase swap
-                    if (ref_calls_ptrs[i][x.cri] >= 0) {                    // if swap allowed
+                    if (ref_calls_ptrs[i][x.cri] >= 0) {
                         if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti] &&
                                 !contains(this_wave, idx(ci, ref_calls_ptrs[i][x.cri], x.ti))) {
                             queue.push(idx(ci, 
@@ -677,8 +677,9 @@ void calc_prec_recall_aln(
                                         x.ti));
                             done_this_wave.insert(idx(ci, ref_calls_ptrs[i][x.cri], x.ti));
                         }
-                        if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti])
+                        if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti]) {
                             ptrs[ci][ref_calls_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
+                        }
                     }
                 }
             }
@@ -694,58 +695,64 @@ void calc_prec_recall_aln(
 
             // NEXT WAVEFRONT (increase score by one)
             for (auto x : this_wave) {
-                if (x.hi == ci) {
-                    if (x.cri+1 < calls_lens[i]) {
+                if (x.hi == ci) { // CALLS
+                    if (x.cri+1 < calls_lens[i]) { // INS
                         if (!done[x.hi][x.cri+1][x.ti] && 
                                 !contains(done_this_wave,
                                     idx(x.hi, x.cri+1, x.ti))) {
                             queue.push(idx(x.hi, x.cri+1, x.ti));
+                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti));
                         }
                         if (!done[x.hi][x.cri+1][x.ti])
                             ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
                     }
-                    if (x.ti+1 < truth_lens[i]) {
+                    if (x.ti+1 < truth_lens[i]) { // DEL
                         if (!done[x.hi][x.cri][x.ti+1] &&
                                 !contains(done_this_wave,
                                     idx(x.hi, x.cri, x.ti+1))) {
                             queue.push(idx(x.hi, x.cri, x.ti+1));
+                            done_this_wave.insert(idx(x.hi, x.cri, x.ti+1));
                         }
                         if (!done[x.hi][x.cri][x.ti+1])
                             ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
                     }
-                    if (x.cri+1 < calls_lens[i] && x.ti+1 < truth_lens[i]) {
+                    if (x.cri+1 < calls_lens[i] && x.ti+1 < truth_lens[i]) { // SUB
                         if (!done[x.hi][x.cri+1][x.ti+1] &&
                                 !contains(done_this_wave,
                                     idx(x.hi, x.cri+1, x.ti+1))) {
                             queue.push(idx(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
                         }
                         if (!done[x.hi][x.cri+1][x.ti+1])
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
                     }
                 } else { //x.hi == REF
-                    if (x.cri+1 < ref_len) {
+                    if (x.cri+1 < ref_len) { // INS
                         if (!done[x.hi][x.cri+1][x.ti] &&
                                 !contains(done_this_wave,
                                     idx(x.hi, x.cri+1, x.ti))) {
                             queue.push(idx(x.hi, x.cri+1, x.ti));
+                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti));
                         }
                         if (!done[x.hi][x.cri+1][x.ti])
                             ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
                     }
-                    if (x.ti+1 < truth_lens[i]) {
+                    if (x.ti+1 < truth_lens[i]) { // DEL
                         if (!done[x.hi][x.cri][x.ti+1] &&
                                 !contains(done_this_wave,
                                     idx(x.hi, x.cri, x.ti+1))) {
                             queue.push(idx(x.hi, x.cri, x.ti+1));
+                            done_this_wave.insert(idx(x.hi, x.cri, x.ti+1));
                         }
                         if (!done[x.hi][x.cri][x.ti+1])
                             ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
                     }
-                    if (x.cri+1 < ref_len && x.ti+1 < truth_lens[i]) {
+                    if (x.cri+1 < ref_len && x.ti+1 < truth_lens[i]) { // SUB
                         if (!done[x.hi][x.cri+1][x.ti+1] &&
                                 !contains(done_this_wave, 
                                     idx(x.hi, x.cri+1, x.ti+1))) {
                             queue.push(idx(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
                         }
                         if (!done[x.hi][x.cri+1][x.ti+1])
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
