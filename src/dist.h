@@ -7,15 +7,17 @@
 
 #define PTR_NONE 0
 #define PTR_UP   1
+#define PTR_INS  1
 #define PTR_LEFT 2
-#define PTR_BOTH 3
+#define PTR_DEL  2
 #define PTR_DIAG 4
-#define PTR_SWAP 8
-#define PTR_LPATH 16
-#define PTR_RPATH 32
-#define PTR_SUB 64
-#define PTR_DONE 128
-#define PTR_NEXT 256
+#define PTR_SUB  8
+#define PTR_SWAP 16
+#define PTR_LPATH 32
+#define PATH      32
+#define PTR_RPATH 64
+#define MAIN_PATH 96
+#define PTR_SYNC 128
 
 #define CALLS1_TRUTH1 0
 #define CALLS1_TRUTH2 1

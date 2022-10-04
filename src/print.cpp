@@ -31,12 +31,10 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
     for (int alt_idx = 0; alt_idx < alt_len; alt_idx++) {
         for(int ref_idx = 0; ref_idx < ref_len; ref_idx++) {
             // states
-            if (ptrs[alt_idx][ref_idx] & PTR_DONE)
-                ptr_str[alt_idx*2+1][ref_idx*2+1] = 'o';
-            else if (ptrs[alt_idx][ref_idx] & PTR_NEXT)
+            if (ptrs[alt_idx][ref_idx] & PTR_SWAP)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
-            else if (ptrs[alt_idx][ref_idx] & PTR_SWAP)
-                ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
+            else if (ptrs[alt_idx][ref_idx] & PTR_SYNC)
+                ptr_str[alt_idx*2+1][ref_idx*2+1] = '#';
             else
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
 
