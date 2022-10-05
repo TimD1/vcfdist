@@ -1,6 +1,8 @@
 #ifndef _DIST_H_
 #define _DIST_H_
 
+#include <unordered_set>
+
 #include "fasta.h"
 #include "variant.h"
 #include "cluster.h"
@@ -46,19 +48,102 @@ void generate_ptrs_strs(
         int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
         );
 
-variantData edit_dist_realign(
-        std::unique_ptr<variantData> & vcf, 
-        std::shared_ptr<fastaData> ref_ptr);
+/******************************************************************************/
+
+class idx {
+public:
+    int hi;  // hap idx
+    int cri; // calls/ref idx
+    int ti;  // truth idx
+
+    idx() : hi(0), cri(0), ti(0) {};
+    idx(int h, int c, int t) : hi(h), cri(c), ti(t) {};
+    idx(const idx & i2) : hi(i2.hi), cri(i2.cri), ti(i2.ti) {};
+    bool operator<(const idx & idx2) const {
+        if (this->hi < idx2.hi) return true;
+        else if (this->hi == idx2.hi && this->cri < idx2.cri) return true;
+        else if (this->hi == idx2.hi && this->cri == idx2.cri && this->ti < idx2.ti) return true;
+        return false;
+    }
+    bool operator==(const idx & idx2) const {
+        return this->hi == idx2.hi && this->cri == idx2.cri && this->ti == idx2.ti;
+    }
+    idx & operator=(const idx & other) {
+        if (this == &other) return *this;
+        this->hi = other.hi;
+        this->cri = other.cri;
+        this->ti = other.ti;
+        return *this;
+    }
+};
+
+namespace std {
+    template<> struct hash<idx> {
+        std::uint64_t operator()(const idx& idx1) const noexcept {
+            return uint64_t(idx1.hi)<<60 | uint64_t(idx1.cri) << 30 | uint64_t(idx1.ti);
+        }
+    };
+}
+
+bool contains(const std::unordered_set<idx> & wave, const idx & idx);
+
+/******************************************************************************/
+
+void calc_prec_recall_aln(
+        std::string calls1, std::string calls2,
+        std::string truth1, std::string truth2, std::string ref,
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> & s, 
+        std::vector< std::vector< std::vector<int> > > & ptrs,
+        std::vector<int> & pr_calls_ref_end
+        );
+
+void get_prec_recall_path_sync(
+        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
+        );
+
+void calc_prec_recall_path(
+        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector<int> pr_calls_ref_end
+        );
+
+void calc_prec_recall(
+        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::string calls1, std::string calls2, 
+        std::string truth1, std::string truth2, std::string ref,
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<idx> > & path,
+        std::vector< std::vector<bool> > & sync,
+        std::vector< std::vector< std::vector<int> > > & ptrs, 
+        std::vector<int> pr_calls_ref_end, int phase, int print
+        );
+
+/******************************************************************************/
 
 void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr);
 
-void edit_dist(
+variantData edit_dist_realign(
+        std::unique_ptr<variantData> & vcf, 
+        std::shared_ptr<fastaData> ref);
+
+void calc_edit_dist_aln(
         std::string calls1, std::string calls2, 
-        std::vector<int> calls1_ptrs,
-        std::vector<int> calls2_ptrs, 
         std::string truth1, std::string truth2,
-        std::vector<int> truth1_ptrs,
-        std::vector<int> truth2_ptrs, 
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs

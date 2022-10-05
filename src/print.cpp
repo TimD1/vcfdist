@@ -31,10 +31,10 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
     for (int alt_idx = 0; alt_idx < alt_len; alt_idx++) {
         for(int ref_idx = 0; ref_idx < ref_len; ref_idx++) {
             // states
-            if (ptrs[alt_idx][ref_idx] & PTR_SWAP)
-                ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
-            else if (ptrs[alt_idx][ref_idx] & PTR_SYNC)
+            if (ptrs[alt_idx][ref_idx] & PTR_SYNC)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '#';
+            else if (ptrs[alt_idx][ref_idx] & PTR_SWAP)
+                ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
             else
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
 
@@ -63,7 +63,7 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
                 else printf("  ");
             } else {
                 switch(ptr_str[i][j]) {
-                    case 'o':
+                    case '#':
                     case '+':
                     case '*':
                         if (ptrs[i>>1][j>>1] & PTR_LPATH) {

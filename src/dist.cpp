@@ -4,12 +4,14 @@
 #include <chrono>
 #include <utility>
 #include <queue>
-#include <unordered_set>
 
 #include "dist.h"
 #include "print.h"
 #include "cluster.h"
 
+bool contains(const std::unordered_set<idx> & wave, const idx & idx) {
+    return wave.find(idx) != wave.end();
+}
 
 variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
@@ -529,46 +531,6 @@ void generate_ptrs_strs(
 /******************************************************************************/
 
 
-class idx {
-public:
-    int hi;  // hap idx
-    int cri; // calls/ref idx
-    int ti;  // truth idx
-
-    idx() : hi(0), cri(0), ti(0) {};
-    idx(int h, int c, int t) : hi(h), cri(c), ti(t) {};
-    idx(const idx & i2) : hi(i2.hi), cri(i2.cri), ti(i2.ti) {};
-    bool operator<(const idx & idx2) const {
-        if (this->hi < idx2.hi) return true;
-        else if (this->hi == idx2.hi && this->cri < idx2.cri) return true;
-        else if (this->hi == idx2.hi && this->cri == idx2.cri && this->ti < idx2.ti) return true;
-        return false;
-    }
-    bool operator==(const idx & idx2) const {
-        return this->hi == idx2.hi && this->cri == idx2.cri && this->ti == idx2.ti;
-    }
-    idx & operator=(const idx & other) {
-        if (this == &other) return *this;
-        this->hi = other.hi;
-        this->cri = other.cri;
-        this->ti = other.ti;
-        return *this;
-    }
-};
-
-namespace std {
-    template<> struct hash<idx> {
-        std::uint64_t operator()(const idx& idx1) const noexcept {
-            return uint64_t(idx1.hi)<<60 | uint64_t(idx1.cri) << 30 | uint64_t(idx1.ti);
-        }
-    };
-}
-
-bool contains(const std::unordered_set<idx> & wave, const idx & idx) {
-    return wave.find(idx) != wave.end();
-}
-
-
 void calc_prec_recall_aln(
         std::string calls1, std::string calls2,
         std::string truth1, std::string truth2, std::string ref,
@@ -807,6 +769,7 @@ void calc_prec_recall_path(
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector<int> pr_calls_ref_end
         ) {
 
@@ -891,16 +854,123 @@ void calc_prec_recall_path(
                 }
             }
         }
-
-        /* get_prec_recall_path(path, path_ptrs); */
     }
+    // get path and sync points
+    get_prec_recall_path_sync(path, sync, path_ptrs, aln_ptrs,
+            calls1_ref_ptrs, ref_calls1_ptrs, calls2_ref_ptrs, ref_calls2_ptrs,
+            truth1_ref_ptrs, truth2_ref_ptrs
+    );
 }
 
 
 /******************************************************************************/
 
 
-/* void get_prec_recall_path( */
+void get_prec_recall_path_sync(
+        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
+        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
+        ) {
+
+    // calls <-> ref pointers
+    std::vector< std::vector<int> > calls_ref_ptrs = { 
+            calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
+    std::vector< std::vector<int> > truth_ref_ptrs = { 
+            truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
+    std::vector< std::vector<int> > ref_calls_ptrs = { 
+            ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
+
+    for (int i = 0; i < 4; i++) {
+
+        // init
+        int ci = i*2 + CALLS;
+        int ri = i*2 + REF;
+
+        // path start
+        int hi = ci;
+        int cri = 0;
+        int ti = 0;
+
+        // first position is sync point
+        path[i].push_back(idx(hi, cri, ti));
+        sync[i].push_back(true);
+        aln_ptrs[hi][cri][ti] |= MAIN_PATH | PTR_SYNC;
+
+        // follow best-path pointers
+        while (cri < int(path_ptrs[hi].size()) || ti < int(path_ptrs[hi][0].size())) {
+            if (path_ptrs[hi][cri][ti] & PTR_DIAG) {
+                cri++; ti++;
+            } else if (path_ptrs[hi][cri][ti] & PTR_SUB) {
+                cri++; ti++;
+            } else if (path_ptrs[hi][cri][ti] & PTR_INS) {
+                cri++;
+            } else if (path_ptrs[hi][cri][ti] & PTR_DEL) {
+                ti++;
+            } else if (path_ptrs[hi][cri][ti] & PTR_SWAP) {
+                if (hi == ri) {
+                    hi = ci;
+                    cri = ref_calls_ptrs[i][cri];
+                } else if(hi == ci) { // hi == ci
+                    hi = ri;
+                    cri = calls_ref_ptrs[i][cri];
+                } else {
+                    ERROR("Unexpected hap index (%d)", hi);
+                }
+            } else {
+                ERROR("No pointer for MAIN_PATH\n");
+            }
+
+            if (cri >= int(aln_ptrs[hi].size()) ||
+                    ti >= int(aln_ptrs[hi][0].size())) break;
+
+            // add point to path
+            path[i].push_back(idx(hi, cri, ti));
+                aln_ptrs[hi][cri][ti] |= MAIN_PATH;
+
+            // determine if sync point
+            bool is_sync = false;
+            if (hi == ci) {
+                if (calls_ref_ptrs[i][cri] == truth_ref_ptrs[i][ti] &&
+                        calls_ref_ptrs[i][cri] >= 0) { // on main diag
+                    is_sync = true;
+                    for(int ti2 = 0; ti2 < int(aln_ptrs[hi][0].size()); ti2++) {
+                        if (ti2 == ti) continue; // allow path here
+                        if (aln_ptrs[ci][cri][ti2] & PATH) {
+                            is_sync = false; break;
+                        }
+                        if (aln_ptrs[ri][calls_ref_ptrs[i][cri]][ti2] & PATH) {
+                            is_sync = false; break;
+                        }
+                    }
+                }
+            } else { // hi == ri
+                if (cri == truth_ref_ptrs[i][ti]) { // on main diag
+                    is_sync = true;
+                    for(int ti2 = 0; ti2 < int(aln_ptrs[hi][0].size()); ti2++) {
+                        if (ti2 == ti) continue; // allow path here
+                        if (aln_ptrs[ri][cri][ti2] & PATH) {
+                            is_sync = false; break;
+                        }
+                        if (ref_calls_ptrs[i][cri] >= 0 && 
+                                aln_ptrs[ci][ref_calls_ptrs[i][cri]][ti2] & PATH) {
+                            is_sync = false; break;
+                        }
+                    }
+                }
+            }
+            if (is_sync) aln_ptrs[hi][cri][ti] |= PTR_SYNC;
+            sync[i].push_back(is_sync);
+        }
+        // last position is sync
+        sync[i][sync.size()-1] = true;
+        idx last = path[i][path[i].size()-1];
+        aln_ptrs[last.hi][last.cri][last.ti] |= PTR_SYNC;
+    }
+}
 
 
 /******************************************************************************/
@@ -915,7 +985,8 @@ void calc_prec_recall(
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector< std::vector<idx> > & path,
         std::vector< std::vector<bool> > & sync,
-        std::vector< std::vector< std::vector<int> > > & ptrs, 
+        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector<int> pr_calls_ref_end, int phase, int print
         ) {
 
@@ -980,14 +1051,20 @@ void calc_prec_recall(
 
     // for only the selected phasing
     if (print) printf("\n=======================================================================\n");
-    for (int aln : calls_indices) {
+    for (int i : calls_indices) {
 
-        int ri = aln*2 + REF;
-        int ci = aln*2 + CALLS;
+        int ri = i*2 + REF;
+        int ci = i*2 + CALLS;
+        if (print) printf("Alignment %s, aln_ptrs\n", aln_strs[i].data());
         if (print) printf("\nCALLS");
-        if (print) print_ptrs(ptrs[ci], calls[aln], truth[aln]);
+        if (print) print_ptrs(aln_ptrs[ci], calls[i], truth[i]);
         if (print) printf("\nREF");
-        if (print) print_ptrs(ptrs[ri], ref, truth[aln]);
+        if (print) print_ptrs(aln_ptrs[ri], ref, truth[i]);
+        if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
+        if (print) printf("\nCALLS");
+        if (print) print_ptrs(path_ptrs[ci], calls[i], truth[i]);
+        if (print) printf("\nREF");
+        if (print) print_ptrs(path_ptrs[ri], ref, truth[i]);
         continue;
 
         /* // find points on both paths */
@@ -1410,7 +1487,9 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             std::vector< std::vector< std::vector<int> > > path_ptrs;
             calc_prec_recall_path(path, sync, aln_ptrs, path_ptrs, 
                     calls1_ref_ptrs, ref_calls1_ptrs, 
-                    calls2_ref_ptrs, ref_calls2_ptrs, aln_calls_ref_end);
+                    calls2_ref_ptrs, ref_calls2_ptrs, 
+                    truth1_ref_ptrs, truth2_ref_ptrs,
+                    aln_calls_ref_end);
 
             // calculate precision/recall from paths
             calc_prec_recall(
@@ -1419,7 +1498,8 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    path, sync, aln_ptrs, aln_calls_ref_end, phase, dist
+                    path, sync, aln_ptrs, path_ptrs, 
+                    aln_calls_ref_end, phase, dist
             );
 
             // DEBUG PRINTING
