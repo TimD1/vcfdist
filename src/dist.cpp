@@ -578,6 +578,9 @@ void calc_prec_recall_aln(
         queue.push({ci, 0, 0});
         ptrs[ci][0][0] |= PTR_DIAG;
         done[ci][0][0] = true;
+        queue.push({ri, 0, 0});
+        ptrs[ri][0][0] |= PTR_DIAG;
+        done[ri][0][0] = true;
 
         // continue looping until full alignment found
         while (true) {
@@ -763,21 +766,23 @@ int store_phase(
 
 
 void calc_prec_recall_path(
+        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & path_scores, 
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector<int> pr_calls_ref_end
         ) {
 
-    // calls <-> ref pointers
     std::vector< std::vector<int> > calls_ref_ptrs = { 
             calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
     std::vector< std::vector<int> > ref_calls_ptrs = { 
             ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
+    std::vector<int> pr_calls_ref_beg(4);
 
     for (int i = 0; i < 4; i++) {
 
@@ -790,7 +795,10 @@ void calc_prec_recall_path(
             std::vector<int>(aln_ptrs[ci][0].size(), PTR_NONE)));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
             std::vector<int>(aln_ptrs[ri][0].size(), PTR_NONE)));
-
+        path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[ci].size(), 
+            std::vector<int>(aln_ptrs[ci][0].size(), -1)));
+        path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
+            std::vector<int>(aln_ptrs[ri][0].size(), -1)));
 
         // backtrack start
         std::queue<idx> queue;
@@ -798,68 +806,159 @@ void calc_prec_recall_path(
         int start_cri = aln_ptrs[start_hi].size()-1;
         int start_ti = aln_ptrs[start_hi][0].size()-1;
         idx start(start_hi, start_cri, start_ti);
-        path_ptrs[start_hi][start_cri][start_ti] |= PTR_DIAG;
+        path_ptrs[start_hi][start_cri][start_ti] = PTR_DIAG;
         aln_ptrs[start_hi][start_cri][start_ti] |= MAIN_PATH;
+        path_scores[start_hi][start_cri][start_ti] = 0;
         queue.push(start);
 
         while (!queue.empty()) {
-            idx x = queue.front(); queue.pop();
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DIAG &&
+            idx x = queue.front(); queue.pop(); // current cell
+
+            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DIAG && // MATCH
                     x.cri > 0 && x.ti > 0) {
-                idx next = idx(x.hi, x.cri-1, x.ti-1);
-                if (path_ptrs[next.hi][next.cri][next.ti] == PTR_NONE)
-                    queue.push(next);
-                path_ptrs[next.hi][next.cri][next.ti] |= PTR_DIAG;
-                aln_ptrs[next.hi][next.cri][next.ti] |= PATH;
+
+                // add to path
+                idx y = idx(x.hi, x.cri-1, x.ti-1); // next cell
+                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
+                    queue.push(y);
+                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+
+                // check for fp
+                int is_fp = FALSE;
+                if (x.hi == ri && ref_calls_ptrs[i][y.cri] >= 0 &&
+                        ref_calls_ptrs[i][x.cri] != ref_calls_ptrs[i][y.cri]+1) { // fp
+                    is_fp = TRUE;
+                }
+
+                // update score
+                if (path_scores[x.hi][x.cri][x.ti]+is_fp > 
+                        path_scores[y.hi][y.cri][y.ti]) {
+                    if (y.cri == 0 && y.ti == 0) pr_calls_ref_beg[i] = y.hi;
+                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_DIAG;
+                    path_scores[y.hi][y.cri][y.ti] = 
+                        path_scores[x.hi][x.cri][x.ti]+is_fp;
+                }
+
             }
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SUB &&
+
+            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SUB && // SUB
                     x.cri > 0 && x.ti > 0) {
-                idx next = idx(x.hi, x.cri-1, x.ti-1);
-                if (path_ptrs[next.hi][next.cri][next.ti] == PTR_NONE)
-                    queue.push(next);
-                path_ptrs[next.hi][next.cri][next.ti] |= PTR_SUB;
-                aln_ptrs[next.hi][next.cri][next.ti] |= PATH;
+
+                // add to path
+                idx y = idx(x.hi, x.cri-1, x.ti-1);
+                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
+                    queue.push(y);
+                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+
+                // check for fp
+                int is_fp = FALSE;
+                if (x.hi == ri && ref_calls_ptrs[i][y.cri] >= 0 &&
+                        ref_calls_ptrs[i][x.cri] != ref_calls_ptrs[i][y.cri]+1) { // fp
+                    is_fp = TRUE;
+                }
+
+                // update score
+                if (path_scores[x.hi][x.cri][x.ti]+is_fp > 
+                        path_scores[y.hi][y.cri][y.ti]) {
+                    if (y.cri == 0 && y.ti == 0) pr_calls_ref_beg[i] = y.hi;
+                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_SUB;
+                    path_scores[y.hi][y.cri][y.ti] = 
+                        path_scores[x.hi][x.cri][x.ti]+is_fp;
+                }
             }
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_INS && x.cri > 0) {
-                idx next = idx(x.hi, x.cri-1, x.ti);
-                if (path_ptrs[next.hi][next.cri][next.ti] == PTR_NONE)
-                    queue.push(next);
-                path_ptrs[next.hi][next.cri][next.ti] |= PTR_INS;
-                aln_ptrs[next.hi][next.cri][next.ti] |= PATH;
+
+            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_INS && x.cri > 0) { // INS
+
+                // add to path
+                idx y = idx(x.hi, x.cri-1, x.ti);
+                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
+                    queue.push(y);
+                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+
+                // check for fp
+                int is_fp = FALSE;
+                if (x.hi == ri && ref_calls_ptrs[i][y.cri] >= 0 &&
+                        ref_calls_ptrs[i][x.cri] != ref_calls_ptrs[i][y.cri]+1) { // fp
+                    is_fp = TRUE;
+                }
+
+                // update score
+                if (path_scores[x.hi][x.cri][x.ti]+is_fp > 
+                        path_scores[y.hi][y.cri][y.ti]) {
+                    if (y.cri == 0 && y.ti == 0) pr_calls_ref_beg[i] = y.hi;
+                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_INS;
+                    path_scores[y.hi][y.cri][y.ti] = 
+                        path_scores[x.hi][x.cri][x.ti]+is_fp;
+                }
             }
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DEL && x.ti > 0) {
-                idx next = idx(x.hi, x.cri, x.ti-1);
-                if (path_ptrs[next.hi][next.cri][next.ti] == PTR_NONE)
-                    queue.push(next);
-                path_ptrs[next.hi][next.cri][next.ti] |= PTR_DEL;
-                aln_ptrs[next.hi][next.cri][next.ti] |= PATH;
+
+            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DEL && x.ti > 0) { // DEL
+
+                // add to path
+                idx y = idx(x.hi, x.cri, x.ti-1);
+                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
+                    queue.push(y);
+                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+
+                // update score
+                if (path_scores[x.hi][x.cri][x.ti] > 
+                        path_scores[y.hi][y.cri][y.ti]) {
+                    if (y.cri == 0 && y.ti == 0) pr_calls_ref_beg[i] = y.hi;
+                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_DEL;
+                    path_scores[y.hi][y.cri][y.ti] = 
+                        path_scores[x.hi][x.cri][x.ti];
+                }
             }
-            if (x.hi == ri) { // REF
+
+            if (x.hi == ri) { // REF -> CALLS SWAP
                 if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SWAP &&
                         ref_calls_ptrs[i][x.cri] >= 0) {
-                    idx next = idx(ci, ref_calls_ptrs[i][x.cri], x.ti);
-                    if (path_ptrs[next.hi][next.cri][next.ti] == PTR_NONE)
-                        queue.push(next);
-                    path_ptrs[next.hi][next.cri][next.ti] |= PTR_SWAP;
-                    aln_ptrs[next.hi][next.cri][next.ti] |= PATH;
+
+                    // add to path
+                    idx y = idx(ci, ref_calls_ptrs[i][x.cri], x.ti);
+                    if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
+                        queue.push(y);
+                    aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+
+                    // update score
+                    if (path_scores[x.hi][x.cri][x.ti] > 
+                            path_scores[y.hi][y.cri][y.ti]) {
+                        if (y.cri == 0 && y.ti == 0) pr_calls_ref_beg[i] = y.hi;
+                        path_ptrs  [y.hi][y.cri][y.ti] = PTR_SWAP;
+                        path_scores[y.hi][y.cri][y.ti] = 
+                            path_scores[x.hi][x.cri][x.ti];
+                    }
                 }
-            } else { // CALLS
+
+            } else { // CALLS -> REF SWAP
                 if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SWAP &&
                         calls_ref_ptrs[i][x.cri] >= 0) {
-                    idx next = idx(ri, calls_ref_ptrs[i][x.cri], x.ti);
-                    if (path_ptrs[next.hi][next.cri][next.ti] == PTR_NONE)
-                        queue.push(next);
-                    path_ptrs[next.hi][next.cri][next.ti] |= PTR_SWAP;
-                    aln_ptrs[next.hi][next.cri][next.ti] |= PATH;
+
+                    // add to path
+                    idx y = idx(ri, calls_ref_ptrs[i][x.cri], x.ti);
+                    if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
+                        queue.push(y);
+                    aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+
+                    // update score
+                    if (path_scores[x.hi][x.cri][x.ti] > 
+                            path_scores[y.hi][y.cri][y.ti]) {
+                        if (y.cri == 0 && y.ti == 0) pr_calls_ref_beg[i] = y.hi;
+                        path_ptrs  [y.hi][y.cri][y.ti] = PTR_SWAP;
+                        path_scores[y.hi][y.cri][y.ti] = 
+                            path_scores[x.hi][x.cri][x.ti];
+                    }
                 }
             }
         }
     }
+
     // get path and sync points
-    get_prec_recall_path_sync(path, sync, path_ptrs, aln_ptrs,
+    get_prec_recall_path_sync(path, sync, path_ptrs, aln_ptrs, pr_calls_ref_beg,
             calls1_ref_ptrs, ref_calls1_ptrs, calls2_ref_ptrs, ref_calls2_ptrs,
             truth1_ref_ptrs, truth2_ref_ptrs
     );
+
 }
 
 
@@ -871,6 +970,7 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector<int> & pr_calls_ref_beg,
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
@@ -891,7 +991,7 @@ void get_prec_recall_path_sync(
         int ri = i*2 + REF;
 
         // path start
-        int hi = ci;
+        int hi = pr_calls_ref_beg[i];
         int cri = 0;
         int ti = 0;
 
@@ -921,7 +1021,7 @@ void get_prec_recall_path_sync(
                     ERROR("Unexpected hap index (%d)", hi);
                 }
             } else {
-                ERROR("No pointer for MAIN_PATH\n");
+                ERROR("No pointer for MAIN_PATH at (%d, %d, %d)", hi, cri, ti);
             }
 
             if (cri >= int(aln_ptrs[hi].size()) ||
@@ -1485,7 +1585,10 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             std::vector< std::vector<idx> > path;
             std::vector< std::vector<bool> > sync;
             std::vector< std::vector< std::vector<int> > > path_ptrs;
-            calc_prec_recall_path(path, sync, aln_ptrs, path_ptrs, 
+            std::vector< std::vector< std::vector<int> > > path_scores;
+            calc_prec_recall_path(
+                    clusterdata_ptr, sc_idx, ctg,
+                    path, sync, aln_ptrs, path_ptrs, path_scores,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs, 
                     truth1_ref_ptrs, truth2_ref_ptrs,
@@ -1568,27 +1671,27 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 printf("TRUTH2:    %s\n", truth2_str.data());
                 printf("Edit Distance: %d\n", dist);
 
-                /* printf("ORIG_C1:   %s\n", ref_str_c1.data()); */
-                /* printf("CALLS1_C1: %s\n", calls1_str_c1.data()); */
-                /* printf("CALLS1_REF: "); */
-                /* for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) { */
-                /*     printf("%d ", calls1_ref_ptrs[i]); */
-                /* } printf("\n"); */
-                /* printf("REF_CALLS1: "); */
-                /* for(size_t i = 0; i < ref_calls1_ptrs.size(); i++) { */
-                /*     printf("%d ", ref_calls1_ptrs[i]); */
-                /* } printf("\n"); */
+                printf("ORIG_C1:   %s\n", ref_str_c1.data());
+                printf("CALLS1_C1: %s\n", calls1_str_c1.data());
+                printf("CALLS1_REF: ");
+                for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) {
+                    printf("%d ", calls1_ref_ptrs[i]);
+                } printf("\n");
+                printf("REF_CALLS1: ");
+                for(size_t i = 0; i < ref_calls1_ptrs.size(); i++) {
+                    printf("%d ", ref_calls1_ptrs[i]);
+                } printf("\n");
 
-                /* printf("ORIG_C2:   %s\n", ref_str_c2.data()); */
-                /* printf("CALLS2_C2: %s\n", calls2_str_c2.data()); */
-                /* printf("CALLS2_REF: "); */
-                /* for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) { */
-                /*     printf("%d ", calls2_ref_ptrs[i]); */
-                /* } printf("\n"); */
-                /* printf("REF_CALLS2: "); */
-                /* for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) { */
-                /*     printf("%d ", ref_calls2_ptrs[i]); */
-                /* } printf("\n"); */
+                printf("ORIG_C2:   %s\n", ref_str_c2.data());
+                printf("CALLS2_C2: %s\n", calls2_str_c2.data());
+                printf("CALLS2_REF: ");
+                for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) {
+                    printf("%d ", calls2_ref_ptrs[i]);
+                } printf("\n");
+                printf("REF_CALLS2: ");
+                for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) {
+                    printf("%d ", ref_calls2_ptrs[i]);
+                } printf("\n");
 
             }
 

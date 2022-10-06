@@ -28,6 +28,8 @@
 
 #define CALLS 0
 #define REF 1
+#define FALSE 0
+#define TRUE 1
 
 #define ERRTYPE_TP 0 // true positive
 #define ERRTYPE_FP 1 // false positive
@@ -104,6 +106,7 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector<int> & pr_calls_ref_beg,
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
