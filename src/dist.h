@@ -104,6 +104,7 @@ void calc_prec_recall_aln(
 void get_prec_recall_path_sync(
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector<int> & pr_calls_ref_beg,
@@ -115,6 +116,7 @@ void get_prec_recall_path_sync(
 void calc_prec_recall_path(
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
@@ -132,6 +134,7 @@ void calc_prec_recall(
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector< std::vector<idx> > & path,
         std::vector< std::vector<bool> > & sync,
+        std::vector< std::vector<bool> > & edits,
         std::vector< std::vector< std::vector<int> > > & ptrs, 
         std::vector<int> pr_calls_ref_end, int phase, int print
         );

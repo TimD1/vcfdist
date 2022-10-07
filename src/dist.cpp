@@ -583,13 +583,13 @@ void calc_prec_recall_aln(
         done[ri][0][0] = true;
 
         // continue looping until full alignment found
+        std::unordered_set< idx > done_this_wave;
+        std::unordered_set< idx > this_wave;
         while (true) {
             /* printf("s = %d\n", s[i]); */
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
             // EXTEND WAVEFRONT (stay at same score)
-            std::unordered_set< idx > this_wave;
-            std::unordered_set< idx > done_this_wave;
             while (!queue.empty()) {
                 idx x = queue.front(); queue.pop();
                 /* printf("  x = (%d, %d, %d)\n", x.hi, x.cri, x.ti); */
@@ -769,6 +769,7 @@ void calc_prec_recall_path(
         std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_scores, 
@@ -791,6 +792,7 @@ void calc_prec_recall_path(
         int ri = i*2 + REF;
         path.push_back(std::vector<idx>());
         sync.push_back(std::vector<bool>());
+        edits.push_back(std::vector<bool>());
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ci].size(), 
             std::vector<int>(aln_ptrs[ci][0].size(), PTR_NONE)));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
@@ -819,8 +821,6 @@ void calc_prec_recall_path(
 
                 // add to path
                 idx y = idx(x.hi, x.cri-1, x.ti-1); // next cell
-                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
-                    queue.push(y);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // check for fp
@@ -837,6 +837,7 @@ void calc_prec_recall_path(
                     path_ptrs  [y.hi][y.cri][y.ti] = PTR_DIAG;
                     path_scores[y.hi][y.cri][y.ti] = 
                         path_scores[x.hi][x.cri][x.ti]+is_fp;
+                    queue.push(y);
                 }
 
             }
@@ -846,8 +847,6 @@ void calc_prec_recall_path(
 
                 // add to path
                 idx y = idx(x.hi, x.cri-1, x.ti-1);
-                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
-                    queue.push(y);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // check for fp
@@ -864,6 +863,7 @@ void calc_prec_recall_path(
                     path_ptrs  [y.hi][y.cri][y.ti] = PTR_SUB;
                     path_scores[y.hi][y.cri][y.ti] = 
                         path_scores[x.hi][x.cri][x.ti]+is_fp;
+                    queue.push(y);
                 }
             }
 
@@ -871,8 +871,6 @@ void calc_prec_recall_path(
 
                 // add to path
                 idx y = idx(x.hi, x.cri-1, x.ti);
-                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
-                    queue.push(y);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // check for fp
@@ -889,15 +887,14 @@ void calc_prec_recall_path(
                     path_ptrs  [y.hi][y.cri][y.ti] = PTR_INS;
                     path_scores[y.hi][y.cri][y.ti] = 
                         path_scores[x.hi][x.cri][x.ti]+is_fp;
-                }
+                    queue.push(y);
+                } 
             }
 
             if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DEL && x.ti > 0) { // DEL
 
                 // add to path
                 idx y = idx(x.hi, x.cri, x.ti-1);
-                if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
-                    queue.push(y);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // update score
@@ -907,6 +904,7 @@ void calc_prec_recall_path(
                     path_ptrs  [y.hi][y.cri][y.ti] = PTR_DEL;
                     path_scores[y.hi][y.cri][y.ti] = 
                         path_scores[x.hi][x.cri][x.ti];
+                    queue.push(y);
                 }
             }
 
@@ -916,8 +914,6 @@ void calc_prec_recall_path(
 
                     // add to path
                     idx y = idx(ci, ref_calls_ptrs[i][x.cri], x.ti);
-                    if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
-                        queue.push(y);
                     aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                     // update score
@@ -927,6 +923,7 @@ void calc_prec_recall_path(
                         path_ptrs  [y.hi][y.cri][y.ti] = PTR_SWAP;
                         path_scores[y.hi][y.cri][y.ti] = 
                             path_scores[x.hi][x.cri][x.ti];
+                        queue.push(y);
                     }
                 }
 
@@ -936,8 +933,6 @@ void calc_prec_recall_path(
 
                     // add to path
                     idx y = idx(ri, calls_ref_ptrs[i][x.cri], x.ti);
-                    if (path_ptrs[y.hi][y.cri][y.ti] == PTR_NONE)
-                        queue.push(y);
                     aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                     // update score
@@ -947,6 +942,7 @@ void calc_prec_recall_path(
                         path_ptrs  [y.hi][y.cri][y.ti] = PTR_SWAP;
                         path_scores[y.hi][y.cri][y.ti] = 
                             path_scores[x.hi][x.cri][x.ti];
+                        queue.push(y);
                     }
                 }
             }
@@ -954,7 +950,8 @@ void calc_prec_recall_path(
     }
 
     // get path and sync points
-    get_prec_recall_path_sync(path, sync, path_ptrs, aln_ptrs, pr_calls_ref_beg,
+    get_prec_recall_path_sync(path, sync, edits,
+            path_ptrs, aln_ptrs, pr_calls_ref_beg,
             calls1_ref_ptrs, ref_calls1_ptrs, calls2_ref_ptrs, ref_calls2_ptrs,
             truth1_ref_ptrs, truth2_ref_ptrs
     );
@@ -968,6 +965,7 @@ void calc_prec_recall_path(
 void get_prec_recall_path_sync(
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector<int> & pr_calls_ref_beg,
@@ -999,17 +997,18 @@ void get_prec_recall_path_sync(
         path[i].push_back(idx(hi, cri, ti));
         sync[i].push_back(true);
         aln_ptrs[hi][cri][ti] |= MAIN_PATH | PTR_SYNC;
+        path_ptrs[hi][cri][ti] |= MAIN_PATH;
 
         // follow best-path pointers
         while (cri < int(path_ptrs[hi].size()) || ti < int(path_ptrs[hi][0].size())) {
             if (path_ptrs[hi][cri][ti] & PTR_DIAG) {
-                cri++; ti++;
+                cri++; ti++; edits[i].push_back(false);
             } else if (path_ptrs[hi][cri][ti] & PTR_SUB) {
-                cri++; ti++;
+                cri++; ti++; edits[i].push_back(true);
             } else if (path_ptrs[hi][cri][ti] & PTR_INS) {
-                cri++;
+                cri++; edits[i].push_back(true);
             } else if (path_ptrs[hi][cri][ti] & PTR_DEL) {
-                ti++;
+                ti++; edits[i].push_back(true);
             } else if (path_ptrs[hi][cri][ti] & PTR_SWAP) {
                 if (hi == ri) {
                     hi = ci;
@@ -1019,7 +1018,8 @@ void get_prec_recall_path_sync(
                     cri = calls_ref_ptrs[i][cri];
                 } else {
                     ERROR("Unexpected hap index (%d)", hi);
-                }
+                } 
+                edits[i].push_back(false);
             } else {
                 ERROR("No pointer for MAIN_PATH at (%d, %d, %d)", hi, cri, ti);
             }
@@ -1029,7 +1029,8 @@ void get_prec_recall_path_sync(
 
             // add point to path
             path[i].push_back(idx(hi, cri, ti));
-                aln_ptrs[hi][cri][ti] |= MAIN_PATH;
+            aln_ptrs[hi][cri][ti] |= MAIN_PATH;
+            path_ptrs[hi][cri][ti] |= MAIN_PATH;
 
             // determine if sync point
             bool is_sync = false;
@@ -1066,7 +1067,7 @@ void get_prec_recall_path_sync(
             sync[i].push_back(is_sync);
         }
         // last position is sync
-        sync[i][sync.size()-1] = true;
+        sync[i][sync[i].size()-1] = true;
         idx last = path[i][path[i].size()-1];
         aln_ptrs[last.hi][last.cri][last.ti] |= PTR_SYNC;
     }
@@ -1085,6 +1086,7 @@ void calc_prec_recall(
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector< std::vector<idx> > & path,
         std::vector< std::vector<bool> > & sync,
+        std::vector< std::vector<bool> > & edits,
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector<int> pr_calls_ref_end, int phase, int print
@@ -1155,6 +1157,8 @@ void calc_prec_recall(
 
         int ri = i*2 + REF;
         int ci = i*2 + CALLS;
+
+        // debug print
         if (print) printf("Alignment %s, aln_ptrs\n", aln_strs[i].data());
         if (print) printf("\nCALLS");
         if (print) print_ptrs(aln_ptrs[ci], calls[i], truth[i]);
@@ -1165,218 +1169,165 @@ void calc_prec_recall(
         if (print) print_ptrs(path_ptrs[ci], calls[i], truth[i]);
         if (print) printf("\nREF");
         if (print) print_ptrs(path_ptrs[ri], ref, truth[i]);
-        continue;
 
-        /* // find points on both paths */
-        /* std::vector<bool> both_paths(left_path[aln].size(), false); */
-        /* for(auto r : right_path[aln]) { */
-        /*     for (size_t li = 0; li < left_path[aln].size(); li++) { */
-        /*         if (r == left_path[aln][li]) */
-        /*             both_paths[li] = true; */
-        /*     } */
-        /* } */
+        // init
+        int hi = pr_calls_ref_end[i];
+        int cri = aln_ptrs[hi].size()-1;
+        int ti = aln_ptrs[hi][0].size()-1;
+        int new_ed = 0;
+        int calls_var_ptr = calls_end_idx[i]-1;
+        int calls_var_pos = calls_vars[i]->poss[calls_var_ptr] - beg;
+        int prev_calls_var_ptr = calls_var_ptr;
+        int truth_var_ptr = truth_end_idx[i]-1;
+        int truth_var_pos = truth_vars[i]->poss[truth_var_ptr] - beg;
+        int prev_truth_var_ptr = truth_var_ptr;
+        int pidx = path[i].size()-1;
 
-        /* // init */
-        /* int hi = pr_calls_ref_end[aln]; */
-        /* int ptr_refcalls = ptrs[hi].size()-1; */
-        /* int ptr_truth = ptrs[hi][0].size()-1; */
-        /* int new_ed = 0; */
-        /* bool main_diag = true; */
-        /* int calls_var_ptr = calls_end_idx[aln]-1; */
-        /* int calls_var_pos = calls_vars[aln]->poss[calls_var_ptr] - beg; */
-        /* int prev_calls_var_ptr = calls_var_ptr; */
-        /* int truth_var_ptr = truth_end_idx[aln]-1; */
-        /* int truth_var_pos = truth_vars[aln]->poss[truth_var_ptr] - beg; */
-        /* int prev_truth_var_ptr = truth_var_ptr; */
-        /* int lidx = left_path[aln].size()-1; */
+        if (print) printf("\n%s:\n", aln_strs[i].data());
+        while (pidx >= 0) {
 
-        /* if (print) printf("\n%s:\n", aln_strs[aln].data()); */
-        /* while (lidx >= 0) { */
+            // set FP if necessary
+            int cref_pos = (hi == ri) ? cri : calls_ref_ptrs[i][cri];
+            if (cref_pos < 0) cref_pos = calls_var_pos+1;
+            while (cref_pos < calls_var_pos) {
+                if (hi == ri) { // FP
+                    calls_vars[i]->errtypes[calls_var_ptr] = ERRTYPE_FP;
+                    calls_vars[i]->credit[calls_var_ptr] = 0;
+                    if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                            calls_vars[i]->refs[calls_var_ptr].data(),
+                            calls_vars[i]->alts[calls_var_ptr].data(), "FP", 0.0f);
+                    calls_var_ptr--;
+                } else { // passed variant
+                    calls_var_ptr--;
+                }
+                calls_var_pos = (calls_var_ptr < calls_beg_idx[i]) ? -1 :
+                    calls_vars[i]->poss[calls_var_ptr] - beg;
+            }
 
-        /*     // set FP if necessary */
-        /*     int ref_pos = (hi == ri) ? ptr_refcalls : */ 
-        /*             calls_ref_ptrs[aln][ptr_refcalls]; */
-        /*     if (ref_pos < calls_var_pos) { */
-        /*         if (hi == ri) { // FP */
-        /*             calls_vars[aln]->errtypes[calls_var_ptr] = ERRTYPE_FP; */
-        /*             calls_vars[aln]->credit[calls_var_ptr] = 0; */
-        /*             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n", */
-        /*                     calls_vars[aln]->refs[calls_var_ptr].data(), */
-        /*                     calls_vars[aln]->alts[calls_var_ptr].data(), "FP", 0.0f); */
-        /*             calls_var_ptr--; */
-        /*         } else { // passed variant */
-        /*             calls_var_ptr--; */
-        /*         } */
-        /*     } */
-        /*     if (ref_pos < truth_var_pos) { // passed REF variant */
-        /*         truth_var_ptr--; */
-        /*     } */
+            while (truth_ref_ptrs[i][ti] >= 0 && 
+                    truth_ref_ptrs[i][ti] < truth_var_pos) { // passed REF variant
+                truth_var_ptr--;
+                truth_var_pos = (truth_var_ptr < truth_beg_idx[i]) ? -1 :
+                    truth_vars[i]->poss[truth_var_ptr] - beg;
+            }
 
-        /*     // sync point: set TP/PP */
-        /*     if (main_diag && both_paths[lidx]) { */
+            // sync point: set TP/PP
+            if (sync[i][pidx]) {
 
-        /*         // calculate old edit distance */
-        /*         int old_ed = 0; */
-        /*         for (int truth_var_idx = prev_truth_var_ptr; */ 
-        /*                 truth_var_idx > truth_var_ptr; truth_var_idx--) { */
-        /*             switch (truth_vars[aln]->types[truth_var_idx]) { */
-        /*                 case TYPE_SUB: */
-        /*                     old_ed += 1; */
-        /*                     break; */
-        /*                 case TYPE_INS: */
-        /*                     old_ed += truth_vars[aln]->alts[truth_var_idx].length(); */
-        /*                     break; */
-        /*                 case TYPE_DEL: */
-        /*                     old_ed += truth_vars[aln]->refs[truth_var_idx].length(); */
-        /*                     break; */
-        /*                 case TYPE_GRP: */
-        /*                     old_ed += truth_vars[aln]->alts[truth_var_idx].length(); */
-        /*                     old_ed += truth_vars[aln]->refs[truth_var_idx].length(); */
-        /*                     break; */
-        /*                 default: */
-        /*                     ERROR("Unexpected variant type (%d) in calc_prec_recall().", */
-        /*                             truth_vars[aln]->types[truth_var_idx]); */
-        /*                     break; */
-        /*             } */
-        /*         } */
-        /*         if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) */ 
-        /*             ERROR("Old edit distance 0, variants exist."); */
+                // calculate old edit distance
+                int old_ed = 0;
+                for (int truth_var_idx = prev_truth_var_ptr; 
+                        truth_var_idx > truth_var_ptr; truth_var_idx--) {
+                    switch (truth_vars[i]->types[truth_var_idx]) {
+                        case TYPE_SUB:
+                            old_ed += 1;
+                            break;
+                        case TYPE_INS:
+                            old_ed += truth_vars[i]->alts[truth_var_idx].length();
+                            break;
+                        case TYPE_DEL:
+                            old_ed += truth_vars[i]->refs[truth_var_idx].length();
+                            break;
+                        case TYPE_GRP:
+                            old_ed += truth_vars[i]->alts[truth_var_idx].length();
+                            old_ed += truth_vars[i]->refs[truth_var_idx].length();
+                            break;
+                        default:
+                            ERROR("Unexpected variant type (%d) in calc_prec_recall().",
+                                    truth_vars[i]->types[truth_var_idx]);
+                            break;
+                    }
+                }
+                if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
+                    ERROR("Old edit distance 0, variants exist.");
 
-        /*         // process CALLS variants */
-        /*         for (int calls_var_idx = prev_calls_var_ptr; */ 
-        /*                 calls_var_idx > calls_var_ptr; calls_var_idx--) { */
-        /*             float credit = 1 - float(new_ed)/old_ed; */
-        /*             // don't overwrite FPs */
-        /*             if (calls_vars[aln]->errtypes[calls_var_idx] == ERRTYPE_UN) { */
-        /*                 if (new_ed == 0) { // TP */
-        /*                     calls_vars[aln]->errtypes[calls_var_idx] = ERRTYPE_TP; */
-        /*                     calls_vars[aln]->credit[calls_var_idx] = credit; */
-        /*                     if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n", */
-        /*                             calls_vars[aln]->refs[calls_var_idx].data(), */
-        /*                             calls_vars[aln]->alts[calls_var_idx].data(), */ 
-        /*                             "TP", credit); */
-        /*                 } else { // PP */
-        /*                     calls_vars[aln]->errtypes[calls_var_idx] = ERRTYPE_PP; */
-        /*                     calls_vars[aln]->credit[calls_var_idx] = credit; */
-        /*                     if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n", */
-        /*                             calls_vars[aln]->refs[calls_var_idx].data(), */
-        /*                             calls_vars[aln]->alts[calls_var_idx].data(), */ 
-        /*                             "PP", credit); */
-        /*                 } */
-        /*             } */
-        /*         } */
+                // process CALLS variants
+                for (int calls_var_idx = prev_calls_var_ptr; 
+                        calls_var_idx > calls_var_ptr; calls_var_idx--) {
+                    float credit = 1 - float(new_ed)/old_ed;
+                    // don't overwrite FPs
+                    if (calls_vars[i]->errtypes[calls_var_idx] == ERRTYPE_UN) {
+                        if (new_ed == 0) { // TP
+                            calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_TP;
+                            calls_vars[i]->credit[calls_var_idx] = credit;
+                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                    calls_vars[i]->refs[calls_var_idx].data(),
+                                    calls_vars[i]->alts[calls_var_idx].data(), 
+                                    "TP", credit);
+                        } else { // PP
+                            calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_PP;
+                            calls_vars[i]->credit[calls_var_idx] = credit;
+                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                    calls_vars[i]->refs[calls_var_idx].data(),
+                                    calls_vars[i]->alts[calls_var_idx].data(), 
+                                    "PP", credit);
+                        }
+                    }
+                }
 
-        /*         // process TRUTH variants */
-        /*         for (int truth_var_idx = prev_truth_var_ptr; */ 
-        /*                 truth_var_idx > truth_var_ptr; truth_var_idx--) { */
-        /*             float credit = 1 - float(new_ed)/old_ed; */
-        /*             if (new_ed == 0) { // TP */
-        /*                 truth_vars[aln]->errtypes[truth_var_idx] = ERRTYPE_TP; */
-        /*                 truth_vars[aln]->credit[truth_var_idx] = credit; */
-        /*                 if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n", */
-        /*                         truth_vars[aln]->refs[truth_var_idx].data(), */
-        /*                         truth_vars[aln]->alts[truth_var_idx].data(), */ 
-        /*                         "TP", credit); */
-        /*             } else if (new_ed == old_ed) { // FN */
-        /*                 truth_vars[aln]->errtypes[truth_var_idx] = ERRTYPE_FN; */
-        /*                 truth_vars[aln]->credit[truth_var_idx] = credit; */
-        /*                 if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n", */
-        /*                         truth_vars[aln]->refs[truth_var_idx].data(), */
-        /*                         truth_vars[aln]->alts[truth_var_idx].data(), */ 
-        /*                         "FN", credit); */
-        /*             } else { // PP */
-        /*                 truth_vars[aln]->errtypes[truth_var_idx] = ERRTYPE_PP; */
-        /*                 truth_vars[aln]->credit[truth_var_idx] = credit; */
-        /*                 if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n", */
-        /*                         truth_vars[aln]->refs[truth_var_idx].data(), */
-        /*                         truth_vars[aln]->alts[truth_var_idx].data(), */ 
-        /*                         "PP", credit); */
-        /*             } */
-        /*         } */
+                // process TRUTH variants
+                for (int truth_var_idx = prev_truth_var_ptr; 
+                        truth_var_idx > truth_var_ptr; truth_var_idx--) {
+                    float credit = 1 - float(new_ed)/old_ed;
+                    if (new_ed == 0) { // TP
+                        truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_TP;
+                        truth_vars[i]->credit[truth_var_idx] = credit;
+                        if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                truth_vars[i]->refs[truth_var_idx].data(),
+                                truth_vars[i]->alts[truth_var_idx].data(), 
+                                "TP", credit);
+                    } else if (new_ed == old_ed) { // FN
+                        truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_FN;
+                        truth_vars[i]->credit[truth_var_idx] = credit;
+                        if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                truth_vars[i]->refs[truth_var_idx].data(),
+                                truth_vars[i]->alts[truth_var_idx].data(), 
+                                "FN", credit);
+                    } else { // PP
+                        truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_PP;
+                        truth_vars[i]->credit[truth_var_idx] = credit;
+                        if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                truth_vars[i]->refs[truth_var_idx].data(),
+                                truth_vars[i]->alts[truth_var_idx].data(), 
+                                "PP", credit);
+                    }
+                }
 
-        /*         if (print) printf("SYNC @%s(%d,%d)=REF(%d,%d), ED %d->%d, CALLS %d-%d, TRUTH %d-%d\n", */
-        /*                 (hi == ri) ? "REF" : "CALLS", ptr_refcalls, ptr_truth, */
-        /*                 (hi == ri) ? ptr_refcalls : ref_calls_ptrs[aln][ptr_refcalls], */
-        /*                 truth_ref_ptrs[aln][ptr_truth], old_ed, new_ed, */ 
-        /*                 prev_calls_var_ptr, calls_var_ptr, */
-        /*                 prev_truth_var_ptr, truth_var_ptr */
-        /*         ); */
+                if (print) printf("SYNC @%s(%d,%d)=REF(%d,%d), ED %d->%d, CALLS %d-%d, TRUTH %d-%d\n",
+                        (hi == ri) ? "REF" : "CALLS", cri, ti,
+                        (hi == ri) ? cri : calls_ref_ptrs[i][cri],
+                        truth_ref_ptrs[i][ti], old_ed, new_ed, 
+                        prev_calls_var_ptr, calls_var_ptr,
+                        prev_truth_var_ptr, truth_var_ptr
+                );
 
-        /*         prev_calls_var_ptr = calls_var_ptr; */
-        /*         prev_truth_var_ptr = truth_var_ptr; */
-        /*         new_ed = 0; */
-        /*     } */
+                prev_calls_var_ptr = calls_var_ptr;
+                prev_truth_var_ptr = truth_var_ptr;
+                new_ed = 0;
+            }
 
-        /*     // update pointers and edit distance */
-        /*     if (print) printf("%s %s (%d,%d)\n", */ 
-        /*             main_diag ? "*" : " ", */
-        /*             (hi == ri) ? "REF  " : "CALLS", */ 
-        /*             ptr_refcalls, ptr_truth); */
+            // update pointers and edit distance
+            if (print) printf("%s %s (%d,%d) %s\n", 
+                    sync[i][pidx] ? "*" : " ",
+                    (hi == ri) ? "REF  " : "CALLS", cri, ti,
+                    edits[i][pidx] ? "X" : "=");
 
-        /*     // update left/right pointers */
-        /*     lidx--; */
-        /*     if (lidx < 0) break; */
+            // update path pointer
+            pidx--;
+            if (pidx < 0) break;
 
-        /*     // parse movement type */
-        /*     int ptr_val = ptrs[hi][ptr_refcalls][ptr_truth]; */
-        /*     if(left_path[aln][lidx+1].hi == left_path[aln][lidx].hi) { */
-        /*         if (left_path[aln][lidx+1].cri - left_path[aln][lidx].cri == 1 && */
-        /*                 left_path[aln][lidx+1].ti-left_path[aln][lidx].ti == 1) { // diag */
-        /*             if (ptr_val & PTR_SUB) { */
-        /*                 if (print) printf("SUB\n"); */
-        /*                 new_ed++; */
-        /*             } else if (ptr_val & PTR_DIAG) { */
-        /*                 ; */
-        /*             } else { */
-        /*                 ERROR("Unexpected pointer value (%d).", ptr_val); */
-        /*             } */
-        /*         } else if (left_path[aln][lidx+1].cri - left_path[aln][lidx].cri == 0 && */
-        /*                 left_path[aln][lidx+1].ti-left_path[aln][lidx].ti == 1) { // del */
-        /*             if (ptr_val & PTR_LEFT) { */
-        /*                 if (print) printf("DEL\n"); */
-        /*                 new_ed++; */
-        /*             } else { */
-        /*                 ERROR("Unexpected pointer value (%d).", ptr_val); */
-        /*             } */
-        /*         } else if (left_path[aln][lidx+1].cri - left_path[aln][lidx].cri == 1 && */
-        /*                 left_path[aln][lidx+1].ti-left_path[aln][lidx].ti == 0) { // ins */
-        /*             if (ptr_val & PTR_UP) { */
-        /*                 if (print) printf("INS\n"); */
-        /*                 new_ed++; */
-        /*             } else { */
-        /*                 ERROR("Unexpected pointer value (%d).", ptr_val); */
-        /*             } */
-        /*         } else { */
-        /*                 ERROR("Unexpected path (%d,%d,%d)->(%d,%d,%d).", */
-        /*                         left_path[aln][lidx+1].hi, */ 
-        /*                         left_path[aln][lidx+1].cri, */ 
-        /*                         left_path[aln][lidx+1].ti, */ 
-        /*                         left_path[aln][lidx].hi, */ 
-        /*                         left_path[aln][lidx].cri, */ 
-        /*                         left_path[aln][lidx].ti); */
-        /*         } */
-        /*     } else { */
-        /*         if (print) printf("SWAP\n"); */
-        /*     } */
+            // update location
+            cri = path[i][pidx].cri;
+            ti = path[i][pidx].ti;
+            hi = path[i][pidx].hi;
+            new_ed += edits[i][pidx];
 
-        /*     // update location */
-        /*     ptr_refcalls = left_path[aln][lidx].cri; */
-        /*     ptr_truth = left_path[aln][lidx].ti; */
-        /*     hi = left_path[aln][lidx].hi; */
-
-        /*     // update if on main diag */
-        /*     main_diag = (hi == ri) ? */ 
-        /*             (ptr_refcalls == truth_ref_ptrs[aln][ptr_truth]) : // REF */
-        /*             (calls_ref_ptrs[aln][ptr_refcalls] == */ 
-        /*              truth_ref_ptrs[aln][ptr_truth] && */ 
-        /*              calls_ref_ptrs[aln][ptr_refcalls] >= 0); // CALLS */
-
-        /*     // update next variant position */
-        /*     calls_var_pos = (calls_var_ptr < calls_beg_idx[aln]) ? -1 : */
-        /*         calls_vars[aln]->poss[calls_var_ptr] - beg; */
-        /*     truth_var_pos = (truth_var_ptr < truth_beg_idx[aln]) ? -1 : */
-        /*         truth_vars[aln]->poss[truth_var_ptr] - beg; */
-        /* } */
+            // update next variant position
+            calls_var_pos = (calls_var_ptr < calls_beg_idx[i]) ? -1 :
+                calls_vars[i]->poss[calls_var_ptr] - beg;
+            truth_var_pos = (truth_var_ptr < truth_beg_idx[i]) ? -1 :
+                truth_vars[i]->poss[truth_var_ptr] - beg;
+        }
     }
 }
 
@@ -1584,11 +1535,13 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             // calculate paths from alignment
             std::vector< std::vector<idx> > path;
             std::vector< std::vector<bool> > sync;
+            std::vector< std::vector<bool> > edits;
             std::vector< std::vector< std::vector<int> > > path_ptrs;
             std::vector< std::vector< std::vector<int> > > path_scores;
             calc_prec_recall_path(
                     clusterdata_ptr, sc_idx, ctg,
-                    path, sync, aln_ptrs, path_ptrs, path_scores,
+                    path, sync, edits,
+                    aln_ptrs, path_ptrs, path_scores,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs, 
                     truth1_ref_ptrs, truth2_ref_ptrs,
@@ -1601,7 +1554,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    path, sync, aln_ptrs, path_ptrs, 
+                    path, sync, edits, aln_ptrs, path_ptrs, 
                     aln_calls_ref_end, phase, dist
             );
 
