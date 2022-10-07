@@ -105,6 +105,7 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
+        std::vector< std::vector<bool> > ref_loc_sync, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector<int> & pr_calls_ref_beg,
