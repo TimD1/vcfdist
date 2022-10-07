@@ -783,7 +783,10 @@ void calc_prec_recall_path(
             calls1_ref_ptrs, calls1_ref_ptrs, calls2_ref_ptrs, calls2_ref_ptrs };
     std::vector< std::vector<int> > ref_calls_ptrs = { 
             ref_calls1_ptrs, ref_calls1_ptrs, ref_calls2_ptrs, ref_calls2_ptrs };
+    std::vector< std::vector<int> > truth_ref_ptrs = { 
+            truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
     std::vector<int> pr_calls_ref_beg(4);
+    std::vector< std::vector<bool> > ref_loc_sync;
 
     for (int i = 0; i < 4; i++) {
 
@@ -793,6 +796,7 @@ void calc_prec_recall_path(
         path.push_back(std::vector<idx>());
         sync.push_back(std::vector<bool>());
         edits.push_back(std::vector<bool>());
+        ref_loc_sync.push_back(std::vector<bool>(int(aln_ptrs[ri].size()), true));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ci].size(), 
             std::vector<int>(aln_ptrs[ci][0].size(), PTR_NONE)));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
@@ -815,6 +819,16 @@ void calc_prec_recall_path(
 
         while (!queue.empty()) {
             idx x = queue.front(); queue.pop(); // current cell
+
+            // ref locations which consume a calls base and aren't 
+            // on the main diagonal cannot be sync points
+            if (aln_ptrs[x.hi][x.cri][x.ti] & (PTR_DIAG | PTR_SUB | PTR_INS)) {
+                if (x.hi == ri && x.cri != truth_ref_ptrs[i][x.ti])
+                    ref_loc_sync[i][x.cri] = false;
+                if (x.hi == ci && calls_ref_ptrs[i][x.cri] >= 0 && 
+                        calls_ref_ptrs[i][x.cri] != truth_ref_ptrs[i][x.ti])
+                    ref_loc_sync[i][calls_ref_ptrs[i][x.cri]] = false;
+            }
 
             if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DIAG && // MATCH
                     x.cri > 0 && x.ti > 0) {
@@ -950,7 +964,7 @@ void calc_prec_recall_path(
     }
 
     // get path and sync points
-    get_prec_recall_path_sync(path, sync, edits,
+    get_prec_recall_path_sync(path, sync, edits, ref_loc_sync,
             path_ptrs, aln_ptrs, pr_calls_ref_beg,
             calls1_ref_ptrs, ref_calls1_ptrs, calls2_ref_ptrs, ref_calls2_ptrs,
             truth1_ref_ptrs, truth2_ref_ptrs
@@ -966,6 +980,7 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<idx> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
+        std::vector< std::vector<bool> > ref_loc_sync, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector<int> & pr_calls_ref_beg,
@@ -1033,34 +1048,19 @@ void get_prec_recall_path_sync(
             path_ptrs[hi][cri][ti] |= MAIN_PATH;
 
             // determine if sync point
-            bool is_sync = false;
+            bool is_sync;
             if (hi == ci) {
-                if (calls_ref_ptrs[i][cri] == truth_ref_ptrs[i][ti] &&
-                        calls_ref_ptrs[i][cri] >= 0) { // on main diag
-                    is_sync = true;
-                    for(int ti2 = 0; ti2 < int(aln_ptrs[hi][0].size()); ti2++) {
-                        if (ti2 == ti) continue; // allow path here
-                        if (aln_ptrs[ci][cri][ti2] & PATH) {
-                            is_sync = false; break;
-                        }
-                        if (aln_ptrs[ri][calls_ref_ptrs[i][cri]][ti2] & PATH) {
-                            is_sync = false; break;
-                        }
-                    }
+                if (calls_ref_ptrs[i][cri] >= 0 &&  // on main diag
+                    calls_ref_ptrs[i][cri] == truth_ref_ptrs[i][ti]) {
+                    is_sync = ref_loc_sync[i][ calls_ref_ptrs[i][cri] ];
+                } else {
+                    is_sync = false;
                 }
             } else { // hi == ri
                 if (cri == truth_ref_ptrs[i][ti]) { // on main diag
-                    is_sync = true;
-                    for(int ti2 = 0; ti2 < int(aln_ptrs[hi][0].size()); ti2++) {
-                        if (ti2 == ti) continue; // allow path here
-                        if (aln_ptrs[ri][cri][ti2] & PATH) {
-                            is_sync = false; break;
-                        }
-                        if (ref_calls_ptrs[i][cri] >= 0 && 
-                                aln_ptrs[ci][ref_calls_ptrs[i][cri]][ti2] & PATH) {
-                            is_sync = false; break;
-                        }
-                    }
+                    is_sync = ref_loc_sync[i][cri];
+                } else {
+                    is_sync = false;
                 }
             }
             if (is_sync) aln_ptrs[hi][cri][ti] |= PTR_SYNC;
