@@ -1254,6 +1254,13 @@ void calc_prec_recall(
                                     calls_vars[i]->refs[calls_var_idx].data(),
                                     calls_vars[i]->alts[calls_var_idx].data(), 
                                     "TP", credit);
+                        } else if (new_ed == old_ed) { // FP
+                            calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_FP;
+                            calls_vars[i]->credit[calls_var_idx] = 0;
+                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                                    calls_vars[i]->refs[calls_var_idx].data(),
+                                    calls_vars[i]->alts[calls_var_idx].data(), 
+                                    "FP", 0.0);
                         } else { // PP
                             calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_PP;
                             calls_vars[i]->credit[calls_var_idx] = credit;
