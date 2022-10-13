@@ -375,8 +375,8 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                         ref[reflen+rm] == alt[altlen+rm]) rm--;
                 if (lm > reflen+rm) type = TYPE_INS; else type = TYPE_GRP;
                 pos += lm;
-                alt = alt.substr(lm, altlen+rm-lm+2);
-                ref = ref.substr(lm, reflen+rm-lm+2);
+                alt = alt.substr(lm, altlen+rm-lm+1);
+                ref = ref.substr(lm, reflen+rm-lm+1);
 
             } else if (altlen-reflen < 0) { // deletion
                 while (lm < altlen && ref[lm] == alt[lm]) lm++;
@@ -384,15 +384,14 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                         ref[reflen+rm] == alt[altlen+rm]) rm--;
                 if (lm > altlen+rm) type = TYPE_DEL; else type = TYPE_GRP;
                 pos += lm;
-                alt = alt.substr(lm, altlen+rm-lm+2);
-                ref = ref.substr(lm, reflen+rm-lm+2);
+                alt = alt.substr(lm, altlen+rm-lm+1);
+                ref = ref.substr(lm, reflen+rm-lm+1);
 
             } else { // substitution
                 if (ref.size() == 1) {
                     type = (ref[0] == alt[0] ? TYPE_REF : TYPE_SUB);
                     if (type == TYPE_REF) continue;
-                }
-                else {
+                } else {
                     if (ref.substr(1) == alt.substr(1)){
                         type = TYPE_SUB;
                         ref = ref[0]; alt = alt[0]; // chop off matches

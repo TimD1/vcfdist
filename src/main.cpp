@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
     // parse calls VCF, cluster variants, get min edit dist
+    printf("parse calls\n");
     std::unique_ptr<variantData> calls_ptr(new variantData(g.calls_vcf_fn, ref_ptr));
     cluster(calls_ptr);
     variantData calls_min_ed = edit_dist_realign(calls_ptr, ref_ptr);
@@ -32,6 +33,7 @@ int main(int argc, char **argv) {
     calls_min_ed.write(g.out_prefix + "calls.vcf");
 
     // parse ground truth VCF, cluster variants, get min edit dist
+    printf("parse truth\n");
     std::unique_ptr<variantData> truth_ptr(new variantData(g.truth_vcf_fn, ref_ptr));
     cluster(truth_ptr);
     variantData truth_min_ed = edit_dist_realign(truth_ptr, ref_ptr);
