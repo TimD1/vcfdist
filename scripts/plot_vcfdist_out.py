@@ -18,7 +18,7 @@ with open(truth) as truth_fd:
     next(truth_rd)
     for row in truth_rd:
         contig, pos, hap, ref, alt, qual, typ, errtype, \
-                credit, orig_gt, gt, cluster, loc = row
+                credit, orig_gt, cluster, loc = row
         if errtype == "PP" and float(credit) < eps: errtype = "FN"
         truth_data[f"{typ} {errtype}"][int(float(qual))] += 1
 snps = sum([sum(truth_data[f'SUB {et}']) for et in errtypes])
@@ -39,7 +39,7 @@ with open(calls) as calls_fd:
     next(calls_rd)
     for row in calls_rd:
         contig, pos, hap, ref, alt, qual, typ, errtype, \
-                credit, orig_gt, gt, cluster, loc = row
+                credit, orig_gt, cluster, loc = row
         if errtype == "PP" and float(credit) < eps: errtype = "FP"
         calls_data[f"{typ} {errtype}"][int(float(qual))] += 1
 print("\nCalls:")
@@ -67,7 +67,7 @@ with open(calls) as calls_fd:
     next(calls_rd)
     for row in calls_rd:
         contig, pos, hap, ref, alt, qual, typ, errtype, \
-                credit, orig_gt, gt, cluster, loc = row
+                credit, orig_gt, cluster, loc = row
         if errtype == "PP" and float(credit) > eps:
             pp_data[f"{typ}"][int(float(qual))] += float(credit)
 
