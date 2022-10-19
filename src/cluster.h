@@ -74,5 +74,6 @@ public:
 
 // for single haplotype clustering (one VCF)
 void cluster(std::unique_ptr<variantData> & vcf);
+void sw_cluster(std::unique_ptr<variantData> & vcf);
 
 #endif

@@ -4,6 +4,7 @@
 #include "globals.h"
 #include "cluster.h"
 #include "print.h"
+#include "dist.h"
 
 void ctgClusters::set_variants(
            std::shared_ptr<ctgVariants> calls1_vars,
@@ -177,7 +178,7 @@ void clusterData::gap_supercluster() {
             bool just_merged = true;
             while (just_merged) {
                 just_merged = false;
-                while (truth1_pos < curr_end_pos + g.gap) {
+                while (truth1_pos < curr_end_pos + g.cluster_min_gap) {
                     truth1_clust_end_idx += 1;
                     curr_end_pos = std::max(curr_end_pos,
                             truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] + 
@@ -187,7 +188,7 @@ void clusterData::gap_supercluster() {
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
-                while (truth2_pos < curr_end_pos + g.gap) {
+                while (truth2_pos < curr_end_pos + g.cluster_min_gap) {
                     truth2_clust_end_idx += 1;
                     curr_end_pos = std::max(curr_end_pos,
                             truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] + 
@@ -197,7 +198,7 @@ void clusterData::gap_supercluster() {
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
-                while (calls1_pos < curr_end_pos + g.gap) {
+                while (calls1_pos < curr_end_pos + g.cluster_min_gap) {
                     calls1_clust_end_idx += 1;
                     curr_end_pos = std::max(curr_end_pos, 
                             calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] + 
@@ -207,7 +208,7 @@ void clusterData::gap_supercluster() {
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
-                while (calls2_pos < curr_end_pos + g.gap) {
+                while (calls2_pos < curr_end_pos + g.cluster_min_gap) {
                     calls2_clust_end_idx += 1;
                     curr_end_pos = std::max(curr_end_pos,
                             calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] + 
@@ -280,7 +281,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < 2; hap++) {
-            int prev_end = -g.gap * 2;
+            int prev_end = -g.cluster_min_gap * 2;
             int pos = 0;
             int end = 0;
             size_t var_idx = 0;
@@ -288,11 +289,163 @@ void cluster(std::unique_ptr<variantData> & vcf) {
                     var_idx < vcf->ctg_variants[hap][ctg]->poss.size(); var_idx++) {
                 pos = vcf->ctg_variants[hap][ctg]->poss[var_idx];
                 end = pos + vcf->ctg_variants[hap][ctg]->rlens[var_idx];
-                if (pos - prev_end > g.gap)
+                if (pos - prev_end > g.cluster_min_gap)
                     vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
                 prev_end = std::max(prev_end, end);
             }
             vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
+        }
+    }
+}
+
+
+/******************************************************************************/
+
+
+/* Add single-VCF cluster indices to `variantData` */
+void sw_cluster(std::unique_ptr<variantData> & vcf) {
+
+    // cluster each contig
+    for (std::string ctg : vcf->contigs) {
+
+        // cluster per-haplotype variants: vcf->ctg_variants[hap]
+        for (int hap = 0; hap < 2; hap++) {
+
+            // init: each variant is its own cluster
+            size_t nvar = vcf->ctg_variants[hap][ctg]->n;
+            std::vector<int> prev_clusters(nvar+1);
+            for (size_t i = 0; i < nvar+1; i++) prev_clusters[i] = i;
+            std::vector<bool> prev_merged(nvar+1, true);
+            prev_merged[nvar] = false; // end pointer isn't cluster
+
+            std::vector<int> right_reach, left_reach;
+            std::vector<int> next_clusters;
+            std::vector<bool> next_merged;
+
+            // while clusters are being merged, loop
+            while (std::find(prev_merged.begin(), 
+                        prev_merged.end(), true) != prev_merged.end()) {
+
+                // save temp clustering (generate_ptrs_strs assumes clustered)
+                vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
+
+                // update all cluster reaches
+                for (size_t clust = 0; clust < prev_clusters.size(); clust++) {
+
+                    // only compute necessary reaches (adjacent merge)
+                    bool left_compute = prev_merged[clust];
+                    if (clust > 0)    
+                        left_compute = left_compute || prev_merged[clust-1];
+                    // can't merge first cluster left, last cluster is just end ptr
+                    if (clust == 0 || clust >= prev_clusters.size()-1)
+                        left_compute = false;
+                    bool right_compute = prev_merged[clust];
+                    if (clust < prev_merged.size()-1) 
+                        right_compute = right_compute || prev_merged[clust+1];
+                    // can't merge second to last cluster right, 
+                    // last cluster is just end ptr
+                    if (clust >= prev_clusters.size()-2)
+                        right_compute = false;
+
+                    // LEFT REACH
+                    if (left_compute) {
+
+                        // TODO: reverse align
+                        
+                    } else {
+                        left_reach.push_back( // past farthest right
+                                vcf->ctg_variants[hap][ctg]->poss[nvar-1]+1);
+                    }
+
+                    // RIGHT REACH
+                    if (right_compute) {
+
+                        printf("===========================================\n");
+                        for (int var_idx = vcf->ctg_variants[hap][ctg]->clusters[clust]; 
+                                var_idx < vcf->ctg_variants[hap][ctg]->clusters[clust+1]; var_idx++) {
+                            printf("%s %d %s %s var:%d\n",
+                                    ctg.data(), 
+                                    vcf->ctg_variants[hap][ctg]->poss[var_idx],
+                                    vcf->ctg_variants[hap][ctg]->refs[var_idx].data(),
+                                    vcf->ctg_variants[hap][ctg]->alts[var_idx].data(),
+                                    var_idx
+                            );
+                        }
+
+                        // calculate right reach
+                        std::string calls, ref, calls_str, ref_str;
+                        std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
+                        generate_ptrs_strs(
+                                calls, ref, calls_str, ref_str,
+                                calls_ref_ptrs, ref_calls_ptrs, 
+                                vcf->ctg_variants[hap][ctg], 
+                                vcf->ctg_variants[hap][ctg],
+                                clust, 0, clust+1, 0,
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]],
+                                vcf->ref, ctg 
+                        );
+                        
+                        /* // calculate existing VCF score */
+                        /* int score = calc_score( */
+                        /*         vcf->ctg_variants[hap][ctg], clust, clust+1); */
+
+                        /* // calculate max reaching path to right */
+                        /* int reach = max_reach(calls, ref, */ 
+                        /*         calls_ref_ptrs, ref_calls_ptrs, score); */
+
+                        printf("clusters %d-%d, pos %d-%d, ctg %s nvar %d, nclust %d\n",
+                                int(clust), int(clust+1), 
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]],
+                                ctg.data(), int(nvar), int(prev_clusters.size())
+                                );
+
+                        printf("REF:        %s\n", ref_str.data());
+                        printf("CALLS:      %s\n", calls_str.data());
+                        printf("CALLS->REF: ");
+                        for(size_t i = 0; i < calls_ref_ptrs.size(); i++) 
+                            printf("%d ", calls_ref_ptrs[i]); 
+                        printf("\n");
+                        printf("REF->CALLS: ");
+                        for(size_t i = 0; i < ref_calls_ptrs.size(); i++) 
+                            printf("%d ", ref_calls_ptrs[i]); 
+                        printf("\n");
+                        
+                    } else { // non-adjacent, don't really compute
+                        right_reach.push_back(-1); // past farthest left
+                    }
+                }
+                ERROR("Breakpoint");
+
+                // merge dependent clusters
+                size_t clust = 0;
+                while (clust < prev_clusters.size()) {
+                    int next = 1;
+                    while (clust+next < prev_clusters.size() && 
+                            right_reach[clust] >= left_reach[clust+next]) { // merge
+                        next++;
+                    }
+                    next_clusters.push_back(clust);
+                    next_merged.push_back(next > 1); // true if merge occurred
+                    clust += next;
+                }
+
+                // reset for next iteration
+                prev_clusters = next_clusters;
+                prev_merged = next_merged;
+                next_clusters.clear();
+                next_merged.clear();
+                left_reach.clear();
+                right_reach.clear();
+            }
+
+            // save final clustering
+            vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
         }
     }
 }

@@ -169,7 +169,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     std::vector<int> npass  = {0, 0};   // records PASSing all filters
 
     // data
-    std::vector<int> prev_end = {-g.gap*2, -g.gap*2};
+    std::vector<int> prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
     std::unordered_map<int, bool> prev_rids;
     int prev_rid = -1;
     std::unordered_map<int, int> seqlens;
@@ -277,7 +277,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             } else {
                 this->contigs.push_back(seq);
                 this->lengths.push_back(seqlens[rec->rid]);
-                prev_end = {-g.gap*2, -g.gap*2};
+                prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
             }
         }
 

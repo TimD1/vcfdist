@@ -22,9 +22,13 @@ public:
 
     std::string out_prefix;
 
-    int gap = 50;
+    int cluster_min_gap = 0;
     int print_verbosity = 0;
     int min_qual = 0;
+
+    int sub = 1;
+    int open = 1;
+    int extend = 1;
 
     // constructors
     Globals() {;}

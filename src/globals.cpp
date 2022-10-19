@@ -63,8 +63,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid BED file provided");
             }
-        }
-        else if (std::string(argv[i]) == "-o") {
+        } else if (std::string(argv[i]) == "-o") {
             i++;
             if (i == argc) {
                 ERROR("Option '-o' used without providing PREFIX");
@@ -76,8 +75,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
-        }
-        else if (std::string(argv[i]) == "-q") {
+        } else if (std::string(argv[i]) == "-q") {
             i++;
             if (i == argc) {
                 ERROR("Option '-q' used without providing MIN_QUAL");
@@ -87,8 +85,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid minimum variant quality provided");
             }
-        }
-        else if (std::string(argv[i]) == "-p") {
+        } else if (std::string(argv[i]) == "-p") {
             i++;
             if (i == argc) {
                 ERROR("Option '-p' used without providing VERBOSITY");
@@ -102,30 +99,65 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Print verbosity %d not a valid option (0,1,2)", 
                         this->print_verbosity);
             }
-        }
-        else if (std::string(argv[i]) == "-h") {
+        } else if (std::string(argv[i]) == "-h") {
             i++;
             this->print_usage();
-        }
-        else if (std::string(argv[i]) == "-v") {
+        } else if (std::string(argv[i]) == "-v") {
             i++;
             this->print_version();
-        }
-        else if (std::string(argv[i]) == "-g") {
+        } else if (std::string(argv[i]) == "-c") {
             i++;
             if (i == argc) {
-                ERROR("Option '-g' used without providing GAP size");
+                ERROR("Option '-c' used without providing CLUST_GAP min size");
             }
             try {
-                this->gap = std::stoi(argv[i++]);
+                this->cluster_min_gap = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
-                ERROR("Invalid gap size provided");
+                ERROR("Invalid min cluster gap size provided");
             }
-            if (g.gap <= 0) {
-                ERROR("Must provide positive gap size");
+            if (g.cluster_min_gap <= 0) {
+                ERROR("Must provide positive min cluster gap size");
             }
-        }
-        else {
+        } else if (std::string(argv[i]) == "-s") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-s' used without providing SUB penalty");
+            }
+            try {
+                this->sub = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid SUB penalty provided");
+            }
+            if (g.sub < 0) {
+                ERROR("Must provide non-negative SUB penalty");
+            }
+        } else if (std::string(argv[i]) == "-g") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-g' used without providing GAP_OPEN penalty");
+            }
+            try {
+                this->open = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid GAP_OPEN penalty provided");
+            }
+            if (g.open < 0) {
+                ERROR("Must provide non-negative GAP_OPEN penalty");
+            }
+        } else if (std::string(argv[i]) == "-e") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-e' used without providing GAP_EXT penalty");
+            }
+            try {
+                this->extend = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid GAP_EXT penalty provided");
+            }
+            if (g.extend < 0) {
+                ERROR("Must provide non-negative GAP_EXT penalty");
+            }
+        } else {
             ERROR("Unexpected option '%s'", argv[i]);
         }
     }
@@ -149,7 +181,10 @@ void Globals::print_usage() const
     printf("  -b FILE\tBED file containing regions to evaluate\n");
     printf("  -o PREFIX\toutput filepath prefix (dir should contain trailing slash)\n");
     printf("  -q MIN_QUAL\tminimum variant quality [0]\n");
-    printf("  -g GAP\tminimum base gap between independent clusters [50]\n");
+    printf("  -c CLUST_GAP\tminimum base gap between independent clusters [0]\n");
+    printf("  -s SUB\tinteger substitution penalty [1]\n");
+    printf("  -g GAP_OPEN\tinteger gap opening penalty [1]\n");
+    printf("  -e GAP_EXT\tinteger gap extension penalty [1]\n");
     printf("  -p VERBOSITY\tprinting verbosity (0,1,2) [0]\n");
     printf("  -h\t\tshow this help message\n");
     printf("  -v\t\tshow version number\n");
