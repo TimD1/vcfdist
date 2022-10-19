@@ -1748,3 +1748,31 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
     } // each contig
     INFO("Total edit distance: %d", distance);
 }
+
+
+/******************************************************************************/
+
+
+int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars, 
+        int clust_beg_idx, int clust_end_idx) {
+    int score = 0;
+    for (int var_idx = vars->clusters[clust_beg_idx]; 
+            var_idx < vars->clusters[clust_end_idx]; var_idx++) {
+        switch (vars->types[var_idx]) {
+            case TYPE_SUB:
+                score += g.sub;
+                break;
+            case TYPE_INS:
+                score += g.open;
+                score += g.extend * vars->alts[var_idx].size();
+                break;
+            case TYPE_DEL:
+                score += g.open;
+                score += g.extend * vars->refs[var_idx].size();
+                break;
+            default:
+                ERROR("Unexpected variant type in calc_vcf_sw_score()");
+        }
+    }
+    return score;
+}

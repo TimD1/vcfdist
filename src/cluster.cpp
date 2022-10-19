@@ -388,13 +388,15 @@ void sw_cluster(std::unique_ptr<variantData> & vcf) {
                                 vcf->ref, ctg 
                         );
                         
-                        /* // calculate existing VCF score */
-                        /* int score = calc_score( */
-                        /*         vcf->ctg_variants[hap][ctg], clust, clust+1); */
+                        // calculate existing VCF score
+                        int score = calc_vcf_sw_score(
+                                vcf->ctg_variants[hap][ctg], clust, clust+1);
+                        printf("orig score: %d\n", score);
 
                         /* // calculate max reaching path to right */
                         /* int reach = max_reach(calls, ref, */ 
                         /*         calls_ref_ptrs, ref_calls_ptrs, score); */
+                        /* printf("reach: %d\n", reach); */
 
                         printf("clusters %d-%d, pos %d-%d, ctg %s nvar %d, nclust %d\n",
                                 int(clust), int(clust+1), 
@@ -407,14 +409,14 @@ void sw_cluster(std::unique_ptr<variantData> & vcf) {
 
                         printf("REF:        %s\n", ref_str.data());
                         printf("CALLS:      %s\n", calls_str.data());
-                        printf("CALLS->REF: ");
-                        for(size_t i = 0; i < calls_ref_ptrs.size(); i++) 
-                            printf("%d ", calls_ref_ptrs[i]); 
-                        printf("\n");
-                        printf("REF->CALLS: ");
-                        for(size_t i = 0; i < ref_calls_ptrs.size(); i++) 
-                            printf("%d ", ref_calls_ptrs[i]); 
-                        printf("\n");
+                        /* printf("CALLS->REF: "); */
+                        /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
+                        /*     printf("%d ", calls_ref_ptrs[i]); */ 
+                        /* printf("\n"); */
+                        /* printf("REF->CALLS: "); */
+                        /* for(size_t i = 0; i < ref_calls_ptrs.size(); i++) */ 
+                        /*     printf("%d ", ref_calls_ptrs[i]); */ 
+                        /* printf("\n"); */
                         
                     } else { // non-adjacent, don't really compute
                         right_reach.push_back(-1); // past farthest left

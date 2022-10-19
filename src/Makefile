@@ -25,7 +25,7 @@ dist.o: dist.cpp dist.h fasta.h variant.h cluster.h print.h
 bed.o: bed.cpp bed.h print.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) bed.cpp
 
-cluster.o: cluster.cpp cluster.h variant.h globals.h
+cluster.o: cluster.cpp cluster.h variant.h globals.h dist.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) cluster.cpp
 
 phase.o: phase.cpp phase.h cluster.h print.h globals.h

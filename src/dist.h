@@ -148,6 +148,10 @@ variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref);
 
+int calc_vcf_sw_score(
+        std::shared_ptr<ctgVariants> vcf, 
+        int clust_beg_idx, int clust_end_idx);
+
 void calc_edit_dist_aln(
         std::string calls1, std::string calls2, 
         std::string truth1, std::string truth2,
