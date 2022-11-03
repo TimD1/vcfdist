@@ -9,7 +9,8 @@
 #include "print.h"
 #include "cluster.h"
 
-bool contains(const std::unordered_set<idx> & wave, const idx & idx) {
+template <typename T>
+bool contains(const std::unordered_set<T> & wave, const T & idx) {
     return wave.find(idx) != wave.end();
 }
 
@@ -123,7 +124,7 @@ variantData edit_dist_realign(
                 int curr_score = 0;
                 std::vector< std::vector<int> > ptrs(alt_len, std::vector<int>(ref_len));
                 std::vector< std::vector<bool> > done(alt_len, std::vector<bool>(ref_len));
-                std::queue< std::pair<int,int> > curr_q, next_q;
+                std::queue<idx2> curr_q, next_q;
 
                 // init
                 ptrs[0][0] = PTR_DIAG;
@@ -148,9 +149,9 @@ variantData edit_dist_realign(
                     while (!curr_q.empty()) {
 
                         // get current cell
-                        std::pair<int,int> cell = curr_q.front(); curr_q.pop();
-                        int alt_idx = cell.first;
-                        int ref_idx = cell.second;
+                        idx2 cell = curr_q.front(); curr_q.pop();
+                        int alt_idx = cell.ci;
+                        int ref_idx = cell.ri;
 
                         // expand diagonal sub, then diagonally
                         if (alt_idx+1 < alt_len && ref_idx+1 < ref_len &&
@@ -203,9 +204,9 @@ variantData edit_dist_realign(
                     while (!next_q.empty()) {
 
                         // get current cell
-                        std::pair<int,int> cell = next_q.front(); next_q.pop();
-                        int alt_idx = cell.first;
-                        int ref_idx = cell.second;
+                        idx2 cell = next_q.front(); next_q.pop();
+                        int alt_idx = cell.ci;
+                        int ref_idx = cell.ri;
 
                         if (!done[alt_idx][ref_idx]) {
                             // add to current wavefront, if new
@@ -580,7 +581,7 @@ void calc_prec_recall_aln(
                 std::vector<bool>(truth_lens[i], false)));
         
         // set first wavefront
-        std::queue< idx > queue;
+        std::queue<idx1> queue;
         queue.push({ci, 0, 0});
         ptrs[ci][0][0] |= PTR_DIAG;
         done[ci][0][0] = true;
@@ -589,15 +590,15 @@ void calc_prec_recall_aln(
         done[ri][0][0] = true;
 
         // continue looping until full alignment found
-        std::unordered_set< idx > done_this_wave;
-        std::unordered_set< idx > this_wave;
+        std::unordered_set<idx1> done_this_wave;
+        std::unordered_set<idx1> this_wave;
         while (true) {
             /* printf("s = %d\n", s[i]); */
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
             // EXTEND WAVEFRONT (stay at same score)
             while (!queue.empty()) {
-                idx x = queue.front(); queue.pop();
+                idx1 x = queue.front(); queue.pop();
                 /* printf("  x = (%d, %d, %d)\n", x.hi, x.cri, x.ti); */
                 this_wave.insert(x);
                 if (x.hi == ci) { // == CALLS
@@ -605,9 +606,9 @@ void calc_prec_recall_aln(
                     if (x.cri+1 < calls_lens[i] && x.ti+1 < truth_lens[i] &&
                             calls[i][x.cri+1] == truth[i][x.ti+1]) {
                         if (!done[x.hi][x.cri+1][x.ti+1] && 
-                                !contains(done_this_wave, idx(x.hi, x.cri+1,x.ti+1))) {
-                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
+                                !contains(done_this_wave, idx1(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
                         }
                         if (!done[x.hi][x.cri+1][x.ti+1]) {
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
@@ -616,11 +617,11 @@ void calc_prec_recall_aln(
                     // allow phase swap
                     if (calls_ref_ptrs[i][x.cri] >= 0) {
                         if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti] &&
-                                !contains(done_this_wave, idx(ri, calls_ref_ptrs[i][x.cri], x.ti))) {
-                            queue.push(idx(ri, 
+                                !contains(done_this_wave, idx1(ri, calls_ref_ptrs[i][x.cri], x.ti))) {
+                            queue.push(idx1(ri, 
                                     calls_ref_ptrs[i][x.cri], 
                                     x.ti));
-                            done_this_wave.insert(idx(ri, calls_ref_ptrs[i][x.cri], x.ti));
+                            done_this_wave.insert(idx1(ri, calls_ref_ptrs[i][x.cri], x.ti));
                         }
                         if (!done[ri][calls_ref_ptrs[i][x.cri]][x.ti]) {
                             ptrs[ri][calls_ref_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
@@ -631,9 +632,9 @@ void calc_prec_recall_aln(
                     if (x.cri+1 < ref_len && x.ti+1  < truth_lens[i] &&
                             ref[x.cri+1] == truth[i][x.ti+1]) {
                         if (!done[x.hi][x.cri+1][x.ti+1] &&
-                                !contains(done_this_wave, idx(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
+                                !contains(done_this_wave, idx1(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
                         }
                         if (!done[x.hi][x.cri+1][x.ti+1]) {
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
@@ -642,11 +643,11 @@ void calc_prec_recall_aln(
                     // allow phase swap
                     if (ref_calls_ptrs[i][x.cri] >= 0) {
                         if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti] &&
-                                !contains(this_wave, idx(ci, ref_calls_ptrs[i][x.cri], x.ti))) {
-                            queue.push(idx(ci, 
+                                !contains(this_wave, idx1(ci, ref_calls_ptrs[i][x.cri], x.ti))) {
+                            queue.push(idx1(ci, 
                                         ref_calls_ptrs[i][x.cri], 
                                         x.ti));
-                            done_this_wave.insert(idx(ci, ref_calls_ptrs[i][x.cri], x.ti));
+                            done_this_wave.insert(idx1(ci, ref_calls_ptrs[i][x.cri], x.ti));
                         }
                         if (!done[ci][ref_calls_ptrs[i][x.cri]][x.ti]) {
                             ptrs[ci][ref_calls_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
@@ -670,9 +671,9 @@ void calc_prec_recall_aln(
                     if (x.cri+1 < calls_lens[i]) { // INS
                         if (!done[x.hi][x.cri+1][x.ti] && 
                                 !contains(done_this_wave,
-                                    idx(x.hi, x.cri+1, x.ti))) {
-                            queue.push(idx(x.hi, x.cri+1, x.ti));
-                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti));
+                                    idx1(x.hi, x.cri+1, x.ti))) {
+                            queue.push(idx1(x.hi, x.cri+1, x.ti));
+                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti));
                         }
                         if (!done[x.hi][x.cri+1][x.ti])
                             ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
@@ -680,9 +681,9 @@ void calc_prec_recall_aln(
                     if (x.ti+1 < truth_lens[i]) { // DEL
                         if (!done[x.hi][x.cri][x.ti+1] &&
                                 !contains(done_this_wave,
-                                    idx(x.hi, x.cri, x.ti+1))) {
-                            queue.push(idx(x.hi, x.cri, x.ti+1));
-                            done_this_wave.insert(idx(x.hi, x.cri, x.ti+1));
+                                    idx1(x.hi, x.cri, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.cri, x.ti+1));
+                            done_this_wave.insert(idx1(x.hi, x.cri, x.ti+1));
                         }
                         if (!done[x.hi][x.cri][x.ti+1])
                             ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
@@ -690,9 +691,9 @@ void calc_prec_recall_aln(
                     if (x.cri+1 < calls_lens[i] && x.ti+1 < truth_lens[i]) { // SUB
                         if (!done[x.hi][x.cri+1][x.ti+1] &&
                                 !contains(done_this_wave,
-                                    idx(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
+                                    idx1(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
                         }
                         if (!done[x.hi][x.cri+1][x.ti+1])
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
@@ -701,9 +702,9 @@ void calc_prec_recall_aln(
                     if (x.cri+1 < ref_len) { // INS
                         if (!done[x.hi][x.cri+1][x.ti] &&
                                 !contains(done_this_wave,
-                                    idx(x.hi, x.cri+1, x.ti))) {
-                            queue.push(idx(x.hi, x.cri+1, x.ti));
-                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti));
+                                    idx1(x.hi, x.cri+1, x.ti))) {
+                            queue.push(idx1(x.hi, x.cri+1, x.ti));
+                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti));
                         }
                         if (!done[x.hi][x.cri+1][x.ti])
                             ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
@@ -711,9 +712,9 @@ void calc_prec_recall_aln(
                     if (x.ti+1 < truth_lens[i]) { // DEL
                         if (!done[x.hi][x.cri][x.ti+1] &&
                                 !contains(done_this_wave,
-                                    idx(x.hi, x.cri, x.ti+1))) {
-                            queue.push(idx(x.hi, x.cri, x.ti+1));
-                            done_this_wave.insert(idx(x.hi, x.cri, x.ti+1));
+                                    idx1(x.hi, x.cri, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.cri, x.ti+1));
+                            done_this_wave.insert(idx1(x.hi, x.cri, x.ti+1));
                         }
                         if (!done[x.hi][x.cri][x.ti+1])
                             ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
@@ -721,9 +722,9 @@ void calc_prec_recall_aln(
                     if (x.cri+1 < ref_len && x.ti+1 < truth_lens[i]) { // SUB
                         if (!done[x.hi][x.cri+1][x.ti+1] &&
                                 !contains(done_this_wave, 
-                                    idx(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx(x.hi, x.cri+1, x.ti+1));
+                                    idx1(x.hi, x.cri+1, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
+                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
                         }
                         if (!done[x.hi][x.cri+1][x.ti+1])
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
@@ -773,7 +774,7 @@ int store_phase(
 
 void calc_prec_recall_path(
         std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
-        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
@@ -799,7 +800,7 @@ void calc_prec_recall_path(
         // init
         int ci = i*2 + CALLS;
         int ri = i*2 + REF;
-        path.push_back(std::vector<idx>());
+        path.push_back(std::vector<idx1>());
         sync.push_back(std::vector<bool>());
         edits.push_back(std::vector<bool>());
         ref_loc_sync.push_back(std::vector<bool>(int(aln_ptrs[ri].size()), true));
@@ -813,18 +814,18 @@ void calc_prec_recall_path(
             std::vector<int>(aln_ptrs[ri][0].size(), -1)));
 
         // backtrack start
-        std::queue<idx> queue;
+        std::queue<idx1> queue;
         int start_hi = pr_calls_ref_end[i];
         int start_cri = aln_ptrs[start_hi].size()-1;
         int start_ti = aln_ptrs[start_hi][0].size()-1;
-        idx start(start_hi, start_cri, start_ti);
+        idx1 start(start_hi, start_cri, start_ti);
         path_ptrs[start_hi][start_cri][start_ti] = PTR_DIAG;
         aln_ptrs[start_hi][start_cri][start_ti] |= MAIN_PATH;
         path_scores[start_hi][start_cri][start_ti] = 0;
         queue.push(start);
 
         while (!queue.empty()) {
-            idx x = queue.front(); queue.pop(); // current cell
+            idx1 x = queue.front(); queue.pop(); // current cell
 
             // ref locations which consume a calls base and aren't 
             // on the main diagonal cannot be sync points
@@ -840,7 +841,7 @@ void calc_prec_recall_path(
                     x.cri > 0 && x.ti > 0) {
 
                 // add to path
-                idx y = idx(x.hi, x.cri-1, x.ti-1); // next cell
+                idx1 y = idx1(x.hi, x.cri-1, x.ti-1); // next cell
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // check for fp
@@ -866,7 +867,7 @@ void calc_prec_recall_path(
                     x.cri > 0 && x.ti > 0) {
 
                 // add to path
-                idx y = idx(x.hi, x.cri-1, x.ti-1);
+                idx1 y = idx1(x.hi, x.cri-1, x.ti-1);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // check for fp
@@ -890,7 +891,7 @@ void calc_prec_recall_path(
             if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_INS && x.cri > 0) { // INS
 
                 // add to path
-                idx y = idx(x.hi, x.cri-1, x.ti);
+                idx1 y = idx1(x.hi, x.cri-1, x.ti);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // check for fp
@@ -914,7 +915,7 @@ void calc_prec_recall_path(
             if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DEL && x.ti > 0) { // DEL
 
                 // add to path
-                idx y = idx(x.hi, x.cri, x.ti-1);
+                idx1 y = idx1(x.hi, x.cri, x.ti-1);
                 aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                 // update score
@@ -933,7 +934,7 @@ void calc_prec_recall_path(
                         ref_calls_ptrs[i][x.cri] >= 0) {
 
                     // add to path
-                    idx y = idx(ci, ref_calls_ptrs[i][x.cri], x.ti);
+                    idx1 y = idx1(ci, ref_calls_ptrs[i][x.cri], x.ti);
                     aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                     // update score
@@ -952,7 +953,7 @@ void calc_prec_recall_path(
                         calls_ref_ptrs[i][x.cri] >= 0) {
 
                     // add to path
-                    idx y = idx(ri, calls_ref_ptrs[i][x.cri], x.ti);
+                    idx1 y = idx1(ri, calls_ref_ptrs[i][x.cri], x.ti);
                     aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                     // update score
@@ -983,7 +984,7 @@ void calc_prec_recall_path(
 
 
 void get_prec_recall_path_sync(
-        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector<bool> > ref_loc_sync, 
@@ -1015,7 +1016,7 @@ void get_prec_recall_path_sync(
         int ti = 0;
 
         // first position is sync point
-        path[i].push_back(idx(hi, cri, ti));
+        path[i].push_back(idx1(hi, cri, ti));
         sync[i].push_back(true);
         aln_ptrs[hi][cri][ti] |= MAIN_PATH | PTR_SYNC;
         path_ptrs[hi][cri][ti] |= MAIN_PATH;
@@ -1049,7 +1050,7 @@ void get_prec_recall_path_sync(
                     ti >= int(aln_ptrs[hi][0].size())) break;
 
             // add point to path
-            path[i].push_back(idx(hi, cri, ti));
+            path[i].push_back(idx1(hi, cri, ti));
             aln_ptrs[hi][cri][ti] |= MAIN_PATH;
             path_ptrs[hi][cri][ti] |= MAIN_PATH;
 
@@ -1074,7 +1075,7 @@ void get_prec_recall_path_sync(
         }
         // last position is sync
         sync[i][sync[i].size()-1] = true;
-        idx last = path[i][path[i].size()-1];
+        idx1 last = path[i][path[i].size()-1];
         aln_ptrs[last.hi][last.cri][last.ti] |= PTR_SYNC;
     }
 }
@@ -1090,7 +1091,7 @@ void calc_prec_recall(
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
-        std::vector< std::vector<idx> > & path,
+        std::vector< std::vector<idx1> > & path,
         std::vector< std::vector<bool> > & sync,
         std::vector< std::vector<bool> > & edits,
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
@@ -1546,7 +1547,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             distance += dist;
 
             // calculate paths from alignment
-            std::vector< std::vector<idx> > path;
+            std::vector< std::vector<idx1> > path;
             std::vector< std::vector<bool> > sync;
             std::vector< std::vector<bool> > edits;
             std::vector< std::vector< std::vector<int> > > path_ptrs;
@@ -1753,6 +1754,9 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 /******************************************************************************/
 
 
+/* Calculate the combined Smith-Waterman score for all variants within 
+ * one or several adjacent clusters.
+ */
 int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars, 
         int clust_beg_idx, int clust_end_idx) {
     int score = 0;
@@ -1775,4 +1779,141 @@ int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars,
         }
     }
     return score;
+}
+
+
+/******************************************************************************/
+
+/* Perform Smith-Waterman alignment of two strings, returning 
+ * the farthest-reaching reference index of lesser or equal score to that provided.
+ * Strings are generated by applying variants to draft ref, and skipping 
+ * variants is not allowed. Neither is a diagonal ref transition.
+ */
+int sw_max_reach_ref(std::string calls, std::string ref, 
+        std::vector<int> calls_ref_ptrs,
+        std::vector<int> ref_calls_ptrs,
+        int score) {
+    
+    int ref_len = ref.size();
+    int calls_len = calls.size();
+    int sub_wave = 0, open_wave = 0, extend_wave = 0;
+        
+    // set first wavefront
+    std::queue<idx2> queue;
+    queue.push({MAT_SUB, -1, -1});
+    std::unordered_set<idx2> done;
+    done.insert({MAT_SUB, -1, -1});
+    std::vector< std::unordered_set<idx2> > waves(score+1);
+
+    // find furthest-reaching alignment with lesser or equal score
+    for (int s = 0; s <= score; s++) {
+        /* printf("s = %d\n", s); */
+
+        // EXTEND WAVEFRONT (stay at same score)
+        while (!queue.empty()) {
+            idx2 x = queue.front(); queue.pop();
+            /* printf("  x = (%c, %d, %d)\n", std::string("SID")[x.mi], x.ci, x.ri); */
+            waves[s].insert(x);
+
+            // allow non-diagonal match
+            if (x.ci+1 < calls_len && x.ri+1 < ref_len && 
+                    x.ci >= 0 && x.ri >= 0 && ! (
+                        calls_ref_ptrs[x.ci] == x.ri &&
+                        ref_calls_ptrs[x.ri] == x.ci) &&
+                    calls[x.ci+1] == ref[x.ri+1] && 
+                    !contains(done, {x.mi, x.ci+1, x.ri+1})) {
+                idx2 next(x.mi, x.ci+1, x.ri+1);
+                queue.push(next);
+                done.insert(next);
+            }
+
+            // allow exiting D/I state
+            if ((x.mi == MAT_INS || x.mi == MAT_DEL) && 
+                    !contains(done, {MAT_SUB, x.ci, x.ri})) {
+                queue.push({MAT_SUB, x.ci, x.ri});
+                done.insert({MAT_SUB, x.ci, x.ri});
+            }
+        }
+
+        // exit if we're done aligning
+        if (s == score || contains(done, {MAT_SUB, calls_len-1, ref_len-1})) 
+            break;
+
+        // NEXT WAVEFRONT (increase score by one)
+        
+        // SUB transition (only from MAT_SUB)
+        sub_wave = s + 1 - g.sub;
+        if (sub_wave >= 0 && sub_wave <= score) {
+            for (idx2 x : waves[sub_wave]) {
+                if (x.mi == MAT_SUB && x.ci+1 < calls_len && x.ri+1 < ref_len) {
+                    idx2 next({x.mi, x.ci+1, x.ri+1});
+                    if (!contains(done, next)) {
+                        queue.push(next);
+                        done.insert(next);
+                    }
+                }
+            }
+        }
+
+        // INS/DEL opening (only from MAT_SUB)
+        open_wave = s + 1 - g.open;
+        if (open_wave >= 0 && open_wave <= score) {
+            for(idx2 x : waves[open_wave]) {
+
+                // INS opening
+                if (x.mi == MAT_SUB && x.ci+1 < calls_len && x.ri >= 0) {
+                    idx2 next({MAT_INS, x.ci+1, x.ri});
+                    if (!contains(done, next)) {
+                        queue.push(next);
+                        done.insert(next);
+                    }
+                }
+
+                // DEL opening
+                if (x.mi == MAT_SUB && x.ri+1 < ref_len && x.ci >= 0) {
+                    idx2 next({MAT_DEL, x.ci, x.ri+1});
+                    if (!contains(done, next)) {
+                        queue.push(next);
+                        done.insert(next);
+                    }
+                }
+            }
+        }
+
+        // INS/DEL extension
+        extend_wave = s + 1 - g.extend;
+        if (extend_wave >= 0 && extend_wave <= score) {
+            for(idx2 x : waves[extend_wave]) {
+
+                // INS extending (only from MAT_INS)
+                if (x.mi == MAT_INS && x.ci+1 < calls_len) {
+                    idx2 next({x.mi, x.ci+1, x.ri});
+                    if (!contains(done, next)) {
+                        queue.push(next);
+                        done.insert(next);
+                    }
+                }
+
+                // DEL extending (only from MAT_DEL)
+                if (x.mi == MAT_DEL && x.ri+1 < ref_len) {
+                    idx2 next({x.mi, x.ci, x.ri+1});
+                    if (!contains(done, next)) {
+                        queue.push(next);
+                        done.insert(next);
+                    }
+                }
+            }
+        }
+    } // end reach
+
+    // search for farthest reach
+    int min_wave = std::max(0, std::min(std::min(
+                    open_wave, extend_wave), sub_wave));
+    int max_reach = 0;
+    for (int w = min_wave; w <= score; w++) {
+        for (idx2 x : waves[w]) {
+            max_reach = std::max(max_reach, x.ri);
+        }
+    }
+    return max_reach;
 }

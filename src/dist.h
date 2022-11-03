@@ -7,7 +7,7 @@
 #include "variant.h"
 #include "cluster.h"
 
-#define PTR_NONE 0
+#define PTR_NONE 0  // backtracking pointer flags
 #define PTR_UP   1
 #define PTR_INS  1
 #define PTR_LEFT 2
@@ -21,13 +21,19 @@
 #define MAIN_PATH 96
 #define PTR_SYNC 128
 
-#define CALLS1_TRUTH1 0
+#define MAT_SUB 0 // three matrices for Smith-Waterman
+#define MAT_INS 1
+#define MAT_DEL 2
+#define MATS    3
+
+#define CALLS1_TRUTH1 0 // four possible alignments of truth and calls haps
 #define CALLS1_TRUTH2 1
 #define CALLS2_TRUTH1 2
 #define CALLS2_TRUTH2 3
 
 #define CALLS 0
 #define REF 1
+
 #define FALSE 0
 #define TRUE 1
 
@@ -52,25 +58,26 @@ void generate_ptrs_strs(
 
 /******************************************************************************/
 
-class idx {
+class idx1 {
 public:
-    int hi;  // hap idx
-    int cri; // calls/ref idx
-    int ti;  // truth idx
+    int hi;  // hap idx1
+    int cri; // calls/ref idx1
+    int ti;  // truth idx1
 
-    idx() : hi(0), cri(0), ti(0) {};
-    idx(int h, int c, int t) : hi(h), cri(c), ti(t) {};
-    idx(const idx & i2) : hi(i2.hi), cri(i2.cri), ti(i2.ti) {};
-    bool operator<(const idx & idx2) const {
-        if (this->hi < idx2.hi) return true;
-        else if (this->hi == idx2.hi && this->cri < idx2.cri) return true;
-        else if (this->hi == idx2.hi && this->cri == idx2.cri && this->ti < idx2.ti) return true;
+    idx1() : hi(0), cri(0), ti(0) {};
+    idx1(int h, int c, int t) : hi(h), cri(c), ti(t) {};
+    idx1(const idx1 & i2) : hi(i2.hi), cri(i2.cri), ti(i2.ti) {};
+
+    bool operator<(const idx1 & other) const {
+        if (this->hi < other.hi) return true;
+        else if (this->hi == other.hi && this->cri < other.cri) return true;
+        else if (this->hi == other.hi && this->cri == other.cri && this->ti < other.ti) return true;
         return false;
     }
-    bool operator==(const idx & idx2) const {
-        return this->hi == idx2.hi && this->cri == idx2.cri && this->ti == idx2.ti;
+    bool operator==(const idx1 & other) const {
+        return this->hi == other.hi && this->cri == other.cri && this->ti == other.ti;
     }
-    idx & operator=(const idx & other) {
+    idx1 & operator=(const idx1 & other) {
         if (this == &other) return *this;
         this->hi = other.hi;
         this->cri = other.cri;
@@ -80,14 +87,52 @@ public:
 };
 
 namespace std {
-    template<> struct hash<idx> {
-        std::uint64_t operator()(const idx& idx1) const noexcept {
-            return uint64_t(idx1.hi)<<60 | uint64_t(idx1.cri) << 30 | uint64_t(idx1.ti);
+    template<> struct hash<idx1> {
+        std::uint64_t operator()(const idx1& other) const noexcept {
+            return uint64_t(other.hi)<<60 | uint64_t(other.cri) << 30 | uint64_t(other.ti);
         }
     };
 }
 
-bool contains(const std::unordered_set<idx> & wave, const idx & idx);
+template <typename T>
+bool contains(const std::unordered_set<T> & wave, const T & idx);
+
+class idx2 {
+public:
+    int mi;  // matrix idx2
+    int ci;  // calls idx2
+    int ri;  // ref idx2
+
+    idx2() : mi(0), ci(0), ri(0) {};
+    idx2(int c, int r) : mi(0), ci(c), ri(r) {};
+    idx2(int m, int c, int r) : mi(m), ci(c), ri(r) {};
+    idx2(const idx2 & i2) : mi(i2.mi), ci(i2.ci), ri(i2.ri) {};
+
+    bool operator<(const idx2 & other) const {
+        if (this->mi < other.mi) return true;
+        else if (this->mi == other.mi && this->ci < other.ci) return true;
+        else if (this->mi == other.mi && this->ci == other.ci && this->ri < other.ri) return true;
+        return false;
+    }
+    bool operator==(const idx2 & other) const {
+        return this->mi == other.mi && this->ci == other.ci && this->ri == other.ri;
+    }
+    idx2 & operator=(const idx2 & other) {
+        if (this == &other) return *this;
+        this->mi = other.mi;
+        this->ci = other.ci;
+        this->ri = other.ri;
+        return *this;
+    }
+};
+
+namespace std {
+    template<> struct hash<idx2> {
+        std::uint64_t operator()(const idx2& other) const noexcept {
+            return uint64_t(other.mi)<<60 | uint64_t(other.ci) << 30 | uint64_t(other.ri);
+        }
+    };
+}
 
 /******************************************************************************/
 
@@ -102,7 +147,7 @@ void calc_prec_recall_aln(
         );
 
 void get_prec_recall_path_sync(
-        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector<bool> > ref_loc_sync, 
@@ -115,7 +160,7 @@ void get_prec_recall_path_sync(
         );
 
 void calc_prec_recall_path(
-        std::vector< std::vector<idx> > & path, 
+        std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
@@ -133,12 +178,18 @@ void calc_prec_recall(
         std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
         std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
-        std::vector< std::vector<idx> > & path,
+        std::vector< std::vector<idx1> > & path,
         std::vector< std::vector<bool> > & sync,
         std::vector< std::vector<bool> > & edits,
         std::vector< std::vector< std::vector<int> > > & ptrs, 
         std::vector<int> pr_calls_ref_end, int phase, int print
         );
+
+/******************************************************************************/
+
+int sw_max_reach_ref(std::string calls, std::string ref, 
+        std::vector<int> calls_ref_ptrs, std::vector<int> ref_calls_ptrs,
+        int score);
 
 /******************************************************************************/
 

@@ -302,8 +302,10 @@ void cluster(std::unique_ptr<variantData> & vcf) {
 /******************************************************************************/
 
 
-/* Add single-VCF cluster indices to `variantData` */
-void sw_cluster(std::unique_ptr<variantData> & vcf) {
+/* Add single-VCF cluster indices to `variantData`. This version assumes that
+ * all variant calls are true positives (doesn't allow skipping)
+ */
+void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
@@ -393,10 +395,10 @@ void sw_cluster(std::unique_ptr<variantData> & vcf) {
                                 vcf->ctg_variants[hap][ctg], clust, clust+1);
                         printf("orig score: %d\n", score);
 
-                        /* // calculate max reaching path to right */
-                        /* int reach = max_reach(calls, ref, */ 
-                        /*         calls_ref_ptrs, ref_calls_ptrs, score); */
-                        /* printf("reach: %d\n", reach); */
+                        // calculate max reaching path to right
+                        int reach = sw_max_reach_ref(calls, ref, 
+                                calls_ref_ptrs, ref_calls_ptrs, score);
+                        printf("reach: %d\n", reach);
 
                         printf("clusters %d-%d, pos %d-%d, ctg %s nvar %d, nclust %d\n",
                                 int(clust), int(clust+1), 
