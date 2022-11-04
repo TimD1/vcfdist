@@ -1816,11 +1816,11 @@ int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars,
 int sw_max_reach_ref(std::string calls, std::string ref, 
         std::vector<int> calls_ref_ptrs,
         std::vector<int> ref_calls_ptrs,
-        int score) {
+        int score, bool reverse /*= false*/) {
     
     int ref_len = ref.size();
     int calls_len = calls.size();
-    int sub_wave = 0, open_wave = 0, extend_wave = 0;
+    int sub_wave = 0, open_wave = 0, extend_wave = 0, end_wave = 0;
         
     // set first wavefront
     std::queue<idx2> queue;
@@ -1850,8 +1850,8 @@ int sw_max_reach_ref(std::string calls, std::string ref,
                 done.insert(next);
             }
 
-            // allow exiting D/I state
-            if ((x.mi == MAT_INS || x.mi == MAT_DEL) && 
+            // allow exiting D/I state (no penalty for forward only)
+            if (!reverse && (x.mi == MAT_INS || x.mi == MAT_DEL) && 
                     !contains(done, {MAT_SUB, x.ci, x.ri})) {
                 queue.push({MAT_SUB, x.ci, x.ri});
                 done.insert({MAT_SUB, x.ci, x.ri});
@@ -1879,7 +1879,10 @@ int sw_max_reach_ref(std::string calls, std::string ref,
         }
 
         // INS/DEL opening (only from MAT_SUB)
-        open_wave = s + 1 - (g.open+g.extend);
+        if (reverse) // g.open penalty when leaving INDEL
+            open_wave = s + 1 - g.extend;
+        else // g.open penalty when entering INDEL
+            open_wave = s + 1 - (g.open+g.extend);
         if (open_wave >= 0 && open_wave <= score) {
             for(idx2 x : waves[open_wave]) {
 
@@ -1899,6 +1902,18 @@ int sw_max_reach_ref(std::string calls, std::string ref,
                         queue.push(next);
                         done.insert(next);
                     }
+                }
+            }
+        }
+
+        // reverse alignment, penalize leaving INDEL
+        end_wave = s + 1 - g.open;
+        if (reverse && end_wave >= 0 && end_wave <= score) {
+            for (idx2 x : waves[end_wave]) {
+                if ((x.mi == MAT_INS || x.mi == MAT_DEL) && 
+                        !contains(done, {MAT_SUB, x.ci, x.ri})) {
+                    queue.push({MAT_SUB, x.ci, x.ri});
+                    done.insert({MAT_SUB, x.ci, x.ri});
                 }
             }
         }

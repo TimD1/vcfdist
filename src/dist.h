@@ -192,7 +192,7 @@ void calc_prec_recall(
 
 int sw_max_reach_ref(std::string calls, std::string ref, 
         std::vector<int> calls_ref_ptrs, std::vector<int> ref_calls_ptrs,
-        int score);
+        int score, bool reverse=false);
 
 /******************************************************************************/
 
