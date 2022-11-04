@@ -349,68 +349,117 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                     if (clust >= prev_clusters.size()-2)
                         right_compute = false;
 
-                    // LEFT REACH
-                    if (left_compute) {
+                    int l_reach = 0, r_reach = 0, score = 0;
+                    if (left_compute || right_compute) {
 
-                        // TODO: reverse align
-                        
-                    } else {
-                        left_reach.push_back( // past farthest right
-                                vcf->ctg_variants[hap][ctg]->poss[nvar-1]+1);
-                    }
-
-                    // RIGHT REACH
-                    if (right_compute) {
-
+                        // calculate existing VCF score
                         printf("===========================================\n");
+                        score = calc_vcf_sw_score(
+                                vcf->ctg_variants[hap][ctg], clust, clust+1);
+
+                        // debug print
+                        printf("cluster %d: vars %d-%d, pos %d-%d\n",
+                                int(clust), 
+                                vcf->ctg_variants[hap][ctg]->clusters[clust],
+                                vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1,
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
+                                vcf->ctg_variants[hap][ctg]->rlens[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]);
                         for (int var_idx = vcf->ctg_variants[hap][ctg]->clusters[clust]; 
                                 var_idx < vcf->ctg_variants[hap][ctg]->clusters[clust+1]; var_idx++) {
-                            printf("%s %d %s %s var:%d\n",
+                            printf("    %s %d %s %s var:%d\n",
                                     ctg.data(), 
                                     vcf->ctg_variants[hap][ctg]->poss[var_idx],
-                                    vcf->ctg_variants[hap][ctg]->refs[var_idx].data(),
-                                    vcf->ctg_variants[hap][ctg]->alts[var_idx].data(),
+                                    vcf->ctg_variants[hap][ctg]->refs[var_idx].size() ? 
+                                        vcf->ctg_variants[hap][ctg]->refs[var_idx].data() : "_",
+                                    vcf->ctg_variants[hap][ctg]->alts[var_idx].size() ? 
+                                        vcf->ctg_variants[hap][ctg]->alts[var_idx].data() : "_",
                                     var_idx
                             );
                         }
+                        printf("orig score: %d\n", score);
+                    }
 
-                        // calculate right reach
+                    // LEFT REACH
+                    if (left_compute) {
+
+                        // calculate left reach
                         std::string calls, ref, calls_str, ref_str;
                         std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
+                        // just after last variant in previous cluster
+                        int beg_pos = vcf->ctg_variants[hap][ctg]->poss[
+                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
+                            vcf->ctg_variants[hap][ctg]->rlens[
+                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1]+1;
+                        // just after last variant in this cluster
+                        int end_pos = vcf->ctg_variants[hap][ctg]->poss[
+                                vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
+                            vcf->ctg_variants[hap][ctg]->rlens[
+                                vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]+1;
                         generate_ptrs_strs(
                                 calls, ref, calls_str, ref_str,
                                 calls_ref_ptrs, ref_calls_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
-                                clust, 0, clust+1, 0,
-                                vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
-                                vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]],
+                                clust, 0, clust+1, 0, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
+                        reverse_ptrs_strs(calls, ref, 
+                                calls_ref_ptrs, ref_calls_ptrs);
                         
-                        // calculate existing VCF score
-                        int score = calc_vcf_sw_score(
-                                vcf->ctg_variants[hap][ctg], clust, clust+1);
-                        printf("orig score: %d\n", score);
+                        // calculate max reaching path to left
+                        int reach = sw_max_reach_ref(calls, ref, 
+                                calls_ref_ptrs, ref_calls_ptrs, score);
+                        l_reach = end_pos - reach;
+                        printf("left reach: %d\n", reach);
+
+                        /* printf("REF:        %s\n", ref_str.data()); */
+                        /* printf("CALLS:      %s\n", calls_str.data()); */
+                        /* printf("CALLS->REF: "); */
+                        /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
+                        /*     printf("%d ", calls_ref_ptrs[i]); */ 
+                        /* printf("\n"); */
+                        /* printf("REF->CALLS: "); */
+                        /* for(size_t i = 0; i < ref_calls_ptrs.size(); i++) */ 
+                        /*     printf("%d ", ref_calls_ptrs[i]); */ 
+                        /* printf("\n"); */
+                        
+                    } else {
+                        // past farthest right (unused)
+                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+1;
+                    }
+                    left_reach.push_back(l_reach);
+
+                    // RIGHT REACH
+                    if (right_compute) {
+
+                        // calculate right reach
+                        std::string calls, ref, calls_str, ref_str;
+                        std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
+                        int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust]]-1;
+                        int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]];
+                        generate_ptrs_strs(
+                                calls, ref, calls_str, ref_str,
+                                calls_ref_ptrs, ref_calls_ptrs, 
+                                vcf->ctg_variants[hap][ctg], 
+                                vcf->ctg_variants[hap][ctg],
+                                clust, 0, clust+1, 0, beg_pos, end_pos,
+                                vcf->ref, ctg 
+                        );
 
                         // calculate max reaching path to right
                         int reach = sw_max_reach_ref(calls, ref, 
                                 calls_ref_ptrs, ref_calls_ptrs, score);
-                        printf("reach: %d\n", reach);
+                        r_reach = beg_pos + reach;
+                        printf("right reach: %d\n", reach);
 
-                        printf("clusters %d-%d, pos %d-%d, ctg %s nvar %d, nclust %d\n",
-                                int(clust), int(clust+1), 
-                                vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
-                                vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]],
-                                ctg.data(), int(nvar), int(prev_clusters.size())
-                                );
-
-                        printf("REF:        %s\n", ref_str.data());
-                        printf("CALLS:      %s\n", calls_str.data());
+                        /* printf("REF:        %s\n", ref_str.data()); */
+                        /* printf("CALLS:      %s\n", calls_str.data()); */
                         /* printf("CALLS->REF: "); */
                         /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
                         /*     printf("%d ", calls_ref_ptrs[i]); */ 
@@ -421,8 +470,10 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                         /* printf("\n"); */
                         
                     } else { // non-adjacent, don't really compute
-                        right_reach.push_back(-1); // past farthest left
+                        r_reach = -1; // past farthest left (unused)
                     }
+                    right_reach.push_back(r_reach);
+                    printf("span: %d-%d\n", l_reach, r_reach);
                 }
                 ERROR("Breakpoint");
 

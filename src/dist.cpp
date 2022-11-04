@@ -340,6 +340,30 @@ variantData edit_dist_realign(
 /******************************************************************************/
 
 
+/* Reverse two strings and their associated pointers for reverse alignment. */
+void reverse_ptrs_strs(std::string & calls, std::string & ref,
+        std::vector<int> & calls_ptrs, std::vector<int> & ref_ptrs) {
+
+    // reverse strings and vectors
+    std::reverse(calls.begin(), calls.end());
+    std::reverse(ref.begin(), ref.end());
+    std::reverse(calls_ptrs.begin(), calls_ptrs.end());
+    std::reverse(ref_ptrs.begin(), ref_ptrs.end());
+
+    // update pointers
+    for(int & ptr : calls_ptrs) {
+        if (ptr >= 0) { ptr = ref.size()-1 - ptr; }
+    }
+    for(int & ptr : ref_ptrs) {
+        if (ptr >= 0) { ptr = calls.size()-1 - ptr; }
+    }
+    return;
+}
+
+
+/******************************************************************************/
+
+
 /* For each position on hap1 and hap2, it generates pointers from one hap to the
  * other if both match the reference, or else -1. This method also generates the
  * strings for alignment, and the pretty-printing strings for debug output.
@@ -1800,9 +1824,9 @@ int sw_max_reach_ref(std::string calls, std::string ref,
         
     // set first wavefront
     std::queue<idx2> queue;
-    queue.push({MAT_SUB, -1, -1});
+    queue.push({MAT_SUB, 0, 0});
     std::unordered_set<idx2> done;
-    done.insert({MAT_SUB, -1, -1});
+    done.insert({MAT_SUB, 0, 0});
     std::vector< std::unordered_set<idx2> > waves(score+1);
 
     // find furthest-reaching alignment with lesser or equal score
@@ -1816,8 +1840,7 @@ int sw_max_reach_ref(std::string calls, std::string ref,
             waves[s].insert(x);
 
             // allow non-diagonal match
-            if (x.ci+1 < calls_len && x.ri+1 < ref_len && 
-                    x.ci >= 0 && x.ri >= 0 && ! (
+            if (x.ci+1 < calls_len && x.ri+1 < ref_len && ! (
                         calls_ref_ptrs[x.ci] == x.ri &&
                         ref_calls_ptrs[x.ri] == x.ci) &&
                     calls[x.ci+1] == ref[x.ri+1] && 
@@ -1856,12 +1879,12 @@ int sw_max_reach_ref(std::string calls, std::string ref,
         }
 
         // INS/DEL opening (only from MAT_SUB)
-        open_wave = s + 1 - g.open;
+        open_wave = s + 1 - (g.open+g.extend);
         if (open_wave >= 0 && open_wave <= score) {
             for(idx2 x : waves[open_wave]) {
 
                 // INS opening
-                if (x.mi == MAT_SUB && x.ci+1 < calls_len && x.ri >= 0) {
+                if (x.mi == MAT_SUB && x.ci+1 < calls_len) {
                     idx2 next({MAT_INS, x.ci+1, x.ri});
                     if (!contains(done, next)) {
                         queue.push(next);
@@ -1870,7 +1893,7 @@ int sw_max_reach_ref(std::string calls, std::string ref,
                 }
 
                 // DEL opening
-                if (x.mi == MAT_SUB && x.ri+1 < ref_len && x.ci >= 0) {
+                if (x.mi == MAT_SUB && x.ri+1 < ref_len) {
                     idx2 next({MAT_DEL, x.ci, x.ri+1});
                     if (!contains(done, next)) {
                         queue.push(next);

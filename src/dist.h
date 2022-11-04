@@ -56,6 +56,9 @@ void generate_ptrs_strs(
         int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
         );
 
+void reverse_ptrs_strs(std::string & calls, std::string & ref,
+        std::vector<int> & calls_ptrs, std::vector<int> & ref_ptrs);
+
 /******************************************************************************/
 
 class idx1 {
