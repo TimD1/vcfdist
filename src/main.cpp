@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
 
     // parse ground truth VCF, cluster variants, get min edit dist
     std::unique_ptr<variantData> truth_ptr(new variantData(g.truth_vcf_fn, ref_ptr));
+    /* cluster(truth_ptr); */
     sw_cluster_ref(truth_ptr);
     variantData truth_min_ed = edit_dist_realign(truth_ptr, ref_ptr);
     truth_ptr->write(g.out_prefix + "orig_truth.vcf");
