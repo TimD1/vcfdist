@@ -75,12 +75,21 @@ public:
     void write(std::string vcf_fn);
     void print_variant(FILE* out_fp, std::string ctg, int pos, int type,
         std::string ref, std::string alt, float qual, std::string gt);
+    void set_header(const std::unique_ptr<variantData> & vcf);
+    void add_variants( const std::vector<int> & cigar, 
+        int hap, int ref_pos,
+        const std::string & ctg, 
+        const std::string & calls, 
+        const std::string & ref);
 
     // data
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
-    std::vector< std::unordered_map<std::string, std::shared_ptr<ctgVariants> > > ctg_variants;
+    std::vector< 
+        std::unordered_map<
+            std::string, 
+            std::shared_ptr<ctgVariants> > > ctg_variants;
 
     std::shared_ptr<fastaData> ref;
 };

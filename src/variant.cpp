@@ -148,6 +148,77 @@ void variantData::print_variant(FILE* out_fp, std::string ctg, int pos, int type
     }
 }
 
+void variantData::set_header(const std::unique_ptr<variantData> & vcf) {
+    this->sample = vcf->sample;
+    this->contigs = vcf->contigs;
+    this->lengths = vcf->lengths;
+    this->ref = vcf->ref;
+    for (std::string ctg : this->contigs)
+        for (int hap = 0; hap < 2; hap++)
+            this->ctg_variants[hap][ctg] = 
+                std::shared_ptr<ctgVariants>(new ctgVariants());
+}
+
+
+/* Copy variants from `cigar` string to `variantData`. */
+void variantData::add_variants(
+        const std::vector<int> & cigar, 
+        int hap, int ref_pos,
+        const std::string & ctg, 
+        const std::string & calls, 
+        const std::string & ref) {
+
+    int calls_idx = 0;
+    int ref_idx = 0;
+    for (size_t cig_idx = 0; cig_idx < cigar.size(); ) {
+        int indel_len = 0;
+        switch (cigar[cig_idx]) {
+
+            case PTR_DIAG: // no variant, update pointers
+                cig_idx += 2;
+                ref_idx++;
+                calls_idx++;
+                break;
+
+            case PTR_SUB: // substitution
+                cig_idx += 2;
+                this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
+                        TYPE_SUB, INSIDE, std::string(1,ref[ref_idx]), 
+                        std::string(1,calls[calls_idx]), GT_REF_REF, 50, 50);
+                ref_idx++;
+                calls_idx++;
+                break;
+
+            case PTR_DEL: // deletion
+                cig_idx++; indel_len++;
+
+                // multi-base deletion
+                while (cig_idx < cigar.size() && cigar[cig_idx] == PTR_DEL) {
+                    cig_idx++; indel_len++;
+                }
+                this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
+                        indel_len, hap, TYPE_DEL, INSIDE,
+                        ref.substr(ref_idx, indel_len),
+                        "", GT_REF_REF, 50, 50);
+                ref_idx += indel_len;
+                break;
+
+            case PTR_INS: // insertion
+                cig_idx++; indel_len++;
+
+                // multi-base insertion
+                while (cig_idx < cigar.size() && cigar[cig_idx] == PTR_INS) {
+                    cig_idx++; indel_len++;
+                }
+                this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
+                        0, hap, TYPE_INS, INSIDE, "", 
+                        calls.substr(calls_idx, indel_len), GT_REF_REF, 50, 50);
+                calls_idx += indel_len;
+                break;
+        }
+    }
+}
+
 /******************************************************************************/
 
 variantData::variantData() : ctg_variants(2) { ; }

@@ -427,9 +427,9 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                                 calls_ref_ptrs, ref_calls_ptrs);
                         
                         // calculate max reaching path to left
-                        int reach = sw_max_reach_ref(calls, ref, 
+                        int reach = sw_max_reach(calls, ref, 
                                 calls_ref_ptrs, ref_calls_ptrs, score, 
-                                true);
+                                true); // reverse
                         l_reach = end_pos - reach;
                         /* printf("left reach: %d\n", reach); */
 
@@ -471,7 +471,7 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                         );
 
                         // calculate max reaching path to right
-                        int reach = sw_max_reach_ref(calls, ref, 
+                        int reach = sw_max_reach(calls, ref, 
                                 calls_ref_ptrs, ref_calls_ptrs, score);
                         r_reach = beg_pos + reach;
                         /* printf("right reach: %d\n", reach); */

@@ -46,6 +46,8 @@
 #define ERRTYPE_UN 6 // unknown
 #define ERRTYPES 7
 
+/******************************************************************************/
+
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,          // actual strings 
         std::string & hap1_str, std::string & hap2_str,  // colored debug strs
@@ -190,13 +192,31 @@ void calc_prec_recall(
 
 /******************************************************************************/
 
-int sw_max_reach_ref(std::string calls, std::string ref, 
-        std::vector<int> calls_ref_ptrs, std::vector<int> ref_calls_ptrs,
-        int score, bool reverse=false);
+int sw_max_reach(
+        std::string calls, 
+        std::string ref, 
+        std::vector<int> calls_ref_ptrs, 
+        std::vector<int> ref_calls_ptrs,
+        int score, 
+        bool reverse=false);
+
+variantData sw_realign(
+        std::unique_ptr<variantData> & vcf, 
+        std::shared_ptr<fastaData> ref);
+
+std::unordered_map<idx2,idx2> sw_align(
+        const std::string & calls, 
+        const std::string & ref);
+
+std::vector<int> sw_backtrack(
+        const std::string & calls,
+        const std::string & ref,
+        const std::unordered_map<idx2, idx2> & ptrs);
 
 /******************************************************************************/
 
-void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr);
+void alignment_wrapper(
+        std::shared_ptr<clusterData> clusterdata_ptr);
 
 variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
@@ -204,11 +224,14 @@ variantData edit_dist_realign(
 
 int calc_vcf_sw_score(
         std::shared_ptr<ctgVariants> vcf, 
-        int clust_beg_idx, int clust_end_idx);
+        int clust_beg_idx, 
+        int clust_end_idx);
 
 void calc_edit_dist_aln(
-        std::string calls1, std::string calls2, 
-        std::string truth1, std::string truth2,
+        std::string calls1, 
+        std::string calls2, 
+        std::string truth1, 
+        std::string truth2,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs
