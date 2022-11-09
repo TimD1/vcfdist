@@ -306,15 +306,22 @@ void cluster(std::unique_ptr<variantData> & vcf) {
  * all variant calls are true positives (doesn't allow skipping)
  */
 void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
+    INFO(" ");
+    INFO("Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
+
+        // only print for non-empty contigs
+        if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n)
+            INFO("  Contig %s", ctg.data());
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < 2; hap++) {
 
             // init: each variant is its own cluster
             size_t nvar = vcf->ctg_variants[hap][ctg]->n;
+            if (nvar) INFO("    Haplotype %d", hap+1);
             std::vector<int> prev_clusters(nvar+1);
             for (size_t i = 0; i < nvar+1; i++) prev_clusters[i] = i;
             std::vector<bool> prev_merged(nvar+1, true);
@@ -325,16 +332,18 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
             std::vector<bool> next_merged;
 
             // while clusters are being merged, loop
+            int iter = 0;
             while (std::find(prev_merged.begin(), 
                         prev_merged.end(), true) != prev_merged.end()) {
+                iter++;
 
+                // count clusters currently being expanded
                 int active = 0;
                 for (size_t i = 0; i < prev_merged.size(); i++) {
                     if (prev_merged[i]) active++;
                 }
-
-                printf("ctg %s hap %d: %d clusters, %d active\n",
-                        ctg.data(), hap, int(prev_clusters.size()), active);
+                INFO("      Iteration %d: %d clusters, %d active",
+                        iter, int(prev_clusters.size()-1), active);
 
                 // save temp clustering (generate_ptrs_strs assumes clustered)
                 vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
@@ -518,6 +527,8 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
 
             // save final clustering
             vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
+
+            if (nvar) INFO("      %d resulting clusters.", int(prev_clusters.size()));
 
             /* printf("DONE CLUSTERING\n"); */
             /* for(size_t clust = 0; clust < prev_clusters.size()-1; clust++) { */

@@ -1643,7 +1643,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     calls2_ref_ptrs, ref_calls2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
                     path, sync, edits, aln_ptrs, path_ptrs, 
-                    aln_calls_ref_end, phase, dist
+                    aln_calls_ref_end, phase, dist && g.print_verbosity >= 1
             );
 
             // DEBUG PRINTING
@@ -1821,6 +1821,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
         } // each cluster
     } // each contig
+    INFO(" ");
     INFO("Total edit distance: %d", distance);
 }
 

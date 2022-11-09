@@ -227,6 +227,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
 
     // set reference fasta pointer
     this->ref = reference;
+    this->filename = vcf_fn;
 
     INFO(" ");
     INFO("Parsing VCF '%s'", vcf_fn.data());

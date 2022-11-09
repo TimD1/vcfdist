@@ -8,5 +8,4 @@
     ../test/truth.vcf.gz \
     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../scripts/data/all_20.bed \
-    -o ../out/ \
-    -p 0
+    -o ../out/

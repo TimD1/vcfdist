@@ -83,6 +83,7 @@ public:
         const std::string & ref);
 
     // data
+    std::string filename;
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
