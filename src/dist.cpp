@@ -567,12 +567,33 @@ void generate_ptrs_strs(
             // BOTH MATCH REFERENCE, ADD POINTERS FOR TRANSITIONS
             if (!hap1_var && !hap2_var) { // add pointers
                 try {
-                    hap1_ptrs.push_back(hap2.size());
-                    hap2_ptrs.push_back(hap1.size());
-                    hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
-                    hap1_ref_pos++;
-                    hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
-                    hap2_ref_pos++;
+
+                    // find next position w/o ref match
+                    int hap1_next_var = (hap1_var_idx < hap1_end_idx) ?
+                        hap1_vars->poss[hap1_var_idx] : end_pos;
+                    int hap2_next_var = (hap2_var_idx < hap2_end_idx) ?
+                        hap2_vars->poss[hap2_var_idx] : end_pos;
+                    int ref_end = std::min(
+                            std::min(hap1_next_var, hap2_next_var), end_pos);
+
+                    // add pointers
+                    std::vector<int> new_hap1_ptrs(ref_end-hap1_ref_pos);
+                    for(size_t i = 0; i < new_hap1_ptrs.size(); i++)
+                        new_hap1_ptrs[i] = hap2.size() + i;
+                    hap1_ptrs.insert(hap1_ptrs.end(), 
+                            new_hap1_ptrs.begin(), new_hap1_ptrs.end());
+                    std::vector<int> new_hap2_ptrs(ref_end-hap2_ref_pos);
+                    for(size_t i = 0; i < new_hap2_ptrs.size(); i++)
+                        new_hap2_ptrs[i] = hap1.size() + i;
+                    hap2_ptrs.insert(hap2_ptrs.end(), 
+                            new_hap2_ptrs.begin(), new_hap2_ptrs.end());
+
+                    // add sequence, update positions
+                    hap1 += ref->fasta.at(ctg).substr(hap1_ref_pos, ref_end-hap1_ref_pos);
+                    hap2 += ref->fasta.at(ctg).substr(hap2_ref_pos, ref_end-hap2_ref_pos);
+                    hap1_ref_pos = ref_end;
+                    hap2_ref_pos = ref_end;
+
                 } catch (const std::out_of_range & e) {
                     ERROR("Contig '%s' not present in reference FASTA",
                             ctg.data());
