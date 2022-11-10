@@ -230,7 +230,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     this->filename = vcf_fn;
 
     INFO(" ");
-    INFO("Parsing VCF '%s'", vcf_fn.data());
+    INFO("1. Parsing VCF '%s'", vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
     // counters
@@ -534,44 +534,44 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     if (total_overlaps)
         WARN("%d total VCF variant overlaps skipped", total_overlaps);
 
-    INFO("Contigs:");
+    INFO("  Contigs:");
     for (size_t i = 0; i < this->contigs.size(); i++) {
-        INFO("  [%2lu] %s", i, this->contigs[i].data());
+        INFO("    [%2lu] %s", i, this->contigs[i].data());
     }
     INFO(" ");
 
-    INFO("Genotypes:");
+    INFO("  Genotypes:");
     for (size_t i = 0; i < gt_strs.size(); i++) {
-        INFO("  %s  %i", gt_strs[i].data(), ngts[i]);
+        INFO("    %s  %i", gt_strs[i].data(), ngts[i]);
     }
     INFO(" ");
 
-    INFO("Variant exceeds Min Qual (%d):", g.min_qual);
-    INFO("  FAIL  %d", pass_min_qual[FAIL]);
-    INFO("  PASS  %d", pass_min_qual[PASS]);
+    INFO("  Variant exceeds Min Qual (%d):", g.min_qual);
+    INFO("    FAIL  %d", pass_min_qual[FAIL]);
+    INFO("    PASS  %d", pass_min_qual[PASS]);
     INFO(" ");
 
-    INFO("Variants in BED Regions:");
+    INFO("  Variants in BED Regions:");
     for (size_t i = 0; i < region_strs.size(); i++) {
         INFO("  %s  %i", region_strs[i].data(), nregions[i]);
     }
     INFO(" ");
 
-    INFO("Variant Types:");
+    INFO("  Variant Types:");
     for (int h = 0; h < 2; h++) {
-        INFO("  Haplotype %i", h+1);
+        INFO("    Haplotype %i", h+1);
         for (size_t i = 0; i < type_strs.size(); i++) {
-            INFO("    %s  %i", type_strs[i].data(), ntypes[h][i]);
+            INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
         }
     }
     INFO(" ");
 
     if (g.print_verbosity >= 1) {
-        INFO("Clusters:");
+        INFO("  Clusters:");
         for(int i = 0; i < nseq; i++) {
             for (int h = 0; h < 2; h++) {
                 if (this->ctg_variants[h][seqnames[i]]->poss.size() > 0) {
-                    INFO("    '%s' hap %i: %lu variants", 
+                    INFO("      '%s' hap %i: %lu variants", 
                         this->contigs[i].data(),
                         h+1,
                         this->ctg_variants[h][seqnames[i]]->poss.size());
@@ -581,10 +581,10 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         INFO(" ");
     }
 
-    INFO("Overview:");
-    INFO("  VARIANTS  %d", n);
-    INFO("  KEPT HAP1 %d", npass[HAP1]);
-    INFO("  KEPT HAP2 %d", npass[HAP2]);
+    INFO("  VCF Overview:");
+    INFO("    VARIANTS  %d", n);
+    INFO("    KEPT HAP1 %d", npass[HAP1]);
+    INFO("    KEPT HAP2 %d", npass[HAP2]);
     INFO(" ");
 
     free(gq);

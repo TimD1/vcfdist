@@ -59,7 +59,6 @@ void bedData::check() {
             prev_stop = stop;
         }
     }
-    INFO("BED '%s' is valid.", g.bed_fn.data());
 }
 
 int bedData::contains(std::string contig, const int & start, const int & stop) {

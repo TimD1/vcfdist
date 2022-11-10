@@ -31,11 +31,14 @@ phaseData::phaseData(std::shared_ptr<clusterData> clusterdata_ptr)
 
 void phaseData::phase()
 {
-    
+    INFO(" ");
+    INFO("6. Phasing superclusters");
     // phase each contig separately
     for (auto ctg : this->contigs) {
         std::vector< std::vector<int> > mat(2, std::vector<int>(this->ctg_phasings[ctg].n+1));
         std::vector< std::vector<int> > ptrs(2, std::vector<int>(this->ctg_phasings[ctg].n));
+        if (this->ctg_phasings[ctg].n)
+            INFO("  Contig '%s'", ctg.data());
 
         // forward pass
         for (int i = 0; i < this->ctg_phasings[ctg].n; i++) {
@@ -89,6 +92,8 @@ void phaseData::phase()
             std::reverse(this->ctg_phasings[ctg].phase_blocks.begin(),
                     this->ctg_phasings[ctg].phase_blocks.end());
         }
+        if (this->ctg_phasings[ctg].n)
+            INFO("    %d switch errors", this->ctg_phasings[ctg].nswitches);
     }
     
 
@@ -120,5 +125,6 @@ void phaseData::phase()
         }
         switch_errors += this->ctg_phasings[ctg].nswitches;
     }
-    INFO("Total switch errors: %d", switch_errors);
+    INFO(" ");
+    INFO("  Total switch errors: %d", switch_errors);
 }

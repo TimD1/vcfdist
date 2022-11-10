@@ -43,7 +43,7 @@ void Globals::parse_args(int argc, char ** argv) {
 
     // load reference FASTA
     this->ref_fasta_fn = std::string(argv[3]);
-    INFO("Loading reference FASTA '%s'", ref_fasta_fn.data());
+    INFO("0. Loading reference FASTA '%s'", ref_fasta_fn.data());
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
         ERROR("Failed to open ref_fasta file '%s'", ref_fasta_fn.data());

@@ -158,12 +158,13 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
 
 
 void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
+    INFO(" ");
+    INFO("7. Writing results");
 
     // print phasing information
     std::string out_phasings_fn = g.out_prefix + "phasings.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
-    INFO(" ");
-    INFO("Printing phasing results to '%s'", out_phasings_fn.data());
+    INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         ctgPhasings ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
@@ -182,7 +183,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     // print clustering information
     std::string out_clusterings_fn = g.out_prefix + "clusterings.tsv";
     FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
-    INFO("Printing clustering results to '%s'", out_clusterings_fn.data());
+    INFO("  Printing clustering results to '%s'", out_clusterings_fn.data());
     fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tCALLS1_VARS\tCALLS2_VARS\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         auto ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
@@ -216,7 +217,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
 
     // print calls variant information
     std::string out_calls_fn = g.out_prefix + "calls.tsv";
-    INFO("Printing call variant results to '%s'", out_calls_fn.data());
+    INFO("  Printing call variant results to '%s'", out_calls_fn.data());
     FILE* out_calls = fopen(out_calls_fn.data(), "w");
     fprintf(out_calls, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tORIG_GT\tCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
@@ -281,7 +282,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     
     //print truth variant information
     std::string out_truth_fn = g.out_prefix + "truth.tsv";
-    INFO("Printing truth variant results to '%s'", out_truth_fn.data());
+    INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
     fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tORIG_GT\tCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {

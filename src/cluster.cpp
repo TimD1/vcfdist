@@ -97,9 +97,16 @@ clusterData::clusterData(
 
 
 void clusterData::gap_supercluster() {
+    INFO(" ");
+    INFO("4. Superclustering truth and call variants across haplotypes");
 
     // iterate over each contig
     for (std::string ctg : this->contigs) {
+        if ( this->ctg_superclusters[ctg]->calls1_vars->n +
+                this->ctg_superclusters[ctg]->calls2_vars->n +
+                this->ctg_superclusters[ctg]->truth1_vars->n +
+                this->ctg_superclusters[ctg]->truth2_vars->n)
+            INFO("  Contig '%s'", ctg.data());
 
         // set shorter var names
         std::shared_ptr<ctgVariants> calls1_vars = this->ctg_superclusters[ctg]->calls1_vars;
@@ -266,6 +273,9 @@ void clusterData::gap_supercluster() {
             truth1_clust_beg_idx = truth1_clust_end_idx;
             truth2_clust_beg_idx = truth2_clust_end_idx;
         }
+
+        if (this->ctg_superclusters[ctg]->n)
+            INFO("    %d superclusters", this->ctg_superclusters[ctg]->n);
     }
 }
 
@@ -307,14 +317,14 @@ void cluster(std::unique_ptr<variantData> & vcf) {
  */
 void sw_cluster(std::unique_ptr<variantData> & vcf) {
     INFO(" ");
-    INFO("Clustering VCF '%s'", vcf->filename.data());
+    INFO("2. Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
 
         // only print for non-empty contigs
         if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n)
-            INFO("  Contig %s", ctg.data());
+            INFO("  Contig '%s'", ctg.data());
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < 2; hap++) {
