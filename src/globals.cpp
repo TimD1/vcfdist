@@ -181,7 +181,7 @@ void Globals::print_usage() const
     printf("  -b FILE\tBED file containing regions to evaluate\n");
     printf("  -o PREFIX\toutput filepath prefix (dir should contain trailing slash)\n");
     printf("  -q MIN_QUAL\tminimum variant quality [0]\n");
-    printf("  -c CLUST_GAP\tminimum base gap between independent clusters [0]\n");
+    printf("  -c CLUST_GAP\tminimum base gap between independent clusters [50]\n");
     printf("  -s SUB\tinteger substitution penalty [1]\n");
     printf("  -g GAP_OPEN\tinteger gap opening penalty [1]\n");
     printf("  -e GAP_EXT\tinteger gap extension penalty [1]\n");

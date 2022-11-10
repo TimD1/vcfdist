@@ -23,11 +23,6 @@ public:
     ctgClusters() {;}
 
     // add supercluster info
-    void set_variants(
-           std::shared_ptr<ctgVariants> calls1_vars,
-           std::shared_ptr<ctgVariants> calls2_vars,
-           std::shared_ptr<ctgVariants> truth1_vars,
-           std::shared_ptr<ctgVariants> truth2_vars);
     void add_supercluster(
            int calls1_beg_idx, int calls1_end_idx, 
            int calls2_beg_idx, int calls2_end_idx, 

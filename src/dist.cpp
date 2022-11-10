@@ -2016,15 +2016,15 @@ int sw_max_reach(std::string calls, std::string ref,
 /******************************************************************************/
 
 
-variantData sw_realign(
+std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_fasta) {
     INFO(" ");
     INFO("3. Realigning VCF '%s'", vcf->filename.data());
 
     // copy vcf header data over to results vcf
-    variantData results;
-    results.set_header(vcf);
+    std::unique_ptr<variantData> results(new variantData());
+    results->set_header(vcf);
 
     // iterate over each contig haplotype
     for (int hap = 0; hap < 2; hap++) {
@@ -2036,6 +2036,7 @@ variantData sw_realign(
             INFO("  Haplotype %d Contig %s", hap+1, ctg.data());
 
             // realign each cluster of variants
+            /* results->ctg_variants[hap][ctg]->clusters = vars->clusters; */
             for (size_t cluster = 0; cluster < vars->clusters.size()-1; cluster++) {
                 int beg_idx = vars->clusters[cluster];
                 int end_idx = vars->clusters[cluster+1];
@@ -2054,7 +2055,7 @@ variantData sw_realign(
                 std::vector<int> cigar = sw_backtrack(calls, ref, ptrs);
                 
                 // save resulting variants
-                results.add_variants(cigar, hap, beg, ctg, calls, ref);
+                results->add_variants(cigar, hap, beg, ctg, calls, ref);
 
             } // cluster
         } // contig

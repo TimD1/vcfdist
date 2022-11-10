@@ -36,7 +36,7 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
 
 /******************************************************************************/
 
-void variantData::write(std::string out_vcf_fn) {
+void variantData::write_vcf(std::string out_vcf_fn) {
 
     // VCF header
     FILE* out_vcf = fopen(out_vcf_fn.data(), "w");
@@ -149,6 +149,7 @@ void variantData::print_variant(FILE* out_fp, std::string ctg, int pos, int type
 }
 
 void variantData::set_header(const std::unique_ptr<variantData> & vcf) {
+    this->filename = vcf->filename;
     this->sample = vcf->sample;
     this->contigs = vcf->contigs;
     this->lengths = vcf->lengths;

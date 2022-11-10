@@ -162,7 +162,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     INFO("7. Writing results");
 
     // print phasing information
-    std::string out_phasings_fn = g.out_prefix + "phasings.tsv";
+    std::string out_phasings_fn = g.out_prefix + "phaseblocks.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
     INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
@@ -181,7 +181,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     fclose(out_phasings);
 
     // print clustering information
-    std::string out_clusterings_fn = g.out_prefix + "clusterings.tsv";
+    std::string out_clusterings_fn = g.out_prefix + "superclusters.tsv";
     FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
     INFO("  Printing clustering results to '%s'", out_clusterings_fn.data());
     fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tCALLS1_VARS\tCALLS2_VARS\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");

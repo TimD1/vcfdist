@@ -6,17 +6,6 @@
 #include "print.h"
 #include "dist.h"
 
-void ctgClusters::set_variants(
-           std::shared_ptr<ctgVariants> calls1_vars,
-           std::shared_ptr<ctgVariants> calls2_vars,
-           std::shared_ptr<ctgVariants> truth1_vars,
-           std::shared_ptr<ctgVariants> truth2_vars) {
-    this->calls1_vars = calls1_vars;
-    this->calls2_vars = calls2_vars;
-    this->truth1_vars = truth1_vars;
-    this->truth2_vars = truth2_vars;
-}
-
 void ctgClusters::add_supercluster(
            int calls1_beg_idx, int calls1_end_idx, 
            int calls2_beg_idx, int calls2_end_idx, 
@@ -71,21 +60,18 @@ clusterData::clusterData(
 
     // set pointers to variant lists (per contig)
     for (std::string ctg : this->contigs) {
-        std::shared_ptr<ctgVariants> calls1_vars, calls2_vars, truth1_vars, truth2_vars;
         try {
-            calls1_vars = calls_ptr->ctg_variants[HAP1][ctg];
-            calls2_vars = calls_ptr->ctg_variants[HAP2][ctg];
+            this->ctg_superclusters[ctg]->calls1_vars = calls_ptr->ctg_variants[HAP1][ctg];
+            this->ctg_superclusters[ctg]->calls2_vars = calls_ptr->ctg_variants[HAP2][ctg];
         } catch (const std::exception & e) {
             ERROR("Calls VCF does not contain contig '%s'", ctg.data());
         }
         try {
-            truth1_vars = truth_ptr->ctg_variants[HAP1][ctg];
-            truth2_vars = truth_ptr->ctg_variants[HAP2][ctg];
+            this->ctg_superclusters[ctg]->truth1_vars = truth_ptr->ctg_variants[HAP1][ctg];
+            this->ctg_superclusters[ctg]->truth2_vars = truth_ptr->ctg_variants[HAP2][ctg];
         } catch (const std::exception & e) {
             ERROR("Truth VCF does not contain contig '%s'", ctg.data());
         }
-        this->ctg_superclusters[ctg]->set_variants(
-                calls1_vars, calls2_vars, truth1_vars, truth2_vars);
     }
 
     // generate variant clusters
@@ -101,12 +87,9 @@ void clusterData::gap_supercluster() {
     INFO("4. Superclustering truth and call variants across haplotypes");
 
     // iterate over each contig
+    int total_superclusters = 0;
+    int largest_supercluster = 0;
     for (std::string ctg : this->contigs) {
-        if ( this->ctg_superclusters[ctg]->calls1_vars->n +
-                this->ctg_superclusters[ctg]->calls2_vars->n +
-                this->ctg_superclusters[ctg]->truth1_vars->n +
-                this->ctg_superclusters[ctg]->truth2_vars->n)
-            INFO("  Contig '%s'", ctg.data());
 
         // set shorter var names
         std::shared_ptr<ctgVariants> calls1_vars = this->ctg_superclusters[ctg]->calls1_vars;
@@ -114,32 +97,36 @@ void clusterData::gap_supercluster() {
         std::shared_ptr<ctgVariants> truth1_vars = this->ctg_superclusters[ctg]->truth1_vars;
         std::shared_ptr<ctgVariants> truth2_vars = this->ctg_superclusters[ctg]->truth2_vars;
 
+        if (calls1_vars->n + calls2_vars->n + truth1_vars->n + truth2_vars->n) {
+            INFO("  Contig '%s'", ctg.data());
+        } else {continue;}
+
         // for each cluster of variants (merge calls and truth haps)
-        size_t calls1_clust_beg_idx = 0;
-        size_t calls2_clust_beg_idx = 0;
-        size_t truth1_clust_beg_idx = 0;
-        size_t truth2_clust_beg_idx = 0;
-        while (calls1_clust_beg_idx < calls1_vars->clusters.size()-1 || // last cluster added for end
-               calls2_clust_beg_idx < calls2_vars->clusters.size()-1 ||
-               truth1_clust_beg_idx < truth1_vars->clusters.size()-1 ||
-               truth2_clust_beg_idx < truth2_vars->clusters.size()-1) {
+        int calls1_clust_beg_idx = 0;
+        int calls2_clust_beg_idx = 0;
+        int truth1_clust_beg_idx = 0;
+        int truth2_clust_beg_idx = 0;
+        while (calls1_clust_beg_idx < int(calls1_vars->clusters.size())-1 || // last cluster added for end
+               calls2_clust_beg_idx < int(calls2_vars->clusters.size())-1 ||
+               truth1_clust_beg_idx < int(truth1_vars->clusters.size())-1 ||
+               truth2_clust_beg_idx < int(truth2_vars->clusters.size())-1) {
 
             // init: empty supercluster
-            size_t calls1_clust_end_idx = calls1_clust_beg_idx;
-            size_t calls2_clust_end_idx = calls2_clust_beg_idx;
-            size_t truth1_clust_end_idx = truth1_clust_beg_idx;
-            size_t truth2_clust_end_idx = truth2_clust_beg_idx;
+            int calls1_clust_end_idx = calls1_clust_beg_idx;
+            int calls2_clust_end_idx = calls2_clust_beg_idx;
+            int truth1_clust_end_idx = truth1_clust_beg_idx;
+            int truth2_clust_end_idx = truth2_clust_beg_idx;
 
-            int calls1_pos = (calls1_clust_beg_idx < calls1_vars->clusters.size()-1) ? 
+            int calls1_pos = (calls1_clust_beg_idx < int(calls1_vars->clusters.size())-1) ? 
                     calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int calls2_pos = (calls2_clust_beg_idx < calls2_vars->clusters.size()-1) ? 
+            int calls2_pos = (calls2_clust_beg_idx < int(calls2_vars->clusters.size())-1) ? 
                     calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int truth1_pos = (truth1_clust_beg_idx < truth1_vars->clusters.size()-1) ? 
+            int truth1_pos = (truth1_clust_beg_idx < int(truth1_vars->clusters.size())-1) ? 
                     truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int truth2_pos = (truth2_clust_beg_idx < truth2_vars->clusters.size()-1) ? 
+            int truth2_pos = (truth2_clust_beg_idx < int(truth2_vars->clusters.size())-1) ? 
                     truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
 
@@ -149,7 +136,7 @@ void clusterData::gap_supercluster() {
                 calls1_clust_end_idx += 1;
                 curr_end_pos = calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] +
                         calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1] + 1;
-                calls1_pos = (calls1_clust_end_idx < calls1_vars->clusters.size()-1) ? 
+                calls1_pos = (calls1_clust_end_idx < int(calls1_vars->clusters.size())-1) ? 
                     calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
@@ -158,7 +145,7 @@ void clusterData::gap_supercluster() {
                 calls2_clust_end_idx += 1;
                 curr_end_pos = calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] +
                         calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1] + 1;
-                calls2_pos = (calls2_clust_end_idx < calls2_vars->clusters.size()-1) ? 
+                calls2_pos = (calls2_clust_end_idx < int(calls2_vars->clusters.size())-1) ? 
                     calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
@@ -167,7 +154,7 @@ void clusterData::gap_supercluster() {
                 truth1_clust_end_idx += 1;
                 curr_end_pos = truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] +
                         truth1_vars->rlens[truth1_vars->clusters[truth1_clust_end_idx]-1] + 1;
-                truth1_pos = (truth1_clust_end_idx < truth1_vars->clusters.size()-1) ? 
+                truth1_pos = (truth1_clust_end_idx < int(truth1_vars->clusters.size())-1) ? 
                     truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
@@ -175,11 +162,10 @@ void clusterData::gap_supercluster() {
                 truth2_clust_end_idx += 1;
                 curr_end_pos = truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] +
                         truth2_vars->rlens[truth2_vars->clusters[truth2_clust_end_idx]-1] + 1;
-                truth2_pos = (truth2_clust_end_idx < truth2_vars->clusters.size()-1) ? 
+                truth2_pos = (truth2_clust_end_idx < int(truth2_vars->clusters.size())-1) ? 
                     truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             }
-
 
             // keep expanding cluster while possible
             bool just_merged = true;
@@ -190,7 +176,7 @@ void clusterData::gap_supercluster() {
                     curr_end_pos = std::max(curr_end_pos,
                             truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] + 
                             truth1_vars->rlens[truth1_vars->clusters[truth1_clust_end_idx]-1] + 1);
-                    truth1_pos = (truth1_clust_end_idx < truth1_vars->clusters.size()-1) ? 
+                    truth1_pos = (truth1_clust_end_idx < int(truth1_vars->clusters.size())-1) ? 
                         truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
@@ -200,7 +186,7 @@ void clusterData::gap_supercluster() {
                     curr_end_pos = std::max(curr_end_pos,
                             truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] + 
                             truth2_vars->rlens[truth2_vars->clusters[truth2_clust_end_idx]-1] + 1);
-                    truth2_pos = (truth2_clust_end_idx < truth2_vars->clusters.size()-1) ? 
+                    truth2_pos = (truth2_clust_end_idx < int(truth2_vars->clusters.size())-1) ? 
                         truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
@@ -210,7 +196,7 @@ void clusterData::gap_supercluster() {
                     curr_end_pos = std::max(curr_end_pos, 
                             calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] + 
                             calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1] + 1);
-                    calls1_pos = (calls1_clust_end_idx < calls1_vars->clusters.size()-1) ? 
+                    calls1_pos = (calls1_clust_end_idx < int(calls1_vars->clusters.size())-1) ? 
                         calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
@@ -220,7 +206,7 @@ void clusterData::gap_supercluster() {
                     curr_end_pos = std::max(curr_end_pos,
                             calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] + 
                             calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1] + 1);
-                    calls2_pos = (calls2_clust_end_idx < calls2_vars->clusters.size()-1) ? 
+                    calls2_pos = (calls2_clust_end_idx < int(calls2_vars->clusters.size())-1) ? 
                         calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
@@ -258,6 +244,20 @@ void clusterData::gap_supercluster() {
                         truth2_vars->poss[truth2_vars->clusters[truth2_clust_end_idx]-1] + 
                         truth2_vars->rlens[truth2_vars->clusters[truth2_clust_end_idx]-1]+1);
             }
+            largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
+
+            /* printf("\nPOS: %d-%d\n", beg_pos, end_pos); */
+            /* printf("SIZE: %d\n", end_pos - beg_pos); */
+            /* printf("CALLS1: clusters %d-%d of %d\n", calls1_clust_beg_idx, */ 
+            /*         calls1_clust_end_idx, int(calls1_vars->clusters.size())); */
+            /* for(int i = calls1_clust_beg_idx; i < calls1_clust_end_idx; i++) */
+            /*     printf("  %d", calls1_vars->poss[calls1_vars->clusters[i]); */
+            /* printf("CALLS2: clusters %d-%d of %d\n", calls2_clust_beg_idx, */ 
+            /*         calls2_clust_end_idx, int(calls2_vars->clusters.size())); */
+            /* printf("TRUTH1: clusters %d-%d of %d\n", truth1_clust_beg_idx, */ 
+            /*         truth1_clust_end_idx, int(truth1_vars->clusters.size())); */
+            /* printf("TRUTH2: clusters %d-%d of %d\n", truth2_clust_beg_idx, */ 
+            /*         truth2_clust_end_idx, int(truth2_vars->clusters.size())); */
 
             // save alignment information
             this->ctg_superclusters[ctg]->add_supercluster(
@@ -276,7 +276,11 @@ void clusterData::gap_supercluster() {
 
         if (this->ctg_superclusters[ctg]->n)
             INFO("    %d superclusters", this->ctg_superclusters[ctg]->n);
+        total_superclusters += this->ctg_superclusters[ctg]->n;
     }
+    INFO(" ");
+    INFO("  Total superclusters:  %d", total_superclusters);
+    INFO("  Largest supercluster: %d", largest_supercluster);
 }
 
 

@@ -72,7 +72,7 @@ public:
     variantData(std::string vcf_fn, std::shared_ptr<fastaData> reference);
 
     // functions
-    void write(std::string vcf_fn);
+    void write_vcf(std::string vcf_fn);
     void print_variant(FILE* out_fp, std::string ctg, int pos, int type,
         std::string ref, std::string alt, float qual, std::string gt);
     void set_header(const std::unique_ptr<variantData> & vcf);

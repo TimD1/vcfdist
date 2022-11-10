@@ -199,7 +199,7 @@ int sw_max_reach(
         int score, 
         bool reverse=false);
 
-variantData sw_realign(
+std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref);
 
