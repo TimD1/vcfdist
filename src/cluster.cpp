@@ -305,7 +305,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
 /* Add single-VCF cluster indices to `variantData`. This version assumes that
  * all variant calls are true positives (doesn't allow skipping)
  */
-void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
+void sw_cluster(std::unique_ptr<variantData> & vcf) {
     INFO(" ");
     INFO("Clustering VCF '%s'", vcf->filename.data());
 
@@ -411,7 +411,7 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                     if (left_compute) {
 
                         // calculate left reach
-                        std::string calls, ref, calls_str, ref_str;
+                        std::string calls, ref;
                         std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
                         // just after last variant in previous cluster
                         int beg_pos = vcf->ctg_variants[hap][ctg]->poss[
@@ -424,8 +424,7 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
                             vcf->ctg_variants[hap][ctg]->rlens[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]+1;
-                        generate_ptrs_strs(
-                                calls, ref, calls_str, ref_str,
+                        generate_ptrs_strs(calls, ref,
                                 calls_ref_ptrs, ref_calls_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
@@ -442,8 +441,8 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                         l_reach = end_pos - reach;
                         /* printf("left reach: %d\n", reach); */
 
-                        /* printf("REF:        %s\n", ref_str.data()); */
-                        /* printf("CALLS:      %s\n", calls_str.data()); */
+                        /* printf("REF:        %s\n", ref.data()); */
+                        /* printf("CALLS:      %s\n", calls.data()); */
                         /* printf("CALLS->REF: "); */
                         /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
                         /*     printf("%d ", calls_ref_ptrs[i]); */ 
@@ -463,15 +462,14 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                     if (right_compute) {
 
                         // calculate right reach
-                        std::string calls, ref, calls_str, ref_str;
+                        std::string calls, ref;
                         std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
                         int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust]]-1;
                         int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust+1]]
                                     + buffer; // TODO: remove
-                        generate_ptrs_strs(
-                                calls, ref, calls_str, ref_str,
+                        generate_ptrs_strs(calls, ref,
                                 calls_ref_ptrs, ref_calls_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
@@ -485,8 +483,8 @@ void sw_cluster_ref(std::unique_ptr<variantData> & vcf) {
                         r_reach = beg_pos + reach;
                         /* printf("right reach: %d\n", reach); */
 
-                        /* printf("REF:        %s\n", ref_str.data()); */
-                        /* printf("CALLS:      %s\n", calls_str.data()); */
+                        /* printf("REF:        %s\n", ref.data()); */
+                        /* printf("CALLS:      %s\n", calls.data()); */
                         /* printf("CALLS->REF: "); */
                         /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
                         /*     printf("%d ", calls_ref_ptrs[i]); */ 

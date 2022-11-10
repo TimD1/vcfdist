@@ -1,0 +1,6 @@
+#!/bin/bash
+
+rm -f gmon.out
+./run
+gprof vcfdist > profile.gprof
+gprof2dot < profile.gprof --strip --wrap | dot -Tsvg -o profile.svg

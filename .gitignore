@@ -3,6 +3,9 @@
 *.txt
 *.bed
 *.nfs*
+*gmon.out
+*.svg
+*.gprof
 vcfdist
 r10.4_chr20
 pfda-v2

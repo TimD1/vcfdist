@@ -3,7 +3,7 @@
     # -b ../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
     # ../out/truth.vcf.gz \
     # ../out/orig_truth.vcf.gz \
-./vcfdist \
+time ./vcfdist \
     ../test/calls.vcf.gz \
     ../test/truth.vcf.gz \
     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \

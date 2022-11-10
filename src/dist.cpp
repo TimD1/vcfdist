@@ -420,7 +420,6 @@ std::string generate_str(
  */
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,          // actual strings 
-        std::string & hap1_str, std::string & hap2_str,  // colored debug strs
         std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
         std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
         size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
@@ -444,23 +443,18 @@ void generate_ptrs_strs(
                     case TYPE_INS:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
                         break;
                     case TYPE_DEL:
-                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ');
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
                         hap1_ref_pos++;
                         break;
                     case TYPE_GRP:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ') 
-                            + GREEN(hap1_vars->alts[hap1_var_idx]);
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                 }
@@ -469,7 +463,6 @@ void generate_ptrs_strs(
                 try {
                     hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
                     hap1_ptrs.push_back(-1);
-                    hap1_str += ref->fasta.at(ctg)[hap1_ref_pos];
                     hap1_ref_pos++;
                 } catch (const std::out_of_range & e) {
                     ERROR("Contig %s not present in reference FASTA",
@@ -487,23 +480,18 @@ void generate_ptrs_strs(
                     case TYPE_INS:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
                         break;
                     case TYPE_DEL:
-                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ');
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
                         hap2_ref_pos++;
                         break;
                     case TYPE_GRP:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ') 
-                            + GREEN(hap2_vars->alts[hap2_var_idx]);
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                 }
@@ -512,7 +500,6 @@ void generate_ptrs_strs(
                 try {
                     hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
                     hap2_ptrs.push_back(-1);
-                    hap2_str += ref->fasta.at(ctg)[hap2_ref_pos];
                     hap2_ref_pos++;
                 } catch (const std::out_of_range & e) {
                     ERROR("Contig %s not present in reference FASTA",
@@ -532,23 +519,18 @@ void generate_ptrs_strs(
                     case TYPE_INS:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
                         break;
                     case TYPE_DEL:
-                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ');
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_str += GREEN(hap1_vars->alts[hap1_var_idx]);
                         hap1_ref_pos++;
                         break;
                     case TYPE_GRP:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_str += std::string(hap1_vars->refs[hap1_var_idx].size(), ' ') 
-                            + GREEN(hap1_vars->alts[hap1_var_idx]);
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                 }
@@ -563,23 +545,18 @@ void generate_ptrs_strs(
                     case TYPE_INS:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
                         break;
                     case TYPE_DEL:
-                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ');
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_str += GREEN(hap2_vars->alts[hap2_var_idx]);
                         hap2_ref_pos++;
                         break;
                     case TYPE_GRP:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_str += std::string(hap2_vars->refs[hap2_var_idx].size(), ' ') 
-                            + GREEN(hap2_vars->alts[hap2_var_idx]);
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                 }
@@ -593,10 +570,8 @@ void generate_ptrs_strs(
                     hap1_ptrs.push_back(hap2.size());
                     hap2_ptrs.push_back(hap1.size());
                     hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
-                    hap1_str += BLUE(ref->fasta.at(ctg)[hap1_ref_pos]);
                     hap1_ref_pos++;
                     hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
-                    hap2_str += BLUE(ref->fasta.at(ctg)[hap2_ref_pos]);
                     hap2_ref_pos++;
                 } catch (const std::out_of_range & e) {
                     ERROR("Contig '%s' not present in reference FASTA",
@@ -1538,37 +1513,37 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
             // PRECISION-RECALL
-            std::string calls1_c1 = "", ref_c1 = "", calls1_str_c1 = "", ref_str_c1 = ""; 
+            std::string calls1_c1 = "", ref_c1 = ""; 
             std::vector<int> calls1_ref_ptrs, ref_calls1_ptrs;
             generate_ptrs_strs( // calls1_vars[0:0] contains no variants -> ref
-                    calls1_c1, ref_c1, calls1_str_c1, ref_str_c1, 
+                    calls1_c1, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, calls1_vars, calls1_vars,
                     sc->calls1_beg_idx[sc_idx], 0,
                     sc->calls1_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string calls2_c2 = "", ref_c2 = "", calls2_str_c2 = "", ref_str_c2 = ""; 
+            std::string calls2_c2 = "", ref_c2 = ""; 
             std::vector<int> calls2_ref_ptrs, ref_calls2_ptrs;
             generate_ptrs_strs( // calls2_vars[0:0] contains no variants -> ref
-                    calls2_c2, ref_c2, calls2_str_c2, ref_str_c2, 
+                    calls2_c2, ref_c2,
                     calls2_ref_ptrs, ref_calls2_ptrs, calls2_vars, calls2_vars,
                     sc->calls2_beg_idx[sc_idx], 0,
                     sc->calls2_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string truth1_t1 = "", ref_t1 = "", truth1_str_t1 = "", ref_str_t1 = ""; 
+            std::string truth1_t1 = "", ref_t1 = ""; 
             std::vector<int> truth1_ref_ptrs, ref_truth1_ptrs;
             generate_ptrs_strs( // truth1_vars[0:0] contains no variants -> ref
-                    truth1_t1, ref_t1, truth1_str_t1, ref_str_t1, 
+                    truth1_t1, ref_t1,
                     truth1_ref_ptrs, ref_truth1_ptrs, truth1_vars, truth1_vars,
                     sc->truth1_beg_idx[sc_idx], 0,
                     sc->truth1_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string truth2_t2 = "", ref_t2 = "", truth2_str_t2 = "", ref_str_t2 = ""; 
+            std::string truth2_t2 = "", ref_t2 = ""; 
             std::vector<int> truth2_ref_ptrs, ref_truth2_ptrs;
             generate_ptrs_strs( // truth2_vars[0:0] contains no variants -> ref
-                    truth2_t2, ref_t2, truth2_str_t2, ref_str_t2, 
+                    truth2_t2, ref_t2,
                     truth2_ref_ptrs, ref_truth2_ptrs, truth2_vars, truth2_vars,
                     sc->truth2_beg_idx[sc_idx], 0,
                     sc->truth2_end_idx[sc_idx], 0,
@@ -1590,19 +1565,19 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
             // EDIT DISTANCE
             // generate pointers and strings
-            std::string calls1 = "", calls2 = "", calls1_str = "", calls2_str = ""; 
+            std::string calls1 = "", calls2 = ""; 
             std::vector<int> calls1_calls2_ptrs, calls2_calls1_ptrs;
             generate_ptrs_strs(
-                    calls1, calls2, calls1_str, calls2_str, 
+                    calls1, calls2,
                     calls1_calls2_ptrs, calls2_calls1_ptrs, calls1_vars, calls2_vars,
                     sc->calls1_beg_idx[sc_idx], sc->calls2_beg_idx[sc_idx],
                     sc->calls1_end_idx[sc_idx], sc->calls2_end_idx[sc_idx],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string truth1 = "", truth2 = "", truth1_str = "", truth2_str = ""; 
+            std::string truth1 = "", truth2 = ""; 
             std::vector<int> truth1_truth2_ptrs, truth2_truth1_ptrs;
             generate_ptrs_strs(
-                    truth1, truth2, truth1_str, truth2_str, 
+                    truth1, truth2,
                     truth1_truth2_ptrs, truth2_truth1_ptrs, truth1_vars, truth2_vars,
                     sc->truth1_beg_idx[sc_idx], sc->truth2_beg_idx[sc_idx],
                     sc->truth1_end_idx[sc_idx], sc->truth2_end_idx[sc_idx],
@@ -1706,14 +1681,14 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
 
                 // DEBUG STR/PTR PRINTING
                 printf("ORIG:      %s\n", ref_str.data());
-                printf("CALLS1:    %s\n", calls1_str.data());
-                printf("CALLS2:    %s\n", calls2_str.data());
-                printf("TRUTH1:    %s\n", truth1_str.data());
-                printf("TRUTH2:    %s\n", truth2_str.data());
+                printf("CALLS1:    %s\n", calls1.data());
+                printf("CALLS2:    %s\n", calls2.data());
+                printf("TRUTH1:    %s\n", truth1.data());
+                printf("TRUTH2:    %s\n", truth2.data());
                 printf("Edit Distance: %d\n", dist);
 
-                printf("ORIG_C1:   %s\n", ref_str_c1.data());
-                printf("CALLS1_C1: %s\n", calls1_str_c1.data());
+                printf("ORIG_C1:   %s\n", ref_c1.data());
+                printf("CALLS1_C1: %s\n", calls1_c1.data());
                 printf("CALLS1_REF: ");
                 for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) {
                     printf("%d ", calls1_ref_ptrs[i]);
@@ -1723,8 +1698,8 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     printf("%d ", ref_calls1_ptrs[i]);
                 } printf("\n");
 
-                printf("ORIG_C2:   %s\n", ref_str_c2.data());
-                printf("CALLS2_C2: %s\n", calls2_str_c2.data());
+                printf("ORIG_C2:   %s\n", ref_c2.data());
+                printf("CALLS2_C2: %s\n", calls2_c2.data());
                 printf("CALLS2_REF: ");
                 for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) {
                     printf("%d ", calls2_ref_ptrs[i]);

@@ -49,8 +49,7 @@
 /******************************************************************************/
 
 void generate_ptrs_strs(
-        std::string & hap1, std::string & hap2,          // actual strings 
-        std::string & hap1_str, std::string & hap2_str,  // colored debug strs
+        std::string & hap1, std::string & hap2,
         std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
         std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
         size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
