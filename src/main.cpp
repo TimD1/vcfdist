@@ -31,16 +31,28 @@ int main(int argc, char **argv) {
     truth_ptr->write_vcf(g.out_prefix + "orig_truth.vcf");
 
     // 2. cluster variants
-    sw_cluster(calls_ptr);
-    sw_cluster(truth_ptr);
-    /* cluster(calls_ptr); */
-    /* cluster(truth_ptr); */
+    if (!g.simple_cluster) { 
+        sw_cluster(calls_ptr, g.calls_sub, g.calls_open, g.calls_extend); 
+    } else cluster(calls_ptr);
+    if (!g.simple_cluster) { 
+        sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
+    } else cluster(truth_ptr);
 
-    // 3. realign variants
-    calls_ptr = sw_realign(calls_ptr, ref_ptr);
-    truth_ptr = sw_realign(truth_ptr, ref_ptr);
-    sw_cluster(calls_ptr);
-    sw_cluster(truth_ptr);
+    // 3. realign variants, then re-cluster
+    if (!g.keep_calls) {
+        calls_ptr = sw_realign(calls_ptr, ref_ptr, 
+                g.calls_sub, g.calls_open, g.calls_extend);
+        if (!g.simple_cluster) {
+            sw_cluster(calls_ptr, g.calls_sub, g.calls_open, g.calls_extend); 
+        } else cluster(calls_ptr);
+    }
+    if (!g.keep_truth) {
+        truth_ptr = sw_realign(truth_ptr, ref_ptr, 
+                g.truth_sub, g.truth_open, g.truth_extend);
+        if (!g.simple_cluster) { 
+            sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
+        } else cluster(truth_ptr);
+    }
 
     // 4. calculate superclusters
     std::shared_ptr<clusterData> clusterdata_ptr(new clusterData(calls_ptr, truth_ptr, ref_ptr));

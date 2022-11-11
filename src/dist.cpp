@@ -1837,21 +1837,21 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
  * one or several adjacent clusters.
  */
 int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars, 
-        int clust_beg_idx, int clust_end_idx) {
+        int clust_beg_idx, int clust_end_idx, int sub, int open, int extend) {
     int score = 0;
     for (int var_idx = vars->clusters[clust_beg_idx]; 
             var_idx < vars->clusters[clust_end_idx]; var_idx++) {
         switch (vars->types[var_idx]) {
             case TYPE_SUB:
-                score += g.sub;
+                score += sub;
                 break;
             case TYPE_INS:
-                score += g.open;
-                score += g.extend * vars->alts[var_idx].size();
+                score += open;
+                score += extend * vars->alts[var_idx].size();
                 break;
             case TYPE_DEL:
-                score += g.open;
-                score += g.extend * vars->refs[var_idx].size();
+                score += open;
+                score += extend * vars->refs[var_idx].size();
                 break;
             default:
                 ERROR("Unexpected variant type in calc_vcf_sw_score()");
@@ -1872,6 +1872,7 @@ int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars,
 int sw_max_reach(std::string calls, std::string ref, 
         std::vector<int> calls_ref_ptrs,
         std::vector<int> ref_calls_ptrs,
+        int sub, int open, int extend,
         int score, bool reverse /*= false*/) {
     
     int ref_len = ref.size();
@@ -1921,7 +1922,7 @@ int sw_max_reach(std::string calls, std::string ref,
         // NEXT WAVEFRONT (increase score by one)
         
         // SUB transition (only from MAT_SUB)
-        sub_wave = s + 1 - g.sub;
+        sub_wave = s + 1 - sub;
         if (sub_wave >= 0 && sub_wave <= score) {
             for (idx2 x : waves[sub_wave]) {
                 if (x.mi == MAT_SUB && x.ci+1 < calls_len && x.ri+1 < ref_len) {
@@ -1936,9 +1937,9 @@ int sw_max_reach(std::string calls, std::string ref,
 
         // INS/DEL opening (only from MAT_SUB)
         if (reverse) // g.open penalty when leaving INDEL
-            open_wave = s + 1 - g.extend;
+            open_wave = s + 1 - extend;
         else // g.open penalty when entering INDEL
-            open_wave = s + 1 - (g.open+g.extend);
+            open_wave = s + 1 - (open+extend);
         if (open_wave >= 0 && open_wave <= score) {
             for(idx2 x : waves[open_wave]) {
 
@@ -1963,7 +1964,7 @@ int sw_max_reach(std::string calls, std::string ref,
         }
 
         // reverse alignment, penalize leaving INDEL
-        end_wave = s + 1 - g.open;
+        end_wave = s + 1 - open;
         if (reverse && end_wave >= 0 && end_wave <= score) {
             for (idx2 x : waves[end_wave]) {
                 if ((x.mi == MAT_INS || x.mi == MAT_DEL) && 
@@ -1975,7 +1976,7 @@ int sw_max_reach(std::string calls, std::string ref,
         }
 
         // INS/DEL extension
-        extend_wave = s + 1 - g.extend;
+        extend_wave = s + 1 - extend;
         if (extend_wave >= 0 && extend_wave <= score) {
             for(idx2 x : waves[extend_wave]) {
 
@@ -2018,7 +2019,8 @@ int sw_max_reach(std::string calls, std::string ref,
 
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
-        std::shared_ptr<fastaData> ref_fasta) {
+        std::shared_ptr<fastaData> ref_fasta, 
+        int sub, int open, int extend) {
     INFO(" ");
     INFO("3. Realigning VCF '%s'", vcf->filename.data());
 
@@ -2049,7 +2051,8 @@ std::unique_ptr<variantData> sw_realign(
                 std::string ref = ref_fasta->fasta.at(ctg).substr(beg, end-beg);
                 
                 // perform alignment
-                std::unordered_map<idx2, idx2> ptrs = sw_align(calls, ref);
+                std::unordered_map<idx2, idx2> ptrs = sw_align(calls, ref,
+                        sub, open, extend);
                 
                 // backtrack
                 std::vector<int> cigar = sw_backtrack(calls, ref, ptrs);
@@ -2073,7 +2076,8 @@ std::unique_ptr<variantData> sw_realign(
  * */
 std::unordered_map<idx2, idx2> sw_align(
         const std::string & calls, 
-        const std::string & ref) { 
+        const std::string & ref, 
+        int sub, int open, int extend) { 
     
     std::unordered_map<idx2, idx2> ptrs;
     ptrs[idx2(0,0,0)] = idx2(0,-1,-1);
@@ -2124,7 +2128,7 @@ std::unordered_map<idx2, idx2> sw_align(
         // NEXT WAVEFRONT (increase score by one)
         
         // SUB transition (only from MAT_SUB)
-        sub_wave = s + 1 - g.sub;
+        sub_wave = s + 1 - sub;
         if (sub_wave >= 0) {
             for (idx2 x : waves[sub_wave]) {
                 if (x.mi == MAT_SUB && x.ci+1 < calls_len && x.ri+1 < ref_len) {
@@ -2137,7 +2141,7 @@ std::unordered_map<idx2, idx2> sw_align(
         }
 
         // INS/DEL opening (only from MAT_SUB)
-        open_wave = s + 1 - (g.open+g.extend);
+        open_wave = s + 1 - (open+extend);
         if (open_wave >= 0) {
             for(idx2 x : waves[open_wave]) {
 
@@ -2160,7 +2164,7 @@ std::unordered_map<idx2, idx2> sw_align(
         }
 
         // INS/DEL extension
-        extend_wave = s + 1 - g.extend;
+        extend_wave = s + 1 - extend;
         if (extend_wave >= 0) {
             for(idx2 x : waves[extend_wave]) {
 

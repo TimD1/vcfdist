@@ -5,6 +5,10 @@
 
 #include "bed.h"
 
+#define PEN_SUB    0 // penalties order in boolean array *_penalties_set
+#define PEN_OPEN   1
+#define PEN_EXTEND 2
+
 class Globals {
 public:
     // command-line data, set using parse_args()
@@ -26,9 +30,18 @@ public:
     int print_verbosity = 0;
     int min_qual = 0;
 
-    int sub = 1;
-    int open = 1;
-    int extend = 1;
+    int calls_sub = 1;
+    int calls_open = 1;
+    int calls_extend = 1;
+    int truth_sub = 1;
+    int truth_open = 1;
+    int truth_extend = 1;
+    std::vector<bool> calls_penalties_set = {false, false, false};
+    std::vector<bool> truth_penalties_set = {false, false, false};
+    
+    bool keep_truth = false;
+    bool keep_calls = false;
+    bool simple_cluster = false;
 
     // constructors
     Globals() {;}

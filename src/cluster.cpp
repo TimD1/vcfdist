@@ -319,7 +319,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
 /* Add single-VCF cluster indices to `variantData`. This version assumes that
  * all variant calls are true positives (doesn't allow skipping)
  */
-void sw_cluster(std::unique_ptr<variantData> & vcf) {
+void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int extend) {
     INFO(" ");
     INFO("2. Clustering VCF '%s'", vcf->filename.data());
 
@@ -386,7 +386,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf) {
                         // calculate existing VCF score
                         /* printf("===========================================\n"); */
                         score = calc_vcf_sw_score(
-                                vcf->ctg_variants[hap][ctg], clust, clust+1);
+                                vcf->ctg_variants[hap][ctg], clust, clust+1,
+                                sub, open, extend);
 
                         /* // debug print */
                         /* printf("cluster %d: vars %d-%d, pos %d-%d\n", */
@@ -450,8 +451,9 @@ void sw_cluster(std::unique_ptr<variantData> & vcf) {
                         
                         // calculate max reaching path to left
                         int reach = sw_max_reach(calls, ref, 
-                                calls_ref_ptrs, ref_calls_ptrs, score, 
-                                true); // reverse
+                                calls_ref_ptrs, ref_calls_ptrs, 
+                                sub, open, extend,
+                                score, true); // reverse
                         l_reach = end_pos - reach;
                         /* printf("left reach: %d\n", reach); */
 
@@ -493,7 +495,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf) {
 
                         // calculate max reaching path to right
                         int reach = sw_max_reach(calls, ref, 
-                                calls_ref_ptrs, ref_calls_ptrs, score);
+                                calls_ref_ptrs, ref_calls_ptrs, 
+                                sub, open, extend, score);
                         r_reach = beg_pos + reach;
                         /* printf("right reach: %d\n", reach); */
 

@@ -196,16 +196,19 @@ int sw_max_reach(
         std::string ref, 
         std::vector<int> calls_ref_ptrs, 
         std::vector<int> ref_calls_ptrs,
+        int sub, int open, int extend,
         int score, 
         bool reverse=false);
 
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
-        std::shared_ptr<fastaData> ref);
+        std::shared_ptr<fastaData> ref,
+        int sub, int open, int extend);
 
 std::unordered_map<idx2,idx2> sw_align(
         const std::string & calls, 
-        const std::string & ref);
+        const std::string & ref,
+        int sub, int open, int extend);
 
 std::vector<int> sw_backtrack(
         const std::string & calls,
@@ -224,7 +227,8 @@ variantData edit_dist_realign(
 int calc_vcf_sw_score(
         std::shared_ptr<ctgVariants> vcf, 
         int clust_beg_idx, 
-        int clust_end_idx);
+        int clust_end_idx,
+        int sub, int open, int extend);
 
 void calc_edit_dist_aln(
         std::string calls1, 
