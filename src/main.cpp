@@ -53,6 +53,11 @@ int main(int argc, char **argv) {
             sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
         } else cluster(truth_ptr);
     }
+    if (g.exit) {
+        calls_ptr->write_vcf(g.out_prefix + "calls.vcf");
+        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+        return EXIT_SUCCESS;
+    }
 
     // 4. calculate superclusters
     std::shared_ptr<clusterData> clusterdata_ptr(new clusterData(calls_ptr, truth_ptr, ref_ptr));

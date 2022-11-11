@@ -65,7 +65,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid BED filename provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-r" || std::string(argv[i]) == "--results-prefix") {
+        } else if (std::string(argv[i]) == "-r" || 
+                std::string(argv[i]) == "--results-prefix") {
             i++;
             if (i == argc) {
                 ERROR("Option '-r' used without providing prefix for storing results");
@@ -78,7 +79,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("%s", e.what());
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-q" || std::string(argv[i]) == "--min-qual") {
+        } else if (std::string(argv[i]) == "-q" || 
+                std::string(argv[i]) == "--min-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '-q' used without providing minimum variant quality");
@@ -89,7 +91,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid minimum variant quality provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-p" || std::string(argv[i]) == "--print-verbosity") {
+        } else if (std::string(argv[i]) == "-p" || 
+                std::string(argv[i]) == "--print-verbosity") {
             i++;
             if (i == argc) {
                 ERROR("Option '-p' used without providing print verbosity");
@@ -104,15 +107,18 @@ void Globals::parse_args(int argc, char ** argv) {
                         this->print_verbosity);
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-h" || std::string(argv[i]) == "--help") {
+        } else if (std::string(argv[i]) == "-h" || 
+                std::string(argv[i]) == "--help") {
             i++;
             this->print_usage();
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-v" || std::string(argv[i]) == "--version") {
+        } else if (std::string(argv[i]) == "-v" || 
+                std::string(argv[i]) == "--version") {
             i++;
             this->print_version();
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-g" || std::string(argv[i]) == "--supercluster-gap") {
+        } else if (std::string(argv[i]) == "-g" || 
+                std::string(argv[i]) == "--supercluster-gap") {
             i++;
             if (i == argc) {
                 ERROR("Option '-g' used without providing minimum gap between (super)clusters");
@@ -127,7 +133,8 @@ void Globals::parse_args(int argc, char ** argv) {
             }
 
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-s" || std::string(argv[i]) == "--sub-penalty") {
+        } else if (std::string(argv[i]) == "-s" || 
+                std::string(argv[i]) == "--sub-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-s' used without providing substitution penalty");
@@ -148,7 +155,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative substitution penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-cs" || std::string(argv[i]) == "--calls-sub-penalty") {
+        } else if (std::string(argv[i]) == "-cs" || 
+                std::string(argv[i]) == "--calls-sub-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-cs' used without providing substitution penalty");
@@ -165,7 +173,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative calls substitution penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ts" || std::string(argv[i]) == "--truth-sub-penalty") {
+        } else if (std::string(argv[i]) == "-ts" || 
+                std::string(argv[i]) == "--truth-sub-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-ts' used without providing substitution penalty");
@@ -182,7 +191,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative truth substitution penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-o" || std::string(argv[i]) == "--gap-open-penalty") {
+        } else if (std::string(argv[i]) == "-o" || 
+                std::string(argv[i]) == "--gap-open-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-o' used without providing gap-opening penalty");
@@ -203,7 +213,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-co" || std::string(argv[i]) == "--calls-gap-open-penalty") {
+        } else if (std::string(argv[i]) == "-co" || 
+                std::string(argv[i]) == "--calls-gap-open-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-co' used without providing gap-opening penalty");
@@ -220,7 +231,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-to" || std::string(argv[i]) == "--truth-gap-open-penalty") {
+        } else if (std::string(argv[i]) == "-to" || 
+                std::string(argv[i]) == "--truth-gap-open-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-to' used without providing gap-opening penalty");
@@ -237,7 +249,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative truth gap-opening penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-e" || std::string(argv[i]) == "--gap-extend-penalty") {
+        } else if (std::string(argv[i]) == "-e" || 
+                std::string(argv[i]) == "--gap-extend-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-e' used without providing gap-extension penalty");
@@ -258,7 +271,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative gap-extension penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ce" || std::string(argv[i]) == "--calls-gap-extend-penalty") {
+        } else if (std::string(argv[i]) == "-ce" || 
+                std::string(argv[i]) == "--calls-gap-extend-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-ce' used without providing gap-extension penalty");
@@ -275,7 +289,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative calls gap-extension penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-te" || std::string(argv[i]) == "--truth-gap-extend-penalty") {
+        } else if (std::string(argv[i]) == "-te" || 
+                std::string(argv[i]) == "--truth-gap-extend-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-te' used without providing gap-extension penalty");
@@ -291,6 +306,11 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->truth_extend < 0) {
                 ERROR("Must provide non-negative truth gap-extension penalty");
             }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-x" || 
+                std::string(argv[i]) == "--exit-after-realign") {
+            i++;
+            g.exit = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "--keep-truth") {
             i++;
@@ -349,6 +369,9 @@ void Globals::print_usage() const
 
     printf("  -p, --print-verbosity <VALUE> [0]\n");
     printf("      printing verbosity (0: default, 1: verbose, 2:debugging)\n\n");
+
+    printf("  -x, --exit-after-realign\n");
+    printf("      realign truth/calls VCFs with Smith-Waterman params, then exit\n\n");
 
     printf("  -h, --help\n");
     printf("      show this help message\n\n");

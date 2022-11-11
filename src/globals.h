@@ -30,6 +30,8 @@ public:
     int print_verbosity = 0;
     int min_qual = 0;
 
+    bool exit = false;
+
     int calls_sub = 1;
     int calls_open = 1;
     int calls_extend = 1;
