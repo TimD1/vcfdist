@@ -2038,12 +2038,17 @@ std::unique_ptr<variantData> sw_realign(
             INFO("  Haplotype %d Contig %s", hap+1, ctg.data());
 
             // realign each cluster of variants
-            /* results->ctg_variants[hap][ctg]->clusters = vars->clusters; */
             for (size_t cluster = 0; cluster < vars->clusters.size()-1; cluster++) {
                 int beg_idx = vars->clusters[cluster];
                 int end_idx = vars->clusters[cluster+1];
                 int beg = vars->poss[beg_idx]-1;
                 int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1]+1;
+
+                // variant qual is minimum in cluster
+                float qual = 100;
+                for (int i = beg_idx; i < end_idx; i++) {
+                    qual = std::min(qual, vars->var_quals[i]);
+                }
 
                 // generate strings
                 std::string calls = 
@@ -2058,7 +2063,7 @@ std::unique_ptr<variantData> sw_realign(
                 std::vector<int> cigar = sw_backtrack(calls, ref, ptrs);
                 
                 // save resulting variants
-                results->add_variants(cigar, hap, beg, ctg, calls, ref);
+                results->add_variants(cigar, hap, beg, ctg, calls, ref, qual);
 
             } // cluster
         } // contig

@@ -80,7 +80,8 @@ public:
         int hap, int ref_pos,
         const std::string & ctg, 
         const std::string & calls, 
-        const std::string & ref);
+        const std::string & ref,
+        int qual);
 
     // data
     std::string filename;

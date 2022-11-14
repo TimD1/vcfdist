@@ -167,7 +167,8 @@ void variantData::add_variants(
         int hap, int ref_pos,
         const std::string & ctg, 
         const std::string & calls, 
-        const std::string & ref) {
+        const std::string & ref, 
+        int qual) {
 
     int calls_idx = 0;
     int ref_idx = 0;
@@ -185,7 +186,7 @@ void variantData::add_variants(
                 cig_idx += 2;
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
                         TYPE_SUB, INSIDE, std::string(1,ref[ref_idx]), 
-                        std::string(1,calls[calls_idx]), GT_REF_REF, 50, 50);
+                        std::string(1,calls[calls_idx]), GT_REF_REF, 50, qual);
                 ref_idx++;
                 calls_idx++;
                 break;
@@ -200,7 +201,7 @@ void variantData::add_variants(
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         indel_len, hap, TYPE_DEL, INSIDE,
                         ref.substr(ref_idx, indel_len),
-                        "", GT_REF_REF, 50, 50);
+                        "", GT_REF_REF, 50, qual);
                 ref_idx += indel_len;
                 break;
 
@@ -213,7 +214,7 @@ void variantData::add_variants(
                 }
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         0, hap, TYPE_INS, INSIDE, "", 
-                        calls.substr(calls_idx, indel_len), GT_REF_REF, 50, 50);
+                        calls.substr(calls_idx, indel_len), GT_REF_REF, 50, qual);
                 calls_idx += indel_len;
                 break;
         }
