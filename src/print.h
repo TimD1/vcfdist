@@ -22,6 +22,13 @@ std::string PURPLE(std::string str);
 void print_ptrs(std::vector< std::vector<int> > ptrs, 
         std::string alt_str, std::string ref_str);
 
+void print_wfa_ptrs(
+        std::vector<std::string> calls,
+        std::vector<std::string> truth,
+        std::vector<int> s,
+        std::vector< std::vector< std::vector<int> > > offs, 
+        std::vector< std::vector< std::vector<int> > > ptrs);
+
 void write_results(std::unique_ptr<phaseData> & phasings);
 
 /* --------------------------------------------------------------------------- */

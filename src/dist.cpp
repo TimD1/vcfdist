@@ -1229,7 +1229,6 @@ void calc_prec_recall(
     }
 
     // for only the selected phasing
-    if (print) printf("\n=======================================================================\n");
     for (int i : calls_indices) {
 
         int ri = i*2 + REF;
@@ -1538,89 +1537,75 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
-            // PRECISION-RECALL
-            std::string calls1_c1 = "", ref_c1 = ""; 
+            // set pointers between each hap (calls1/2, truth1/2) and reference
+            std::string calls1 = "", ref_c1 = ""; 
             std::vector<int> calls1_ref_ptrs, ref_calls1_ptrs;
             generate_ptrs_strs( // calls1_vars[0:0] contains no variants -> ref
-                    calls1_c1, ref_c1,
+                    calls1, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, calls1_vars, calls1_vars,
                     sc->calls1_beg_idx[sc_idx], 0,
                     sc->calls1_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string calls2_c2 = "", ref_c2 = ""; 
+            std::string calls2 = "", ref_c2 = ""; 
             std::vector<int> calls2_ref_ptrs, ref_calls2_ptrs;
             generate_ptrs_strs( // calls2_vars[0:0] contains no variants -> ref
-                    calls2_c2, ref_c2,
+                    calls2, ref_c2,
                     calls2_ref_ptrs, ref_calls2_ptrs, calls2_vars, calls2_vars,
                     sc->calls2_beg_idx[sc_idx], 0,
                     sc->calls2_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string truth1_t1 = "", ref_t1 = ""; 
+            std::string truth1 = "", ref_t1 = ""; 
             std::vector<int> truth1_ref_ptrs, ref_truth1_ptrs;
             generate_ptrs_strs( // truth1_vars[0:0] contains no variants -> ref
-                    truth1_t1, ref_t1,
+                    truth1, ref_t1,
                     truth1_ref_ptrs, ref_truth1_ptrs, truth1_vars, truth1_vars,
                     sc->truth1_beg_idx[sc_idx], 0,
                     sc->truth1_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string truth2_t2 = "", ref_t2 = ""; 
+            std::string truth2 = "", ref_t2 = ""; 
             std::vector<int> truth2_ref_ptrs, ref_truth2_ptrs;
             generate_ptrs_strs( // truth2_vars[0:0] contains no variants -> ref
-                    truth2_t2, ref_t2,
+                    truth2, ref_t2,
                     truth2_ref_ptrs, ref_truth2_ptrs, truth2_vars, truth2_vars,
                     sc->truth2_beg_idx[sc_idx], 0,
                     sc->truth2_end_idx[sc_idx], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            // precision/recall alignment
+            // EDIT DISTANCE: don't allow skipping called variants
+            // edit distance alignment
+            std::vector<int> s(4);
+            std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
+            std::vector<std::string> calls = {calls1, calls1, calls2, calls2};
+            std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
+            calc_edit_dist_aln(calls1, calls2, truth1, truth2, s, offs, ptrs);
+            int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
+            int swap_phase_dist = s[CALLS2_TRUTH1] + s[CALLS1_TRUTH2];
+            int dist = std::min(orig_phase_dist, swap_phase_dist);
+            if (g.print_verbosity >= 1 && dist)
+                print_wfa_ptrs(calls, truth, s, offs, ptrs);
+            distance += dist;
+            ctg_dist += dist;
+
+            // PRECISION-RECALL: allow skipping called variants
+            // calculate four forward-pass alignment edit dists
+            // calls1-truth2, calls1-truth1, calls2-truth1, calls2-truth2
             std::vector<int> aln_score(4), aln_calls_ref_end(4);
-            std::vector< std::vector< std::vector<int> > > aln_offs(8), aln_ptrs;
+            std::vector< std::vector< std::vector<int> > > aln_ptrs;
             calc_prec_recall_aln(
-                    calls1_c1, calls2_c2, truth1_t1, truth2_t2, ref_c1,
+                    calls1, calls2, truth1, truth2, ref_c1,
                     calls1_ref_ptrs, ref_calls1_ptrs, 
                     calls2_ref_ptrs, ref_calls2_ptrs,
                     aln_score, aln_ptrs, aln_calls_ref_end
             );
 
-            // calculate optimal global phasing
+            // store optimal phasing for each supercluster
+            // ORIG: calls1-truth1 and calls2-truth2
+            // SWAP: calls1-truth2 and calls2-truth1
             int phase = store_phase(clusterdata_ptr, ctg, aln_score);
-
-            // EDIT DISTANCE
-            // generate pointers and strings
-            std::string calls1 = "", calls2 = ""; 
-            std::vector<int> calls1_calls2_ptrs, calls2_calls1_ptrs;
-            generate_ptrs_strs(
-                    calls1, calls2,
-                    calls1_calls2_ptrs, calls2_calls1_ptrs, calls1_vars, calls2_vars,
-                    sc->calls1_beg_idx[sc_idx], sc->calls2_beg_idx[sc_idx],
-                    sc->calls1_end_idx[sc_idx], sc->calls2_end_idx[sc_idx],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-            std::string truth1 = "", truth2 = ""; 
-            std::vector<int> truth1_truth2_ptrs, truth2_truth1_ptrs;
-            generate_ptrs_strs(
-                    truth1, truth2,
-                    truth1_truth2_ptrs, truth2_truth1_ptrs, truth1_vars, truth2_vars,
-                    sc->truth1_beg_idx[sc_idx], sc->truth2_beg_idx[sc_idx],
-                    sc->truth1_end_idx[sc_idx], sc->truth2_end_idx[sc_idx],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-
-            // edit distance alignment
-            std::vector<int> s(4);
-            std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
-            calc_edit_dist_aln(calls1, calls2, truth1, truth2, s, offs, ptrs);
-
-            // update total distance
-            int orig_phase_dist = s[CALLS1_TRUTH1] + s[CALLS2_TRUTH2];
-            int swap_phase_dist = s[CALLS2_TRUTH1] + s[CALLS1_TRUTH2];
-            int dist = std::min(orig_phase_dist, swap_phase_dist);
-            distance += dist;
-            ctg_dist += dist;
 
             // calculate paths from alignment
             std::vector< std::vector<idx1> > path;
@@ -1649,12 +1634,6 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             );
 
             // DEBUG PRINTING
-            std::vector<std::string> calls {calls1, calls1, calls2, calls2};
-            std::vector<std::string> truth {truth1, truth2, truth1, truth2};
-            std::vector<int> calls_lens = 
-                    {int(calls1.size()), int(calls1.size()), int(calls2.size()), int(calls2.size())};
-            std::vector<int> truth_lens = 
-                    {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
             if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
                 printf("\n\nCALLS1: %d clusters\n", sc->calls1_end_idx[sc_idx] - sc->calls1_beg_idx[sc_idx]);
@@ -1702,123 +1681,13 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                     }
                 }
 
-                // generate ref string
-                std::string ref_str = clusterdata_ptr->ref->fasta.at(ctg).
-                    substr(sc->begs[sc_idx], sc->ends[sc_idx] - sc->begs[sc_idx]);
-
-                // DEBUG STR/PTR PRINTING
-                printf("ORIG:      %s\n", ref_str.data());
+                printf("ORIG:      %s\n", ref_c1.data());
                 printf("CALLS1:    %s\n", calls1.data());
                 printf("CALLS2:    %s\n", calls2.data());
                 printf("TRUTH1:    %s\n", truth1.data());
                 printf("TRUTH2:    %s\n", truth2.data());
                 printf("Edit Distance: %d\n", dist);
 
-                printf("ORIG_C1:   %s\n", ref_c1.data());
-                printf("CALLS1_C1: %s\n", calls1_c1.data());
-                printf("CALLS1_REF: ");
-                for(size_t i = 0; i < calls1_ref_ptrs.size(); i++) {
-                    printf("%d ", calls1_ref_ptrs[i]);
-                } printf("\n");
-                printf("REF_CALLS1: ");
-                for(size_t i = 0; i < ref_calls1_ptrs.size(); i++) {
-                    printf("%d ", ref_calls1_ptrs[i]);
-                } printf("\n");
-
-                printf("ORIG_C2:   %s\n", ref_c2.data());
-                printf("CALLS2_C2: %s\n", calls2_c2.data());
-                printf("CALLS2_REF: ");
-                for(size_t i = 0; i < calls2_ref_ptrs.size(); i++) {
-                    printf("%d ", calls2_ref_ptrs[i]);
-                } printf("\n");
-                printf("REF_CALLS2: ");
-                for(size_t i = 0; i < ref_calls2_ptrs.size(); i++) {
-                    printf("%d ", ref_calls2_ptrs[i]);
-                } printf("\n");
-
-            }
-
-            // MORE DEBUG PRINTING
-            if (g.print_verbosity >= 2 && dist) {
-                for(int h = 0; h < 4; h++) { // 4 alignments
-                    printf("\n%s ALIGNMENT (distance %d)\n", 
-                            aln_strs[h].data(), s[h]);
-
-                    // create array
-                    std::vector< std::vector<char> > ptr_str;
-                    for (int i = 0; i < calls_lens[h]; i++)
-                        ptr_str.push_back(std::vector<char>(truth_lens[h], '.'));
-
-                    // modify array with pointers
-                    int mat_len = calls_lens[h] + truth_lens[h] - 1;
-                    for (int si = 0; si <= s[h]; si++) {
-                        for(int di = 0; di < mat_len; di++) {
-                            int diag = di + 1 - calls_lens[h];
-                            int off = offs[h][si][di];
-
-                            // check that indices are within bounds
-                            int calls_pos = off;
-                            int truth_pos = diag + off;
-                            if (calls_pos < 0 || truth_pos < 0) continue;
-                            if (calls_pos > calls_lens[h]-1 || 
-                                    truth_pos > truth_lens[h]-1) continue;
-
-                            // special case: main diag, no previous edits
-                            if (si == 0 && diag == 0) {
-                                while (calls_pos >= 0) {
-                                    ptr_str[calls_pos--][truth_pos--] = '\\';
-                                }
-                            }
-                            // left edge
-                            else if (calls_pos == 0) {
-                                ptr_str[calls_pos][truth_pos] = '-';
-                            } 
-                            // top edge
-                            else if (truth_pos == 0) {
-                                ptr_str[calls_pos][truth_pos] = '|';
-                            } 
-                            else {
-                                // follow diagonal
-                                int top_off = (di < mat_len-1) ? offs[h][si-1][di+1]+1 : -2;
-                                int left_off = (di > 0) ? offs[h][si-1][di-1] : -2;
-                                int diag_off = offs[h][si-1][di]+1;
-                                while (calls_pos > 0 && truth_pos > 0 && 
-                                        calls_pos > top_off && 
-                                        calls_pos > left_off && 
-                                        calls_pos > diag_off) {
-                                    ptr_str[calls_pos--][truth_pos--] = '\\';
-                                }
-                                // check left/up
-                                if (calls_pos == diag_off) {
-                                    ptr_str[calls_pos][truth_pos] = 'X';
-                                }
-                                else if (calls_pos == top_off) {
-                                    ptr_str[calls_pos][truth_pos] = '|';
-                                } else if (calls_pos == left_off) {
-                                    ptr_str[calls_pos][truth_pos] = '-';
-                                }
-                            }
-                        }
-                    }
-
-                    // print array
-                    for (int i = -1; i < calls_lens[h]; i++) {
-                        for (int j = -1; j < truth_lens[h]; j++) {
-                            if (i < 0 && j < 0) {
-                                printf("  ");
-                            }
-                            else if (i < 0) {
-                                printf("%c", truth[h][j]);
-                            } else if (j < 0) {
-                                printf("\n%c ", calls[h][i]);
-                            } else {
-                                printf("%c", ptr_str[i][j]);
-                            }
-                        }
-                    }
-                    printf("\n");
-
-                } // 4 alignments
             } // debug print
 
         } // each cluster

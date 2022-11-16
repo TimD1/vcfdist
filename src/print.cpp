@@ -16,6 +16,96 @@ std::string YELLOW(std::string str) { return "\033[33m" + str + "\033[0m"; }
 std::string PURPLE(char c) { return "\033[35m" + std::string(1,c) + "\033[0m"; }
 std::string PURPLE(std::string str) { return "\033[35m" + str + "\033[0m"; }
 
+
+/*******************************************************************************/
+
+
+void print_wfa_ptrs(
+        std::vector<std::string> calls,
+        std::vector<std::string> truth,
+        std::vector<int> s,
+        std::vector< std::vector< std::vector<int> > > offs, 
+        std::vector< std::vector< std::vector<int> > > ptrs) {
+
+    printf("\n=======================================================================\n");
+    for(int h = 0; h < 4; h++) { // 4 alignments
+        printf("\n%s ALIGNMENT (distance %d)\n", 
+                aln_strs[h].data(), s[h]);
+        int calls_lens = calls[h].size();
+        int truth_lens = truth[h].size();
+
+        // create array
+        std::vector< std::vector<char> > ptr_str;
+        for (int i = 0; i < calls_lens; i++)
+            ptr_str.push_back(std::vector<char>(truth_lens, '.'));
+
+        // modify array with pointers
+        int mat_len = calls_lens + truth_lens - 1;
+        for (int si = 0; si <= s[h]; si++) {
+            for(int di = 0; di < mat_len; di++) {
+                int diag = di + 1 - calls_lens;
+                int off = offs[h][si][di];
+ 
+                // check that indices are within bounds
+                int calls_pos = off;
+                int truth_pos = diag + off;
+                if (calls_pos < 0 || truth_pos < 0) continue;
+                if (calls_pos > calls_lens-1 || 
+                        truth_pos > truth_lens-1) continue;
+ 
+                if (si == 0 && diag == 0) { // main diag, no prior edits
+                    while (calls_pos >= 0)
+                        ptr_str[calls_pos--][truth_pos--] = '\\';
+                } else if (calls_pos == 0) { // left edge
+                    ptr_str[calls_pos][truth_pos] = '-';
+                } else if (truth_pos == 0) { // top edge
+                    ptr_str[calls_pos][truth_pos] = '|';
+                } else { // follow diagonal
+ 
+                    int top_off = (di < mat_len-1) ? offs[h][si-1][di+1]+1 : -2;
+                    int left_off = (di > 0) ? offs[h][si-1][di-1] : -2;
+                    int diag_off = offs[h][si-1][di]+1;
+                    while (calls_pos > 0 && truth_pos > 0 && 
+                            calls_pos > top_off && 
+                            calls_pos > left_off && 
+                            calls_pos > diag_off) {
+                        ptr_str[calls_pos--][truth_pos--] = '\\';
+                    }
+                    // check left/up
+                    if (calls_pos == diag_off) {
+                        ptr_str[calls_pos][truth_pos] = 'X';
+                    } else if (calls_pos == top_off) {
+                        ptr_str[calls_pos][truth_pos] = '|';
+                    } else if (calls_pos == left_off) {
+                        ptr_str[calls_pos][truth_pos] = '-';
+                    }
+                }
+            }
+        }
+  
+        // print array
+        for (int i = -1; i < calls_lens; i++) {
+            for (int j = -1; j < truth_lens; j++) {
+                if (i < 0 && j < 0) {
+                    printf("  ");
+                }
+                else if (i < 0) {
+                    printf("%c", truth[h][j]);
+                } else if (j < 0) {
+                    printf("\n%c ", calls[h][i]);
+                } else {
+                    printf("%c", ptr_str[i][j]);
+                }
+            }
+        }
+        printf("\n");
+    } // 4 alignments
+}
+           
+
+/*******************************************************************************/
+
+
 void print_ptrs(std::vector< std::vector<int> > ptrs, 
         std::string alt_str, std::string ref_str) 
 {
@@ -155,6 +245,8 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
     }
 }
 
+
+/*******************************************************************************/
 
 
 void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
