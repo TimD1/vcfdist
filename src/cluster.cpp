@@ -289,18 +289,25 @@ void clusterData::gap_supercluster() {
 
 void cluster(std::unique_ptr<variantData> & vcf) {
     /* Add single-VCF cluster indices to `variantData` */
+    INFO(" ");
+    INFO("2. Gap Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
 
+        // only print for non-empty contigs
+        if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n)
+            INFO("  Contig '%s'", ctg.data());
+
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < 2; hap++) {
+            int nvar = vcf->ctg_variants[hap][ctg]->n;
+            if (nvar) INFO("    Haplotype %d", hap+1);
             int prev_end = -g.cluster_min_gap * 2;
             int pos = 0;
             int end = 0;
-            size_t var_idx = 0;
-            for (; 
-                    var_idx < vcf->ctg_variants[hap][ctg]->poss.size(); var_idx++) {
+            int var_idx = 0;
+            for (; var_idx < vcf->ctg_variants[hap][ctg]->n; var_idx++) {
                 pos = vcf->ctg_variants[hap][ctg]->poss[var_idx];
                 end = pos + vcf->ctg_variants[hap][ctg]->rlens[var_idx];
                 if (pos - prev_end > g.cluster_min_gap)
@@ -308,6 +315,8 @@ void cluster(std::unique_ptr<variantData> & vcf) {
                 prev_end = std::max(prev_end, end);
             }
             vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
+            if (nvar) INFO("      %d resulting clusters.", 
+                    int(vcf->ctg_variants[hap][ctg]->clusters.size()));
         }
     }
 }
@@ -321,7 +330,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
  */
 void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int extend) {
     INFO(" ");
-    INFO("2. Clustering VCF '%s'", vcf->filename.data());
+    INFO("2. SW Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {

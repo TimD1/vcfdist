@@ -33,25 +33,24 @@ int main(int argc, char **argv) {
     // 2. cluster variants
     if (!g.simple_cluster) { 
         sw_cluster(calls_ptr, g.calls_sub, g.calls_open, g.calls_extend); 
-    } else cluster(calls_ptr);
-    if (!g.simple_cluster) { 
         sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
-    } else cluster(truth_ptr);
+    } else { 
+        cluster(calls_ptr);
+        cluster(truth_ptr);
+    }
 
     // 3. realign variants, then re-cluster
     if (!g.keep_calls) {
         calls_ptr = sw_realign(calls_ptr, ref_ptr, 
                 g.calls_sub, g.calls_open, g.calls_extend);
-        if (!g.simple_cluster) {
+        g.simple_cluster ?  cluster(calls_ptr) :
             sw_cluster(calls_ptr, g.calls_sub, g.calls_open, g.calls_extend); 
-        } else cluster(calls_ptr);
     }
     if (!g.keep_truth) {
         truth_ptr = sw_realign(truth_ptr, ref_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend);
-        if (!g.simple_cluster) { 
+        g.simple_cluster ?  cluster(truth_ptr) :
             sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
-        } else cluster(truth_ptr);
     }
     if (g.exit) {
         calls_ptr->write_vcf(g.out_prefix + "calls.vcf");
@@ -71,7 +70,7 @@ int main(int argc, char **argv) {
     // 7. write supercluster/phaseblock results in CSV format
     write_results(phasedata_ptr);
 
-    // save new VCVF
+    // save new VCF
     calls_ptr->write_vcf(g.out_prefix + "calls.vcf");
     truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
 
