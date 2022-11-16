@@ -311,7 +311,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     std::string out_calls_fn = g.out_prefix + "calls.tsv";
     INFO("  Printing call variant results to '%s'", out_calls_fn.data());
     FILE* out_calls = fopen(out_calls_fn.data(), "w");
-    fprintf(out_calls, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tORIG_GT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
+    fprintf(out_calls, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
@@ -333,7 +333,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
 
                 // we've entered the next supercluster
                 if (calls1_vars->clusters[cluster1_idx] <= var1_idx) cluster1_idx++;
-                fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%s\t%d\t%d\t%s\n",
+                fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         calls1_vars->poss[var1_idx],
                         calls1_vars->haps[var1_idx],
@@ -343,7 +343,6 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         type_strs[calls1_vars->types[var1_idx]].data(),
                         error_strs[calls1_vars->errtypes[var1_idx]].data(),
                         calls1_vars->credit[var1_idx],
-                        gt_strs[calls1_vars->orig_gts[var1_idx]].data(),
                         cluster1_idx,
                         supercluster_idx,
                         region_strs[calls1_vars->locs[var1_idx]].data()
@@ -356,7 +355,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                 var1_idx++;
             } else { // process calls2 var
                 if (calls2_vars->clusters[cluster2_idx] <= var2_idx) cluster2_idx++;
-                fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%s\t%d\t%d\t%s\n",
+                fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         calls2_vars->poss[var2_idx],
                         calls2_vars->haps[var2_idx],
@@ -366,7 +365,6 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         type_strs[calls2_vars->types[var2_idx]].data(),
                         error_strs[calls2_vars->errtypes[var2_idx]].data(),
                         calls2_vars->credit[var2_idx],
-                        gt_strs[calls2_vars->orig_gts[var2_idx]].data(),
                         cluster2_idx,
                         supercluster_idx,
                         region_strs[calls2_vars->locs[var2_idx]].data()
@@ -386,7 +384,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     std::string out_truth_fn = g.out_prefix + "truth.tsv";
     INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
-    fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tORIG_GT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
+    fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
@@ -406,7 +404,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
             if (var2_idx >= truth2_vars->n || // only truth1 has remaining vars
                     truth1_vars->poss[var1_idx] < truth2_vars->poss[var2_idx]) { // truth1 var next
                 if (truth1_vars->clusters[cluster1_idx] <= var1_idx) cluster1_idx++;
-                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%s\t%d\t%d\t%s\n",
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         truth1_vars->poss[var1_idx],
                         truth1_vars->haps[var1_idx],
@@ -416,7 +414,6 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         type_strs[truth1_vars->types[var1_idx]].data(),
                         error_strs[truth1_vars->errtypes[var1_idx]].data(),
                         truth1_vars->credit[var1_idx],
-                        gt_strs[truth1_vars->orig_gts[var1_idx]].data(),
                         cluster1_idx,
                         supercluster_idx,
                         region_strs[truth1_vars->locs[var1_idx]].data()
@@ -429,7 +426,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                 var1_idx++;
             } else { // process truth2 var
                 if (truth2_vars->clusters[cluster2_idx] <= var2_idx) cluster2_idx++;
-                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%s\t%d\t%d\t%s\n",
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         truth2_vars->poss[var2_idx],
                         truth2_vars->haps[var2_idx],
@@ -439,7 +436,6 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         type_strs[truth2_vars->types[var2_idx]].data(),
                         error_strs[truth2_vars->errtypes[var2_idx]].data(),
                         truth2_vars->credit[var2_idx],
-                        gt_strs[truth2_vars->orig_gts[var2_idx]].data(),
                         cluster2_idx,
                         supercluster_idx,
                         region_strs[truth2_vars->locs[var2_idx]].data()
