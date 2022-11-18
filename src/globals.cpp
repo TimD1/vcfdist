@@ -24,13 +24,13 @@ void Globals::parse_args(int argc, char ** argv) {
     }
 
     /* verify input VCF/FASTA filepaths */
-    this->calls_vcf_fn = std::string(argv[1]);
-    this->calls_vcf_path = std::filesystem::path(this->calls_vcf_fn);
-    htsFile* calls_vcf_fp = bcf_open(calls_vcf_fn.data(), "r");
-    if (calls_vcf_fp == NULL) {
-        ERROR("Failed to open calls VCF file '%s'", calls_vcf_fn.data());
+    this->query_vcf_fn = std::string(argv[1]);
+    this->query_vcf_path = std::filesystem::path(this->query_vcf_fn);
+    htsFile* query_vcf_fp = bcf_open(query_vcf_fn.data(), "r");
+    if (query_vcf_fp == NULL) {
+        ERROR("Failed to open query VCF file '%s'", query_vcf_fn.data());
     } else {
-        bcf_close(calls_vcf_fp);
+        bcf_close(query_vcf_fp);
     }
 
     this->truth_vcf_fn = std::string(argv[2]);
@@ -156,39 +156,39 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             if (i == argc) {
                 ERROR("Option '-s' used without providing substitution penalty");
-            } else if (this->calls_penalties_set[PEN_SUB]) {
-                ERROR("Calls substitution penalty already set, cannot use '-s'");
+            } else if (this->query_penalties_set[PEN_SUB]) {
+                ERROR("Query substitution penalty already set, cannot use '-s'");
             } else if (this->truth_penalties_set[PEN_SUB]) {
                 ERROR("Truth substitution penalty already set, cannot use '-s'");
             }
             try {
-                this->calls_sub = std::stoi(argv[i]);
-                this->calls_penalties_set[PEN_SUB] = true;
+                this->query_sub = std::stoi(argv[i]);
+                this->query_penalties_set[PEN_SUB] = true;
                 this->truth_sub = std::stoi(argv[i++]);
                 this->truth_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid substitution penalty provided");
             }
-            if (this->calls_sub < 0) {
+            if (this->query_sub < 0) {
                 ERROR("Must provide non-negative substitution penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-cs" || 
-                std::string(argv[i]) == "--calls-sub-penalty") {
+                std::string(argv[i]) == "--query-sub-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-cs' used without providing substitution penalty");
-            } else if (this->calls_penalties_set[PEN_SUB]) {
-                ERROR("Calls substitution penalty already set, cannot use '-cs'");
+            } else if (this->query_penalties_set[PEN_SUB]) {
+                ERROR("Query substitution penalty already set, cannot use '-cs'");
             }
             try {
-                this->calls_sub = std::stoi(argv[i++]);
-                this->calls_penalties_set[PEN_SUB] = true;
+                this->query_sub = std::stoi(argv[i++]);
+                this->query_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid calls substitution penalty provided");
+                ERROR("Invalid query substitution penalty provided");
             }
-            if (this->calls_sub < 0) {
-                ERROR("Must provide non-negative calls substitution penalty");
+            if (this->query_sub < 0) {
+                ERROR("Must provide non-negative query substitution penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-ts" || 
@@ -214,38 +214,38 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             if (i == argc) {
                 ERROR("Option '-o' used without providing gap-opening penalty");
-            } else if (this->calls_penalties_set[PEN_OPEN]) {
-                ERROR("Calls gap-opening penalty already set, cannot use '-o'");
+            } else if (this->query_penalties_set[PEN_OPEN]) {
+                ERROR("Query gap-opening penalty already set, cannot use '-o'");
             } else if (this->truth_penalties_set[PEN_OPEN]) {
                 ERROR("Truth gap-opening penalty already set, cannot use '-o'");
             }
             try {
-                this->calls_open = std::stoi(argv[i]);
-                this->calls_penalties_set[PEN_OPEN] = true;
+                this->query_open = std::stoi(argv[i]);
+                this->query_penalties_set[PEN_OPEN] = true;
                 this->truth_open = std::stoi(argv[i++]);
                 this->truth_penalties_set[PEN_OPEN] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid gap-opening penalty provided");
             }
-            if (this->calls_open < 0) {
+            if (this->query_open < 0) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-co" || 
-                std::string(argv[i]) == "--calls-gap-open-penalty") {
+                std::string(argv[i]) == "--query-gap-open-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-co' used without providing gap-opening penalty");
-            } else if (this->calls_penalties_set[PEN_OPEN]) {
-                ERROR("Calls gap-opening penalty already set, cannot use '-co'");
+            } else if (this->query_penalties_set[PEN_OPEN]) {
+                ERROR("Query gap-opening penalty already set, cannot use '-co'");
             }
             try {
-                this->calls_open = std::stoi(argv[i++]);
-                this->calls_penalties_set[PEN_OPEN] = true;
+                this->query_open = std::stoi(argv[i++]);
+                this->query_penalties_set[PEN_OPEN] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid gap-opening penalty provided");
             }
-            if (this->calls_open < 0) {
+            if (this->query_open < 0) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
 /*******************************************************************************/
@@ -272,39 +272,39 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             if (i == argc) {
                 ERROR("Option '-e' used without providing gap-extension penalty");
-            } else if (this->calls_penalties_set[PEN_EXTEND]) {
-                ERROR("Calls gap-extension penalty already set, cannot use '-e'");
+            } else if (this->query_penalties_set[PEN_EXTEND]) {
+                ERROR("Query gap-extension penalty already set, cannot use '-e'");
             } else if (this->truth_penalties_set[PEN_EXTEND]) {
                 ERROR("Truth gap-extension penalty already set, cannot use '-e'");
             }
             try {
-                this->calls_extend = std::stoi(argv[i]);
-                this->calls_penalties_set[PEN_EXTEND] = true;
+                this->query_extend = std::stoi(argv[i]);
+                this->query_penalties_set[PEN_EXTEND] = true;
                 this->truth_extend = std::stoi(argv[i++]);
                 this->truth_penalties_set[PEN_EXTEND] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid gap-extension penalty provided");
             }
-            if (this->calls_extend < 0) {
+            if (this->query_extend < 0) {
                 ERROR("Must provide non-negative gap-extension penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-ce" || 
-                std::string(argv[i]) == "--calls-gap-extend-penalty") {
+                std::string(argv[i]) == "--query-gap-extend-penalty") {
             i++;
             if (i == argc) {
                 ERROR("Option '-ce' used without providing gap-extension penalty");
-            } else if (this->calls_penalties_set[PEN_EXTEND]) {
-                ERROR("Calls gap-extension penalty already set, cannot use '-ce'");
+            } else if (this->query_penalties_set[PEN_EXTEND]) {
+                ERROR("Query gap-extension penalty already set, cannot use '-ce'");
             }
             try {
-                this->calls_extend = std::stoi(argv[i++]);
-                this->calls_penalties_set[PEN_EXTEND] = true;
+                this->query_extend = std::stoi(argv[i++]);
+                this->query_penalties_set[PEN_EXTEND] = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid calls gap-extension penalty provided");
+                ERROR("Invalid query gap-extension penalty provided");
             }
-            if (this->calls_extend < 0) {
-                ERROR("Must provide non-negative calls gap-extension penalty");
+            if (this->query_extend < 0) {
+                ERROR("Must provide non-negative query gap-extension penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-te" || 
@@ -334,9 +334,9 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.keep_truth = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--keep-calls") {
+        } else if (std::string(argv[i]) == "--keep-query") {
             i++;
-            g.keep_calls = true;
+            g.keep_query = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "--simple-cluster") {
             i++;
@@ -356,10 +356,10 @@ void Globals::print_version() const
 
 void Globals::print_usage() const
 {
-    printf("Usage: vcfdist <calls.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
+    printf("Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
 
     printf("\nRequired:\n");
-    printf("  <FILENAME>\tcalls.vcf\tphased VCF file containing variant calls to evaluate \n");
+    printf("  <FILENAME>\tquery.vcf\tphased VCF file containing variant calls to evaluate \n");
     printf("  <FILENAME>\ttruth.vcf\tphased VCF file containing ground truth variant calls \n");
     printf("  <FILENAME>\tref.fasta\tFASTA file containing draft reference sequence \n");
 
@@ -392,7 +392,7 @@ void Globals::print_usage() const
     printf("      printing verbosity (0: default, 1: verbose, 2:debugging)\n\n");
 
     printf("  -x, --exit-after-realign\n");
-    printf("      realign truth/calls VCFs with Smith-Waterman params, then exit\n\n");
+    printf("      realign truth/query VCFs with Smith-Waterman params, then exit\n\n");
 
     printf("  -h, --help\n");
     printf("      show this help message\n\n");
@@ -401,8 +401,8 @@ void Globals::print_usage() const
     printf("      show version number (%s v%s)\n\n", this->PROGRAM.data(), this->VERSION.data());
 
     printf("\nAdvanced Options: (not recommended, only for evaluation)\n");
-    printf("  --keep-calls\n");
-    printf("      do not realign calls.vcf variants using Smith-Waterman\n\n");
+    printf("  --keep-query\n");
+    printf("      do not realign query.vcf variants using Smith-Waterman\n\n");
 
     printf("  --keep-truth\n");
     printf("      do not realign truth.vcf variants using Smith-Waterman\n\n");
@@ -410,14 +410,14 @@ void Globals::print_usage() const
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
-    printf("  -cs, --calls-sub-penalty <VALUE> [1]\n");
-    printf("      integer Smith-Waterman substitution penalty for calls variants\n\n");
+    printf("  -cs, --query-sub-penalty <VALUE> [1]\n");
+    printf("      integer Smith-Waterman substitution penalty for query variants\n\n");
 
-    printf("  -co, --calls-gap-open-penalty <VALUE> [1]\n");
-    printf("      integer Smith-Waterman gap opening penalty for calls variants\n\n");
+    printf("  -co, --query-gap-open-penalty <VALUE> [1]\n");
+    printf("      integer Smith-Waterman gap opening penalty for query variants\n\n");
 
-    printf("  -ce, --calls-gap-extend-penalty <VALUE> [1]\n");
-    printf("      integer Smith-Waterman gap extension penalty for calls variants\n\n");
+    printf("  -ce, --query-gap-extend-penalty <VALUE> [1]\n");
+    printf("      integer Smith-Waterman gap extension penalty for query variants\n\n");
 
     printf("  -ts, --truth-sub-penalty <VALUE> [1]\n");
     printf("      integer Smith-Waterman substitution penalty for truth variants\n\n");

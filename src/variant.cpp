@@ -167,11 +167,11 @@ void variantData::add_variants(
         const std::vector<int> & cigar, 
         int hap, int ref_pos,
         const std::string & ctg, 
-        const std::string & calls, 
+        const std::string & query, 
         const std::string & ref, 
         int qual) {
 
-    int calls_idx = 0;
+    int query_idx = 0;
     int ref_idx = 0;
     for (size_t cig_idx = 0; cig_idx < cigar.size(); ) {
         int indel_len = 0;
@@ -180,17 +180,17 @@ void variantData::add_variants(
             case PTR_DIAG: // no variant, update pointers
                 cig_idx += 2;
                 ref_idx++;
-                calls_idx++;
+                query_idx++;
                 break;
 
             case PTR_SUB: // substitution
                 cig_idx += 2;
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
                         TYPE_SUB, INSIDE, std::string(1,ref[ref_idx]), 
-                        std::string(1,calls[calls_idx]), 
+                        std::string(1,query[query_idx]), 
                         GT_REF_REF, g.max_qual, qual);
                 ref_idx++;
-                calls_idx++;
+                query_idx++;
                 break;
 
             case PTR_DEL: // deletion
@@ -216,9 +216,9 @@ void variantData::add_variants(
                 }
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         0, hap, TYPE_INS, INSIDE, "", 
-                        calls.substr(calls_idx, indel_len), 
+                        query.substr(query_idx, indel_len), 
                         GT_REF_REF, g.max_qual, qual);
-                calls_idx += indel_len;
+                query_idx += indel_len;
                 break;
         }
     }
@@ -429,7 +429,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             if (orig_gt == GT_ALT1_ALT1 || orig_gt == GT_ALT2_ALT2) // 1|1 overwrite
                 simple_gt = GT_ALT1_ALT1;
 
-            // get ref and allele, skipping ref calls
+            // get ref and allele, skipping ref query
             std::string ref = rec->d.allele[0];
             int alt_idx = bcf_gt_allele(gt[hap]);
             if (alt_idx < 0) alt_idx = hap; // set 0|1 if .|.
@@ -519,7 +519,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                     break;
             }
 
-            // add to haplotype-specific calls info
+            // add to haplotype-specific query info
             if (type == TYPE_GRP) { // split GRP into INS+DEL
                 this->ctg_variants[hap][seq]->add_var(pos, 0, // INS
                     hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], rec->qual);

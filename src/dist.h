@@ -26,12 +26,12 @@
 #define MAT_DEL 2
 #define MATS    3
 
-#define CALLS1_TRUTH1 0 // four possible alignments of truth and calls haps
-#define CALLS1_TRUTH2 1
-#define CALLS2_TRUTH1 2
-#define CALLS2_TRUTH2 3
+#define QUERY1_TRUTH1 0 // four possible alignments of truth and query haps
+#define QUERY1_TRUTH2 1
+#define QUERY2_TRUTH1 2
+#define QUERY2_TRUTH2 3
 
-#define CALLS 0
+#define QUERY 0
 #define REF 1
 
 #define FALSE 0
@@ -57,15 +57,15 @@ void generate_ptrs_strs(
         int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
         );
 
-void reverse_ptrs_strs(std::string & calls, std::string & ref,
-        std::vector<int> & calls_ptrs, std::vector<int> & ref_ptrs);
+void reverse_ptrs_strs(std::string & query, std::string & ref,
+        std::vector<int> & query_ptrs, std::vector<int> & ref_ptrs);
 
 /******************************************************************************/
 
 class idx1 {
 public:
     int hi;  // hap idx1
-    int cri; // calls/ref idx1
+    int cri; // query/ref idx1
     int ti;  // truth idx1
 
     idx1() : hi(0), cri(0), ti(0) {};
@@ -104,7 +104,7 @@ bool contains(const std::unordered_set<T> & wave, const T & idx);
 class idx2 {
 public:
     int mi;  // matrix idx2
-    int ci;  // calls idx2
+    int ci;  // query idx2
     int ri;  // ref idx2
 
     idx2() : mi(0), ci(0), ri(0) {};
@@ -141,13 +141,13 @@ namespace std {
 /******************************************************************************/
 
 void calc_prec_recall_aln(
-        std::string calls1, std::string calls2,
+        std::string query1, std::string query2,
         std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
-        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
+        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
-        std::vector<int> & pr_calls_ref_end
+        std::vector<int> & pr_query_ref_end
         );
 
 void get_prec_recall_path_sync(
@@ -157,9 +157,9 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<bool> > ref_loc_sync, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
-        std::vector<int> & pr_calls_ref_beg,
-        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
-        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> & pr_query_ref_beg,
+        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
+        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
         );
 
@@ -169,33 +169,33 @@ void calc_prec_recall_path(
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
-        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
-        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
+        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
-        std::vector<int> pr_calls_ref_end
+        std::vector<int> pr_query_ref_end
         );
 
 void calc_prec_recall(
         std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
-        std::string calls1, std::string calls2, 
+        std::string query1, std::string query2, 
         std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> calls1_ref_ptrs, std::vector<int> ref_calls1_ptrs,
-        std::vector<int> calls2_ref_ptrs, std::vector<int> ref_calls2_ptrs,
+        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
+        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
         std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector< std::vector<idx1> > & path,
         std::vector< std::vector<bool> > & sync,
         std::vector< std::vector<bool> > & edits,
         std::vector< std::vector< std::vector<int> > > & ptrs, 
-        std::vector<int> pr_calls_ref_end, int phase, int print
+        std::vector<int> pr_query_ref_end, int phase, int print
         );
 
 /******************************************************************************/
 
 int sw_max_reach(
-        std::string calls, 
+        std::string query, 
         std::string ref, 
-        std::vector<int> calls_ref_ptrs, 
-        std::vector<int> ref_calls_ptrs,
+        std::vector<int> query_ref_ptrs, 
+        std::vector<int> ref_query_ptrs,
         int sub, int open, int extend,
         int score, 
         bool reverse=false);
@@ -206,12 +206,12 @@ std::unique_ptr<variantData> sw_realign(
         int sub, int open, int extend);
 
 std::unordered_map<idx2,idx2> sw_align(
-        const std::string & calls, 
+        const std::string & query, 
         const std::string & ref,
         int sub, int open, int extend);
 
 std::vector<int> sw_backtrack(
-        const std::string & calls,
+        const std::string & query,
         const std::string & ref,
         const std::unordered_map<idx2, idx2> & ptrs);
 
@@ -231,8 +231,8 @@ int calc_vcf_sw_score(
         int sub, int open, int extend);
 
 void calc_edit_dist_aln(
-        std::string calls1, 
-        std::string calls2, 
+        std::string query1, 
+        std::string query2, 
         std::string truth1, 
         std::string truth2,
         std::vector<int> & s, 

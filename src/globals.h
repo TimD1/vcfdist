@@ -15,8 +15,8 @@ public:
     std::string ref_fasta_fn;
     FILE* ref_fasta_fp;
 
-    std::string calls_vcf_fn;
-    std::filesystem::path calls_vcf_path;
+    std::string query_vcf_fn;
+    std::filesystem::path query_vcf_path;
 
     std::string truth_vcf_fn;
     std::filesystem::path truth_vcf_path;
@@ -33,17 +33,17 @@ public:
 
     bool exit = false;
 
-    int calls_sub = 1;
-    int calls_open = 1;
-    int calls_extend = 1;
+    int query_sub = 1;
+    int query_open = 1;
+    int query_extend = 1;
     int truth_sub = 1;
     int truth_open = 1;
     int truth_extend = 1;
-    std::vector<bool> calls_penalties_set = {false, false, false};
+    std::vector<bool> query_penalties_set = {false, false, false};
     std::vector<bool> truth_penalties_set = {false, false, false};
     
     bool keep_truth = false;
-    bool keep_calls = false;
+    bool keep_query = false;
     bool simple_cluster = false;
 
     // constructors

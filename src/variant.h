@@ -82,7 +82,7 @@ public:
     void add_variants( const std::vector<int> & cigar, 
         int hap, int ref_pos,
         const std::string & ctg, 
-        const std::string & calls, 
+        const std::string & query, 
         const std::string & ref,
         int qual);
 

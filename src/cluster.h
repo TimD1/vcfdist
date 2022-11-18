@@ -24,8 +24,8 @@ public:
 
     // add supercluster info
     void add_supercluster(
-           int calls1_beg_idx, int calls1_end_idx, 
-           int calls2_beg_idx, int calls2_end_idx, 
+           int query1_beg_idx, int query1_end_idx, 
+           int query2_beg_idx, int query2_end_idx, 
            int truth1_beg_idx, int truth1_end_idx, 
            int truth2_beg_idx, int truth2_end_idx, 
            int beg, int end);
@@ -35,13 +35,13 @@ public:
            int swap_phase_dist);
 
     // pointers to variant data
-    std::shared_ptr<ctgVariants> calls1_vars = nullptr; 
-    std::shared_ptr<ctgVariants> calls2_vars = nullptr; 
+    std::shared_ptr<ctgVariants> query1_vars = nullptr; 
+    std::shared_ptr<ctgVariants> query2_vars = nullptr; 
     std::shared_ptr<ctgVariants> truth1_vars = nullptr;
     std::shared_ptr<ctgVariants> truth2_vars = nullptr;
 
     // cluster indices of superclusters
-    std::vector<int> calls1_beg_idx, calls1_end_idx, calls2_beg_idx, calls2_end_idx,
+    std::vector<int> query1_beg_idx, query1_end_idx, query2_beg_idx, query2_end_idx,
         truth1_beg_idx, truth1_end_idx, truth2_beg_idx, truth2_end_idx;
     std::vector<int> begs, ends; // ref positions
     int n = 0; // number of superclusters
@@ -54,7 +54,7 @@ public:
 class clusterData {
 public:
     clusterData(
-            std::unique_ptr<variantData> & calls_ptr,
+            std::unique_ptr<variantData> & query_ptr,
             std::unique_ptr<variantData> & truth_ptr,
             std::shared_ptr<fastaData> ref_ptr);
 

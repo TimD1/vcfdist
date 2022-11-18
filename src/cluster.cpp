@@ -7,15 +7,15 @@
 #include "dist.h"
 
 void ctgClusters::add_supercluster(
-           int calls1_beg_idx, int calls1_end_idx, 
-           int calls2_beg_idx, int calls2_end_idx, 
+           int query1_beg_idx, int query1_end_idx, 
+           int query2_beg_idx, int query2_end_idx, 
            int truth1_beg_idx, int truth1_end_idx, 
            int truth2_beg_idx, int truth2_end_idx, 
            int beg, int end) {
-    this->calls1_beg_idx.push_back(calls1_beg_idx);
-    this->calls1_end_idx.push_back(calls1_end_idx);
-    this->calls2_beg_idx.push_back(calls2_beg_idx);
-    this->calls2_end_idx.push_back(calls2_end_idx);
+    this->query1_beg_idx.push_back(query1_beg_idx);
+    this->query1_end_idx.push_back(query1_end_idx);
+    this->query2_beg_idx.push_back(query2_beg_idx);
+    this->query2_end_idx.push_back(query2_end_idx);
     this->truth1_beg_idx.push_back(truth1_beg_idx);
     this->truth1_end_idx.push_back(truth1_end_idx);
     this->truth2_beg_idx.push_back(truth2_beg_idx);
@@ -37,15 +37,15 @@ void ctgClusters::add_phasing(
 /******************************************************************************/
 
 clusterData::clusterData(
-        std::unique_ptr<variantData> & calls_ptr,
+        std::unique_ptr<variantData> & query_ptr,
         std::unique_ptr<variantData> & truth_ptr,
         std::shared_ptr<fastaData> ref_ptr) {
 
     // set reference pointer
     this->ref = ref_ptr;
 
-    // create list of all contigs covered by truth/calls
-    for (std::string ctg : calls_ptr->contigs) {
+    // create list of all contigs covered by truth/query
+    for (std::string ctg : query_ptr->contigs) {
         if (std::find(this->contigs.begin(), this->contigs.end(), ctg) == this->contigs.end()) {
             this->contigs.push_back(ctg);
             this->ctg_superclusters[ctg] = std::shared_ptr<ctgClusters>(new ctgClusters());
@@ -61,10 +61,10 @@ clusterData::clusterData(
     // set pointers to variant lists (per contig)
     for (std::string ctg : this->contigs) {
         try {
-            this->ctg_superclusters[ctg]->calls1_vars = calls_ptr->ctg_variants[HAP1][ctg];
-            this->ctg_superclusters[ctg]->calls2_vars = calls_ptr->ctg_variants[HAP2][ctg];
+            this->ctg_superclusters[ctg]->query1_vars = query_ptr->ctg_variants[HAP1][ctg];
+            this->ctg_superclusters[ctg]->query2_vars = query_ptr->ctg_variants[HAP2][ctg];
         } catch (const std::exception & e) {
-            ERROR("Calls VCF does not contain contig '%s'", ctg.data());
+            ERROR("Query VCF does not contain contig '%s'", ctg.data());
         }
         try {
             this->ctg_superclusters[ctg]->truth1_vars = truth_ptr->ctg_variants[HAP1][ctg];
@@ -92,36 +92,36 @@ void clusterData::gap_supercluster() {
     for (std::string ctg : this->contigs) {
 
         // set shorter var names
-        std::shared_ptr<ctgVariants> calls1_vars = this->ctg_superclusters[ctg]->calls1_vars;
-        std::shared_ptr<ctgVariants> calls2_vars = this->ctg_superclusters[ctg]->calls2_vars;
+        std::shared_ptr<ctgVariants> query1_vars = this->ctg_superclusters[ctg]->query1_vars;
+        std::shared_ptr<ctgVariants> query2_vars = this->ctg_superclusters[ctg]->query2_vars;
         std::shared_ptr<ctgVariants> truth1_vars = this->ctg_superclusters[ctg]->truth1_vars;
         std::shared_ptr<ctgVariants> truth2_vars = this->ctg_superclusters[ctg]->truth2_vars;
 
-        if (calls1_vars->n + calls2_vars->n + truth1_vars->n + truth2_vars->n) {
+        if (query1_vars->n + query2_vars->n + truth1_vars->n + truth2_vars->n) {
             INFO("  Contig '%s'", ctg.data());
         } else {continue;}
 
-        // for each cluster of variants (merge calls and truth haps)
-        int calls1_clust_beg_idx = 0;
-        int calls2_clust_beg_idx = 0;
+        // for each cluster of variants (merge query and truth haps)
+        int query1_clust_beg_idx = 0;
+        int query2_clust_beg_idx = 0;
         int truth1_clust_beg_idx = 0;
         int truth2_clust_beg_idx = 0;
-        while (calls1_clust_beg_idx < int(calls1_vars->clusters.size())-1 || // last cluster added for end
-               calls2_clust_beg_idx < int(calls2_vars->clusters.size())-1 ||
+        while (query1_clust_beg_idx < int(query1_vars->clusters.size())-1 || // last cluster added for end
+               query2_clust_beg_idx < int(query2_vars->clusters.size())-1 ||
                truth1_clust_beg_idx < int(truth1_vars->clusters.size())-1 ||
                truth2_clust_beg_idx < int(truth2_vars->clusters.size())-1) {
 
             // init: empty supercluster
-            int calls1_clust_end_idx = calls1_clust_beg_idx;
-            int calls2_clust_end_idx = calls2_clust_beg_idx;
+            int query1_clust_end_idx = query1_clust_beg_idx;
+            int query2_clust_end_idx = query2_clust_beg_idx;
             int truth1_clust_end_idx = truth1_clust_beg_idx;
             int truth2_clust_end_idx = truth2_clust_beg_idx;
 
-            int calls1_pos = (calls1_clust_beg_idx < int(calls1_vars->clusters.size())-1) ? 
-                    calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
+            int query1_pos = (query1_clust_beg_idx < int(query1_vars->clusters.size())-1) ? 
+                    query1_vars->poss[query1_vars->clusters[query1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
-            int calls2_pos = (calls2_clust_beg_idx < int(calls2_vars->clusters.size())-1) ? 
-                    calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
+            int query2_pos = (query2_clust_beg_idx < int(query2_vars->clusters.size())-1) ? 
+                    query2_vars->poss[query2_vars->clusters[query2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             int truth1_pos = (truth1_clust_beg_idx < int(truth1_vars->clusters.size())-1) ? 
                     truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]]-1 : 
@@ -132,24 +132,24 @@ void clusterData::gap_supercluster() {
 
             // initialize cluster merging with first to start
             int curr_end_pos = 0;
-            if (calls1_pos <= truth1_pos && calls1_pos <= calls2_pos && calls1_pos <= truth2_pos) {
-                calls1_clust_end_idx += 1;
-                curr_end_pos = calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] +
-                        calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1] + 1;
-                calls1_pos = (calls1_clust_end_idx < int(calls1_vars->clusters.size())-1) ? 
-                    calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
+            if (query1_pos <= truth1_pos && query1_pos <= query2_pos && query1_pos <= truth2_pos) {
+                query1_clust_end_idx += 1;
+                curr_end_pos = query1_vars->poss[query1_vars->clusters[query1_clust_end_idx]-1] +
+                        query1_vars->rlens[query1_vars->clusters[query1_clust_end_idx]-1] + 1;
+                query1_pos = (query1_clust_end_idx < int(query1_vars->clusters.size())-1) ? 
+                    query1_vars->poss[query1_vars->clusters[query1_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
-            else if (calls2_pos <= truth1_pos && calls2_pos <= calls1_pos && 
-                    calls2_pos <= truth2_pos) {
-                calls2_clust_end_idx += 1;
-                curr_end_pos = calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] +
-                        calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1] + 1;
-                calls2_pos = (calls2_clust_end_idx < int(calls2_vars->clusters.size())-1) ? 
-                    calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
+            else if (query2_pos <= truth1_pos && query2_pos <= query1_pos && 
+                    query2_pos <= truth2_pos) {
+                query2_clust_end_idx += 1;
+                curr_end_pos = query2_vars->poss[query2_vars->clusters[query2_clust_end_idx]-1] +
+                        query2_vars->rlens[query2_vars->clusters[query2_clust_end_idx]-1] + 1;
+                query2_pos = (query2_clust_end_idx < int(query2_vars->clusters.size())-1) ? 
+                    query2_vars->poss[query2_vars->clusters[query2_clust_end_idx]]-1 : 
                     std::numeric_limits<int>::max();
             } 
-            else if (truth1_pos <= calls1_pos && truth1_pos <= calls2_pos && 
+            else if (truth1_pos <= query1_pos && truth1_pos <= query2_pos && 
                     truth1_pos <= truth2_pos) {
                 truth1_clust_end_idx += 1;
                 curr_end_pos = truth1_vars->poss[truth1_vars->clusters[truth1_clust_end_idx]-1] +
@@ -191,23 +191,23 @@ void clusterData::gap_supercluster() {
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
-                while (calls1_pos < curr_end_pos + g.cluster_min_gap) {
-                    calls1_clust_end_idx += 1;
+                while (query1_pos < curr_end_pos + g.cluster_min_gap) {
+                    query1_clust_end_idx += 1;
                     curr_end_pos = std::max(curr_end_pos, 
-                            calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] + 
-                            calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1] + 1);
-                    calls1_pos = (calls1_clust_end_idx < int(calls1_vars->clusters.size())-1) ? 
-                        calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]]-1 : 
+                            query1_vars->poss[query1_vars->clusters[query1_clust_end_idx]-1] + 
+                            query1_vars->rlens[query1_vars->clusters[query1_clust_end_idx]-1] + 1);
+                    query1_pos = (query1_clust_end_idx < int(query1_vars->clusters.size())-1) ? 
+                        query1_vars->poss[query1_vars->clusters[query1_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
-                while (calls2_pos < curr_end_pos + g.cluster_min_gap) {
-                    calls2_clust_end_idx += 1;
+                while (query2_pos < curr_end_pos + g.cluster_min_gap) {
+                    query2_clust_end_idx += 1;
                     curr_end_pos = std::max(curr_end_pos,
-                            calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] + 
-                            calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1] + 1);
-                    calls2_pos = (calls2_clust_end_idx < int(calls2_vars->clusters.size())-1) ? 
-                        calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]]-1 : 
+                            query2_vars->poss[query2_vars->clusters[query2_clust_end_idx]-1] + 
+                            query2_vars->rlens[query2_vars->clusters[query2_clust_end_idx]-1] + 1);
+                    query2_pos = (query2_clust_end_idx < int(query2_vars->clusters.size())-1) ? 
+                        query2_vars->poss[query2_vars->clusters[query2_clust_end_idx]]-1 : 
                         std::numeric_limits<int>::max();
                     just_merged = true;
                 }
@@ -216,19 +216,19 @@ void clusterData::gap_supercluster() {
             // get supercluster start/end positions (allowing empty haps)
             int beg_pos = std::numeric_limits<int>::max();
             int end_pos = -1;
-            if (calls1_clust_end_idx - calls1_clust_beg_idx) { // calls1 vars present
+            if (query1_clust_end_idx - query1_clust_beg_idx) { // query1 vars present
                 beg_pos = std::min(beg_pos, 
-                        calls1_vars->poss[calls1_vars->clusters[calls1_clust_beg_idx]]-1);
+                        query1_vars->poss[query1_vars->clusters[query1_clust_beg_idx]]-1);
                 end_pos = std::max(end_pos, 
-                        calls1_vars->poss[calls1_vars->clusters[calls1_clust_end_idx]-1] + 
-                        calls1_vars->rlens[calls1_vars->clusters[calls1_clust_end_idx]-1]+1);
+                        query1_vars->poss[query1_vars->clusters[query1_clust_end_idx]-1] + 
+                        query1_vars->rlens[query1_vars->clusters[query1_clust_end_idx]-1]+1);
             }
-            if (calls2_clust_end_idx - calls2_clust_beg_idx) { // calls2 vars present
+            if (query2_clust_end_idx - query2_clust_beg_idx) { // query2 vars present
                 beg_pos = std::min(beg_pos, 
-                        calls2_vars->poss[calls2_vars->clusters[calls2_clust_beg_idx]]-1);
+                        query2_vars->poss[query2_vars->clusters[query2_clust_beg_idx]]-1);
                 end_pos = std::max(end_pos, 
-                        calls2_vars->poss[calls2_vars->clusters[calls2_clust_end_idx]-1] + 
-                        calls2_vars->rlens[calls2_vars->clusters[calls2_clust_end_idx]-1]+1);
+                        query2_vars->poss[query2_vars->clusters[query2_clust_end_idx]-1] + 
+                        query2_vars->rlens[query2_vars->clusters[query2_clust_end_idx]-1]+1);
             }
             if (truth1_clust_end_idx - truth1_clust_beg_idx) { // truth1 vars present
                 beg_pos = std::min(beg_pos, 
@@ -248,12 +248,12 @@ void clusterData::gap_supercluster() {
 
             /* printf("\nPOS: %d-%d\n", beg_pos, end_pos); */
             /* printf("SIZE: %d\n", end_pos - beg_pos); */
-            /* printf("CALLS1: clusters %d-%d of %d\n", calls1_clust_beg_idx, */ 
-            /*         calls1_clust_end_idx, int(calls1_vars->clusters.size())); */
-            /* for(int i = calls1_clust_beg_idx; i < calls1_clust_end_idx; i++) */
-            /*     printf("  %d", calls1_vars->poss[calls1_vars->clusters[i]); */
-            /* printf("CALLS2: clusters %d-%d of %d\n", calls2_clust_beg_idx, */ 
-            /*         calls2_clust_end_idx, int(calls2_vars->clusters.size())); */
+            /* printf("QUERY1: clusters %d-%d of %d\n", query1_clust_beg_idx, */ 
+            /*         query1_clust_end_idx, int(query1_vars->clusters.size())); */
+            /* for(int i = query1_clust_beg_idx; i < query1_clust_end_idx; i++) */
+            /*     printf("  %d", query1_vars->poss[query1_vars->clusters[i]); */
+            /* printf("QUERY2: clusters %d-%d of %d\n", query2_clust_beg_idx, */ 
+            /*         query2_clust_end_idx, int(query2_vars->clusters.size())); */
             /* printf("TRUTH1: clusters %d-%d of %d\n", truth1_clust_beg_idx, */ 
             /*         truth1_clust_end_idx, int(truth1_vars->clusters.size())); */
             /* printf("TRUTH2: clusters %d-%d of %d\n", truth2_clust_beg_idx, */ 
@@ -261,15 +261,15 @@ void clusterData::gap_supercluster() {
 
             // save alignment information
             this->ctg_superclusters[ctg]->add_supercluster(
-                    calls1_clust_beg_idx, calls1_clust_end_idx,
-                    calls2_clust_beg_idx, calls2_clust_end_idx,
+                    query1_clust_beg_idx, query1_clust_end_idx,
+                    query2_clust_beg_idx, query2_clust_end_idx,
                     truth1_clust_beg_idx, truth1_clust_end_idx,
                     truth2_clust_beg_idx, truth2_clust_end_idx,
                     beg_pos, end_pos);
 
             // reset for next merged cluster
-            calls1_clust_beg_idx = calls1_clust_end_idx;
-            calls2_clust_beg_idx = calls2_clust_end_idx;
+            query1_clust_beg_idx = query1_clust_end_idx;
+            query2_clust_beg_idx = query2_clust_end_idx;
             truth1_clust_beg_idx = truth1_clust_end_idx;
             truth2_clust_beg_idx = truth2_clust_end_idx;
         }
@@ -434,8 +434,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     if (left_compute) {
 
                         // calculate left reach
-                        std::string calls, ref;
-                        std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
+                        std::string query, ref;
+                        std::vector<int> query_ref_ptrs, ref_query_ptrs;
                         // just after last variant in previous cluster
                         int beg_pos = vcf->ctg_variants[hap][ctg]->poss[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
@@ -447,33 +447,33 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
                             vcf->ctg_variants[hap][ctg]->rlens[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]+1;
-                        generate_ptrs_strs(calls, ref,
-                                calls_ref_ptrs, ref_calls_ptrs, 
+                        generate_ptrs_strs(query, ref,
+                                query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
                                 clust, 0, clust+1, 0, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
-                        reverse_ptrs_strs(calls, ref, 
-                                calls_ref_ptrs, ref_calls_ptrs);
+                        reverse_ptrs_strs(query, ref, 
+                                query_ref_ptrs, ref_query_ptrs);
                         
                         // calculate max reaching path to left
-                        int reach = sw_max_reach(calls, ref, 
-                                calls_ref_ptrs, ref_calls_ptrs, 
+                        int reach = sw_max_reach(query, ref, 
+                                query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend,
                                 score, true); // reverse
                         l_reach = end_pos - reach;
                         /* printf("left reach: %d\n", reach); */
 
                         /* printf("REF:        %s\n", ref.data()); */
-                        /* printf("CALLS:      %s\n", calls.data()); */
-                        /* printf("CALLS->REF: "); */
-                        /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
-                        /*     printf("%d ", calls_ref_ptrs[i]); */ 
+                        /* printf("QUERY:      %s\n", query.data()); */
+                        /* printf("QUERY->REF: "); */
+                        /* for(size_t i = 0; i < query_ref_ptrs.size(); i++) */ 
+                        /*     printf("%d ", query_ref_ptrs[i]); */ 
                         /* printf("\n"); */
-                        /* printf("REF->CALLS: "); */
-                        /* for(size_t i = 0; i < ref_calls_ptrs.size(); i++) */ 
-                        /*     printf("%d ", ref_calls_ptrs[i]); */ 
+                        /* printf("REF->QUERY: "); */
+                        /* for(size_t i = 0; i < ref_query_ptrs.size(); i++) */ 
+                        /*     printf("%d ", ref_query_ptrs[i]); */ 
                         /* printf("\n"); */
                         
                     } else {
@@ -486,15 +486,15 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     if (right_compute) {
 
                         // calculate right reach
-                        std::string calls, ref;
-                        std::vector<int> calls_ref_ptrs, ref_calls_ptrs;
+                        std::string query, ref;
+                        std::vector<int> query_ref_ptrs, ref_query_ptrs;
                         int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust]]-1;
                         int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust+1]]
                                     + buffer; // TODO: remove
-                        generate_ptrs_strs(calls, ref,
-                                calls_ref_ptrs, ref_calls_ptrs, 
+                        generate_ptrs_strs(query, ref,
+                                query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
                                 clust, 0, clust+1, 0, beg_pos, end_pos,
@@ -502,21 +502,21 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         );
 
                         // calculate max reaching path to right
-                        int reach = sw_max_reach(calls, ref, 
-                                calls_ref_ptrs, ref_calls_ptrs, 
+                        int reach = sw_max_reach(query, ref, 
+                                query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score);
                         r_reach = beg_pos + reach;
                         /* printf("right reach: %d\n", reach); */
 
                         /* printf("REF:        %s\n", ref.data()); */
-                        /* printf("CALLS:      %s\n", calls.data()); */
-                        /* printf("CALLS->REF: "); */
-                        /* for(size_t i = 0; i < calls_ref_ptrs.size(); i++) */ 
-                        /*     printf("%d ", calls_ref_ptrs[i]); */ 
+                        /* printf("QUERY:      %s\n", query.data()); */
+                        /* printf("QUERY->REF: "); */
+                        /* for(size_t i = 0; i < query_ref_ptrs.size(); i++) */ 
+                        /*     printf("%d ", query_ref_ptrs[i]); */ 
                         /* printf("\n"); */
-                        /* printf("REF->CALLS: "); */
-                        /* for(size_t i = 0; i < ref_calls_ptrs.size(); i++) */ 
-                        /*     printf("%d ", ref_calls_ptrs[i]); */ 
+                        /* printf("REF->QUERY: "); */
+                        /* for(size_t i = 0; i < ref_query_ptrs.size(); i++) */ 
+                        /*     printf("%d ", ref_query_ptrs[i]); */ 
                         /* printf("\n"); */
                         
                     } else { // non-adjacent, don't really compute
