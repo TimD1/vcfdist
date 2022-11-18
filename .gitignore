@@ -17,6 +17,7 @@ scripts/lib
 scripts/data
 scripts/results
 scripts/phase
+analysis/*/
 src/compare
 test/
 out/
