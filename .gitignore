@@ -1,5 +1,6 @@
 .*.swp
 *.o
+*.log
 *.txt
 *.bed
 *.nfs*
