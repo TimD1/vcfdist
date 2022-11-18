@@ -6,11 +6,11 @@ max_gap = 50
 
 # affine: minimap2
 mm2_presets = {
-        "short":    { "a": 0, "b": 10, "o1": 14, "e1":4, "o2":26, "e2": 3 },
-        "map-ont":  { "a": 0, "b": 6,  "o1": 6,  "e1":4, "o2":26, "e2": 3 },
-        "map-hifi": { "a": 0, "b": 5,  "o1": 7,  "e1":3, "o2":27, "e2": 2 },
-        "asm5":     { "a": 0, "b": 20, "o1": 40, "e1":4, "o2":82, "e2": 2 },
-        "asm10":    { "a": 0, "b": 10, "o1": 17, "e1":3, "o2":42, "e2": 2 },
+        "short":    { "a": 0, "b": 10, "o1": 13, "e1":3, "o2":25,  "e2": 2 },
+        "map-ont":  { "a": 0, "b": 6,  "o1": 5,  "e1":3, "o2":25,  "e2": 2 },
+        "map-hifi": { "a": 0, "b": 10, "o1": 13, "e1":5, "o2":53,  "e2": 3 },
+        "asm5":     { "a": 0, "b": 40, "o1": 79, "e1":7, "o2":163, "e2": 3 },
+        "asm10":    { "a": 0, "b": 20, "o1": 33, "e1":5, "o2":83,  "e2": 3 },
 }
 for pre, val in mm2_presets.items():
     plt.plot(range(max_gap), [0] + [min(val["o2"] + val["e2"]*i, 
@@ -21,12 +21,11 @@ plt.plot(range(max_gap), [0] + [(4 + i)/5 for i in range(1,max_gap)])
 
 # linear: edit/indel dist
 plt.plot(range(max_gap), range(max_gap))
-plt.plot(range(max_gap), [y/2 for y in range(max_gap)])
 
 # convex: ngmlr
 ngmlr_presets = {
-        "ont": { "a": 0, "b": 6, "o": 4, "e_max": 4, "e_min": 3.5, "e_dec": 0.15},
-        "pb": {  "a": 0, "b": 7, "o": 7, "e_max": 7, "e_min": 3, "e_dec": 0.15},
+        "ont": { "a": 0, "b": 12, "o": 11, "e_max": 11, "e_min": 3, "e_dec": 0.15},
+        "pb": {  "a": 0, "b": 12, "o": 5, "e_max": 5, "e_min": 4, "e_dec": 0.15},
         }
 for pre, val in ngmlr_presets.items():
 
@@ -47,7 +46,7 @@ plt.plot(range(1,max_gap),
 plt.legend(
         [f"minimap2 {x}" for x in mm2_presets.keys()] + 
         ["npore"] +
-        ["edit-dist", "indel-dist"] + 
+        ["edit-dist"] + 
         [f"ngmlr {x}" for x in ngmlr_presets.keys()] +
         ["measured HG002-GRCh38"]
         )

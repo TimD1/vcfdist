@@ -81,8 +81,6 @@ calls_tp = 0
 calls_fp = 0
 calls_fn = sum(truth_data['SUB FN']) + \
         sum(calls_data['SUB TP']) + sum(calls_data['SUB PP'])
-truth_tp = 0
-truth_fn = 0
 for i in range(max_qual-1, -1, -1):
     calls_tp += calls_data['SUB TP'][i]
     calls_fp += calls_data['SUB FP'][i] + calls_data['SUB PP'][i]
@@ -98,8 +96,6 @@ calls_fp = 0
 calls_fn = sum(truth_data['INS FN']) + sum(truth_data['DEL FN']) + \
         sum(calls_data['INS TP']) + sum(calls_data['DEL TP']) + \
         sum(calls_data['INS PP']) + sum(calls_data['DEL PP'])
-truth_tp = 0
-truth_fn = 0
 for i in range(max_qual-1, -1, -1):
     calls_tp += calls_data['INS TP'][i] + calls_data['DEL TP'][i]
     calls_fp += calls_data['INS FP'][i] + calls_data['DEL FP'][i] + \
@@ -117,8 +113,6 @@ calls_tp = 0
 calls_fp = 0
 calls_fn = sum(truth_data['SUB FN']) + \
            sum(calls_data['SUB TP']) + sum(calls_data['SUB PP'])
-truth_tp = 0
-truth_fn = 0
 for i in range(max_qual-1, -1, -1):
     calls_tp += calls_data['SUB TP'][i] + calls_data['SUB PP'][i]
     calls_fp += calls_data['SUB FP'][i]
@@ -134,8 +128,6 @@ calls_fp = 0
 calls_fn = sum(truth_data['INS FN']) + sum(truth_data['DEL FN']) + \
         sum(calls_data['INS TP']) + sum(calls_data['DEL TP']) + \
         sum(calls_data['INS PP']) + sum(calls_data['DEL PP'])
-truth_tp = 0
-truth_fn = 0
 for i in range(max_qual-1, -1, -1):
     calls_tp += calls_data['INS TP'][i] + calls_data['DEL TP'][i] + \
                 calls_data['INS PP'][i] + calls_data['DEL PP'][i]
@@ -155,8 +147,6 @@ calls_fp = 0
 calls_fn =  sum(truth_data['SUB FN']) + \
             sum(calls_data['SUB TP']) + \
             sum(calls_data['SUB PP'])
-truth_tp = 0
-truth_fn = 0
 for i in range(max_qual-1, -1, -1):
     calls_tp += calls_data['SUB TP'][i] + pp_data['SUB'][i]
     calls_fp += calls_data['SUB FP'][i] + \
@@ -173,8 +163,6 @@ calls_fp = 0
 calls_fn = sum(truth_data['INS FN']) + sum(truth_data['DEL FN']) + \
         sum(calls_data['INS TP']) + sum(calls_data['DEL TP']) + \
         sum(calls_data['INS PP']) + sum(calls_data['DEL PP'])
-truth_tp = 0
-truth_fn = 0
 for i in range(max_qual-1, -1, -1):
     calls_tp += calls_data['INS TP'][i] + calls_data['DEL TP'][i] + \
                 pp_data['INS'][i] + pp_data['DEL'][i]

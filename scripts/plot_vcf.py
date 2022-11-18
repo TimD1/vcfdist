@@ -2,7 +2,8 @@ import pysam
 import matplotlib.pyplot as plt
 import numpy as np
 
-vcf_filename = "../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz"
+# vcf_filename = "../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz"
+vcf_filename = "../out/orig_truth.vcf"
 vcf_file = pysam.VariantFile(vcf_filename, 'r')
 fasta_filename = "/x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
 fasta_file = pysam.FastaFile(fasta_filename)

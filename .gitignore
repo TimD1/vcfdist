@@ -6,6 +6,7 @@
 *.nfs*
 *gmon.out
 *.svg
+*.vcf
 *.gprof
 vcfdist
 r10.4_chr20
@@ -15,6 +16,7 @@ scripts/img
 scripts/lib
 scripts/data
 scripts/results
+scripts/phase
 src/compare
 test/
 out/
