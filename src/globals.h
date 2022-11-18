@@ -29,6 +29,7 @@ public:
     int cluster_min_gap = 50;
     int print_verbosity = 0;
     int min_qual = 0;
+    int max_qual = 60;
 
     bool exit = false;
 
@@ -59,6 +60,9 @@ public:
 };
 
 extern Globals g;
+
+// defined in main.cpp
+extern std::vector<std::string> vartype_strs;
 extern std::vector<std::string> type_strs;
 extern std::vector<std::string> error_strs;
 extern std::vector<std::string> gt_strs;

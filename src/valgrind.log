@@ -1,0 +1,989 @@
+==46655== Memcheck, a memory error detector
+==46655== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==46655== Using Valgrind-3.15.0-608cb11914-20190413 and LibVEX; rerun with -h for copyright info
+==46655== Command: ./vcfdist ../analysis/1_results/A-calls.vcf ../analysis/1_results/B-truth.vcf /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta -b ../scripts/data/bench_20.bed --keep-calls --keep-truth -r ../out/A-calls_B-truth_
+==46655== Parent PID: 46654
+==46655== 
+--46655-- 
+--46655-- Valgrind options:
+--46655--    --leak-check=full
+--46655--    --show-leak-kinds=all
+--46655--    --track-origins=yes
+--46655--    --verbose
+--46655--    --log-file=valgrind.log
+--46655-- Contents of /proc/version:
+--46655--   Linux version 3.10.0-957.12.2.el7.x86_64 (mockbuild@kbuilder.bsys.centos.org) (gcc version 4.8.5 20150623 (Red Hat 4.8.5-36) (GCC) ) #1 SMP Tue May 14 21:24:32 UTC 2019
+--46655-- 
+--46655-- Arch and hwcaps: AMD64, LittleEndian, amd64-cx16-lzcnt-rdtscp-sse3-ssse3-avx-avx2-bmi-f16c-rdrand
+--46655-- Page sizes: currently 4096, max supported 4096
+--46655-- Valgrind library directory: /usr/libexec/valgrind
+--46655-- Reading syms from /home/timdunn/vcfdist/src/vcfdist
+--46655-- Reading syms from /usr/lib64/ld-2.17.so
+--46655-- Reading syms from /usr/libexec/valgrind/memcheck-amd64-linux
+--46655--    object doesn't have a symbol table
+--46655--    object doesn't have a dynamic symbol table
+--46655-- Scheduler: using generic scheduler lock implementation.
+--46655-- Reading suppressions file: /usr/libexec/valgrind/default.supp
+==46655== embedded gdbserver: reading from /tmp/vgdb-pipe-from-vgdb-to-46655-by-timdunn-on-mbit5
+==46655== embedded gdbserver: writing to   /tmp/vgdb-pipe-to-vgdb-from-46655-by-timdunn-on-mbit5
+==46655== embedded gdbserver: shared mem   /tmp/vgdb-pipe-shared-mem-vgdb-46655-by-timdunn-on-mbit5
+==46655== 
+==46655== TO CONTROL THIS PROCESS USING vgdb (which you probably
+==46655== don't want to do, unless you know exactly what you're doing,
+==46655== or are doing some strange experiment):
+==46655==   /usr/libexec/valgrind/../../bin/vgdb --pid=46655 ...command...
+==46655== 
+==46655== TO DEBUG THIS PROCESS USING GDB: start GDB like this
+==46655==   /path/to/gdb ./vcfdist
+==46655== and then give GDB the following command
+==46655==   target remote | /usr/libexec/valgrind/../../bin/vgdb --pid=46655
+==46655== --pid is optional if only one valgrind process is running
+==46655== 
+--46655-- REDIR: 0x4019e40 (ld-linux-x86-64.so.2:strlen) redirected to 0x580c7ed5 (???)
+--46655-- REDIR: 0x4019c10 (ld-linux-x86-64.so.2:index) redirected to 0x580c7eef (???)
+--46655-- Reading syms from /usr/libexec/valgrind/vgpreload_core-amd64-linux.so
+--46655-- Reading syms from /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so
+==46655== WARNING: new redirection conflicts with existing -- ignoring it
+--46655--     old: 0x04019e40 (strlen              ) R-> (0000.0) 0x580c7ed5 ???
+--46655--     new: 0x04019e40 (strlen              ) R-> (2007.0) 0x04c2d1b0 strlen
+--46655-- REDIR: 0x4019dc0 (ld-linux-x86-64.so.2:strcmp) redirected to 0x4c2e300 (strcmp)
+--46655-- REDIR: 0x401aa80 (ld-linux-x86-64.so.2:mempcpy) redirected to 0x4c31f90 (mempcpy)
+--46655-- Reading syms from /usr/lib64/libz.so.1.2.7
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/local/lib/libhts.so.1.9-391-gf8512fb
+--46655-- Reading syms from /usr/lib64/libstdc++.so.6.0.19
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libm-2.17.so
+--46655-- Reading syms from /usr/lib64/libgcc_s-4.8.5-20150702.so.1
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libc-2.17.so
+--46655-- Reading syms from /usr/lib64/libbz2.so.1.0.6
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/liblzma.so.5.2.2
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libcurl.so.4.3.0
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libpthread-2.17.so
+--46655-- Reading syms from /usr/lib64/libidn.so.11.6.11
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libssh2.so.1.0.1
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libssl3.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libsmime3.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libnss3.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libnssutil3.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libplds4.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libplc4.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libnspr4.so
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libdl-2.17.so
+--46655-- Reading syms from /usr/lib64/libgssapi_krb5.so.2.2
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libkrb5.so.3.3
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libk5crypto.so.3.1
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libcom_err.so.2.1
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/liblber-2.4.so.2.10.7
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libldap-2.4.so.2.10.7
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libssl.so.1.0.2k
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libcrypto.so.1.0.2k
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/librt-2.17.so
+--46655-- Reading syms from /usr/lib64/libkrb5support.so.0.1
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libkeyutils.so.1.5
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libresolv-2.17.so
+--46655-- Reading syms from /usr/lib64/libsasl2.so.3.0.0
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libselinux.so.1
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libcrypt-2.17.so
+--46655-- Reading syms from /usr/lib64/libpcre.so.1.2.0
+--46655--    object doesn't have a symbol table
+--46655-- Reading syms from /usr/lib64/libfreebl3.so
+--46655--    object doesn't have a symbol table
+--46655-- REDIR: 0x5bc21c0 (libc.so.6:strcasecmp) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbef40 (libc.so.6:strnlen) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc4490 (libc.so.6:strncasecmp) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc19a0 (libc.so.6:memset) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc1950 (libc.so.6:memcpy@GLIBC_2.2.5) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbe850 (libc.so.6:strcpy) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbee10 (libc.so.6:strlen) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbd3c0 (libc.so.6:strcmp) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc6b60 (libc.so.6:memcpy@@GLIBC_2.14) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc1b00 (libc.so.6:mempcpy) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc08b0 (libc.so.6:strncpy) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc2140 (libc.so.6:stpncpy) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbd300 (libc.so.6:index) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc1380 (libc.so.6:bcmp) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc8210 (libc.so.6:rawmemchr) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbd100 (libc.so.6:strcat) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5c47520 (libc.so.6:__memmove_chk) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bd7f70 (libc.so.6:strstr) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc0d60 (libc.so.6:strspn) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbf020 (libc.so.6:strncmp) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc08f0 (libc.so.6:rindex) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bc09d0 (libc.so.6:strpbrk) redirected to 0x4a247a0 (_vgnU_ifunc_wrapper)
+--46655-- REDIR: 0x5bbee60 (libc.so.6:__GI_strlen) redirected to 0x4c2d110 (__GI_strlen)
+--46655-- REDIR: 0x5bc0930 (libc.so.6:__GI_strrchr) redirected to 0x4c2cb70 (__GI_strrchr)
+--46655-- REDIR: 0x5bb8160 (libc.so.6:calloc) redirected to 0x4c2bff3 (calloc)
+--46655-- REDIR: 0x5bb7740 (libc.so.6:malloc) redirected to 0x4c29eec (malloc)
+--46655-- REDIR: 0x5bd79b0 (libc.so.6:__GI_strstr) redirected to 0x4c32220 (__strstr_sse2)
+--46655-- REDIR: 0x5bc1030 (libc.so.6:memchr) redirected to 0x4c2e3a0 (memchr)
+--46655-- REDIR: 0x5bc6bd0 (libc.so.6:__GI_memcpy) redirected to 0x4c2efb0 (__GI_memcpy)
+--46655-- REDIR: 0x5c72de0 (libc.so.6:__strstr_sse42) redirected to 0x4c322b0 (__strstr_sse42)
+--46655-- REDIR: 0x5bb7b60 (libc.so.6:free) redirected to 0x4c2afe6 (free)
+--46655-- REDIR: 0x5371170 (libstdc++.so.6:operator new(unsigned long)) redirected to 0x4c2a50c (operator new(unsigned long))
+--46655-- REDIR: 0x5ca17a0 (libc.so.6:__strlen_sse2_pminub) redirected to 0x4c2d0f0 (strlen)
+--46655-- REDIR: 0x5c86b60 (libc.so.6:__memcpy_ssse3_back) redirected to 0x4c2e7b0 (memcpy@@GLIBC_2.14)
+--46655-- REDIR: 0x536f2e0 (libstdc++.so.6:operator delete(void*)) redirected to 0x4c2b496 (operator delete(void*))
+--46655-- REDIR: 0x5bccda0 (libc.so.6:__strncpy_sse2_unaligned) redirected to 0x4c2d780 (__strncpy_sse2_unaligned)
+--46655-- REDIR: 0x5c70e00 (libc.so.6:__strchr_sse42) redirected to 0x4c2cd60 (index)
+--46655-- REDIR: 0x5c9c0d0 (libc.so.6:__memcmp_sse4_1) redirected to 0x4c30590 (__memcmp_sse4_1)
+--46655-- REDIR: 0xffffffffff600000 (???:???) redirected to 0x580c7eb7 (???)
+--46655-- REDIR: 0x5bc13c0 (libc.so.6:__GI_memcmp) redirected to 0x4c30450 (__GI_memcmp)
+--46655-- REDIR: 0x5bc8450 (libc.so.6:strchrnul) redirected to 0x4c31ab0 (strchrnul)
+--46655-- REDIR: 0x5bc1b70 (libc.so.6:__GI_mempcpy) redirected to 0x4c31cc0 (__GI_mempcpy)
+--46655-- REDIR: 0x5c70eb0 (libc.so.6:__strcmp_sse42) redirected to 0x4c2e2b0 (__strcmp_sse42)
+--46655-- REDIR: 0x5371280 (libstdc++.so.6:operator new[](unsigned long)) redirected to 0x4c2abb1 (operator new[](unsigned long))
+--46655-- REDIR: 0x5bc1a00 (libc.so.6:__GI_memset) redirected to 0x4c30ee0 (memset)
+--46655-- REDIR: 0x5c8c100 (libc.so.6:__memmove_ssse3_back) redirected to 0x4c2e460 (memcpy@GLIBC_2.2.5)
+--46655-- REDIR: 0x536f310 (libstdc++.so.6:operator delete[](void*)) redirected to 0x4c2bb08 (operator delete[](void*))
+--46655-- REDIR: 0x5bb7c40 (libc.so.6:realloc) redirected to 0x4c2c1c5 (realloc)
+==46655== 
+==46655== Process terminating with default action of signal 2 (SIGINT)
+==46655==    at 0x5C21A2E: __read_nocancel (in /usr/lib64/libc-2.17.so)
+==46655==    by 0x441369: ks_getuntil2(__kstream_t*, int, kstring_t*, int*, int) (fasta.h:10)
+==46655==    by 0x44268C: kseq_read (fasta.h:10)
+==46655==    by 0x44268C: fastaData::fastaData(_IO_FILE*) (fasta.h:16)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== HEAP SUMMARY:
+==46655==     in use at exit: 958,771,756 bytes in 93 blocks
+==46655==   total heap usage: 41,048 allocs, 40,955 frees, 1,228,881,104 bytes allocated
+==46655== 
+==46655== Searching for pointers to 93 not-freed blocks
+==46655== Checked 939,965,992 bytes
+==46655== 
+==46655== 8 bytes in 1 blocks are still reachable in loss record 1 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x441DFD: allocate (new_allocator.h:111)
+==46655==    by 0x441DFD: allocate (alloc_traits.h:436)
+==46655==    by 0x441DFD: _M_allocate (stl_bvector.h:530)
+==46655==    by 0x441DFD: _M_initialize (stl_bvector.h:1120)
+==46655==    by 0x441DFD: _M_initialize_range<bool const*> (stl_bvector.h:1184)
+==46655==    by 0x441DFD: vector (stl_bvector.h:687)
+==46655==    by 0x441DFD: Globals::Globals() (globals.h:50)
+==46655==    by 0x40BB5B: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:10)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 8 bytes in 1 blocks are still reachable in loss record 2 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x441ED7: allocate (new_allocator.h:111)
+==46655==    by 0x441ED7: allocate (alloc_traits.h:436)
+==46655==    by 0x441ED7: _M_allocate (stl_bvector.h:530)
+==46655==    by 0x441ED7: _M_initialize (stl_bvector.h:1120)
+==46655==    by 0x441ED7: _M_initialize_range<bool const*> (stl_bvector.h:1184)
+==46655==    by 0x441ED7: vector (stl_bvector.h:687)
+==46655==    by 0x441ED7: Globals::Globals() (globals.h:50)
+==46655==    by 0x40BB5B: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:10)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 8 bytes in 1 blocks are still reachable in loss record 3 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x42049B: void std::vector<std::string, std::allocator<std::string> >::_M_realloc_insert<std::string const&>(__gnu_cxx::__normal_iterator<std::string*, std::vector<std::string, std::allocator<std::string> > >, std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x43864E: bedData::add(std::string const&, int const&, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x438AF9: bedData::bedData(std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D3BE: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 8 bytes in 1 blocks are still reachable in loss record 4 of 81
+==46655==    at 0x4C29EBD: malloc (vg_replace_malloc.c:308)
+==46655==    by 0x4C2C210: realloc (vg_replace_malloc.c:836)
+==46655==    by 0x441520: ks_getuntil2(__kstream_t*, int, kstring_t*, int*, int) (fasta.h:10)
+==46655==    by 0x4425EE: ks_getuntil (fasta.h:10)
+==46655==    by 0x4425EE: kseq_read (fasta.h:10)
+==46655==    by 0x4425EE: fastaData::fastaData(_IO_FILE*) (fasta.h:16)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 16 bytes in 1 blocks are still reachable in loss record 5 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40BC6C: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:12)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 16 bytes in 1 blocks are still reachable in loss record 6 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x439055: std::_Hashtable<std::string, std::pair<std::string const, contigRegions>, std::allocator<std::pair<std::string const, contigRegions> >, std::__detail::_Select1st, std::equal_to<std::string>, std::hash<std::string>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::_M_insert_unique_node(unsigned long, unsigned long, std::__detail::_Hash_node<std::pair<std::string const, contigRegions>, true>*, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x439421: std::__detail::_Map_base<std::string, std::pair<std::string const, contigRegions>, std::allocator<std::pair<std::string const, contigRegions> >, std::__detail::_Select1st, std::equal_to<std::string>, std::hash<std::string>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[](std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x43857A: bedData::add(std::string const&, int const&, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x438AF9: bedData::bedData(std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D3BE: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 24 bytes in 1 blocks are still reachable in loss record 7 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40C06B: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:18)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 26 bytes in 1 blocks are still reachable in loss record 8 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C028: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:18)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 26 bytes in 1 blocks are still reachable in loss record 9 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C03D: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:18)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 26 bytes in 1 blocks are still reachable in loss record 10 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C052: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:18)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 11 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BCBE: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 12 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BCD3: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 13 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BCE8: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 14 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BCFD: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 15 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BD12: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 16 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BD27: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 27 bytes in 1 blocks are still reachable in loss record 17 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BD3C: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 18 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BB87: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:11)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 19 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BB9C: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:11)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 20 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BBB1: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:11)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 21 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BBC6: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:11)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 22 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BBDB: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:11)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 23 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BC3E: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:12)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 24 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BD9F: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 25 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BDB4: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 26 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BDC9: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 27 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BDDE: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 28 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BDF3: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 29 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BE08: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 30 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BE1D: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 31 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BE32: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 32 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BE47: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 33 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BE5C: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 28 bytes in 1 blocks are still reachable in loss record 34 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BE71: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 30 bytes in 1 blocks are still reachable in loss record 35 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x441F8E: Globals::Globals() (globals.h:50)
+==46655==    by 0x40BB5B: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:10)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 30 bytes in 1 blocks are still reachable in loss record 36 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BC53: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:12)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 30 bytes in 1 blocks are still reachable in loss record 37 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x417980: std::string::_Rep::_M_clone(std::allocator<char> const&, unsigned long) (basic_string.tcc:1078)
+==46655==    by 0x417A27: std::string::reserve(unsigned long) (basic_string.tcc:960)
+==46655==    by 0x417AEF: std::string::append(char const*, unsigned long) (basic_string.tcc:758)
+==46655==    by 0x5388903: std::basic_istream<char, std::char_traits<char> >& std::getline<char, std::char_traits<char>, std::allocator<char> >(std::basic_istream<char, std::char_traits<char> >&, std::basic_string<char, std::char_traits<char>, std::allocator<char> >&, char) (in /usr/lib64/libstdc++.so.6.0.19)
+==46655==    by 0x438A64: bedData::bedData(std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D3BE: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 38 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x441FA3: Globals::Globals() (globals.h:50)
+==46655==    by 0x40BB5B: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:10)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 39 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BEE4: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:16)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 40 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BEF9: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:16)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 41 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BF0E: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:16)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 42 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BF23: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:16)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 43 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40BF3C: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:16)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 32 bytes in 1 blocks are still reachable in loss record 44 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40BFDE: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:17)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 36 bytes in 1 blocks are still reachable in loss record 45 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x4190D4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.147] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x420735: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::string const&, unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EE9: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AD1: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40CEB6: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 36 bytes in 1 blocks are still reachable in loss record 46 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x4190D4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.147] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x420735: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::string const&, unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EE9: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AD1: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D09F: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 38 bytes in 1 blocks are still reachable in loss record 47 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BF86: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:17)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 38 bytes in 1 blocks are still reachable in loss record 48 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BF9B: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:17)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 38 bytes in 1 blocks are still reachable in loss record 49 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BFB0: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:17)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 38 bytes in 1 blocks are still reachable in loss record 50 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40BFC5: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:17)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 40 bytes in 1 blocks are still reachable in loss record 51 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40BBF4: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:11)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 40 bytes in 1 blocks are still reachable in loss record 52 of 81
+==46655==    at 0x4C2C089: calloc (vg_replace_malloc.c:762)
+==46655==    by 0x44250B: ks_init (fasta.h:10)
+==46655==    by 0x44250B: kseq_init (fasta.h:10)
+==46655==    by 0x44250B: fastaData::fastaData(_IO_FILE*) (fasta.h:15)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 40 bytes in 1 blocks are still reachable in loss record 53 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x44283E: allocate (new_allocator.h:111)
+==46655==    by 0x44283E: allocate (alloc_traits.h:436)
+==46655==    by 0x44283E: _M_allocate_buckets (hashtable_policy.h:2123)
+==46655==    by 0x44283E: _M_allocate_buckets (hashtable.h:366)
+==46655==    by 0x44283E: _M_rehash_aux (hashtable.h:2110)
+==46655==    by 0x44283E: _M_rehash (hashtable.h:2089)
+==46655==    by 0x44283E: _M_insert_unique_node (hashtable.h:1735)
+==46655==    by 0x44283E: operator[] (hashtable_policy.h:739)
+==46655==    by 0x44283E: operator[] (unordered_map.h:978)
+==46655==    by 0x44283E: fastaData::fastaData(_IO_FILE*) (fasta.h:17)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 48 bytes in 1 blocks are still reachable in loss record 54 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D737: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 53 bytes in 1 blocks are still reachable in loss record 55 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D375: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 56 bytes in 1 blocks are still reachable in loss record 56 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40BD55: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:13)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 56 bytes in 1 blocks are still reachable in loss record 57 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x40C15E: main (main.cpp:26)
+==46655== 
+==46655== 58 bytes in 1 blocks are still reachable in loss record 58 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40CE46: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 58 bytes in 1 blocks are still reachable in loss record 59 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40CE8E: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 58 bytes in 1 blocks are still reachable in loss record 60 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D02F: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 58 bytes in 1 blocks are still reachable in loss record 61 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D077: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 80 bytes in 1 blocks are still reachable in loss record 62 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4393A9: std::__detail::_Map_base<std::string, std::pair<std::string const, contigRegions>, std::allocator<std::pair<std::string const, contigRegions> >, std::__detail::_Select1st, std::equal_to<std::string>, std::hash<std::string>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, true>::operator[](std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x43857A: bedData::add(std::string const&, int const&, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x438AF9: bedData::bedData(std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D3BE: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 87 bytes in 3 blocks are still reachable in loss record 63 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x442747: fastaData::fastaData(_IO_FILE*) (fasta.h:17)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 88 bytes in 1 blocks are still reachable in loss record 64 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4346BD: allocate (new_allocator.h:111)
+==46655==    by 0x4346BD: allocate (alloc_traits.h:436)
+==46655==    by 0x4346BD: _M_allocate (stl_vector.h:296)
+==46655==    by 0x4346BD: _M_range_initialize<const std::basic_string<char>*> (stl_vector.h:1466)
+==46655==    by 0x4346BD: std::vector<std::string, std::allocator<std::string> >::vector(std::initializer_list<std::string>, std::allocator<std::string> const&) (stl_vector.h:519)
+==46655==    by 0x40BE8A: __static_initialization_and_destruction_0(int, int) [clone .constprop.154] (main.cpp:14)
+==46655==    by 0x47419C: __libc_csu_init (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x5B544E4: (below main) (in /usr/lib64/libc-2.17.so)
+==46655== 
+==46655== 94 bytes in 3 blocks are still reachable in loss record 65 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x4190D4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.147] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x420735: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::string const&, unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EE9: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AF2: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40CEB6: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 94 bytes in 3 blocks are still reachable in loss record 66 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x4190D4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.147] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x420735: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::string const&, unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EE9: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AF2: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D09F: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 95 bytes in 1 blocks are still reachable in loss record 67 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x40CCC4: char* std::string::_S_construct<char const*>(char const*, char const*, std::allocator<char> const&, std::forward_iterator_tag) [clone .part.53] (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x411092: std::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(char const*, std::allocator<char> const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D217: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 96 bytes in 2 blocks are still reachable in loss record 68 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x45169E: void std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::_M_realloc_insert<std::string, std::filesystem::path::_Type, unsigned long&>(__gnu_cxx::__normal_iterator<std::filesystem::path::_Cmpt*, std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> > >, std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451CC0: std::filesystem::path::_Cmpt& std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::emplace_back<std::string, std::filesystem::path::_Type, unsigned long&>(std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EFE: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AD1: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x4517A2: void std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::_M_realloc_insert<std::string, std::filesystem::path::_Type, unsigned long&>(__gnu_cxx::__normal_iterator<std::filesystem::path::_Cmpt*, std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> > >, std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451CC0: std::filesystem::path::_Cmpt& std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::emplace_back<std::string, std::filesystem::path::_Type, unsigned long&>(std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EFE: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AF2: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40CEB6: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 96 bytes in 2 blocks are still reachable in loss record 69 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x45169E: void std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::_M_realloc_insert<std::string, std::filesystem::path::_Type, unsigned long&>(__gnu_cxx::__normal_iterator<std::filesystem::path::_Cmpt*, std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> > >, std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451CC0: std::filesystem::path::_Cmpt& std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::emplace_back<std::string, std::filesystem::path::_Type, unsigned long&>(std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EFE: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AD1: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x4517A2: void std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::_M_realloc_insert<std::string, std::filesystem::path::_Type, unsigned long&>(__gnu_cxx::__normal_iterator<std::filesystem::path::_Cmpt*, std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> > >, std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451CC0: std::filesystem::path::_Cmpt& std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::emplace_back<std::string, std::filesystem::path::_Type, unsigned long&>(std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EFE: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AF2: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D09F: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 96 bytes in 3 blocks are still reachable in loss record 70 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x4427C0: allocate (new_allocator.h:111)
+==46655==    by 0x4427C0: allocate (alloc_traits.h:436)
+==46655==    by 0x4427C0: _M_allocate_node<const std::piecewise_construct_t&, std::tuple<std::basic_string<char, std::char_traits<char>, std::allocator<char> >&&>, std::tuple<> > (hashtable_policy.h:2077)
+==46655==    by 0x4427C0: operator[] (hashtable_policy.h:736)
+==46655==    by 0x4427C0: operator[] (unordered_map.h:978)
+==46655==    by 0x4427C0: fastaData::fastaData(_IO_FILE*) (fasta.h:17)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 112 bytes in 1 blocks are still reachable in loss record 71 of 81
+==46655==    at 0x4C2C089: calloc (vg_replace_malloc.c:762)
+==46655==    by 0x4424F9: kseq_init (fasta.h:10)
+==46655==    by 0x4424F9: fastaData::fastaData(_IO_FILE*) (fasta.h:15)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 128 bytes in 1 blocks are still reachable in loss record 72 of 81
+==46655==    at 0x4C29EBD: malloc (vg_replace_malloc.c:308)
+==46655==    by 0x4C2C210: realloc (vg_replace_malloc.c:836)
+==46655==    by 0x441520: ks_getuntil2(__kstream_t*, int, kstring_t*, int*, int) (fasta.h:10)
+==46655==    by 0x442612: ks_getuntil (fasta.h:10)
+==46655==    by 0x442612: kseq_read (fasta.h:10)
+==46655==    by 0x442612: fastaData::fastaData(_IO_FILE*) (fasta.h:16)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 192 bytes in 1 blocks are still reachable in loss record 73 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x45169E: void std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::_M_realloc_insert<std::string, std::filesystem::path::_Type, unsigned long&>(__gnu_cxx::__normal_iterator<std::filesystem::path::_Cmpt*, std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> > >, std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451CC0: std::filesystem::path::_Cmpt& std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::emplace_back<std::string, std::filesystem::path::_Type, unsigned long&>(std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EFE: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AF2: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40CEB6: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 192 bytes in 1 blocks are still reachable in loss record 74 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x45169E: void std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::_M_realloc_insert<std::string, std::filesystem::path::_Type, unsigned long&>(__gnu_cxx::__normal_iterator<std::filesystem::path::_Cmpt*, std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> > >, std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451CC0: std::filesystem::path::_Cmpt& std::vector<std::filesystem::path::_Cmpt, std::allocator<std::filesystem::path::_Cmpt> >::emplace_back<std::string, std::filesystem::path::_Type, unsigned long&>(std::string&&, std::filesystem::path::_Type&&, unsigned long&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x451EFE: std::filesystem::path::_M_add_filename(unsigned long, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x450AF2: std::filesystem::path::_M_split_cmpts() (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D09F: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 568 bytes in 1 blocks are still reachable in loss record 75 of 81
+==46655==    at 0x4C29F73: malloc (vg_replace_malloc.c:309)
+==46655==    by 0x5BA0C4C: __fopen_internal (in /usr/lib64/libc-2.17.so)
+==46655==    by 0x40D2C9: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 16,384 bytes in 1 blocks are still reachable in loss record 76 of 81
+==46655==    at 0x4C29F73: malloc (vg_replace_malloc.c:309)
+==46655==    by 0x44252B: ks_init (fasta.h:10)
+==46655==    by 0x44252B: kseq_init (fasta.h:10)
+==46655==    by 0x44252B: fastaData::fastaData(_IO_FILE*) (fasta.h:15)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 65,536 bytes in 1 blocks are still reachable in loss record 77 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x41F8EF: void std::vector<int, std::allocator<int> >::_M_realloc_insert<int const&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x43863A: bedData::add(std::string const&, int const&, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x438AF9: bedData::bedData(std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D3BE: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 65,536 bytes in 1 blocks are still reachable in loss record 78 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x41F8EF: void std::vector<int, std::allocator<int> >::_M_realloc_insert<int const&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x438623: bedData::add(std::string const&, int const&, int const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x438AF9: bedData::bedData(std::string const&) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40D3BE: Globals::parse_args(int, char**) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x40C154: main (main.cpp:23)
+==46655== 
+==46655== 729,884 bytes in 1 blocks are still reachable in loss record 79 of 81
+==46655==    at 0x4C2C089: calloc (vg_replace_malloc.c:762)
+==46655==    by 0x5C329B0: monstartup (in /usr/lib64/libc-2.17.so)
+==46655==    by 0x40C8AC: __gmon_start__ (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x7C39D2C: ??? (in /usr/lib64/libdl-2.17.so)
+==46655==    by 0x1FFF000454: ???
+==46655==    by 0x616E612F2E2E0073: ???
+==46655==    by 0x5F312F736973796B: ???
+==46655==    by 0x2F73746C75736571: ???
+==46655==    by 0x2E736C6C61632D40: ???
+==46655==    by 0x612F2E2E00666375: ???
+==46655==    by 0x2F736973796C616D: ???
+==46655==    by 0x746C757365725F30: ???
+==46655== 
+==46655== 268,435,456 bytes in 1 blocks are still reachable in loss record 80 of 81
+==46655==    at 0x4C2C291: realloc (vg_replace_malloc.c:836)
+==46655==    by 0x441520: ks_getuntil2(__kstream_t*, int, kstring_t*, int*, int) (fasta.h:10)
+==46655==    by 0x44268C: kseq_read (fasta.h:10)
+==46655==    by 0x44268C: fastaData::fastaData(_IO_FILE*) (fasta.h:16)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== 689,455,008 bytes in 3 blocks are still reachable in loss record 81 of 81
+==46655==    at 0x4C2A593: operator new(unsigned long) (vg_replace_malloc.c:344)
+==46655==    by 0x410EC5: allocate (new_allocator.h:111)
+==46655==    by 0x410EC5: std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&) (basic_string.tcc:1057)
+==46655==    by 0x418341: std::string::_M_mutate(unsigned long, unsigned long, unsigned long) (basic_string.tcc:929)
+==46655==    by 0x4207D4: std::string::assign(char const*, unsigned long) (in /home/timdunn/vcfdist/src/vcfdist)
+==46655==    by 0x442999: assign (basic_string.h:4333)
+==46655==    by 0x442999: operator= (basic_string.h:3656)
+==46655==    by 0x442999: fastaData::fastaData(_IO_FILE*) (fasta.h:17)
+==46655==    by 0x40C170: main (main.cpp:26)
+==46655== 
+==46655== LEAK SUMMARY:
+==46655==    definitely lost: 0 bytes in 0 blocks
+==46655==    indirectly lost: 0 bytes in 0 blocks
+==46655==      possibly lost: 0 bytes in 0 blocks
+==46655==    still reachable: 958,771,756 bytes in 93 blocks
+==46655==                       of which reachable via heuristic:
+==46655==                         stdstring          : 689,456,928 bytes in 60 blocks
+==46655==         suppressed: 0 bytes in 0 blocks
+==46655== 
+==46655== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

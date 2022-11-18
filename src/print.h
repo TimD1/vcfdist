@@ -7,6 +7,10 @@
 #include "globals.h"
 #include "phase.h"
 
+#define VARTYPE_SNP   0
+#define VARTYPE_INDEL 1
+#define VARTYPES      2
+
 std::string GREEN(char c);
 std::string GREEN(std::string str);
 std::string RED(char c);

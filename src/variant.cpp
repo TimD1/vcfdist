@@ -27,11 +27,12 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
     this->alts.push_back(alt);
     this->orig_gts.push_back(orig_gt);
     this->gt_quals.push_back(gq);
-    this->var_quals.push_back(vq);
+    this->var_quals.push_back(std::min(vq, float(g.max_qual)));
     this->n++;
 
     this->errtypes.push_back(ERRTYPE_UN);
     this->credit.push_back(0);
+    this->callq.push_back(0);
 }
 
 /******************************************************************************/
@@ -186,7 +187,8 @@ void variantData::add_variants(
                 cig_idx += 2;
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
                         TYPE_SUB, INSIDE, std::string(1,ref[ref_idx]), 
-                        std::string(1,calls[calls_idx]), GT_REF_REF, 50, qual);
+                        std::string(1,calls[calls_idx]), 
+                        GT_REF_REF, g.max_qual, qual);
                 ref_idx++;
                 calls_idx++;
                 break;
@@ -201,7 +203,7 @@ void variantData::add_variants(
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         indel_len, hap, TYPE_DEL, INSIDE,
                         ref.substr(ref_idx, indel_len),
-                        "", GT_REF_REF, 50, qual);
+                        "", GT_REF_REF, g.max_qual, qual);
                 ref_idx += indel_len;
                 break;
 
@@ -214,7 +216,8 @@ void variantData::add_variants(
                 }
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         0, hap, TYPE_INS, INSIDE, "", 
-                        calls.substr(calls_idx, indel_len), GT_REF_REF, 50, qual);
+                        calls.substr(calls_idx, indel_len), 
+                        GT_REF_REF, g.max_qual, qual);
                 calls_idx += indel_len;
                 break;
         }
@@ -560,7 +563,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     INFO(" ");
 
     INFO("  Variant Types:");
-    for (int h = 0; h < 2; h++) {
+    for (int h = 0; h < HAPS; h++) {
         INFO("    Haplotype %i", h+1);
         for (size_t i = 0; i < type_strs.size(); i++) {
             INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
@@ -569,14 +572,14 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     INFO(" ");
 
     if (g.print_verbosity >= 1) {
-        INFO("  Clusters:");
-        for(int i = 0; i < nseq; i++) {
-            for (int h = 0; h < 2; h++) {
-                if (this->ctg_variants[h][seqnames[i]]->poss.size() > 0) {
+        INFO("  Contigs:");
+        for (std::string ctg : this->contigs) {
+            for (int h = 0; h < HAPS; h++) {
+                if (this->ctg_variants[h][ctg]->poss.size() > 0) {
                     INFO("      '%s' hap %i: %lu variants", 
-                        this->contigs[i].data(),
+                        ctg.data(),
                         h+1,
-                        this->ctg_variants[h][seqnames[i]]->poss.size());
+                        this->ctg_variants[h][ctg]->poss.size());
                 }
             }
         }

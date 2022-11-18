@@ -316,7 +316,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
             }
             vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
             if (nvar) INFO("      %d resulting clusters.", 
-                    int(vcf->ctg_variants[hap][ctg]->clusters.size()));
+                    int(vcf->ctg_variants[hap][ctg]->clusters.size()-1));
         }
     }
 }
@@ -336,8 +336,9 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
     for (std::string ctg : vcf->contigs) {
 
         // only print for non-empty contigs
-        if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n)
+        if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n) {
             INFO("  Contig '%s'", ctg.data());
+        } else { continue; }
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < 2; hap++) {
@@ -348,7 +349,6 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
             std::vector<int> prev_clusters(nvar+1);
             for (size_t i = 0; i < nvar+1; i++) prev_clusters[i] = i;
             std::vector<bool> prev_merged(nvar+1, true);
-            prev_merged[nvar] = false; // end pointer isn't cluster
 
             std::vector<int> right_reach, left_reach;
             std::vector<int> next_clusters;
@@ -359,6 +359,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
             while (std::find(prev_merged.begin(), 
                         prev_merged.end(), true) != prev_merged.end()) {
                 iter++;
+                if (g.print_verbosity >= 2)
+                    printf("Iteration %d\n", iter);
 
                 // count clusters currently being expanded
                 int active = 0;
@@ -376,53 +378,50 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
 
                     // only compute necessary reaches (adjacent merge)
                     bool left_compute = prev_merged[clust];
-                    if (clust > 0)    
+                    if (clust > 0) // protect OOB
                         left_compute = left_compute || prev_merged[clust-1];
-                    // can't merge first cluster left, last cluster is just end ptr
-                    if (clust == 0 || clust >= prev_clusters.size()-1)
-                        left_compute = false;
                     bool right_compute = prev_merged[clust];
-                    if (clust < prev_merged.size()-1) 
+                    if (clust < prev_merged.size() - 1) // protect OOB
                         right_compute = right_compute || prev_merged[clust+1];
-                    // can't merge second to last cluster right, 
-                    // last cluster is just end ptr
-                    if (clust >= prev_clusters.size()-2)
+
+                    // edge cases
+                    if (clust == 0 || clust == prev_clusters.size()-1) {
+                        left_compute = false;
                         right_compute = false;
+                    }
+
+                    // debug print
+                    if (g.print_verbosity >= 2 && clust < prev_clusters.size()-1) {
+                        printf("\ncluster %d: vars %d-%d, pos %d-%d\n",
+                                int(clust), 
+                                vcf->ctg_variants[hap][ctg]->clusters[clust],
+                                vcf->ctg_variants[hap][ctg]->clusters[clust+1],
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
+                                vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
+                                vcf->ctg_variants[hap][ctg]->rlens[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]);
+                        for (int var_idx = vcf->ctg_variants[hap][ctg]->clusters[clust]; 
+                                var_idx < vcf->ctg_variants[hap][ctg]->clusters[clust+1]; var_idx++) {
+                            printf("    %s %d %s %s var:%d\n",
+                                    ctg.data(), 
+                                    vcf->ctg_variants[hap][ctg]->poss[var_idx],
+                                    vcf->ctg_variants[hap][ctg]->refs[var_idx].size() ? 
+                                        vcf->ctg_variants[hap][ctg]->refs[var_idx].data() : "_",
+                                    vcf->ctg_variants[hap][ctg]->alts[var_idx].size() ? 
+                                        vcf->ctg_variants[hap][ctg]->alts[var_idx].data() : "_",
+                                    var_idx
+                            );
+                        }
+                    }
 
                     int l_reach = 0, r_reach = 0, score = 0;
                     if (left_compute || right_compute) {
-
-                        // calculate existing VCF score
-                        /* printf("===========================================\n"); */
                         score = calc_vcf_sw_score(
                                 vcf->ctg_variants[hap][ctg], clust, clust+1,
                                 sub, open, extend);
-
-                        /* // debug print */
-                        /* printf("cluster %d: vars %d-%d, pos %d-%d\n", */
-                        /*         int(clust), */ 
-                        /*         vcf->ctg_variants[hap][ctg]->clusters[clust], */
-                        /*         vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1, */
-                        /*         vcf->ctg_variants[hap][ctg]->poss[ */ 
-                        /*             vcf->ctg_variants[hap][ctg]->clusters[clust]], */
-                        /*         vcf->ctg_variants[hap][ctg]->poss[ */ 
-                        /*             vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] + */
-                        /*         vcf->ctg_variants[hap][ctg]->rlens[ */ 
-                        /*             vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]); */
-                        /* for (int var_idx = vcf->ctg_variants[hap][ctg]->clusters[clust]; */ 
-                        /*         var_idx < vcf->ctg_variants[hap][ctg]->clusters[clust+1]; var_idx++) { */
-                        /*     printf("    %s %d %s %s var:%d\n", */
-                        /*             ctg.data(), */ 
-                        /*             vcf->ctg_variants[hap][ctg]->poss[var_idx], */
-                        /*             vcf->ctg_variants[hap][ctg]->refs[var_idx].size() ? */ 
-                        /*                 vcf->ctg_variants[hap][ctg]->refs[var_idx].data() : "_", */
-                        /*             vcf->ctg_variants[hap][ctg]->alts[var_idx].size() ? */ 
-                        /*                 vcf->ctg_variants[hap][ctg]->alts[var_idx].data() : "_", */
-                        /*             var_idx */
-                        /*     ); */
-                        /* } */
                         /* printf("orig score: %d\n", score); */
-
                     }
 
                     // LEFT REACH
@@ -479,7 +478,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         
                     } else {
                         // past farthest right (unused)
-                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+1;
+                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10;
                     }
                     left_reach.push_back(l_reach);
 
@@ -521,7 +520,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         /* printf("\n"); */
                         
                     } else { // non-adjacent, don't really compute
-                        r_reach = -1; // past farthest left (unused)
+                        r_reach = -10; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
                     /* printf("span: %d-%d\n", l_reach, r_reach); */
@@ -552,35 +551,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
             // save final clustering
             vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
 
-            if (nvar) INFO("      %d resulting clusters.", int(prev_clusters.size()));
-
-            /* printf("DONE CLUSTERING\n"); */
-            /* for(size_t clust = 0; clust < prev_clusters.size()-1; clust++) { */
-            /*     printf("===========================================\n"); */
-            /*     printf("cluster %d: vars %d-%d, pos %d-%d\n", */
-            /*             int(clust), */ 
-            /*             vcf->ctg_variants[hap][ctg]->clusters[clust], */
-            /*             vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1, */
-            /*             vcf->ctg_variants[hap][ctg]->poss[ */ 
-            /*                 vcf->ctg_variants[hap][ctg]->clusters[clust]], */
-            /*             vcf->ctg_variants[hap][ctg]->poss[ */ 
-            /*                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] + */
-            /*             vcf->ctg_variants[hap][ctg]->rlens[ */ 
-            /*                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]); */
-            /*     for (int var_idx = vcf->ctg_variants[hap][ctg]->clusters[clust]; */ 
-            /*             var_idx < vcf->ctg_variants[hap][ctg]->clusters[clust+1]; var_idx++) { */
-            /*         printf("    %s %d %s %s var:%d\n", */
-            /*                 ctg.data(), */ 
-            /*                 vcf->ctg_variants[hap][ctg]->poss[var_idx], */
-            /*                 vcf->ctg_variants[hap][ctg]->refs[var_idx].size() ? */ 
-            /*                     vcf->ctg_variants[hap][ctg]->refs[var_idx].data() : "_", */
-            /*                 vcf->ctg_variants[hap][ctg]->alts[var_idx].size() ? */ 
-            /*                     vcf->ctg_variants[hap][ctg]->alts[var_idx].data() : "_", */
-            /*                 var_idx */
-            /*         ); */
-            /*     } */
-            /* } */
-
+            if (nvar) INFO("      %d resulting clusters.", int(prev_clusters.size()-1));
         }
     }
 }

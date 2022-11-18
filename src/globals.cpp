@@ -90,6 +90,24 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid minimum variant quality provided");
             }
+            if (g.min_qual < 0) {
+                ERROR("Must provide non-negative minimum variant quality");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-m" || 
+                std::string(argv[i]) == "--max-qual") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-m' used without providing maximum variant quality");
+            }
+            try {
+                this->max_qual = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid maximum variant quality provided");
+            }
+            if (g.max_qual < g.min_qual) {
+                ERROR("Maximum variant quality must exceed minimum variant quality");
+            }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-p" || 
                 std::string(argv[i]) == "--print-verbosity") {
@@ -354,6 +372,9 @@ void Globals::print_usage() const
 
     printf("  -q, --min-qual <VALUE> [0]\n");
     printf("      minimum variant quality to be considered (lower qualities ignored)\n\n");
+
+    printf("  -m, --max-qual <VALUE> [60]\n");
+    printf("      maximum variant quality (higher qualities kept, thresholded)\n\n");
 
     printf("  -g, --supercluster-gap <VALUE> [50]\n");
     printf("      minimum base gap between independent superclusters\n\n");

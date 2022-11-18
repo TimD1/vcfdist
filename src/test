@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# valgrind --leak-check=full \
+#     --show-leak-kinds=all \
+#     --track-origins=yes \
+#     --verbose \
+#     --log-file=valgrind.log \
+#     ./vcfdist \
+#         ../analysis/1_results/A-calls.vcf \
+#         ../analysis/1_results/B-truth.vcf \
+#         /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+#         -b ../scripts/data/bench_20.bed \
+#         --keep-calls --keep-truth \
+#         -r ../out/A-calls_B-truth_
+
+./vcfdist \
+    ../analysis/1_results/A-calls.vcf \
+    ../analysis/1_results/B-truth.vcf \
+    /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+    -b ../scripts/data/bench_20.bed \
+    -r ../out/A-calls_B-truth_
+    # --keep-calls --keep-truth \

@@ -290,7 +290,8 @@ variantData edit_dist_realign(
                             cig_idx += 2;
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx, 1, h, 
                                     TYPE_SUB, INSIDE, std::string(1,ref_str[ref_idx]), 
-                                    std::string(1,alt_str[alt_idx]), GT_REF_REF, 50, 50);
+                                    std::string(1,alt_str[alt_idx]), 
+                                    GT_REF_REF, g.max_qual, g.max_qual);
                             ref_idx++;
                             alt_idx++;
                             break;
@@ -305,7 +306,7 @@ variantData edit_dist_realign(
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
                                     indel_len, h, TYPE_DEL, INSIDE,
                                     ref_str.substr(ref_idx, indel_len),
-                                    "", GT_REF_REF, 50, 50);
+                                    "", GT_REF_REF, g.max_qual, g.max_qual);
                             ref_idx += indel_len;
                             break;
 
@@ -318,7 +319,8 @@ variantData edit_dist_realign(
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
                                     0, h, TYPE_INS, INSIDE, "", 
-                                    alt_str.substr(alt_idx, indel_len), GT_REF_REF, 50, 50);
+                                    alt_str.substr(alt_idx, indel_len), 
+                                    GT_REF_REF, g.max_qual, g.max_qual);
                             alt_idx += indel_len;
                             break;
                     }
@@ -1269,6 +1271,8 @@ void calc_prec_recall(
                 if (hi == ri) { // FP
                     calls_vars[i]->errtypes[calls_var_ptr] = ERRTYPE_FP;
                     calls_vars[i]->credit[calls_var_ptr] = 0;
+                    calls_vars[i]->callq[calls_var_ptr] = 
+                        calls_vars[i]->var_quals[calls_var_ptr];
                     if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                             calls_vars[i]->refs[calls_var_ptr].data(),
                             calls_vars[i]->alts[calls_var_ptr].data(), "FP", 0.0f);
@@ -1317,6 +1321,13 @@ void calc_prec_recall(
                 if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
                     ERROR("Old edit distance 0, variants exist.");
 
+                // get min calls var qual in sync section (for truth/calls)
+                float callq = g.max_qual;
+                for (int calls_var_idx = prev_calls_var_ptr; 
+                        calls_var_idx > calls_var_ptr; calls_var_idx--) {
+                    callq = std::min(callq, calls_vars[i]->var_quals[calls_var_idx]);
+                }
+
                 // process CALLS variants
                 for (int calls_var_idx = prev_calls_var_ptr; 
                         calls_var_idx > calls_var_ptr; calls_var_idx--) {
@@ -1326,6 +1337,7 @@ void calc_prec_recall(
                         if (new_ed == 0) { // TP
                             calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_TP;
                             calls_vars[i]->credit[calls_var_idx] = credit;
+                            calls_vars[i]->callq[calls_var_idx] = callq;
                             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                                     calls_vars[i]->refs[calls_var_idx].data(),
                                     calls_vars[i]->alts[calls_var_idx].data(), 
@@ -1333,6 +1345,7 @@ void calc_prec_recall(
                         } else if (new_ed == old_ed) { // FP
                             calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_FP;
                             calls_vars[i]->credit[calls_var_idx] = 0;
+                            calls_vars[i]->callq[calls_var_idx] = callq;
                             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                                     calls_vars[i]->refs[calls_var_idx].data(),
                                     calls_vars[i]->alts[calls_var_idx].data(), 
@@ -1340,6 +1353,7 @@ void calc_prec_recall(
                         } else { // PP
                             calls_vars[i]->errtypes[calls_var_idx] = ERRTYPE_PP;
                             calls_vars[i]->credit[calls_var_idx] = credit;
+                            calls_vars[i]->callq[calls_var_idx] = callq;
                             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                                     calls_vars[i]->refs[calls_var_idx].data(),
                                     calls_vars[i]->alts[calls_var_idx].data(), 
@@ -1355,13 +1369,15 @@ void calc_prec_recall(
                     if (new_ed == 0) { // TP
                         truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_TP;
                         truth_vars[i]->credit[truth_var_idx] = credit;
+                        truth_vars[i]->callq[truth_var_idx] = callq;
                         if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars[i]->refs[truth_var_idx].data(),
                                 truth_vars[i]->alts[truth_var_idx].data(), 
                                 "TP", credit);
-                    } else if (new_ed == old_ed) { // FN
+                    } else if (new_ed == old_ed) { // FP call, FN truth
                         truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_FN;
                         truth_vars[i]->credit[truth_var_idx] = credit;
+                        truth_vars[i]->callq[truth_var_idx] = g.max_qual;
                         if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars[i]->refs[truth_var_idx].data(),
                                 truth_vars[i]->alts[truth_var_idx].data(), 
@@ -1369,6 +1385,7 @@ void calc_prec_recall(
                     } else { // PP
                         truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_PP;
                         truth_vars[i]->credit[truth_var_idx] = credit;
+                        truth_vars[i]->callq[truth_var_idx] = callq;
                         if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars[i]->refs[truth_var_idx].data(),
                                 truth_vars[i]->alts[truth_var_idx].data(), 
@@ -1638,7 +1655,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 // print cluster info
                 printf("\n\nCALLS1: %d clusters\n", sc->calls1_end_idx[sc_idx] - sc->calls1_beg_idx[sc_idx]);
                 for(int i = sc->calls1_beg_idx[sc_idx]; i < sc->calls1_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
                             calls1_vars->clusters[i+1]-calls1_vars->clusters[i],
                             calls1_vars->clusters[i], calls1_vars->clusters[i+1]);
                     for(int j = calls1_vars->clusters[i]; j < calls1_vars->clusters[i+1]; j++) {
@@ -1649,7 +1666,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 }
                 printf("CALLS2: %d clusters\n", sc->calls2_end_idx[sc_idx] - sc->calls2_beg_idx[sc_idx]);
                 for(int i = sc->calls2_beg_idx[sc_idx]; i < sc->calls2_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
                             calls2_vars->clusters[i+1]-calls2_vars->clusters[i],
                             calls2_vars->clusters[i], calls2_vars->clusters[i+1]);
                     for(int j = calls2_vars->clusters[i]; j < calls2_vars->clusters[i+1]; j++) {
@@ -1660,7 +1677,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 }
                 printf("TRUTH1: %d clusters\n", sc->truth1_end_idx[sc_idx] - sc->truth1_beg_idx[sc_idx]);
                 for(int i = sc->truth1_beg_idx[sc_idx]; i < sc->truth1_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
                             truth1_vars->clusters[i+1]-truth1_vars->clusters[i],
                             truth1_vars->clusters[i], truth1_vars->clusters[i+1]);
                     for(int j = truth1_vars->clusters[i]; j < truth1_vars->clusters[i+1]; j++) {
@@ -1671,7 +1688,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
                 }
                 printf("TRUTH2: %d clusters\n", sc->truth2_end_idx[sc_idx] - sc->truth2_beg_idx[sc_idx]);
                 for(int i = sc->truth2_beg_idx[sc_idx]; i < sc->truth2_end_idx[sc_idx]; i++) {
-                    printf("\tGroup %d: %d variants (%d-%d)\n", i, 
+                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
                             truth2_vars->clusters[i+1]-truth2_vars->clusters[i],
                             truth2_vars->clusters[i], truth2_vars->clusters[i+1]);
                     for(int j = truth2_vars->clusters[i]; j < truth2_vars->clusters[i+1]; j++) {
@@ -1914,7 +1931,7 @@ std::unique_ptr<variantData> sw_realign(
                 int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1]+1;
 
                 // variant qual is minimum in cluster
-                float qual = 100;
+                float qual = g.max_qual;
                 for (int i = beg_idx; i < end_idx; i++) {
                     qual = std::min(qual, vars->var_quals[i]);
                 }

@@ -249,12 +249,153 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
 /*******************************************************************************/
 
 
+void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
+
+    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN,PP,PP_FRAC, ax2: QUAL
+    int PP_FRAC = 4;
+    std::vector< std::vector< std::vector<double> > > calls_counts(VARTYPES,
+            std::vector< std::vector<double> >(5, 
+            std::vector<double>(g.max_qual-g.min_qual+1, 0))) ;
+    std::vector< std::vector< std::vector<double> > > truth_counts(VARTYPES,
+            std::vector< std::vector<double> >(5, 
+            std::vector<double>(g.max_qual-g.min_qual+1, 0))) ;
+
+    // calculate summary statistics
+    for (auto ctg_name : phasedata_ptr->contigs) {
+
+        // add calls
+        std::shared_ptr<ctgVariants> calls1_vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->calls1_vars;
+        std::shared_ptr<ctgVariants> calls2_vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->calls2_vars;
+        std::vector< std::shared_ptr<ctgVariants> > calls_ptr = {calls1_vars, calls2_vars};
+        for (int h = 0; h < HAPS; h++) {
+            for (int i = 0; i < calls_ptr[h]->n; i++) {
+                float q = calls_ptr[h]->callq[i];
+                int t = 0;
+                if (calls_ptr[h]->types[i] == TYPE_SUB) {
+                    t = VARTYPE_SNP;
+                } else if (calls_ptr[h]->types[i] == TYPE_INS ||
+                        calls_ptr[h]->types[i] == TYPE_DEL) {
+                    t = VARTYPE_INDEL;
+                } else {
+                    ERROR("Unexpected variant type (%d) in write_precision_recall()", 
+                            calls_ptr[h]->types[i]);
+                }
+                if (calls_ptr[h]->errtypes[i] == ERRTYPE_UN) {
+                    WARN("Unknown error type at hap %d variant %d", h+1, i);
+                    continue;
+                }
+                for (int qual = g.min_qual; qual <= q; qual++) {
+                    calls_counts[t][ calls_ptr[h]->errtypes[i] ][qual-g.min_qual]++;
+                    if (calls_ptr[h]->errtypes[i] == ERRTYPE_PP) {
+                        calls_counts[t][PP_FRAC][qual-g.min_qual] += calls_ptr[h]->credit[i];
+                    }
+                }
+            }
+        }
+
+        // add truth
+        std::shared_ptr<ctgVariants> truth1_vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth1_vars;
+        std::shared_ptr<ctgVariants> truth2_vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth2_vars;
+        std::vector< std::shared_ptr<ctgVariants> > truth_ptr = {truth1_vars, truth2_vars};
+        for (int h = 0; h < HAPS; h++) {
+            for (int i = 0; i < truth_ptr[h]->n; i++) {
+                float q = truth_ptr[h]->callq[i];
+                int t = 0;
+                if (truth_ptr[h]->types[i] == TYPE_SUB) {
+                    t = VARTYPE_SNP;
+                } else if (truth_ptr[h]->types[i] == TYPE_INS ||
+                        truth_ptr[h]->types[i] == TYPE_DEL) {
+                    t = VARTYPE_INDEL;
+                } else {
+                    ERROR("Unexpected variant type (%d) in write_precision_recall()", 
+                            truth_ptr[h]->types[i]);
+                }
+                for (int qual = g.min_qual; qual <= q; qual++) {
+                    truth_counts[t][ truth_ptr[h]->errtypes[i] ][qual-g.min_qual]++;
+                    if (truth_ptr[h]->errtypes[i] == ERRTYPE_PP) {
+                        truth_counts[t][PP_FRAC][qual-g.min_qual] += truth_ptr[h]->credit[i];
+                    }
+                }
+            }
+        }
+    }
+
+    // write results
+    std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
+    INFO("  Printing precision-recall results to '%s'", out_pr_fn.data());
+    FILE* out_pr = fopen(out_pr_fn.data(), "w");
+    fprintf(out_pr, "TYPE\tQUAL\tPRECISION\tRECALL\tF1_SCORE\t"
+            "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tCALLS_TOTAL\tCALLS_TP\tCALLS_PP\tCALLS_FP\n");
+    for (int type = 0; type < VARTYPES; type++) {
+        std::vector<float> max_f1_score = {0, 0};
+        std::vector<float> max_f1_qual = {0, 0};
+
+        // only sweeping calls qualities; always consider all truth variants
+        for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
+            int qidx = qual - g.min_qual;
+
+            int calls_tot = calls_counts[type][ERRTYPE_TP][qidx] + \
+                        calls_counts[type][ERRTYPE_FP][qidx] + \
+                        calls_counts[type][ERRTYPE_PP][qidx];
+            float calls_tp_f = calls_counts[type][ERRTYPE_TP][qidx] + \
+                         calls_counts[type][PP_FRAC][qidx];
+            if (calls_tot == 0) break;
+
+            int truth_tot = truth_counts[type][ERRTYPE_TP][0] + \
+                        truth_counts[type][ERRTYPE_PP][0] + \
+                        truth_counts[type][ERRTYPE_FN][0];
+            int truth_fn = truth_counts[type][ERRTYPE_FN][0] + \
+                             truth_counts[type][ERRTYPE_TP][0] - \
+                             truth_counts[type][ERRTYPE_TP][qidx];
+            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] + \
+                             truth_counts[type][PP_FRAC][qidx];
+            if (truth_tot == 0) break;
+
+            float precision = calls_tp_f / calls_tot;
+            float recall = truth_tp_f / truth_tot ;
+            float f1_score = 2*precision*recall / (precision + recall);
+            if (f1_score > max_f1_score[type]) {
+                max_f1_score[type] = f1_score;
+                max_f1_qual[type] = qual;
+            }
+
+            fprintf(out_pr, 
+                    "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+                    vartype_strs[type].data(),
+                    qual,
+                    precision,
+                    recall, 
+                    f1_score,
+                    truth_tot,
+                    int(truth_counts[type][ERRTYPE_TP][qidx]),
+                    int(truth_counts[type][ERRTYPE_PP][qidx]),
+                    truth_fn,
+                    calls_tot, 
+                    int(calls_counts[type][ERRTYPE_TP][qidx]),
+                    int(calls_counts[type][ERRTYPE_PP][qidx]),
+                    int(calls_counts[type][ERRTYPE_FP][qidx])
+           );
+        }
+    }
+
+}
+
+/*******************************************************************************/
+
+
 void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     INFO(" ");
     INFO("7. Writing results");
 
+    // print summary (precision/recall) information
+    write_precision_recall(phasedata_ptr);
+
     // print phasing information
-    std::string out_phasings_fn = g.out_prefix + "phaseblocks.tsv";
+    std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
     INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
@@ -332,7 +473,13 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                     calls1_vars->poss[var1_idx] < calls2_vars->poss[var2_idx]) { // calls1 var next
 
                 // we've entered the next supercluster
-                if (calls1_vars->clusters[cluster1_idx] <= var1_idx) cluster1_idx++;
+                if (cluster1_idx+1 >= int(calls1_vars->clusters.size())) 
+                    ERROR("Out of bounds cluster during write_results(): calls1")
+                if (calls1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
+                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                    ERROR("Out of bounds supercluster during write_results(): calls1")
+                if (calls1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
+                    supercluster_idx++;
                 fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         calls1_vars->poss[var1_idx],
@@ -347,14 +494,15 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         supercluster_idx,
                         region_strs[calls1_vars->locs[var1_idx]].data()
                        );
-                if (calls1_vars->poss[var1_idx] >= ctg_supclusts->begs[supercluster_idx]) {
-                    supercluster_idx++;
-                }
-                if (cluster1_idx >= int(calls1_vars->clusters.size())) 
-                    ERROR("Out of bounds cluster during write_results(): calls1")
                 var1_idx++;
             } else { // process calls2 var
-                if (calls2_vars->clusters[cluster2_idx] <= var2_idx) cluster2_idx++;
+                if (cluster2_idx+1 >= int(calls2_vars->clusters.size()))
+                    ERROR("Out of bounds cluster during write_results(): calls2")
+                if (calls2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
+                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                    ERROR("Out of bounds supercluster during write_results(): calls2")
+                if (calls2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
+                    supercluster_idx++;
                 fprintf(out_calls, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         calls2_vars->poss[var2_idx],
@@ -369,11 +517,6 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         supercluster_idx,
                         region_strs[calls2_vars->locs[var2_idx]].data()
                        );
-                if (calls2_vars->poss[var2_idx] >= ctg_supclusts->begs[supercluster_idx]) {
-                    supercluster_idx++;
-                }
-                if (cluster2_idx >= int(calls2_vars->clusters.size()))
-                    ERROR("Out of bounds cluster during write_results(): calls2")
                 var2_idx++;
             }
         }
@@ -403,7 +546,13 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
         while (var1_idx < truth1_vars->n || var2_idx < truth2_vars->n) {
             if (var2_idx >= truth2_vars->n || // only truth1 has remaining vars
                     truth1_vars->poss[var1_idx] < truth2_vars->poss[var2_idx]) { // truth1 var next
-                if (truth1_vars->clusters[cluster1_idx] <= var1_idx) cluster1_idx++;
+                if (cluster1_idx+1 >= int(truth1_vars->clusters.size()))
+                    ERROR("Out of bounds cluster during write_results(): truth1")
+                if (truth1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
+                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                    ERROR("Out of bounds supercluster during write_results(): truth1")
+                if (truth1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
+                    supercluster_idx++;
                 fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         truth1_vars->poss[var1_idx],
@@ -418,14 +567,16 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         supercluster_idx,
                         region_strs[truth1_vars->locs[var1_idx]].data()
                        );
-                if (truth1_vars->poss[var1_idx] >= ctg_supclusts->begs[supercluster_idx]) {
-                    supercluster_idx++;
-                }
-                if (cluster1_idx >= int(truth1_vars->clusters.size()))
-                    ERROR("Out of bounds cluster during write_results(): truth1")
                 var1_idx++;
             } else { // process truth2 var
-                if (truth2_vars->clusters[cluster2_idx] <= var2_idx) cluster2_idx++;
+                if (cluster2_idx+1 >= int(truth2_vars->clusters.size())) {
+                    ERROR("Out of bounds cluster during write_results(): truth2")
+                }
+                if (truth2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
+                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                    ERROR("Out of bounds supercluster during write_results(): truth2")
+                if (truth2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
+                    supercluster_idx++;
                 fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
                         truth2_vars->poss[var2_idx],
@@ -440,11 +591,6 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
                         supercluster_idx,
                         region_strs[truth2_vars->locs[var2_idx]].data()
                        );
-                if (truth2_vars->poss[var2_idx] >= ctg_supclusts->begs[supercluster_idx]) {
-                    supercluster_idx++;
-                }
-                if (cluster2_idx >= int(truth2_vars->clusters.size()))
-                    ERROR("Out of bounds cluster during write_results(): truth2")
                 var2_idx++;
             }
         }

@@ -18,6 +18,7 @@
 
 #define HAP1 0
 #define HAP2 1
+#define HAPS 2
 
 #define FAIL 0
 #define PASS 1
@@ -52,7 +53,7 @@ public:
     std::vector<int> rlens;         // reference lengths
     std::vector<uint8_t> haps;      // variant haplotype
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
-    std::vector<uint8_t> locs;       // BED location: INSIDE, OUTSIDE, BORDER
+    std::vector<uint8_t> locs;      // BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  // variant reference allele
     std::vector<std::string> alts;  // variant alternate allele (always one)
     std::vector<uint8_t> orig_gts;  // simple genotype (0|1, 1|0, or 1|1)
@@ -62,7 +63,9 @@ public:
 
     // set during prec_recall_aln()
     std::vector<uint8_t> errtypes;     // error type: TP, FP, FN, PP
-    std::vector<float> credit;
+    std::vector<float> callq;   // call quality (for truth, of associated call)
+                                // or for call, min quality in sync group
+    std::vector<float> credit;  // fraction of TP for partial positive (PP)
 };
 
 class variantData {
