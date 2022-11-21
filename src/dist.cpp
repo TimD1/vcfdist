@@ -1532,7 +1532,7 @@ void calc_edit_dist_aln(
 /******************************************************************************/
 
 
-void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
+int alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
     INFO(" ");
     INFO("Calculating edit distance");
 
@@ -1713,6 +1713,7 @@ void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
     } // each contig
     INFO(" ");
     INFO("  Total edit distance: %d", distance);
+    return distance;
 }
 
 

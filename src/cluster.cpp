@@ -364,7 +364,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
 
                 // count clusters currently being expanded
                 int active = 0;
-                for (size_t i = 0; i < prev_merged.size(); i++) {
+                for (size_t i = 0; i < prev_merged.size()-1; i++) {
                     if (prev_merged[i]) active++;
                 }
                 INFO("      Iteration %d: %d clusters, %d active",

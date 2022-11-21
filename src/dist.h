@@ -217,7 +217,7 @@ std::vector<int> sw_backtrack(
 
 /******************************************************************************/
 
-void alignment_wrapper(
+int alignment_wrapper(
         std::shared_ptr<clusterData> clusterdata_ptr);
 
 variantData edit_dist_realign(

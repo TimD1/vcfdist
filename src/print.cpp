@@ -387,12 +387,19 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
+void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
     INFO(" ");
     INFO("Writing results");
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
+
+    // print distance information
+    std::string dist_fn = g.out_prefix + "distance.tsv";
+    FILE* dist = fopen(dist_fn.data(), "w");
+    INFO("  Printing edit distance results to '%s'", dist_fn.data());
+    fprintf(dist, "%d\n", distance);
+    fclose(dist);
 
     // print phasing information
     std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";

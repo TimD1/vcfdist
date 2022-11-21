@@ -33,7 +33,7 @@ void print_wfa_ptrs(
         std::vector< std::vector< std::vector<int> > > offs, 
         std::vector< std::vector< std::vector<int> > > ptrs);
 
-void write_results(std::unique_ptr<phaseData> & phasings);
+void write_results(std::unique_ptr<phaseData> & phasings, int dist);
 
 /* --------------------------------------------------------------------------- */
 
