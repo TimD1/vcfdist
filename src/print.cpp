@@ -405,7 +405,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
     std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
     INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
-    fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\n");
+    fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         ctgPhasings ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
         std::shared_ptr<ctgClusters> ctg_superclusters = ctg_phasings.ctg_superclusters;
@@ -414,8 +414,8 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
             int end_idx = ctg_phasings.phase_blocks[i+1]-1;
             int beg = ctg_superclusters->begs[beg_idx];
             int end = ctg_superclusters->ends[end_idx];
-            fprintf(out_phasings, "%s\t%d\t%d\t%d\n", 
-                    ctg_name.data(), beg, end, end-beg);
+            fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\n", 
+                    ctg_name.data(), beg, end, end-beg, end_idx-beg_idx+1);
         }
     }
     fclose(out_phasings);
@@ -432,7 +432,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
         for (int i = 0; i < ctg_supclusts->n; i++) {
 
             // we've entered the next phase block
-            if (i >= ctg_phasings.phase_blocks[phase_block_idx]) {
+            if (i >= ctg_phasings.phase_blocks[phase_block_idx+1]) {
                 phase_block_idx++;
             }
 

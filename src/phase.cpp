@@ -81,7 +81,7 @@ void phaseData::phase()
         if (this->ctg_phasings[ctg].n > 0) { // skip empty contigs
             int i = this->ctg_phasings[ctg].n-1;
             int phase = 0;
-            this->ctg_phasings[ctg].phase_blocks.push_back(i);
+            this->ctg_phasings[ctg].phase_blocks.push_back(i+1);
             while (i > 0) {
                 if (ptrs[phase][i] == PHASE_PTR_SWAP) {
                     phase ^= 1;
