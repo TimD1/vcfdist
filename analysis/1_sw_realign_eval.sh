@@ -65,7 +65,7 @@ parallel -j8 --joblog "vcfdist-compare.log" \
     1_results/{2}-truth.vcf \
     $ref \
     -b $bed \
-    --keep-calls --keep-truth \
+    --keep-query --keep-truth \
     -r 1_results/{1}-calls_{2}-truth_" ::: ${names[@]} ::: ${names[@]}
 
 # # hap.py evaluation

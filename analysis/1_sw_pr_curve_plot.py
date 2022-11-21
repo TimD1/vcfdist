@@ -11,7 +11,6 @@ fig.suptitle("Varying Truth/Calls Smith-Waterman Parameters")
 
 idx = 0
 for calls in names:
-    idx += 1
     for truth in "C":
         with open(f"1_results/{calls}-calls_{truth}-truth.roc.all.csv") as csv:
             label = f"VCFeval Calls={calls} Truth={truth}"
@@ -58,6 +57,7 @@ for calls in names:
                     marker='x', color=f"C{idx}", label=label)
         ax1.set_title("SNPs")
         ax2.set_title("INDELs")
+    idx += 1
  
 ax1.set_xlabel("Recall")
 ax1.set_ylabel("Precision")
