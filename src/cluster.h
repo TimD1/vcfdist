@@ -16,11 +16,11 @@
 #define PHASE_PTR_SWAP 1
 
 
-class ctgClusters {
+class ctgSuperclusters {
 public:
 
     // constructor
-    ctgClusters() {;}
+    ctgSuperclusters() {;}
 
     // add supercluster info
     void add_supercluster(
@@ -34,7 +34,8 @@ public:
            int orig_phase_dist, 
            int swap_phase_dist);
 
-    // pointers to variant data
+    // ctg_variants[truth/query][hap] -> variants
+    /* std::vector< std::vector< std::shared_ptr<ctgVariants> > > ctg_variants; */
     std::shared_ptr<ctgVariants> query1_vars = nullptr; 
     std::shared_ptr<ctgVariants> query2_vars = nullptr; 
     std::shared_ptr<ctgVariants> truth1_vars = nullptr;
@@ -43,17 +44,19 @@ public:
     // cluster indices of superclusters
     std::vector<int> query1_beg_idx, query1_end_idx, query2_beg_idx, query2_end_idx,
         truth1_beg_idx, truth1_end_idx, truth2_beg_idx, truth2_end_idx;
-    std::vector<int> begs, ends; // ref positions
     int n = 0; // number of superclusters
+
+    // helper information to find reference beg/end pos across haps, truth/query
+    std::vector<int> begs, ends;
 
     // phasing information per supercluster
     std::vector<int> phase;
     std::vector<int> orig_phase_dist, swap_phase_dist;
 };
 
-class clusterData {
+class superclusterData {
 public:
-    clusterData(
+    superclusterData(
             std::unique_ptr<variantData> & query_ptr,
             std::unique_ptr<variantData> & truth_ptr,
             std::shared_ptr<fastaData> ref_ptr);
@@ -62,7 +65,8 @@ public:
 
     // data
     std::vector<std::string> contigs;
-    std::unordered_map<std::string, std::shared_ptr<ctgClusters> > ctg_superclusters;
+    std::unordered_map<std::string, 
+        std::shared_ptr<ctgSuperclusters> > ctg_superclusters;
     std::shared_ptr<fastaData> ref;
 };
 

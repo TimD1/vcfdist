@@ -47,8 +47,7 @@ public:
             std::string ref, std::string alt, uint8_t orig_gt,
             float gq, float vq);
 
-    // data
-    std::vector<int> clusters;      // indices of clusters in this struct's vectors
+    // data (all of size n)
     std::vector<int> poss;          // variant start positions (0-based)
     std::vector<int> rlens;         // reference lengths
     std::vector<uint8_t> haps;      // variant haplotype
@@ -61,11 +60,14 @@ public:
     std::vector<float> var_quals;   // variant quality (0-60)
     int n = 0;
 
+    // set during (sw_)cluster()
+    std::vector<int> clusters;      // indices of clusters in this struct's vectors
+
     // set during prec_recall_aln()
-    std::vector<uint8_t> errtypes;     // error type: TP, FP, FN, PP
-    std::vector<float> callq;   // call quality (for truth, of associated call)
-                                // or for call, min quality in sync group
-    std::vector<float> credit;  // fraction of TP for partial positive (PP)
+    std::vector<uint8_t> errtypes;  // error type: TP, FP, FN, PP
+    std::vector<float> callq;       // call quality (for truth, of associated call)
+                                    // or for call, min quality in sync group
+    std::vector<float> credit;      // fraction of TP for partial positive (PP)
 };
 
 class variantData {
@@ -91,7 +93,7 @@ public:
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
-    std::vector< 
+    std::vector< // ctg_variants[hap][ctg] -> variants
         std::unordered_map<
             std::string, 
             std::shared_ptr<ctgVariants> > > ctg_variants;

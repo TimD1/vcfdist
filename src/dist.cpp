@@ -822,7 +822,7 @@ void calc_prec_recall_aln(
 
 
 int store_phase( 
-        std::shared_ptr<clusterData> clusterdata_ptr, 
+        std::shared_ptr<superclusterData> clusterdata_ptr, 
         std::string ctg,
         std::vector<int> & s
         ) {
@@ -845,7 +845,7 @@ int store_phase(
 
 
 void calc_prec_recall_path(
-        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
@@ -1157,7 +1157,7 @@ void get_prec_recall_path_sync(
 
 
 void calc_prec_recall(
-        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::string query1, std::string query2, 
         std::string truth1, std::string truth2, std::string ref,
         std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
@@ -1532,7 +1532,7 @@ void calc_edit_dist_aln(
 /******************************************************************************/
 
 
-int alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
+int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     INFO(" ");
     INFO("Calculating edit distance");
 
@@ -1549,7 +1549,7 @@ int alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
         std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
 
         // set superclusters pointer
-        std::shared_ptr<ctgClusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
+        std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
 
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
@@ -1653,7 +1653,8 @@ int alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
             // DEBUG PRINTING
             if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
-                printf("\n\nQUERY1: %d clusters\n", sc->query1_end_idx[sc_idx] - sc->query1_beg_idx[sc_idx]);
+                printf("\n\nSupercluster: %d\n", sc_idx);
+                printf("QUERY1: %d clusters\n", sc->query1_end_idx[sc_idx] - sc->query1_beg_idx[sc_idx]);
                 for(int i = sc->query1_beg_idx[sc_idx]; i < sc->query1_end_idx[sc_idx]; i++) {
                     printf("\tCluster %d: %d variants (%d-%d)\n", i, 
                             query1_vars->clusters[i+1]-query1_vars->clusters[i],

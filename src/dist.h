@@ -176,7 +176,7 @@ void calc_prec_recall_path(
         );
 
 void calc_prec_recall(
-        std::shared_ptr<clusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::string query1, std::string query2, 
         std::string truth1, std::string truth2, std::string ref,
         std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
@@ -218,7 +218,7 @@ std::vector<int> sw_backtrack(
 /******************************************************************************/
 
 int alignment_wrapper(
-        std::shared_ptr<clusterData> clusterdata_ptr);
+        std::shared_ptr<superclusterData> clusterdata_ptr);
 
 variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 

@@ -58,8 +58,8 @@ int main(int argc, char **argv) {
     }
 
     // calculate superclusters
-    std::shared_ptr<clusterData> clusterdata_ptr(
-            new clusterData(query_ptr, truth_ptr, ref_ptr));
+    std::shared_ptr<superclusterData> clusterdata_ptr(
+            new superclusterData(query_ptr, truth_ptr, ref_ptr));
 
     // calculate edit distance and local phasing
     int dist = alignment_wrapper(clusterdata_ptr);

@@ -6,7 +6,7 @@
 #include "print.h"
 #include "dist.h"
 
-void ctgClusters::add_supercluster(
+void ctgSuperclusters::add_supercluster(
            int query1_beg_idx, int query1_end_idx, 
            int query2_beg_idx, int query2_end_idx, 
            int truth1_beg_idx, int truth1_end_idx, 
@@ -25,7 +25,7 @@ void ctgClusters::add_supercluster(
     this->n++;
 }
 
-void ctgClusters::add_phasing(
+void ctgSuperclusters::add_phasing(
            int phase, 
            int orig_phase_dist, 
            int swap_phase_dist) {
@@ -36,7 +36,7 @@ void ctgClusters::add_phasing(
 
 /******************************************************************************/
 
-clusterData::clusterData(
+superclusterData::superclusterData(
         std::unique_ptr<variantData> & query_ptr,
         std::unique_ptr<variantData> & truth_ptr,
         std::shared_ptr<fastaData> ref_ptr) {
@@ -48,13 +48,13 @@ clusterData::clusterData(
     for (std::string ctg : query_ptr->contigs) {
         if (std::find(this->contigs.begin(), this->contigs.end(), ctg) == this->contigs.end()) {
             this->contigs.push_back(ctg);
-            this->ctg_superclusters[ctg] = std::shared_ptr<ctgClusters>(new ctgClusters());
+            this->ctg_superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(new ctgSuperclusters());
         }
     }
     for (std::string ctg : truth_ptr->contigs) {
         if (std::find(this->contigs.begin(), this->contigs.end(), ctg) == this->contigs.end()) {
             this->contigs.push_back(ctg);
-            this->ctg_superclusters[ctg] = std::shared_ptr<ctgClusters>(new ctgClusters());
+            this->ctg_superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(new ctgSuperclusters());
         }
     }
 
@@ -82,7 +82,7 @@ clusterData::clusterData(
 /******************************************************************************/
 
 
-void clusterData::gap_supercluster() {
+void superclusterData::gap_supercluster() {
     INFO(" ");
     INFO("Superclustering truth and call variants across haplotypes");
 

@@ -408,7 +408,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         ctgPhasings ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
-        std::shared_ptr<ctgClusters> ctg_superclusters = ctg_phasings.ctg_superclusters;
+        std::shared_ptr<ctgSuperclusters> ctg_superclusters = ctg_phasings.ctg_superclusters;
         for (int i = 0; i <= ctg_phasings.nswitches && ctg_phasings.nswitches > 0; i++) {
             int beg_idx = ctg_phasings.phase_blocks[i];
             int end_idx = ctg_phasings.phase_blocks[i+1]-1;
@@ -427,7 +427,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
     fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         auto ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
-        std::shared_ptr<ctgClusters> ctg_supclusts = ctg_phasings.ctg_superclusters;
+        std::shared_ptr<ctgSuperclusters> ctg_supclusts = ctg_phasings.ctg_superclusters;
         int phase_block_idx = 0;
         for (int i = 0; i < ctg_supclusts->n; i++) {
 
@@ -467,7 +467,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->query1_vars;
         std::shared_ptr<ctgVariants> query2_vars = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->query2_vars;
-        std::shared_ptr<ctgClusters> ctg_supclusts = 
+        std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
 
         int supercluster_idx = 0;
@@ -542,7 +542,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth1_vars;
         std::shared_ptr<ctgVariants> truth2_vars = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth2_vars;
-        std::shared_ptr<ctgClusters> ctg_supclusts = 
+        std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
 
         int var1_idx = 0;
