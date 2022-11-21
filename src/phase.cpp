@@ -32,11 +32,13 @@ phaseData::phaseData(std::shared_ptr<clusterData> clusterdata_ptr)
 void phaseData::phase()
 {
     INFO(" ");
-    INFO("6. Phasing superclusters");
+    INFO("Phasing superclusters");
     // phase each contig separately
     for (auto ctg : this->contigs) {
-        std::vector< std::vector<int> > mat(2, std::vector<int>(this->ctg_phasings[ctg].n+1));
-        std::vector< std::vector<int> > ptrs(2, std::vector<int>(this->ctg_phasings[ctg].n));
+        std::vector< std::vector<int> > 
+            mat(2, std::vector<int>(this->ctg_phasings[ctg].n+1));
+        std::vector< std::vector<int> > 
+            ptrs(2, std::vector<int>(this->ctg_phasings[ctg].n));
         if (this->ctg_phasings[ctg].n)
             INFO("  Contig '%s'", ctg.data());
 
@@ -77,7 +79,7 @@ void phaseData::phase()
 
         // backwards pass
         if (this->ctg_phasings[ctg].n > 0) { // skip empty contigs
-            int i = this->ctg_phasings[ctg].n;
+            int i = this->ctg_phasings[ctg].n-1;
             int phase = 0;
             this->ctg_phasings[ctg].phase_blocks.push_back(i);
             while (i > 0) {

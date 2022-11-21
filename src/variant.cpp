@@ -235,7 +235,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     this->filename = vcf_fn;
 
     INFO(" ");
-    INFO("1. Parsing VCF '%s'", vcf_fn.data());
+    INFO("Parsing VCF '%s'", vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
     // counters
@@ -422,7 +422,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         ngts[orig_gt]++;
 
         // parse variant type
-        for (int hap = 0; hap < 2; hap++) {
+        for (int hap = 0; hap < HAPS; hap++) {
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 skipped)
             int simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
@@ -488,7 +488,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             }
 
             // calculate reference length of variant
-            int rlen;
+            int rlen = 0;
             switch (type) {
                 case TYPE_INS:
                     rlen = 0; break;

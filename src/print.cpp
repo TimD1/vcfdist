@@ -381,7 +381,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
            );
         }
     }
-
+    fclose(out_pr);
 }
 
 /*******************************************************************************/
@@ -389,7 +389,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
 void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
     INFO(" ");
-    INFO("7. Writing results");
+    INFO("Writing results");
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
@@ -430,7 +430,7 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr) {
             }
 
             // print data
-            fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
+            fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
                 ctg_name.data(), 
                 ctg_supclusts->begs[i],
                 ctg_supclusts->ends[i],

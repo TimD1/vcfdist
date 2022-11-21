@@ -1534,7 +1534,7 @@ void calc_edit_dist_aln(
 
 void alignment_wrapper(std::shared_ptr<clusterData> clusterdata_ptr) {
     INFO(" ");
-    INFO("5. Calculating edit distance");
+    INFO("Calculating edit distance");
 
     int distance = 0;
     for (std::string ctg : clusterdata_ptr->contigs) {
@@ -1908,7 +1908,7 @@ std::unique_ptr<variantData> sw_realign(
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend) {
     INFO(" ");
-    INFO("3. Realigning VCF '%s'", vcf->filename.data());
+    INFO("Realigning VCF '%s'", vcf->filename.data());
 
     // copy vcf header data over to results vcf
     std::unique_ptr<variantData> results(new variantData());

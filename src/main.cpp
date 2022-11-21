@@ -22,53 +22,52 @@ int main(int argc, char **argv) {
     // parse and store command-line args
     g.parse_args(argc, argv);
 
-    // 0. parse reference fasta
+    // parse reference fasta
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
-    // 1. parse VCFs and save original copy
-    std::unique_ptr<variantData> query_ptr(new variantData(g.query_vcf_fn, ref_ptr));
-    std::unique_ptr<variantData> truth_ptr(new variantData(g.truth_vcf_fn, ref_ptr));
+    // parse, realign, and cluster query VCF
+    std::unique_ptr<variantData> query_ptr(
+            new variantData(g.query_vcf_fn, ref_ptr));
     query_ptr->write_vcf(g.out_prefix + "orig_query.vcf");
-    truth_ptr->write_vcf(g.out_prefix + "orig_truth.vcf");
-
-    // 2. cluster variants
-    if (!g.simple_cluster) { 
+    g.simple_cluster ? cluster(query_ptr) :
         sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
-        sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
-    } else { 
-        cluster(query_ptr);
-        cluster(truth_ptr);
-    }
-
-    // 3. realign variants, then re-cluster
     if (!g.keep_query) {
         query_ptr = sw_realign(query_ptr, ref_ptr, 
                 g.query_sub, g.query_open, g.query_extend);
         g.simple_cluster ?  cluster(query_ptr) :
             sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
     }
+    
+    // parse, realign, and cluster truth VCF
+    std::unique_ptr<variantData> truth_ptr(
+            new variantData(g.truth_vcf_fn, ref_ptr));
+    truth_ptr->write_vcf(g.out_prefix + "orig_truth.vcf");
+    g.simple_cluster ?  cluster(truth_ptr) :
+        sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
     if (!g.keep_truth) {
         truth_ptr = sw_realign(truth_ptr, ref_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend);
         g.simple_cluster ?  cluster(truth_ptr) :
             sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
     }
+
     if (g.exit) {
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
         return EXIT_SUCCESS;
     }
 
-    // 4. calculate superclusters
-    std::shared_ptr<clusterData> clusterdata_ptr(new clusterData(query_ptr, truth_ptr, ref_ptr));
+    // calculate superclusters
+    std::shared_ptr<clusterData> clusterdata_ptr(
+            new clusterData(query_ptr, truth_ptr, ref_ptr));
 
-    // 5. calculate edit distance and local phasing
+    // calculate edit distance and local phasing
     alignment_wrapper(clusterdata_ptr);
 
-    // 6. calculate global phasings
+    // calculate global phasings
     std::unique_ptr<phaseData> phasedata_ptr(new phaseData(clusterdata_ptr));
 
-    // 7. write supercluster/phaseblock results in CSV format
+    // write supercluster/phaseblock results in CSV format
     write_results(phasedata_ptr);
 
     // save new VCF

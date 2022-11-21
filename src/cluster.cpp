@@ -84,7 +84,7 @@ clusterData::clusterData(
 
 void clusterData::gap_supercluster() {
     INFO(" ");
-    INFO("4. Superclustering truth and call variants across haplotypes");
+    INFO("Superclustering truth and call variants across haplotypes");
 
     // iterate over each contig
     int total_superclusters = 0;
@@ -290,7 +290,7 @@ void clusterData::gap_supercluster() {
 void cluster(std::unique_ptr<variantData> & vcf) {
     /* Add single-VCF cluster indices to `variantData` */
     INFO(" ");
-    INFO("2. Gap Clustering VCF '%s'", vcf->filename.data());
+    INFO("Gap Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
@@ -330,7 +330,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
  */
 void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int extend) {
     INFO(" ");
-    INFO("2. SW Clustering VCF '%s'", vcf->filename.data());
+    INFO("SW Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
@@ -387,6 +387,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     // edge cases
                     if (clust == 0 || clust == prev_clusters.size()-1) {
                         left_compute = false;
+                        right_compute = false;
+                    } else if (clust == prev_clusters.size()-2) {
                         right_compute = false;
                     }
 
@@ -488,8 +490,10 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // calculate right reach
                         std::string query, ref;
                         std::vector<int> query_ref_ptrs, ref_query_ptrs;
+                        // right before current cluster
                         int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust]]-1;
+                        // right before next cluster
                         int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust+1]]
                                     + buffer; // TODO: remove
