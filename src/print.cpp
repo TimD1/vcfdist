@@ -264,60 +264,52 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     for (auto ctg_name : phasedata_ptr->contigs) {
 
         // add query
-        std::shared_ptr<ctgVariants> query1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->query1_vars;
-        std::shared_ptr<ctgVariants> query2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->query2_vars;
-        std::vector< std::shared_ptr<ctgVariants> > query_ptr = {query1_vars, query2_vars};
+        auto & vars = 
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants;
         for (int h = 0; h < HAPS; h++) {
-            for (int i = 0; i < query_ptr[h]->n; i++) {
-                float q = query_ptr[h]->callq[i];
+            for (int i = 0; i < vars[QUERY][h]->n; i++) {
+                float q = vars[QUERY][h]->callq[i];
                 int t = 0;
-                if (query_ptr[h]->types[i] == TYPE_SUB) {
+                if (vars[QUERY][h]->types[i] == TYPE_SUB) {
                     t = VARTYPE_SNP;
-                } else if (query_ptr[h]->types[i] == TYPE_INS ||
-                        query_ptr[h]->types[i] == TYPE_DEL) {
+                } else if (vars[QUERY][h]->types[i] == TYPE_INS ||
+                        vars[QUERY][h]->types[i] == TYPE_DEL) {
                     t = VARTYPE_INDEL;
                 } else {
                     ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                            query_ptr[h]->types[i]);
+                            vars[QUERY][h]->types[i]);
                 }
-                if (query_ptr[h]->errtypes[i] == ERRTYPE_UN) {
+                if (vars[QUERY][h]->errtypes[i] == ERRTYPE_UN) {
                     WARN("Unknown error type at hap %d variant %d", h+1, i);
                     continue;
                 }
                 for (int qual = g.min_qual; qual <= q; qual++) {
-                    query_counts[t][ query_ptr[h]->errtypes[i] ][qual-g.min_qual]++;
-                    if (query_ptr[h]->errtypes[i] == ERRTYPE_PP) {
-                        query_counts[t][PP_FRAC][qual-g.min_qual] += query_ptr[h]->credit[i];
+                    query_counts[t][ vars[QUERY][h]->errtypes[i] ][qual-g.min_qual]++;
+                    if (vars[QUERY][h]->errtypes[i] == ERRTYPE_PP) {
+                        query_counts[t][PP_FRAC][qual-g.min_qual] += vars[QUERY][h]->credit[i];
                     }
                 }
             }
         }
 
         // add truth
-        std::shared_ptr<ctgVariants> truth1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth1_vars;
-        std::shared_ptr<ctgVariants> truth2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth2_vars;
-        std::vector< std::shared_ptr<ctgVariants> > truth_ptr = {truth1_vars, truth2_vars};
         for (int h = 0; h < HAPS; h++) {
-            for (int i = 0; i < truth_ptr[h]->n; i++) {
-                float q = truth_ptr[h]->callq[i];
+            for (int i = 0; i < vars[TRUTH][h]->n; i++) {
+                float q = vars[TRUTH][h]->callq[i];
                 int t = 0;
-                if (truth_ptr[h]->types[i] == TYPE_SUB) {
+                if (vars[TRUTH][h]->types[i] == TYPE_SUB) {
                     t = VARTYPE_SNP;
-                } else if (truth_ptr[h]->types[i] == TYPE_INS ||
-                        truth_ptr[h]->types[i] == TYPE_DEL) {
+                } else if (vars[TRUTH][h]->types[i] == TYPE_INS ||
+                        vars[TRUTH][h]->types[i] == TYPE_DEL) {
                     t = VARTYPE_INDEL;
                 } else {
                     ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                            truth_ptr[h]->types[i]);
+                            vars[TRUTH][h]->types[i]);
                 }
                 for (int qual = g.min_qual; qual <= q; qual++) {
-                    truth_counts[t][ truth_ptr[h]->errtypes[i] ][qual-g.min_qual]++;
-                    if (truth_ptr[h]->errtypes[i] == ERRTYPE_PP) {
-                        truth_counts[t][PP_FRAC][qual-g.min_qual] += truth_ptr[h]->credit[i];
+                    truth_counts[t][ vars[TRUTH][h]->errtypes[i] ][qual-g.min_qual]++;
+                    if (vars[TRUTH][h]->errtypes[i] == ERRTYPE_PP) {
+                        truth_counts[t][PP_FRAC][qual-g.min_qual] += vars[TRUTH][h]->credit[i];
                     }
                 }
             }
@@ -442,10 +434,22 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
                 ctg_supclusts->begs[i],
                 ctg_supclusts->ends[i],
                 ctg_supclusts->ends[i] - ctg_supclusts->begs[i],
-                ctg_supclusts->query1_end_idx[i] - ctg_supclusts->query1_beg_idx[i],
-                ctg_supclusts->query2_end_idx[i] - ctg_supclusts->query2_beg_idx[i],
-                ctg_supclusts->truth1_end_idx[i] - ctg_supclusts->truth1_beg_idx[i],
-                ctg_supclusts->truth2_end_idx[i] - ctg_supclusts->truth2_beg_idx[i],
+                ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP1][i+1]] -
+                    ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP1][i]],
+                ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP2][i+1]] -
+                    ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP2][i]],
+                ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP1][i+1]] -
+                    ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP1][i]],
+                ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP2][i+1]] -
+                    ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP2][i]],
                 ctg_supclusts->orig_phase_dist[i],
                 ctg_supclusts->swap_phase_dist[i],
                 phase_strs[ctg_supclusts->phase[i]].data(),
@@ -464,9 +468,9 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> query1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->query1_vars;
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[QUERY][HAP1];
         std::shared_ptr<ctgVariants> query2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->query2_vars;
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[QUERY][HAP2];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
 
@@ -539,9 +543,9 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> truth1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth1_vars;
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[TRUTH][HAP1];
         std::shared_ptr<ctgVariants> truth2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->truth2_vars;
+            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[TRUTH][HAP2];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
             phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
 

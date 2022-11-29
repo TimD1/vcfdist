@@ -7,19 +7,19 @@
 #include "variant.h"
 #include "cluster.h"
 
-#define PTR_NONE 0  // backtracking pointer flags
-#define PTR_UP   1
-#define PTR_INS  1
-#define PTR_LEFT 2
-#define PTR_DEL  2
-#define PTR_DIAG 4
-#define PTR_SUB  8
-#define PTR_SWAP 16
+#define PTR_NONE  0  // backtracking pointer flags
+#define PTR_UP    1
+#define PTR_INS   1
+#define PTR_LEFT  2
+#define PTR_DEL   2
+#define PTR_DIAG  4
+#define PTR_SUB   8
+#define PTR_SWAP  16
 #define PTR_LPATH 32
 #define PATH      32
 #define PTR_RPATH 64
 #define MAIN_PATH 96
-#define PTR_SYNC 128
+#define PTR_SYNC  128
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1
@@ -31,8 +31,10 @@
 #define QUERY2_TRUTH1 2
 #define QUERY2_TRUTH2 3
 
-#define QUERY 0
-#define REF 1
+#define QUERY    0
+#define REF      1
+#define TRUTH    1
+#define CALLSETS 2
 
 #define FALSE 0
 #define TRUE 1

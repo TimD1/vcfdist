@@ -15,6 +15,7 @@ std::vector<std::string> gt_strs = {
 ".|.", "0|0", "0|1", "0|2", "1|0", "1|1", "1|2", "2|0", "2|1", "2|2", "?|?" };
 std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CTG"};
 std::vector<std::string> aln_strs = {"QUERY1-TRUTH1", "QUERY1-TRUTH2", "QUERY2-TRUTH1", "QUERY2-TRUTH2"};
+std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
  
 int main(int argc, char **argv) {

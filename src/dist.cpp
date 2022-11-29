@@ -1171,16 +1171,8 @@ void calc_prec_recall(
         std::vector<int> pr_query_ref_end, int phase, int print
         ) {
 
-    // set useful vectors for indexing based on current alignment
+    // set query/truth strings and pointers
     int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
-    std::shared_ptr<ctgVariants> query1_vars = 
-            clusterdata_ptr->ctg_superclusters[ctg]->query1_vars;
-    std::shared_ptr<ctgVariants> query2_vars = 
-            clusterdata_ptr->ctg_superclusters[ctg]->query2_vars;
-    std::shared_ptr<ctgVariants> truth1_vars = 
-            clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
-    std::shared_ptr<ctgVariants> truth2_vars = 
-            clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
     std::vector<std::string> query = {query1, query1, query2, query2};
     std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
     std::vector< std::vector<int> > query_ref_ptrs = { 
@@ -1189,52 +1181,40 @@ void calc_prec_recall(
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
     std::vector< std::vector<int> > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
-    std::vector< std::shared_ptr<ctgVariants> > query_vars = {
-            query1_vars, query1_vars, query2_vars, query2_vars };
-    std::vector< std::shared_ptr<ctgVariants> > truth_vars = {
-            truth1_vars, truth2_vars, truth1_vars, truth2_vars };
-    int query1_beg_idx = query1_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->query1_beg_idx[sc_idx] ];
-    int query2_beg_idx = query2_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->query2_beg_idx[sc_idx] ];
-    int truth1_beg_idx = truth1_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->truth1_beg_idx[sc_idx] ];
-    int truth2_beg_idx = truth2_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->truth2_beg_idx[sc_idx] ];
-    std::vector<int> query_beg_idx = {
-            query1_beg_idx, query1_beg_idx, query2_beg_idx, query2_beg_idx };
-    std::vector<int> truth_beg_idx = {
-            truth1_beg_idx, truth2_beg_idx, truth1_beg_idx, truth2_beg_idx };
-    int query1_end_idx = query1_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->query1_end_idx[sc_idx] ];
-    int query2_end_idx = query2_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->query2_end_idx[sc_idx] ];
-    std::vector<int> query_end_idx = {
-            query1_end_idx, query1_end_idx, query2_end_idx, query2_end_idx };
-    int truth1_end_idx = truth1_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->truth1_end_idx[sc_idx] ];
-    int truth2_end_idx = truth2_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->truth2_end_idx[sc_idx] ];
-    std::vector<int> truth_end_idx = {
-            truth1_end_idx, truth2_end_idx, truth1_end_idx, truth2_end_idx };
 
     // indices into ptr/off matrices depend on decided phasing
-    std::vector<int> query_indices;
+    std::vector<int> indices;
     if (phase == PHASE_SWAP) {
-        query_indices.push_back(QUERY1_TRUTH2);
-        query_indices.push_back(QUERY2_TRUTH1);
+        indices.push_back(QUERY1_TRUTH2);
+        indices.push_back(QUERY2_TRUTH1);
     } else if (phase == PHASE_ORIG || phase == PHASE_NONE) { // keep
-        query_indices.push_back(QUERY1_TRUTH1);
-        query_indices.push_back(QUERY2_TRUTH2);
+        indices.push_back(QUERY1_TRUTH1);
+        indices.push_back(QUERY2_TRUTH2);
     } else {
         ERROR("Unexpected phase (%d)", phase);
     }
 
     // for only the selected phasing
-    for (int i : query_indices) {
+    for (int i : indices) {
 
-        int ri = i*2 + REF;
-        int ci = i*2 + QUERY;
+        int ri = i*2 + REF;   // ref index
+        int ci = i*2 + QUERY; // call index
+        int qhi = i >> 1;      // query hap index
+        int thi = i & 1;      // truth hap index
+
+        // set variant ranges
+        std::shared_ptr<ctgVariants> query_vars = 
+                clusterdata_ptr->ctg_superclusters[ctg]->ctg_variants[QUERY][qhi];
+        std::shared_ptr<ctgVariants> truth_vars = 
+                clusterdata_ptr->ctg_superclusters[ctg]->ctg_variants[TRUTH][thi];
+        int query_beg_idx = query_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx]];
+        int query_end_idx = query_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx+1]];
+        int truth_beg_idx = truth_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx]];
+        int truth_end_idx = truth_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]];
 
         // debug print
         if (print) printf("Alignment %s, aln_ptrs\n", aln_strs[i].data());
@@ -1253,11 +1233,11 @@ void calc_prec_recall(
         int cri = aln_ptrs[hi].size()-1;
         int ti = aln_ptrs[hi][0].size()-1;
         int new_ed = 0;
-        int query_var_ptr = query_end_idx[i]-1;
-        int query_var_pos = query_vars[i]->poss[query_var_ptr] - beg;
+        int query_var_ptr = query_end_idx-1;
+        int query_var_pos = query_vars->poss[query_var_ptr] - beg;
         int prev_query_var_ptr = query_var_ptr;
-        int truth_var_ptr = truth_end_idx[i]-1;
-        int truth_var_pos = truth_vars[i]->poss[truth_var_ptr] - beg;
+        int truth_var_ptr = truth_end_idx-1;
+        int truth_var_pos = truth_vars->poss[truth_var_ptr] - beg;
         int prev_truth_var_ptr = truth_var_ptr;
         int pidx = path[i].size()-1;
 
@@ -1269,26 +1249,26 @@ void calc_prec_recall(
             if (cref_pos < 0) cref_pos = query_var_pos+1;
             while (cref_pos < query_var_pos) {
                 if (hi == ri) { // FP
-                    query_vars[i]->errtypes[query_var_ptr] = ERRTYPE_FP;
-                    query_vars[i]->credit[query_var_ptr] = 0;
-                    query_vars[i]->callq[query_var_ptr] = 
-                        query_vars[i]->var_quals[query_var_ptr];
+                    query_vars->errtypes[query_var_ptr] = ERRTYPE_FP;
+                    query_vars->credit[query_var_ptr] = 0;
+                    query_vars->callq[query_var_ptr] = 
+                        query_vars->var_quals[query_var_ptr];
                     if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                            query_vars[i]->refs[query_var_ptr].data(),
-                            query_vars[i]->alts[query_var_ptr].data(), "FP", 0.0f);
+                            query_vars->refs[query_var_ptr].data(),
+                            query_vars->alts[query_var_ptr].data(), "FP", 0.0f);
                     query_var_ptr--;
                 } else { // passed variant
                     query_var_ptr--;
                 }
-                query_var_pos = (query_var_ptr < query_beg_idx[i]) ? -1 :
-                    query_vars[i]->poss[query_var_ptr] - beg;
+                query_var_pos = (query_var_ptr < query_beg_idx) ? -1 :
+                    query_vars->poss[query_var_ptr] - beg;
             }
 
             while (truth_ref_ptrs[i][ti] >= 0 && 
                     truth_ref_ptrs[i][ti] < truth_var_pos) { // passed REF variant
                 truth_var_ptr--;
-                truth_var_pos = (truth_var_ptr < truth_beg_idx[i]) ? -1 :
-                    truth_vars[i]->poss[truth_var_ptr] - beg;
+                truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
+                    truth_vars->poss[truth_var_ptr] - beg;
             }
 
             // sync point: set TP/PP
@@ -1298,23 +1278,23 @@ void calc_prec_recall(
                 int old_ed = 0;
                 for (int truth_var_idx = prev_truth_var_ptr; 
                         truth_var_idx > truth_var_ptr; truth_var_idx--) {
-                    switch (truth_vars[i]->types[truth_var_idx]) {
+                    switch (truth_vars->types[truth_var_idx]) {
                         case TYPE_SUB:
                             old_ed += 1;
                             break;
                         case TYPE_INS:
-                            old_ed += truth_vars[i]->alts[truth_var_idx].length();
+                            old_ed += truth_vars->alts[truth_var_idx].length();
                             break;
                         case TYPE_DEL:
-                            old_ed += truth_vars[i]->refs[truth_var_idx].length();
+                            old_ed += truth_vars->refs[truth_var_idx].length();
                             break;
                         case TYPE_GRP:
-                            old_ed += truth_vars[i]->alts[truth_var_idx].length();
-                            old_ed += truth_vars[i]->refs[truth_var_idx].length();
+                            old_ed += truth_vars->alts[truth_var_idx].length();
+                            old_ed += truth_vars->refs[truth_var_idx].length();
                             break;
                         default:
                             ERROR("Unexpected variant type (%d) in calc_prec_recall().",
-                                    truth_vars[i]->types[truth_var_idx]);
+                                    truth_vars->types[truth_var_idx]);
                             break;
                     }
                 }
@@ -1325,7 +1305,7 @@ void calc_prec_recall(
                 float callq = g.max_qual;
                 for (int query_var_idx = prev_query_var_ptr; 
                         query_var_idx > query_var_ptr; query_var_idx--) {
-                    callq = std::min(callq, query_vars[i]->var_quals[query_var_idx]);
+                    callq = std::min(callq, query_vars->var_quals[query_var_idx]);
                 }
 
                 // process QUERY variants
@@ -1333,30 +1313,30 @@ void calc_prec_recall(
                         query_var_idx > query_var_ptr; query_var_idx--) {
                     float credit = 1 - float(new_ed)/old_ed;
                     // don't overwrite FPs
-                    if (query_vars[i]->errtypes[query_var_idx] == ERRTYPE_UN) {
+                    if (query_vars->errtypes[query_var_idx] == ERRTYPE_UN) {
                         if (new_ed == 0) { // TP
-                            query_vars[i]->errtypes[query_var_idx] = ERRTYPE_TP;
-                            query_vars[i]->credit[query_var_idx] = credit;
-                            query_vars[i]->callq[query_var_idx] = callq;
+                            query_vars->errtypes[query_var_idx] = ERRTYPE_TP;
+                            query_vars->credit[query_var_idx] = credit;
+                            query_vars->callq[query_var_idx] = callq;
                             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                                    query_vars[i]->refs[query_var_idx].data(),
-                                    query_vars[i]->alts[query_var_idx].data(), 
+                                    query_vars->refs[query_var_idx].data(),
+                                    query_vars->alts[query_var_idx].data(), 
                                     "TP", credit);
                         } else if (new_ed == old_ed) { // FP
-                            query_vars[i]->errtypes[query_var_idx] = ERRTYPE_FP;
-                            query_vars[i]->credit[query_var_idx] = 0;
-                            query_vars[i]->callq[query_var_idx] = callq;
+                            query_vars->errtypes[query_var_idx] = ERRTYPE_FP;
+                            query_vars->credit[query_var_idx] = 0;
+                            query_vars->callq[query_var_idx] = callq;
                             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                                    query_vars[i]->refs[query_var_idx].data(),
-                                    query_vars[i]->alts[query_var_idx].data(), 
+                                    query_vars->refs[query_var_idx].data(),
+                                    query_vars->alts[query_var_idx].data(), 
                                     "FP", 0.0);
                         } else { // PP
-                            query_vars[i]->errtypes[query_var_idx] = ERRTYPE_PP;
-                            query_vars[i]->credit[query_var_idx] = credit;
-                            query_vars[i]->callq[query_var_idx] = callq;
+                            query_vars->errtypes[query_var_idx] = ERRTYPE_PP;
+                            query_vars->credit[query_var_idx] = credit;
+                            query_vars->callq[query_var_idx] = callq;
                             if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                                    query_vars[i]->refs[query_var_idx].data(),
-                                    query_vars[i]->alts[query_var_idx].data(), 
+                                    query_vars->refs[query_var_idx].data(),
+                                    query_vars->alts[query_var_idx].data(), 
                                     "PP", credit);
                         }
                     }
@@ -1367,28 +1347,28 @@ void calc_prec_recall(
                         truth_var_idx > truth_var_ptr; truth_var_idx--) {
                     float credit = 1 - float(new_ed)/old_ed;
                     if (new_ed == 0) { // TP
-                        truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_TP;
-                        truth_vars[i]->credit[truth_var_idx] = credit;
-                        truth_vars[i]->callq[truth_var_idx] = callq;
+                        truth_vars->errtypes[truth_var_idx] = ERRTYPE_TP;
+                        truth_vars->credit[truth_var_idx] = credit;
+                        truth_vars->callq[truth_var_idx] = callq;
                         if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                                truth_vars[i]->refs[truth_var_idx].data(),
-                                truth_vars[i]->alts[truth_var_idx].data(), 
+                                truth_vars->refs[truth_var_idx].data(),
+                                truth_vars->alts[truth_var_idx].data(), 
                                 "TP", credit);
                     } else if (new_ed == old_ed) { // FP call, FN truth
-                        truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_FN;
-                        truth_vars[i]->credit[truth_var_idx] = credit;
-                        truth_vars[i]->callq[truth_var_idx] = g.max_qual;
+                        truth_vars->errtypes[truth_var_idx] = ERRTYPE_FN;
+                        truth_vars->credit[truth_var_idx] = credit;
+                        truth_vars->callq[truth_var_idx] = g.max_qual;
                         if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                                truth_vars[i]->refs[truth_var_idx].data(),
-                                truth_vars[i]->alts[truth_var_idx].data(), 
+                                truth_vars->refs[truth_var_idx].data(),
+                                truth_vars->alts[truth_var_idx].data(), 
                                 "FN", credit);
                     } else { // PP
-                        truth_vars[i]->errtypes[truth_var_idx] = ERRTYPE_PP;
-                        truth_vars[i]->credit[truth_var_idx] = credit;
-                        truth_vars[i]->callq[truth_var_idx] = callq;
+                        truth_vars->errtypes[truth_var_idx] = ERRTYPE_PP;
+                        truth_vars->credit[truth_var_idx] = credit;
+                        truth_vars->callq[truth_var_idx] = callq;
                         if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
-                                truth_vars[i]->refs[truth_var_idx].data(),
-                                truth_vars[i]->alts[truth_var_idx].data(), 
+                                truth_vars->refs[truth_var_idx].data(),
+                                truth_vars->alts[truth_var_idx].data(), 
                                 "PP", credit);
                     }
                 }
@@ -1423,10 +1403,10 @@ void calc_prec_recall(
             new_ed += edits[i][pidx];
 
             // update next variant position
-            query_var_pos = (query_var_ptr < query_beg_idx[i]) ? -1 :
-                query_vars[i]->poss[query_var_ptr] - beg;
-            truth_var_pos = (truth_var_ptr < truth_beg_idx[i]) ? -1 :
-                truth_vars[i]->poss[truth_var_ptr] - beg;
+            query_var_pos = (query_var_ptr < query_beg_idx) ? -1 :
+                query_vars->poss[query_var_ptr] - beg;
+            truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
+                truth_vars->poss[truth_var_ptr] - beg;
         }
     }
 }
@@ -1542,12 +1522,6 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         if (clusterdata_ptr->ctg_superclusters[ctg]->n)
             INFO("  Contig '%s'", ctg.data())
 
-        // set variant pointers
-        std::shared_ptr<ctgVariants> query1_vars = clusterdata_ptr->ctg_superclusters[ctg]->query1_vars;
-        std::shared_ptr<ctgVariants> query2_vars = clusterdata_ptr->ctg_superclusters[ctg]->query2_vars;
-        std::shared_ptr<ctgVariants> truth1_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth1_vars;
-        std::shared_ptr<ctgVariants> truth2_vars = clusterdata_ptr->ctg_superclusters[ctg]->truth2_vars;
-
         // set superclusters pointer
         std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
 
@@ -1557,38 +1531,42 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             // set pointers between each hap (query1/2, truth1/2) and reference
             std::string query1 = "", ref_c1 = ""; 
             std::vector<int> query1_ref_ptrs, ref_query1_ptrs;
-            generate_ptrs_strs( // query1_vars[0:0] contains no variants -> ref
+            generate_ptrs_strs(
                     query1, ref_c1,
-                    query1_ref_ptrs, ref_query1_ptrs, query1_vars, query1_vars,
-                    sc->query1_beg_idx[sc_idx], 0,
-                    sc->query1_end_idx[sc_idx], 0,
+                    query1_ref_ptrs, ref_query1_ptrs, 
+                    sc->ctg_variants[QUERY][HAP1], sc->ctg_variants[QUERY][HAP1],
+                    sc->superclusters[QUERY][HAP1][sc_idx], 0,
+                    sc->superclusters[QUERY][HAP1][sc_idx+1], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string query2 = "", ref_c2 = ""; 
             std::vector<int> query2_ref_ptrs, ref_query2_ptrs;
-            generate_ptrs_strs( // query2_vars[0:0] contains no variants -> ref
+            generate_ptrs_strs(
                     query2, ref_c2,
-                    query2_ref_ptrs, ref_query2_ptrs, query2_vars, query2_vars,
-                    sc->query2_beg_idx[sc_idx], 0,
-                    sc->query2_end_idx[sc_idx], 0,
+                    query2_ref_ptrs, ref_query2_ptrs, 
+                    sc->ctg_variants[QUERY][HAP2], sc->ctg_variants[QUERY][HAP2],
+                    sc->superclusters[QUERY][HAP2][sc_idx], 0,
+                    sc->superclusters[QUERY][HAP2][sc_idx+1], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth1 = "", ref_t1 = ""; 
             std::vector<int> truth1_ref_ptrs, ref_truth1_ptrs;
-            generate_ptrs_strs( // truth1_vars[0:0] contains no variants -> ref
+            generate_ptrs_strs(
                     truth1, ref_t1,
-                    truth1_ref_ptrs, ref_truth1_ptrs, truth1_vars, truth1_vars,
-                    sc->truth1_beg_idx[sc_idx], 0,
-                    sc->truth1_end_idx[sc_idx], 0,
+                    truth1_ref_ptrs, ref_truth1_ptrs, 
+                    sc->ctg_variants[TRUTH][HAP1], sc->ctg_variants[TRUTH][HAP1],
+                    sc->superclusters[TRUTH][HAP1][sc_idx], 0,
+                    sc->superclusters[TRUTH][HAP1][sc_idx+1], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth2 = "", ref_t2 = ""; 
             std::vector<int> truth2_ref_ptrs, ref_truth2_ptrs;
-            generate_ptrs_strs( // truth2_vars[0:0] contains no variants -> ref
+            generate_ptrs_strs(
                     truth2, ref_t2,
-                    truth2_ref_ptrs, ref_truth2_ptrs, truth2_vars, truth2_vars,
-                    sc->truth2_beg_idx[sc_idx], 0,
-                    sc->truth2_end_idx[sc_idx], 0,
+                    truth2_ref_ptrs, ref_truth2_ptrs, 
+                    sc->ctg_variants[TRUTH][HAP2], sc->ctg_variants[TRUTH][HAP2],
+                    sc->superclusters[TRUTH][HAP2][sc_idx], 0,
+                    sc->superclusters[TRUTH][HAP2][sc_idx+1], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
@@ -1654,48 +1632,27 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             if (g.print_verbosity >= 1 && dist) {
                 // print cluster info
                 printf("\n\nSupercluster: %d\n", sc_idx);
-                printf("QUERY1: %d clusters\n", sc->query1_end_idx[sc_idx] - sc->query1_beg_idx[sc_idx]);
-                for(int i = sc->query1_beg_idx[sc_idx]; i < sc->query1_end_idx[sc_idx]; i++) {
-                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
-                            query1_vars->clusters[i+1]-query1_vars->clusters[i],
-                            query1_vars->clusters[i], query1_vars->clusters[i+1]);
-                    for(int j = query1_vars->clusters[i]; j < query1_vars->clusters[i+1]; j++) {
-                        printf("\t\t%s %d\t%s\t%s\n", ctg.data(), query1_vars->poss[j], 
-                                query1_vars->refs[j].size() ? query1_vars->refs[j].data() : "_", 
-                                query1_vars->alts[j].size() ? query1_vars->alts[j].data() : "_");
-                    }
-                }
-                printf("QUERY2: %d clusters\n", sc->query2_end_idx[sc_idx] - sc->query2_beg_idx[sc_idx]);
-                for(int i = sc->query2_beg_idx[sc_idx]; i < sc->query2_end_idx[sc_idx]; i++) {
-                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
-                            query2_vars->clusters[i+1]-query2_vars->clusters[i],
-                            query2_vars->clusters[i], query2_vars->clusters[i+1]);
-                    for(int j = query2_vars->clusters[i]; j < query2_vars->clusters[i+1]; j++) {
-                        printf("\t\t%s %d\t%s\t%s\n", ctg.data(), query2_vars->poss[j], 
-                                query2_vars->refs[j].size() ? query2_vars->refs[j].data() : "_", 
-                                query2_vars->alts[j].size() ? query2_vars->alts[j].data() : "_");
-                    }
-                }
-                printf("TRUTH1: %d clusters\n", sc->truth1_end_idx[sc_idx] - sc->truth1_beg_idx[sc_idx]);
-                for(int i = sc->truth1_beg_idx[sc_idx]; i < sc->truth1_end_idx[sc_idx]; i++) {
-                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
-                            truth1_vars->clusters[i+1]-truth1_vars->clusters[i],
-                            truth1_vars->clusters[i], truth1_vars->clusters[i+1]);
-                    for(int j = truth1_vars->clusters[i]; j < truth1_vars->clusters[i+1]; j++) {
-                        printf("\t\t%s %d\t%s\t%s\n", ctg.data(), truth1_vars->poss[j], 
-                                truth1_vars->refs[j].size() ? truth1_vars->refs[j].data() : "_", 
-                                truth1_vars->alts[j].size() ? truth1_vars->alts[j].data() : "_");
-                    }
-                }
-                printf("TRUTH2: %d clusters\n", sc->truth2_end_idx[sc_idx] - sc->truth2_beg_idx[sc_idx]);
-                for(int i = sc->truth2_beg_idx[sc_idx]; i < sc->truth2_end_idx[sc_idx]; i++) {
-                    printf("\tCluster %d: %d variants (%d-%d)\n", i, 
-                            truth2_vars->clusters[i+1]-truth2_vars->clusters[i],
-                            truth2_vars->clusters[i], truth2_vars->clusters[i+1]);
-                    for(int j = truth2_vars->clusters[i]; j < truth2_vars->clusters[i+1]; j++) {
-                        printf("\t\t%s %d\t%s\t%s\n", ctg.data(), truth2_vars->poss[j], 
-                                truth2_vars->refs[j].size() ? truth2_vars->refs[j].data() : "_", 
-                                truth2_vars->alts[j].size() ? truth2_vars->alts[j].data() : "_");
+                for (int i = 0; i < CALLSETS*HAPS; i++) {
+                    int callset = i >> 1;
+                    int hap = i % 2;
+                    int cluster_beg = sc->superclusters[callset][hap][sc_idx];
+                    int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
+                    printf("%s%d: %d clusters (%d-%d)\n", 
+                        callset_strs[callset].data(), hap+1,
+                        cluster_end-cluster_beg,
+                        cluster_beg, cluster_end);
+
+                    for (int j = cluster_beg; j < cluster_end; j++) {
+                        auto vars = sc->ctg_variants[callset][hap];
+                        int variant_beg = vars->clusters[j];
+                        int variant_end = vars->clusters[j+1];
+                        printf("\tCluster %d: %d variants (%d-%d)\n", j, 
+                            variant_end-variant_beg, variant_beg, variant_end);
+                        for (int k = variant_beg; k < variant_end; k++) {
+                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), vars->poss[k], 
+                            vars->refs[k].size() ?  vars->refs[k].data() : "_", 
+                            vars->alts[k].size() ?  vars->alts[k].data() : "_");
+                        }
                     }
                 }
 

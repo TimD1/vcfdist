@@ -62,6 +62,7 @@ public:
 extern Globals g;
 
 // defined in main.cpp
+extern std::vector<std::string> callset_strs;
 extern std::vector<std::string> vartype_strs;
 extern std::vector<std::string> type_strs;
 extern std::vector<std::string> error_strs;
