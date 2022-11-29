@@ -63,13 +63,13 @@ int main(int argc, char **argv) {
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
 
     // calculate edit distance and local phasing
-    int dist = alignment_wrapper(clusterdata_ptr);
+    std::vector<int> dists = alignment_wrapper(clusterdata_ptr);
 
     // calculate global phasings
     std::unique_ptr<phaseData> phasedata_ptr(new phaseData(clusterdata_ptr));
 
     // write supercluster/phaseblock results in CSV format
-    write_results(phasedata_ptr, dist);
+    write_results(phasedata_ptr, dists);
 
     // save new VCF
     query_ptr->write_vcf(g.out_prefix + "query.vcf");

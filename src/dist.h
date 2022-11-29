@@ -209,17 +209,19 @@ std::unique_ptr<variantData> sw_realign(
 
 std::unordered_map<idx2,idx2> sw_align(
         const std::string & query, 
-        const std::string & ref,
+        const std::string & truth,
         int sub, int open, int extend);
 
 std::vector<int> sw_backtrack(
         const std::string & query,
-        const std::string & ref,
+        const std::string & truth,
         const std::unordered_map<idx2, idx2> & ptrs);
+
+int count_dist(const std::vector<int> & cigar);
 
 /******************************************************************************/
 
-int alignment_wrapper(
+std::vector<int> alignment_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr);
 
 variantData edit_dist_realign(

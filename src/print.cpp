@@ -429,7 +429,9 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
+void write_results(
+        std::unique_ptr<phaseData> & phasedata_ptr, 
+        std::vector<int> dists) {
     INFO(" ");
     INFO("Writing results");
 
@@ -438,10 +440,13 @@ void write_results(std::unique_ptr<phaseData> & phasedata_ptr, int distance) {
 
     // print distance information
     std::string dist_fn = g.out_prefix + "distance.tsv";
-    FILE* dist = fopen(dist_fn.data(), "w");
+    FILE* out_dists = fopen(dist_fn.data(), "w");
+    fprintf(out_dists, "QUAL\tDIST\n");
     INFO("  Printing edit distance results to '%s'", dist_fn.data());
-    fprintf(dist, "%d\n", distance);
-    fclose(dist);
+    for (int i = 0; i <= g.max_qual; i++) {
+        fprintf(out_dists, "%d\t%d\n", i, dists[i]);
+    }
+    fclose(out_dists);
 
     // print phasing information
     std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";

@@ -1,4 +1,5 @@
 #include <string>
+#include <set>
 #include <vector>
 #include <cstdio>
 #include <chrono>
@@ -370,28 +371,30 @@ void reverse_ptrs_strs(std::string & query, std::string & ref,
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
         std::shared_ptr<ctgVariants> vars, std::string ctg,
-        int var_idx, int end_idx, int beg_pos, int end_pos) {
+        int var_idx, int end_idx, int beg_pos, int end_pos, int min_qual=0) {
 
     std::string str = "";
     for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
 
         // VARIANT
-        if (ref_pos == vars->poss[var_idx] && var_idx < end_idx) {
-            switch (vars->types[var_idx]) {
-                case TYPE_INS:
-                    str += vars->alts[var_idx];
-                    break;
-                case TYPE_DEL:
-                    ref_pos += vars->refs[var_idx].size();
-                    break;
-                case TYPE_SUB:
-                    str += vars->alts[var_idx];
-                    ref_pos++;
-                    break;
-                case TYPE_GRP:
-                    str += vars->alts[var_idx];
-                    ref_pos += vars->refs[var_idx].size();
-                    break;
+        if (ref_pos == vars->poss[var_idx]  && var_idx < end_idx) {
+            if (vars->var_quals[var_idx] >= min_qual) {
+                switch (vars->types[var_idx]) {
+                    case TYPE_INS:
+                        str += vars->alts[var_idx];
+                        break;
+                    case TYPE_DEL:
+                        ref_pos += vars->refs[var_idx].size();
+                        break;
+                    case TYPE_SUB:
+                        str += vars->alts[var_idx];
+                        ref_pos++;
+                        break;
+                    case TYPE_GRP:
+                        str += vars->alts[var_idx];
+                        ref_pos += vars->refs[var_idx].size();
+                        break;
+                }
             }
             var_idx++; // next variant
 
@@ -1512,13 +1515,13 @@ void calc_edit_dist_aln(
 /******************************************************************************/
 
 
-int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
+std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     INFO(" ");
     INFO("Calculating edit distance");
 
-    int distance = 0;
+    std::vector<int> all_qual_dists(g.max_qual+1, 0);
     for (std::string ctg : clusterdata_ptr->contigs) {
-        int ctg_dist = 0;
+        std::vector<int> ctg_qual_dists(g.max_qual+1,0);
         if (clusterdata_ptr->ctg_superclusters[ctg]->n)
             INFO("  Contig '%s'", ctg.data())
 
@@ -1528,6 +1531,10 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         // iterate over superclusters
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
+            /////////////////////////////////////////////////////////////////////
+            // PRECISION-RECALL: allow skipping called variants                  
+            /////////////////////////////////////////////////////////////////////
+            
             // set pointers between each hap (query1/2, truth1/2) and reference
             std::string query1 = "", ref_c1 = ""; 
             std::vector<int> query1_ref_ptrs, ref_query1_ptrs;
@@ -1570,22 +1577,6 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            // EDIT DISTANCE: don't allow skipping called variants
-            // edit distance alignment
-            std::vector<int> s(4);
-            std::vector< std::vector< std::vector<int> > > offs(4), ptrs(4);
-            std::vector<std::string> query = {query1, query1, query2, query2};
-            std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
-            calc_edit_dist_aln(query1, query2, truth1, truth2, s, offs, ptrs);
-            int orig_phase_dist = s[QUERY1_TRUTH1] + s[QUERY2_TRUTH2];
-            int swap_phase_dist = s[QUERY2_TRUTH1] + s[QUERY1_TRUTH2];
-            int dist = std::min(orig_phase_dist, swap_phase_dist);
-            if (g.print_verbosity >= 1 && dist)
-                print_wfa_ptrs(query, truth, s, offs, ptrs);
-            distance += dist;
-            ctg_dist += dist;
-
-            // PRECISION-RECALL: allow skipping called variants
             // calculate four forward-pass alignment edit dists
             // query1-truth2, query1-truth1, query2-truth1, query2-truth2
             std::vector<int> aln_score(4), aln_query_ref_end(4);
@@ -1625,11 +1616,78 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
                     path, sync, edits, aln_ptrs, path_ptrs, 
-                    aln_query_ref_end, phase, dist && g.print_verbosity >= 1
+                    aln_query_ref_end, phase, g.print_verbosity >= 2
             );
 
-            // DEBUG PRINTING
-            if (g.print_verbosity >= 1 && dist) {
+
+            /////////////////////////////////////////////////////////////////////
+            // SMITH-WATERMAN DISTANCE: don't allow skipping called variants     
+            /////////////////////////////////////////////////////////////////////
+            
+            // keep or swap truth haps based on previously decided phasing
+            std::vector<std::string> truth(2);
+            if (phase == PHASE_SWAP) {
+                truth[HAP1] = truth2; truth[HAP2] = truth1;
+            } else {
+                truth[HAP1] = truth1; truth[HAP2] = truth2;
+            }
+
+            // calculate quality thresholds 
+            // (where string would change when including/excluding variants)
+            std::set<int> quals = {};
+            for (int hap = 0; hap < HAPS; hap++) {
+                int beg_idx = sc->ctg_variants[QUERY][hap]->clusters[
+                        sc->superclusters[QUERY][hap][sc_idx]];
+                int end_idx = sc->ctg_variants[QUERY][hap]->clusters[
+                        sc->superclusters[QUERY][hap][sc_idx+1]];
+                for (int var_idx = beg_idx; var_idx < end_idx; var_idx++) {
+                    quals.insert(sc->ctg_variants[QUERY][hap]->var_quals[var_idx]+1);
+                }
+            }
+            quals.insert(g.max_qual+1);
+
+            // phasing is known, add scores for each hap
+            std::vector<int> qual_dists(g.max_qual+1, 0);
+            for (int hap = 0; hap < HAPS; hap++) {
+
+                // sweep through quality thresholds
+                int prev_qual = 0;
+                for (int qual : quals) {
+
+                    // generate query string (only applying variants with Q>=qual)
+                    std::string query = generate_str(
+                            clusterdata_ptr->ref, 
+                            sc->ctg_variants[QUERY][hap], 
+                            ctg, 
+                            sc->ctg_variants[QUERY][hap]->clusters[
+                                sc->superclusters[QUERY][hap][sc_idx]],
+                            sc->ctg_variants[QUERY][hap]->clusters[
+                                sc->superclusters[QUERY][hap][sc_idx+1]],
+                            sc->begs[sc_idx], 
+                            sc->ends[sc_idx], 
+                            prev_qual);
+
+                    // align strings, backtrack, calculate distance
+                    auto ptrs = sw_align(query, truth[hap], 
+                            g.truth_sub, g.truth_open, g.truth_extend);
+                    std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs);
+                    int dist = count_dist(cigar);
+
+                    // add distance for range of corresponding quals
+                    for (int q = prev_qual; q < qual; q++) {
+                        all_qual_dists[q] += dist;
+                        ctg_qual_dists[q] += dist;
+                        qual_dists[q] += dist;
+                    }
+                    prev_qual = qual;
+                }
+            }
+
+
+            /////////////////////////////////////////////////////////////////////
+            // DEBUG PRINTING                                                    
+            /////////////////////////////////////////////////////////////////////
+            if (g.print_verbosity >= 1) {
                 // print cluster info
                 printf("\n\nSupercluster: %d\n", sc_idx);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -1649,9 +1707,10 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                         printf("\tCluster %d: %d variants (%d-%d)\n", j, 
                             variant_end-variant_beg, variant_beg, variant_end);
                         for (int k = variant_beg; k < variant_end; k++) {
-                            printf("\t\t%s %d\t%s\t%s\n", ctg.data(), vars->poss[k], 
+                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
                             vars->refs[k].size() ?  vars->refs[k].data() : "_", 
-                            vars->alts[k].size() ?  vars->alts[k].data() : "_");
+                            vars->alts[k].size() ?  vars->alts[k].data() : "_",
+                            vars->var_quals[k]);
                         }
                     }
                 }
@@ -1661,17 +1720,20 @@ int alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                 printf("QUERY2:    %s\n", query2.data());
                 printf("TRUTH1:    %s\n", truth1.data());
                 printf("TRUTH2:    %s\n", truth2.data());
-                printf("Edit Distance: %d\n", dist);
+                printf("Edit Distance: %d\n", 
+                    *std::min_element(qual_dists.begin(), qual_dists.end()));
 
             } // debug print
 
         } // each cluster
         if (clusterdata_ptr->ctg_superclusters[ctg]->n)
-            INFO("    %d edits", ctg_dist);
+            INFO("    %d edits", 
+                *std::min_element(ctg_qual_dists.begin(), ctg_qual_dists.end()));
     } // each contig
     INFO(" ");
-    INFO("  Total edit distance: %d", distance);
-    return distance;
+    INFO("  Total edit distance: %d", 
+                *std::min_element(all_qual_dists.begin(), all_qual_dists.end()));
+    return all_qual_dists;
 }
 
 
@@ -2039,6 +2101,32 @@ std::unordered_map<idx2, idx2> sw_align(
         s++;
     } // end alignment
     return ptrs;
+}
+
+
+/******************************************************************************/
+
+
+int count_dist(const std::vector<int> & cigar) {
+    int cigar_ptr = 0;
+    int dist = 0;
+    while (cigar_ptr < int(cigar.size())) {
+        switch (cigar[cigar_ptr]) {
+        case PTR_DIAG:
+            cigar_ptr += 2;
+            break;
+        case PTR_SUB:
+            dist++;
+            cigar_ptr += 2;
+            break;
+        case PTR_INS:
+        case PTR_DEL:
+            dist++;
+            cigar_ptr++;
+            break;
+        }
+    }
+    return dist;
 }
 
 
