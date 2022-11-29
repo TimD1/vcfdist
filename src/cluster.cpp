@@ -292,7 +292,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                 for (size_t i = 0; i < prev_merged.size()-1; i++) {
                     if (prev_merged[i]) active++;
                 }
-                INFO("      Iteration %d: %d clusters, %d active",
+                if (g.print_verbosity >= 1)
+                    INFO("      Iteration %d: %d clusters, %d active",
                         iter, int(prev_clusters.size()-1), active);
 
                 // save temp clustering (generate_ptrs_strs assumes clustered)

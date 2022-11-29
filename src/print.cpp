@@ -322,9 +322,9 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     FILE* out_pr = fopen(out_pr_fn.data(), "w");
     fprintf(out_pr, "TYPE\tQUAL\tPRECISION\tRECALL\tF1_SCORE\t"
             "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_PP\tQUERY_FP\n");
+    std::vector<float> max_f1_score = {0, 0};
+    std::vector<int> max_f1_qual = {0, 0};
     for (int type = 0; type < VARTYPES; type++) {
-        std::vector<float> max_f1_score = {0, 0};
-        std::vector<float> max_f1_qual = {0, 0};
 
         // only sweeping query qualities; always consider all truth variants
         for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
@@ -374,6 +374,56 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
         }
     }
     fclose(out_pr);
+
+    // print summary output
+    for (int type = 0; type < VARTYPES; type++) {
+        std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
+        INFO(" ");
+        INFO("TYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE");
+
+        for (int qual : quals) {
+            // redo calculations for these two
+            int qidx = qual - g.min_qual;
+
+            int query_tot = query_counts[type][ERRTYPE_TP][qidx] + \
+                        query_counts[type][ERRTYPE_FP][qidx] + \
+                        query_counts[type][ERRTYPE_PP][qidx];
+            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] + \
+                         query_counts[type][PP_FRAC][qidx];
+            if (query_tot == 0)
+                WARN("No QUERY variant calls.");
+
+            int truth_tot = truth_counts[type][ERRTYPE_TP][0] + \
+                        truth_counts[type][ERRTYPE_PP][0] + \
+                        truth_counts[type][ERRTYPE_FN][0];
+            int truth_fn = truth_counts[type][ERRTYPE_FN][0] + \
+                             truth_counts[type][ERRTYPE_TP][0] - \
+                             truth_counts[type][ERRTYPE_TP][qidx];
+            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] + \
+                             truth_counts[type][PP_FRAC][qidx];
+            if (truth_tot == 0) 
+                WARN("No TRUTH variant calls.");
+
+            float precision = query_tp_f / query_tot;
+            float recall = truth_tp_f / truth_tot ;
+            float f1_score = 2*precision*recall / (precision + recall);
+
+            // print summary
+            INFO(
+               "%s\tQ>=%d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f",
+                vartype_strs[type].data(),
+                qual,
+                int(truth_counts[type][ERRTYPE_TP][qidx]),
+                int(query_counts[type][ERRTYPE_TP][qidx]),
+                truth_fn,
+                int(query_counts[type][ERRTYPE_FP][qidx]),
+                precision,
+                recall, 
+                f1_score
+            );
+        }
+    }
+    INFO(" ");
 }
 
 /*******************************************************************************/
