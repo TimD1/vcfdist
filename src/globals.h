@@ -4,10 +4,7 @@
 #include <filesystem>
 
 #include "bed.h"
-
-#define PEN_SUB    0 // penalties order in boolean array *_penalties_set
-#define PEN_OPEN   1
-#define PEN_EXTEND 2
+#include "defs.h"
 
 class Globals {
 public:
@@ -39,8 +36,12 @@ public:
     int truth_sub = 1;
     int truth_open = 1;
     int truth_extend = 1;
+    int eval_sub = 1;
+    int eval_open = 1;
+    int eval_extend = 1;
     std::vector<bool> query_penalties_set = {false, false, false};
     std::vector<bool> truth_penalties_set = {false, false, false};
+    std::vector<bool> eval_penalties_set  = {false, false, false};
     
     bool keep_truth = false;
     bool keep_query = false;

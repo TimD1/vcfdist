@@ -67,12 +67,12 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
         ERROR("Invalid region %s:%d-%d in BED contains", contig.data(), start, stop);
 
     // contig not in BED
-    if (this->regions.find(contig) == this->regions.end()) return OFF_CTG;
+    if (this->regions.find(contig) == this->regions.end()) return BED_OFFCTG;
 
     // variant before/after all BED regions
-    if (stop <= this->regions[contig].starts[0]) return OUTSIDE;
+    if (stop <= this->regions[contig].starts[0]) return BED_OUTSIDE;
     if (start >= this->regions[contig].stops[ 
-            this->regions[contig].stops.size()-1]) return OUTSIDE;
+            this->regions[contig].stops.size()-1]) return BED_OUTSIDE;
 
     // get indices of variant within bed regions list
     size_t start_idx = std::upper_bound(
@@ -85,20 +85,20 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
             stop) - this->regions[contig].stops.begin();
 
     // variant must be partially in region, other index off end
-    if (start_idx < 0) return BORDER;
-    if (stop_idx >= this->regions[contig].stops.size()) return BORDER;
+    if (start_idx < 0) return BED_BORDER;
+    if (stop_idx >= this->regions[contig].stops.size()) return BED_BORDER;
 
     // variant in middle
     if (stop_idx == start_idx)
-        return INSIDE;
+        return BED_INSIDE;
     if (stop_idx == start_idx + 1) {
         int next_region_start = this->regions[contig].starts[stop_idx];
         int prev_region_stop = this->regions[contig].stops[start_idx];
         if (start >= prev_region_stop && stop <= next_region_start) 
-            return OUTSIDE; // between
-        return BORDER; // both
+            return BED_OUTSIDE; // between
+        return BED_BORDER; // both
     }
-    return BORDER; // spans multiple regions
+    return BED_BORDER; // spans multiple regions
 }
 
 bedData::operator std::string() const {

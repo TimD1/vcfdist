@@ -1,5 +1,5 @@
-#ifndef _VCF_H_
-#define _VCF_H_
+#ifndef _VARIANT_H_
+#define _VARIANT_H_
 
 #include <string>
 #include <unordered_map>
@@ -9,31 +9,7 @@
 #include "htslib/vcf.h"
 
 #include "fasta.h"
-
-#define TYPE_REF 0
-#define TYPE_SUB 1
-#define TYPE_INS 2
-#define TYPE_DEL 3
-#define TYPE_GRP 4
-
-#define HAP1 0
-#define HAP2 1
-#define HAPS 2
-
-#define FAIL 0
-#define PASS 1
-
-#define GT_DOT_DOT   0
-#define GT_REF_REF   1
-#define GT_REF_ALT1  2
-#define GT_REF_ALT2  3
-#define GT_ALT1_REF  4
-#define GT_ALT1_ALT1 5
-#define GT_ALT1_ALT2 6
-#define GT_ALT2_REF  7
-#define GT_ALT2_ALT1 8
-#define GT_ALT2_ALT2 9
-#define GT_OTHER     10
+#include "defs.h"
 
 class ctgVariants {
 public:

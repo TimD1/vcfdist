@@ -6,49 +6,8 @@
 #include "fasta.h"
 #include "variant.h"
 #include "cluster.h"
-
-#define PTR_NONE  0  // backtracking pointer flags
-#define PTR_UP    1
-#define PTR_INS   1
-#define PTR_LEFT  2
-#define PTR_DEL   2
-#define PTR_DIAG  4
-#define PTR_SUB   8
-#define PTR_SWAP  16
-#define PTR_LPATH 32
-#define PATH      32
-#define PTR_RPATH 64
-#define MAIN_PATH 96
-#define PTR_SYNC  128
-
-#define MAT_SUB 0 // three matrices for Smith-Waterman
-#define MAT_INS 1
-#define MAT_DEL 2
-#define MATS    3
-
-#define QUERY1_TRUTH1 0 // four possible alignments of truth and query haps
-#define QUERY1_TRUTH2 1
-#define QUERY2_TRUTH1 2
-#define QUERY2_TRUTH2 3
-
-#define QUERY    0
-#define REF      1
-#define TRUTH    1
-#define CALLSETS 2
-
-#define FALSE 0
-#define TRUE 1
-
-#define ERRTYPE_TP 0 // true positive
-#define ERRTYPE_FP 1 // false positive
-#define ERRTYPE_FN 2 // false negative
-#define ERRTYPE_PP 3 // partial positive (reduces ED, but not TP)
-#define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
-#define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
-#define ERRTYPE_UN 6 // unknown
-#define ERRTYPES 7
-
-/******************************************************************************/
+#include "defs.h"
+#include "edit.h"
 
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,
@@ -221,7 +180,7 @@ int count_dist(const std::vector<int> & cigar);
 
 /******************************************************************************/
 
-std::vector<int> alignment_wrapper(
+editData alignment_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr);
 
 variantData edit_dist_realign(

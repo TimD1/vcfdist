@@ -7,6 +7,7 @@
 #include <queue>
 
 #include "dist.h"
+#include "edit.h"
 #include "print.h"
 #include "cluster.h"
 
@@ -290,7 +291,7 @@ variantData edit_dist_realign(
                         case PTR_SUB: // substitution
                             cig_idx += 2;
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx, 1, h, 
-                                    TYPE_SUB, INSIDE, std::string(1,ref_str[ref_idx]), 
+                                    TYPE_SUB, BED_INSIDE, std::string(1,ref_str[ref_idx]), 
                                     std::string(1,alt_str[alt_idx]), 
                                     GT_REF_REF, g.max_qual, g.max_qual);
                             ref_idx++;
@@ -305,7 +306,7 @@ variantData edit_dist_realign(
                                 cig_idx++; indel_len++;
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
-                                    indel_len, h, TYPE_DEL, INSIDE,
+                                    indel_len, h, TYPE_DEL, BED_INSIDE,
                                     ref_str.substr(ref_idx, indel_len),
                                     "", GT_REF_REF, g.max_qual, g.max_qual);
                             ref_idx += indel_len;
@@ -319,7 +320,7 @@ variantData edit_dist_realign(
                                 cig_idx++; indel_len++;
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
-                                    0, h, TYPE_INS, INSIDE, "", 
+                                    0, h, TYPE_INS, BED_INSIDE, "", 
                                     alt_str.substr(alt_idx, indel_len), 
                                     GT_REF_REF, g.max_qual, g.max_qual);
                             alt_idx += indel_len;
@@ -1515,13 +1516,16 @@ void calc_edit_dist_aln(
 /******************************************************************************/
 
 
-std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
+editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     INFO(" ");
     INFO("Calculating edit distance");
 
-    std::vector<int> all_qual_dists(g.max_qual+1, 0);
+    // +2 since it's inclusive, but then also needs to include one quality higher
+    // which doesn't contain any variants (to get draft reference edit dist)
+    std::vector<int> all_qual_dists(g.max_qual+2, 0);
+    editData edits;
     for (std::string ctg : clusterdata_ptr->contigs) {
-        std::vector<int> ctg_qual_dists(g.max_qual+1,0);
+        std::vector<int> ctg_qual_dists(g.max_qual+2,0);
         if (clusterdata_ptr->ctg_superclusters[ctg]->n)
             INFO("  Contig '%s'", ctg.data())
 
@@ -1596,12 +1600,12 @@ std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata
             // calculate paths from alignment
             std::vector< std::vector<idx1> > path;
             std::vector< std::vector<bool> > sync;
-            std::vector< std::vector<bool> > edits;
+            std::vector< std::vector<bool> > edit;
             std::vector< std::vector< std::vector<int> > > path_ptrs;
             std::vector< std::vector< std::vector<int> > > path_scores;
             calc_prec_recall_path(
                     clusterdata_ptr, sc_idx, ctg,
-                    path, sync, edits,
+                    path, sync, edit,
                     aln_ptrs, path_ptrs, path_scores,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs, 
@@ -1615,7 +1619,7 @@ std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    path, sync, edits, aln_ptrs, path_ptrs, 
+                    path, sync, edit, aln_ptrs, path_ptrs, 
                     aln_query_ref_end, phase, g.print_verbosity >= 2
             );
 
@@ -1644,10 +1648,10 @@ std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata
                     quals.insert(sc->ctg_variants[QUERY][hap]->var_quals[var_idx]+1);
                 }
             }
-            quals.insert(g.max_qual+1);
+            quals.insert(g.max_qual+2);
 
             // phasing is known, add scores for each hap
-            std::vector<int> qual_dists(g.max_qual+1, 0);
+            std::vector<int> qual_dists(g.max_qual+2, 0);
             for (int hap = 0; hap < HAPS; hap++) {
 
                 // sweep through quality thresholds
@@ -1669,7 +1673,7 @@ std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata
 
                     // align strings, backtrack, calculate distance
                     auto ptrs = sw_align(query, truth[hap], 
-                            g.truth_sub, g.truth_open, g.truth_extend);
+                            g.eval_sub, g.eval_open, g.eval_extend);
                     std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs);
                     int dist = count_dist(cigar);
 
@@ -1678,6 +1682,7 @@ std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata
                         all_qual_dists[q] += dist;
                         ctg_qual_dists[q] += dist;
                         qual_dists[q] += dist;
+                        edits.add_edits(ctg, sc->begs[sc_idx], hap, cigar, sc_idx, q);
                     }
                     prev_qual = qual;
                 }
@@ -1733,7 +1738,7 @@ std::vector<int> alignment_wrapper(std::shared_ptr<superclusterData> clusterdata
     INFO(" ");
     INFO("  Total edit distance: %d", 
                 *std::min_element(all_qual_dists.begin(), all_qual_dists.end()));
-    return all_qual_dists;
+    return edits;
 }
 
 

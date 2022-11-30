@@ -160,8 +160,12 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Query substitution penalty already set, cannot use '-s'");
             } else if (this->truth_penalties_set[PEN_SUB]) {
                 ERROR("Truth substitution penalty already set, cannot use '-s'");
+            } else if (this->eval_penalties_set[PEN_SUB]) {
+                ERROR("Eval substitution penalty already set, cannot use '-s'");
             }
             try {
+                this->eval_sub = std::stoi(argv[i]);
+                this->eval_penalties_set[PEN_SUB] = true;
                 this->query_sub = std::stoi(argv[i]);
                 this->query_penalties_set[PEN_SUB] = true;
                 this->truth_sub = std::stoi(argv[i++]);
@@ -173,13 +177,13 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative substitution penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-cs" || 
+        } else if (std::string(argv[i]) == "-qs" || 
                 std::string(argv[i]) == "--query-sub-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-cs' used without providing substitution penalty");
+                ERROR("Option '-qs' used without providing substitution penalty");
             } else if (this->query_penalties_set[PEN_SUB]) {
-                ERROR("Query substitution penalty already set, cannot use '-cs'");
+                ERROR("Query substitution penalty already set, cannot use '-qs'");
             }
             try {
                 this->query_sub = std::stoi(argv[i++]);
@@ -209,6 +213,24 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative truth substitution penalty");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-es" || 
+                std::string(argv[i]) == "--eval-sub-penalty") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-es' used without providing substitution penalty");
+            } else if (this->eval_penalties_set[PEN_SUB]) {
+                ERROR("Eval substitution penalty already set, cannot use '-es'");
+            }
+            try {
+                this->eval_sub = std::stoi(argv[i++]);
+                this->eval_penalties_set[PEN_SUB] = true;
+            } catch (const std::exception & e) {
+                ERROR("Invalid eval substitution penalty provided");
+            }
+            if (this->eval_sub < 0) {
+                ERROR("Must provide non-negative eval substitution penalty");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-o" || 
                 std::string(argv[i]) == "--gap-open-penalty") {
             i++;
@@ -218,8 +240,12 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Query gap-opening penalty already set, cannot use '-o'");
             } else if (this->truth_penalties_set[PEN_OPEN]) {
                 ERROR("Truth gap-opening penalty already set, cannot use '-o'");
+            } else if (this->eval_penalties_set[PEN_OPEN]) {
+                ERROR("Eval gap-opening penalty already set, cannot use '-o'");
             }
             try {
+                this->eval_open = std::stoi(argv[i]);
+                this->eval_penalties_set[PEN_OPEN] = true;
                 this->query_open = std::stoi(argv[i]);
                 this->query_penalties_set[PEN_OPEN] = true;
                 this->truth_open = std::stoi(argv[i++]);
@@ -231,13 +257,13 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-co" || 
+        } else if (std::string(argv[i]) == "-qo" || 
                 std::string(argv[i]) == "--query-gap-open-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-co' used without providing gap-opening penalty");
+                ERROR("Option '-qo' used without providing gap-opening penalty");
             } else if (this->query_penalties_set[PEN_OPEN]) {
-                ERROR("Query gap-opening penalty already set, cannot use '-co'");
+                ERROR("Query gap-opening penalty already set, cannot use '-qo'");
             }
             try {
                 this->query_open = std::stoi(argv[i++]);
@@ -267,6 +293,24 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative truth gap-opening penalty");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-eo" || 
+                std::string(argv[i]) == "--eval-gap-open-penalty") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-eo' used without providing gap-opening penalty");
+            } else if (this->eval_penalties_set[PEN_OPEN]) {
+                ERROR("Eval gap-opening penalty already set, cannot use '-eo'");
+            }
+            try {
+                this->eval_open = std::stoi(argv[i++]);
+                this->eval_penalties_set[PEN_OPEN] = true;
+            } catch (const std::exception & e) {
+                ERROR("Invalid eval gap-opening penalty provided");
+            }
+            if (this->eval_open < 0) {
+                ERROR("Must provide non-negative eval gap-opening penalty");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-e" || 
                 std::string(argv[i]) == "--gap-extend-penalty") {
             i++;
@@ -276,8 +320,12 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Query gap-extension penalty already set, cannot use '-e'");
             } else if (this->truth_penalties_set[PEN_EXTEND]) {
                 ERROR("Truth gap-extension penalty already set, cannot use '-e'");
+            } else if (this->eval_penalties_set[PEN_EXTEND]) {
+                ERROR("Eval gap-extension penalty already set, cannot use '-e'");
             }
             try {
+                this->eval_extend = std::stoi(argv[i]);
+                this->eval_penalties_set[PEN_EXTEND] = true;
                 this->query_extend = std::stoi(argv[i]);
                 this->query_penalties_set[PEN_EXTEND] = true;
                 this->truth_extend = std::stoi(argv[i++]);
@@ -289,13 +337,13 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative gap-extension penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ce" || 
+        } else if (std::string(argv[i]) == "-qe" || 
                 std::string(argv[i]) == "--query-gap-extend-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-ce' used without providing gap-extension penalty");
+                ERROR("Option '-qe' used without providing gap-extension penalty");
             } else if (this->query_penalties_set[PEN_EXTEND]) {
-                ERROR("Query gap-extension penalty already set, cannot use '-ce'");
+                ERROR("Query gap-extension penalty already set, cannot use '-qe'");
             }
             try {
                 this->query_extend = std::stoi(argv[i++]);
@@ -323,6 +371,24 @@ void Globals::parse_args(int argc, char ** argv) {
             }
             if (this->truth_extend < 0) {
                 ERROR("Must provide non-negative truth gap-extension penalty");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-ee" || 
+                std::string(argv[i]) == "--eval-gap-extend-penalty") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-ee' used without providing gap-extension penalty");
+            } else if (this->eval_penalties_set[PEN_EXTEND]) {
+                ERROR("Eval gap-extension penalty already set, cannot use '-ee'");
+            }
+            try {
+                this->eval_extend = std::stoi(argv[i++]);
+                this->eval_penalties_set[PEN_EXTEND] = true;
+            } catch (const std::exception & e) {
+                ERROR("Invalid eval gap-extension penalty provided");
+            }
+            if (this->eval_extend < 0) {
+                ERROR("Must provide non-negative eval gap-extension penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-x" || 
@@ -410,13 +476,13 @@ void Globals::print_usage() const
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
-    printf("  -cs, --query-sub-penalty <VALUE> [1]\n");
+    printf("  -qs, --query-sub-penalty <VALUE> [1]\n");
     printf("      integer Smith-Waterman substitution penalty for query variants\n\n");
 
-    printf("  -co, --query-gap-open-penalty <VALUE> [1]\n");
+    printf("  -qo, --query-gap-open-penalty <VALUE> [1]\n");
     printf("      integer Smith-Waterman gap opening penalty for query variants\n\n");
 
-    printf("  -ce, --query-gap-extend-penalty <VALUE> [1]\n");
+    printf("  -qe, --query-gap-extend-penalty <VALUE> [1]\n");
     printf("      integer Smith-Waterman gap extension penalty for query variants\n\n");
 
     printf("  -ts, --truth-sub-penalty <VALUE> [1]\n");
@@ -427,4 +493,14 @@ void Globals::print_usage() const
 
     printf("  -te, --truth-gap-extend-penalty <VALUE> [1]\n");
     printf("      integer Smith-Waterman gap extension penalty for truth variants\n\n");
+
+    printf("  -es, --eval-sub-penalty <VALUE> [1]\n");
+    printf("      integer Smith-Waterman substitution penalty for evaluating distance\n\n");
+
+    printf("  -eo, --eval-gap-open-penalty <VALUE> [1]\n");
+    printf("      integer Smith-Waterman gap opening penalty for evaluating distance\n\n");
+
+    printf("  -ee, --eval-gap-extend-penalty <VALUE> [1]\n");
+    printf("      integer Smith-Waterman gap extension penalty for evaluating distance\n\n");
+
 }

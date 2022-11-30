@@ -186,7 +186,7 @@ void variantData::add_variants(
             case PTR_SUB: // substitution
                 cig_idx += 2;
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
-                        TYPE_SUB, INSIDE, std::string(1,ref[ref_idx]), 
+                        TYPE_SUB, BED_INSIDE, std::string(1,ref[ref_idx]), 
                         std::string(1,query[query_idx]), 
                         GT_REF_REF, g.max_qual, qual);
                 ref_idx++;
@@ -201,7 +201,7 @@ void variantData::add_variants(
                     cig_idx++; indel_len++;
                 }
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
-                        indel_len, hap, TYPE_DEL, INSIDE,
+                        indel_len, hap, TYPE_DEL, BED_INSIDE,
                         ref.substr(ref_idx, indel_len),
                         "", GT_REF_REF, g.max_qual, qual);
                 ref_idx += indel_len;
@@ -215,7 +215,7 @@ void variantData::add_variants(
                     cig_idx++; indel_len++;
                 }
                 this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
-                        0, hap, TYPE_INS, INSIDE, "", 
+                        0, hap, TYPE_INS, BED_INSIDE, "", 
                         query.substr(query_idx, indel_len), 
                         GT_REF_REF, g.max_qual, qual);
                 query_idx += indel_len;
@@ -506,12 +506,12 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             // check that variant is in region of interest
             uint8_t loc = g.bed.contains(seq, pos, pos + rlen);
             switch (loc) {
-                case OUTSIDE: 
-                case OFF_CTG:
+                case BED_OUTSIDE: 
+                case BED_OFFCTG:
                     nregions[loc]++;
                     continue; // discard variant
-                case INSIDE: 
-                case BORDER:
+                case BED_INSIDE: 
+                case BED_BORDER:
                     nregions[loc]++;
                     break;
                 default:

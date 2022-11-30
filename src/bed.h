@@ -8,10 +8,7 @@
 #include <sstream>
 #include <algorithm>
 
-#define OUTSIDE 0
-#define INSIDE  1
-#define BORDER  2
-#define OFF_CTG 3
+#include "defs.h"
 
 struct contigRegions {
     std::vector<int> starts;

@@ -1,7 +1,7 @@
 CC = /opt/rh/devtoolset-8/root/bin/g++
 CFLAGS = -Wall -std=c++2a -O2 -pg -g
 IFLAGS = /usr/local/include/
-OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o
+OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o edit.o
 TARGET = vcfdist
 LDLIBS = -lz -lhts -lstdc++fs
 
@@ -10,25 +10,28 @@ all: $(TARGET)
 $(TARGET): $(OBJS) main.cpp
 	$(CC) $(CFLAGS) $(OBJS) -I$(IFLAGS) -o $(TARGET) main.cpp $(LDLIBS)
 
-globals.o: globals.cpp globals.h bed.h print.h
+globals.o: globals.cpp globals.h bed.h print.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) globals.cpp
 
-print.o: print.cpp print.h globals.h phase.h dist.h
+print.o: print.cpp print.h globals.h phase.h dist.h edit.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) print.cpp
 
-variant.o: variant.cpp variant.h print.h fasta.h
+variant.o: variant.cpp variant.h print.h fasta.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) variant.cpp
 
-dist.o: dist.cpp dist.h fasta.h variant.h cluster.h print.h
+dist.o: dist.cpp dist.h fasta.h variant.h cluster.h print.h edit.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) dist.cpp
 
-bed.o: bed.cpp bed.h print.h
+bed.o: bed.cpp bed.h print.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) bed.cpp
 
-cluster.o: cluster.cpp cluster.h variant.h globals.h dist.h
+edit.o: edit.cpp edit.h defs.h
+	$(CC) -c $(CFLAGS) -I$(IFLAGS) edit.cpp
+
+cluster.o: cluster.cpp cluster.h variant.h globals.h dist.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) cluster.cpp
 
-phase.o: phase.cpp phase.h cluster.h print.h globals.h
+phase.o: phase.cpp phase.h cluster.h print.h globals.h defs.h
 	$(CC) -c $(CFLAGS) -I$(IFLAGS) phase.cpp
 
 clean:

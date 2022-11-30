@@ -3,6 +3,7 @@
 
 #include "print.h"
 #include "dist.h"
+#include "edit.h"
 
 std::string GREEN(char c) { return "\033[32m" + std::string(1,c) + "\033[0m"; }
 std::string GREEN(std::string str) { return "\033[32m" + str + "\033[0m"; }
@@ -431,7 +432,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
 void write_results(
         std::unique_ptr<phaseData> & phasedata_ptr, 
-        std::vector<int> dists) {
+        const editData & edits) {
     INFO(" ");
     INFO("Writing results");
 
@@ -441,12 +442,45 @@ void write_results(
     // print distance information
     std::string dist_fn = g.out_prefix + "distance.tsv";
     FILE* out_dists = fopen(dist_fn.data(), "w");
-    fprintf(out_dists, "QUAL\tDIST\n");
-    INFO("  Printing edit distance results to '%s'", dist_fn.data());
-    for (int i = 0; i <= g.max_qual; i++) {
-        fprintf(out_dists, "%d\t%d\n", i, dists[i]);
+    fprintf(out_dists, "QUAL\tSUB_DE\tINS_DE\tDEL_DE\tINS_ED\tDEL_ED\tDE\tED\t"
+            "SCORE\tSUB_DE_PCT\tINDEL_DE_PCT\tINDEL_ED_PCT\n");
+    INFO("  Printing distance results to '%s'", dist_fn.data());
+
+    int orig_sub_de = edits.get_de(g.max_qual+1, TYPE_SUB);
+    int orig_ins_de = edits.get_de(g.max_qual+1, TYPE_INS);
+    int orig_del_de = edits.get_de(g.max_qual+1, TYPE_DEL);
+    int orig_ins_ed = edits.get_ed(g.max_qual+1, TYPE_INS);
+    int orig_del_ed = edits.get_ed(g.max_qual+1, TYPE_DEL);
+    for (int q = g.min_qual; q <= g.max_qual+1; q++) {
+        int sub_de = edits.get_de(q, TYPE_SUB);
+        int ins_de = edits.get_de(q, TYPE_INS);
+        int del_de = edits.get_de(q, TYPE_DEL);
+        int sub_ed = edits.get_ed(q, TYPE_SUB);
+        int ins_ed = edits.get_ed(q, TYPE_INS);
+        int del_ed = edits.get_ed(q, TYPE_DEL);
+        fprintf(out_dists, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\n", 
+                q, sub_de, ins_de, del_de, ins_ed, del_ed, 
+                sub_de+ins_de+del_de,
+                sub_ed+ins_ed+del_ed, 
+                edits.get_score(q), 
+                1 - sub_de/float(orig_sub_de),
+                1 - (ins_de+del_de)/float(orig_ins_de+orig_del_de),
+                1 - (ins_ed+del_ed)/float(orig_ins_ed+orig_del_ed));
     }
     fclose(out_dists);
+
+    // print edit information
+    std::string edit_fn = g.out_prefix + "edits.tsv";
+    FILE* out_edits = fopen(edit_fn.data(), "w");
+    fprintf(out_edits, "CONTIG\tPOS\tHAP\tTYPE\tLEN\tSUPERCLUSTER\tQUAL\n");
+    INFO("  Printing edit results to '%s'", edit_fn.data());
+    for (int i = 0; i < edits.n; i++) {
+        fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\n", 
+                edits.ctgs[i].data(), edits.poss[i], edits.haps[i],
+                type_strs[edits.types[i]].data(), edits.lens[i],
+                edits.superclusters[i], edits.quals[i]);
+    }
+    fclose(out_edits);
 
     // print phasing information
     std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";
@@ -471,7 +505,8 @@ void write_results(
     std::string out_clusterings_fn = g.out_prefix + "superclusters.tsv";
     FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
     INFO("  Printing superclustering results to '%s'", out_clusterings_fn.data());
-    fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
+    fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
+            "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         auto ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = ctg_phasings.ctg_superclusters;
@@ -518,7 +553,8 @@ void write_results(
     std::string out_query_fn = g.out_prefix + "query.tsv";
     INFO("  Printing call variant results to '%s'", out_query_fn.data());
     FILE* out_query = fopen(out_query_fn.data(), "w");
-    fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
+    fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
+            "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
