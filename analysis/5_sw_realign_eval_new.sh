@@ -48,7 +48,7 @@ names=(
     "C"
     "D"
 )
-mkdir -p 1_results
+mkdir -p 5_results
 
 # parallel -j8 --joblog "vcfdist-realign.log" \
 # "../src/vcfdist \
@@ -58,28 +58,29 @@ mkdir -p 1_results
 #     -b $bed \
 #     -s {2} -o {3} -e {4} \
 #     --exit-after-realign \
-#     -r 1_results/{1}_ > 1_results/{1}.out" ::: \
+#     -r 5_results/{1}_ > 5_results/{1}.out" ::: \
 #         ${names[@]} :::+ ${sub_penalties[@]} :::+ \
 #         ${open_penalties[@]} :::+ ${extend_penalties[@]} 
 
 # VCFdist compare
 parallel -j8 --joblog "vcfdist-compare.log" \
 "../src/vcfdist \
-    1_results/{1}_query.vcf \
-    1_results/{2}_truth.vcf \
+    5_results/{1}_query.vcf \
+    5_results/{2}_truth.vcf \
     $ref \
     -b $bed \
     -p 1 \
     --keep-query --keep-truth \
-    -r 1_results/{1}-query_{2}-truth_ > 1_results/{1}-query_{2}-truth.out" ::: \
+    --new-prec-calc \
+    -r 5_results/{1}-query_{2}-truth_ > 5_results/{1}-query_{2}-truth.out" ::: \
         ${names[@]} ::: ${names[@]}
 
 # # hap.py evaluation
 # source ~/software/happy/venv2/bin/activate
 # parallel -j25 \
 #     "python ~/software/happy/install/bin/hap.py \
-#     1_results/{1}_truth.vcf \
-#     1_results/{2}_query.vcf \
+#     5_results/{1}_truth.vcf \
+#     5_results/{2}_query.vcf \
 #     -r $ref \
 #     --engine-vcfeval-template /x/gm24385/ref/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta.sdf \
 #     -T $bed \
@@ -87,10 +88,10 @@ parallel -j8 --joblog "vcfdist-compare.log" \
 #     --threads 1 \
 #     --write-counts \
 #     --engine vcfeval \
-#     -o 1_results/{2}-query_{1}-truth" ::: \
+#     -o 5_results/{2}-query_{1}-truth" ::: \
 #     ${names[@]} ::: ${names[@]}
 
 # # unzip results
 # parallel -j25 \
-#     "gunzip -f 1_results/{1}-query_{2}-truth.*.gz" ::: \
+#     "gunzip -f 5_results/{1}-query_{2}-truth.*.gz" ::: \
 #     ${names[@]} ::: ${names[@]}

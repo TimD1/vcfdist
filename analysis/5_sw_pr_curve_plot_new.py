@@ -12,7 +12,7 @@ fig.suptitle("Varying Truth/Query Smith-Waterman Parameters")
 idx = 0
 for query in names:
     for truth in "C":
-        with open(f"1_results/{query}-query_{truth}-truth.roc.all.csv") as csv:
+        with open(f"5_results/{query}-query_{truth}-truth.roc.all.csv") as csv:
             label = f"VCFeval Query={query} Truth={truth}"
             indel_recall = []
             indel_prec = []
@@ -35,7 +35,7 @@ for query in names:
             ax2.plot(indel_recall, indel_prec, linestyle='', 
                     marker='.', color=f"C{idx}", label=label)
 
-        with open(f"1_results/{query}-query_{truth}-truth_precision-recall.tsv") as csv:
+        with open(f"5_results/{query}-query_{truth}-truth_precision-recall.tsv") as csv:
             label = f"VCFdist Query={query} Truth={truth}"
             indel_recall = []
             indel_prec = []
@@ -55,13 +55,21 @@ for query in names:
                 if typ == "INDEL":
                     indel_recall.append(float(recall))
                     indel_prec.append(float(prec))
-                    indel_recall2.append(float(truth_tp) / float(truth_tot));
-                    indel_prec2.append(float(query_tp) / float(query_tot));
+                    indel_recall2.append(float(truth_tp) / float(truth_tot))
+                    if int(truth_tp) + int(query_pp) + int(query_fp) == 0:
+                        indel_prec2.append(1)
+                    else:
+                        indel_prec2.append(float(truth_tp) / 
+                                (float(truth_tp) + float(query_pp) + float(query_fp)))
                 elif typ == "SNP":
                     snp_recall.append(float(recall))
                     snp_prec.append(float(prec))
-                    snp_recall2.append(float(truth_tp) / float(truth_tot));
-                    snp_prec2.append(float(query_tp) / float(query_tot));
+                    snp_recall2.append(float(truth_tp) / float(truth_tot))
+                    if int(truth_tp) + int(query_pp) + int(query_fp) == 0:
+                        snp_prec2.append(1)
+                    else:
+                        snp_prec2.append(float(truth_tp) / 
+                                (float(truth_tp) + float(query_pp) + float(query_fp)))
             ax1.plot(snp_recall, snp_prec, linestyle='', 
                     marker='+', color=f"C{idx}", label=label)
             ax2.plot(indel_recall, indel_prec, linestyle='', 
@@ -91,4 +99,4 @@ ax2.set_ylim(0.6, 1.001)
 ax2.set_yticks(np.arange(0.6, 1.05, 0.05))
 
 plt.tight_layout()
-plt.savefig('img/1_sw_pr_curve.png')
+plt.savefig('img/5_sw_pr_curve_new.png')
