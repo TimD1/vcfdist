@@ -7,19 +7,19 @@ valgrind --leak-check=full \
     --verbose \
     --log-file=valgrind.log \
     ./vcfdist \
-        ../analysis/1_results/A-calls.vcf \
+        ../analysis/1_results/A-query.vcf \
         ../analysis/1_results/B-truth.vcf \
         /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
         -b ../scripts/data/bench_20.bed \
         --simple-cluster \
         --keep-query --keep-truth \
-        -r ../out/A-calls_B-truth_
+        -r ../out/A-query_B-truth_
 
 # time ./vcfdist \
-#     ../analysis/1_results/A-calls.vcf \
+#     ../analysis/1_results/A-query.vcf \
 #     ../analysis/1_results/B-truth.vcf \
 #     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
 #     -b ../scripts/data/bench_20.bed \
 #     --simple-cluster \
 #     --keep-query --keep-truth \
-#     -r ../out/A-calls_B-truth_
+#     -r ../out/A-query_B-truth_

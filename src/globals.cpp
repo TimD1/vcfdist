@@ -7,19 +7,33 @@
 
 void Globals::parse_args(int argc, char ** argv) {
 
-    /* print help and exit */
+    /* if required arguments are not provided, you can only print help and exit */
+    bool print_help = false;
     if (argc < 4) {
-        if (argc == 2 && (std::string(argv[1]) == "-v" || 
-                    std::string(argv[1]) == "--version")) {
-            this->print_version();
-            std::exit(0);
+        int i = 1;
+        while (i < argc) {
+            if (std::string(argv[i]) == "-a" || 
+                    std::string(argv[i]) == "--advanced") {
+                i++;
+                print_help = true;
+                g.advanced = true;
+            } else if (std::string(argv[i]) == "-h" || 
+                    std::string(argv[i]) == "--help") {
+                i++;
+                print_help = true;
+            } else if (std::string(argv[i]) == "-v" || 
+                    std::string(argv[i]) == "--version") {
+                i++;
+                this->print_version();
+            }
         }
-        this->print_usage();
+
+        if (print_help || argc == 1) this->print_usage();
         std::exit(0);
     }
 
     if (argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-') {
-        WARN("Optional arguments should be provided AFTER mandatory arguments");
+        WARN("Optional arguments should be provided AFTER mandatory arguments, cannot use STDIN");
         this->print_usage();
     }
 
@@ -128,7 +142,7 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "-h" || 
                 std::string(argv[i]) == "--help") {
             i++;
-            this->print_usage();
+            print_help = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-v" || 
                 std::string(argv[i]) == "--version") {
@@ -396,6 +410,11 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.exit = true;
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-a" || 
+                std::string(argv[i]) == "--advanced") {
+            i++;
+            g.advanced = true;
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "--keep-truth") {
             i++;
             g.keep_truth = true;
@@ -407,10 +426,15 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "--simple-cluster") {
             i++;
             g.simple_cluster = true;
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "--new-prec-calc") {
+            i++;
+            g.new_prec_calc = true;
         } else {
             ERROR("Unexpected option '%s'", argv[i]);
         }
     }
+    if (print_help) this->print_usage();
 }
 
 /* --------------------------------------------------------------------------- */
@@ -436,25 +460,25 @@ void Globals::print_usage() const
     printf("  -r, --results-prefix <FILENAME_PREFIX>\n");
     printf("      output filepath prefix (directories should contain trailing slashes)\n\n");
 
-    printf("  -q, --min-qual <VALUE> [0]\n");
+    printf("  -q, --min-qual <VALUE> [%d]\n", g.min_qual);
     printf("      minimum variant quality to be considered (lower qualities ignored)\n\n");
 
-    printf("  -m, --max-qual <VALUE> [60]\n");
+    printf("  -m, --max-qual <VALUE> [%d]\n", g.max_qual);
     printf("      maximum variant quality (higher qualities kept, thresholded)\n\n");
 
-    printf("  -g, --supercluster-gap <VALUE> [50]\n");
+    printf("  -g, --supercluster-gap <VALUE> [%d]\n", g.cluster_min_gap);
     printf("      minimum base gap between independent superclusters\n\n");
 
-    printf("  -s, --sub-penalty <VALUE> [1]\n");
+    printf("  -s, --sub-penalty <VALUE> [%d]\n", g.eval_sub);
     printf("      integer Smith-Waterman substitution penalty\n\n");
 
-    printf("  -o, --gap-open-penalty <VALUE> [1]\n");
+    printf("  -o, --gap-open-penalty <VALUE> [%d]\n", g.eval_open);
     printf("      integer Smith-Waterman gap opening penalty\n\n");
 
-    printf("  -e, --gap-extend-penalty <VALUE> [1]\n");
+    printf("  -e, --gap-extend-penalty <VALUE> [%d]\n", g.eval_extend);
     printf("      integer Smith-Waterman gap extension penalty\n\n");
 
-    printf("  -p, --print-verbosity <VALUE> [0]\n");
+    printf("  -p, --print-verbosity <VALUE> [%d]\n", g.print_verbosity);
     printf("      printing verbosity (0: default, 1: verbose, 2:debugging)\n\n");
 
     printf("  -x, --exit-after-realign\n");
@@ -463,9 +487,14 @@ void Globals::print_usage() const
     printf("  -h, --help\n");
     printf("      show this help message\n\n");
 
-    printf("  -v, --version\n");
-    printf("      show version number (%s v%s)\n\n", this->PROGRAM.data(), this->VERSION.data());
+    printf("  -a, --advanced\n");
+    printf("      show advanced options\n\n");
 
+    printf("  -v, --version\n");
+    printf("      show version number (%s v%s)\n\n", 
+            this->PROGRAM.data(), this->VERSION.data());
+
+    if (!this->advanced) return;
     printf("\nAdvanced Options: (not recommended, only for evaluation)\n");
     printf("  --keep-query\n");
     printf("      do not realign query.vcf variants using Smith-Waterman\n\n");
@@ -476,31 +505,34 @@ void Globals::print_usage() const
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
-    printf("  -qs, --query-sub-penalty <VALUE> [1]\n");
+    printf("  --new-prec-calc\n");
+    printf("      New precision calculation, using truth TPs instead of query TPs\n\n");
+
+    printf("  -qs, --query-sub-penalty <VALUE> [%d]\n", g.query_sub);
     printf("      integer Smith-Waterman substitution penalty for query variants\n\n");
 
-    printf("  -qo, --query-gap-open-penalty <VALUE> [1]\n");
+    printf("  -qo, --query-gap-open-penalty <VALUE> [%d]\n", g.query_open);
     printf("      integer Smith-Waterman gap opening penalty for query variants\n\n");
 
-    printf("  -qe, --query-gap-extend-penalty <VALUE> [1]\n");
+    printf("  -qe, --query-gap-extend-penalty <VALUE> [%d]\n", g.query_extend);
     printf("      integer Smith-Waterman gap extension penalty for query variants\n\n");
 
-    printf("  -ts, --truth-sub-penalty <VALUE> [1]\n");
+    printf("  -ts, --truth-sub-penalty <VALUE> [%d]\n", g.truth_sub);
     printf("      integer Smith-Waterman substitution penalty for truth variants\n\n");
 
-    printf("  -to, --truth-gap-open-penalty <VALUE> [1]\n");
+    printf("  -to, --truth-gap-open-penalty <VALUE> [%d]\n", g.truth_open);
     printf("      integer Smith-Waterman gap opening penalty for truth variants\n\n");
 
-    printf("  -te, --truth-gap-extend-penalty <VALUE> [1]\n");
+    printf("  -te, --truth-gap-extend-penalty <VALUE> [%d]\n", g.truth_extend);
     printf("      integer Smith-Waterman gap extension penalty for truth variants\n\n");
 
-    printf("  -es, --eval-sub-penalty <VALUE> [1]\n");
+    printf("  -es, --eval-sub-penalty <VALUE> [%d]\n", g.eval_sub);
     printf("      integer Smith-Waterman substitution penalty for evaluating distance\n\n");
 
-    printf("  -eo, --eval-gap-open-penalty <VALUE> [1]\n");
+    printf("  -eo, --eval-gap-open-penalty <VALUE> [%d]\n", g.eval_open);
     printf("      integer Smith-Waterman gap opening penalty for evaluating distance\n\n");
 
-    printf("  -ee, --eval-gap-extend-penalty <VALUE> [1]\n");
+    printf("  -ee, --eval-gap-extend-penalty <VALUE> [%d]\n", g.eval_extend);
     printf("      integer Smith-Waterman gap extension penalty for evaluating distance\n\n");
 
 }

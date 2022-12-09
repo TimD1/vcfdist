@@ -3,8 +3,11 @@
 
 #include <string>
 #include <vector>
+#include <cmath>
 
 #include "defs.h"
+
+float qscore(double p_error);
 
 class editData {
 public:

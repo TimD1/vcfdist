@@ -22,6 +22,7 @@ void bedData::add(const std::string & contig, const int & start, const int & sto
     this->regions[contig].starts.push_back(start);
     this->regions[contig].stops.push_back(stop);
     this->regions[contig].n++;
+    this->size += stop-start;
 }
 
 void bedData::check() {

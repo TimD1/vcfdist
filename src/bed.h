@@ -29,6 +29,8 @@ public:
 
     operator std::string() const;
 
+    long size;
+
 private:
     std::unordered_map<std::string, contigRegions> regions;
     std::vector<std::string> contigs;

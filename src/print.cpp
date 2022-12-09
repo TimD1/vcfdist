@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <cmath>
 
 #include "print.h"
 #include "dist.h"
@@ -321,7 +322,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
     INFO("  Printing precision-recall results to '%s'", out_pr_fn.data());
     FILE* out_pr = fopen(out_pr_fn.data(), "w");
-    fprintf(out_pr, "TYPE\tQUAL\tPRECISION\tRECALL\tF1_SCORE\t"
+    fprintf(out_pr, "TYPE\tQUAL\tPRECISION\tRECALL\tF1_SCORE\tF1_QSCORE\t"
             "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_PP\tQUERY_FP\n");
     std::vector<float> max_f1_score = {0, 0};
     std::vector<int> max_f1_qual = {0, 0};
@@ -335,21 +336,26 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                         query_counts[type][ERRTYPE_FP][qidx] + \
                         query_counts[type][ERRTYPE_PP][qidx];
             float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] + \
-                         query_counts[type][PP_FRAC][qidx];
-            if (query_tot == 0) break;
+                        query_counts[type][PP_FRAC][qidx];
+            float query_fp_f = query_tot - query_tp_f;
+            if (!g.new_prec_calc && query_tot == 0) break;
 
             int truth_tot = truth_counts[type][ERRTYPE_TP][0] + \
                         truth_counts[type][ERRTYPE_PP][0] + \
                         truth_counts[type][ERRTYPE_FN][0];
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] + \
-                             truth_counts[type][ERRTYPE_TP][0] - \
-                             truth_counts[type][ERRTYPE_TP][qidx];
             float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] + \
-                             truth_counts[type][PP_FRAC][qidx];
+                         truth_counts[type][PP_FRAC][qidx];
             if (truth_tot == 0) break;
+            if (g.new_prec_calc && truth_tp_f + query_fp_f == 0) break;
 
-            float precision = query_tp_f / query_tot;
-            float recall = truth_tp_f / truth_tot ;
+            // ignore PP, this is only for summary output, not calculations
+            int truth_fn = truth_counts[type][ERRTYPE_FN][0] + \
+                         truth_counts[type][ERRTYPE_TP][0] - \
+                         truth_counts[type][ERRTYPE_TP][qidx];
+
+            float precision = g.new_prec_calc ? 
+                truth_tp_f / (truth_tp_f + query_fp_f) : query_tp_f / query_tot;
+            float recall = truth_tp_f / truth_tot;
             float f1_score = 2*precision*recall / (precision + recall);
             if (f1_score > max_f1_score[type]) {
                 max_f1_score[type] = f1_score;
@@ -357,12 +363,13 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
             }
 
             fprintf(out_pr, 
-                    "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+                    "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
                     vartype_strs[type].data(),
                     qual,
                     precision,
                     recall, 
                     f1_score,
+                    qscore(1-f1_score),
                     truth_tot,
                     int(truth_counts[type][ERRTYPE_TP][qidx]),
                     int(truth_counts[type][ERRTYPE_PP][qidx]),
@@ -377,10 +384,14 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     fclose(out_pr);
 
     // print summary output
+    std::string out_pr_summ_fn = g.out_prefix + "precision-recall-summary.tsv";
+    INFO("  Printing precision-recall summary to '%s'", out_pr_summ_fn.data());
+    FILE* out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
+    fprintf(out_pr_summ, "TYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         INFO(" ");
-        INFO("TYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE");
+        INFO("TYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE");
 
         for (int qual : quals) {
             // redo calculations for these two
@@ -391,8 +402,8 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                         query_counts[type][ERRTYPE_PP][qidx];
             float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] + \
                          query_counts[type][PP_FRAC][qidx];
-            if (query_tot == 0)
-                WARN("No QUERY variant calls.");
+            float query_fp_f = query_tot - query_tp_f;
+            if (query_tot == 0) WARN("No QUERY variant calls.");
 
             int truth_tot = truth_counts[type][ERRTYPE_TP][0] + \
                         truth_counts[type][ERRTYPE_PP][0] + \
@@ -402,16 +413,16 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                              truth_counts[type][ERRTYPE_TP][qidx];
             float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] + \
                              truth_counts[type][PP_FRAC][qidx];
-            if (truth_tot == 0) 
-                WARN("No TRUTH variant calls.");
+            if (truth_tot == 0) WARN("No TRUTH variant calls.");
 
-            float precision = query_tp_f / query_tot;
-            float recall = truth_tp_f / truth_tot ;
+            float precision = g.new_prec_calc ? 
+                (truth_tp_f + query_fp_f == 0 ? 1.0f : truth_tp_f / (truth_tp_f + query_fp_f)) :
+                (query_tot == 0 ? 1.0f : query_tp_f / query_tot);
+            float recall = truth_tot == 0 ? 1.0f : truth_tp_f / truth_tot;
             float f1_score = 2*precision*recall / (precision + recall);
 
             // print summary
-            INFO(
-               "%s\tQ>=%d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f",
+            INFO("%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f",
                 vartype_strs[type].data(),
                 qual,
                 int(truth_counts[type][ERRTYPE_TP][qidx]),
@@ -420,12 +431,126 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                 int(query_counts[type][ERRTYPE_FP][qidx]),
                 precision,
                 recall, 
-                f1_score
+                f1_score,
+                qscore(1-f1_score)
+            );
+            fprintf(out_pr_summ,
+               "%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
+                vartype_strs[type].data(),
+                qual,
+                int(truth_counts[type][ERRTYPE_TP][qidx]),
+                int(query_counts[type][ERRTYPE_TP][qidx]),
+                truth_fn,
+                int(query_counts[type][ERRTYPE_FP][qidx]),
+                precision,
+                recall, 
+                f1_score,
+                qscore(1-f1_score)
             );
         }
     }
     INFO(" ");
+    fclose(out_pr_summ);
 }
+
+
+/*******************************************************************************/
+
+
+void write_distance(const editData & edits) {
+
+    // log all distance results
+    std::string dist_fn = g.out_prefix + "distance.tsv";
+    FILE* out_dists = fopen(dist_fn.data(), "w");
+    fprintf(out_dists, "QUAL\tSUB_DE\tINS_DE\tDEL_DE\tSUB_ED\tINS_ED\tDEL_ED\t"
+            "DISTINCT_EDITS\tEDIT_DIST\tSCORE\tQSCORE\n");
+    INFO("  Printing distance results to '%s'", dist_fn.data());
+
+    // get original scores / distance (above g.max_qual, no vars applied)
+    std::vector<int> orig_edit_dists(TYPES, 0);
+    std::vector<int> orig_distinct_edits(TYPES, 0);
+    int orig_score = edits.get_score(g.max_qual+1);
+    for (int type = 0; type < TYPES; type++) {
+        orig_edit_dists[type] = edits.get_ed(g.max_qual+1, type);
+        orig_distinct_edits[type] = edits.get_de(g.max_qual+1, type);
+    }
+
+    std::vector<double> best_score(TYPES, std::numeric_limits<double>::max());
+    std::vector<int> best_qual(TYPES, 0);
+    for (int q = g.min_qual; q <= g.max_qual+1; q++) { // all qualities
+
+        // get ED/DE for each Q threshold, for each type
+        std::vector<int> edit_dists(TYPES, 0);
+        std::vector<int> distinct_edits(TYPES, 0);
+        for (int type = 0; type < TYPES; type++) {
+            edit_dists[type] = edits.get_ed(q, type);
+            distinct_edits[type] = edits.get_de(q, type);
+
+            // save best Q threshold so far
+            double score = double(edit_dists[type]) * distinct_edits[type];
+            if (score < best_score[type]) {
+                best_score[type] = score;
+                best_qual[type] = q;
+            }
+        }
+
+        fprintf(out_dists, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\n", 
+                q, distinct_edits[TYPE_SUB],
+                distinct_edits[TYPE_INS], distinct_edits[TYPE_DEL],
+                edit_dists[TYPE_SUB], edit_dists[TYPE_INS], edit_dists[TYPE_DEL],
+                distinct_edits[TYPE_ALL], edit_dists[TYPE_ALL],
+                edits.get_score(q), qscore(double(edits.get_score(q))/orig_score));
+    }
+    fclose(out_dists);
+
+    // summarize distance results
+    std::string dist_summ_fn = g.out_prefix + "distance-summary.tsv";
+    FILE* dists_summ = fopen(dist_summ_fn.data(), "w");
+    INFO("  Printing distance summary to '%s'", dist_summ_fn.data());
+    fprintf(dists_summ, "TYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tQSCORE\n");
+    for (int type = 0; type < TYPES; type++) {
+
+        // skip INS/DEL individually unless higher print verbosity
+        if ((type == TYPE_INS || type == TYPE_DEL) && g.print_verbosity == 0)
+            continue;
+
+        INFO(" ");
+        if (type == TYPE_ALL) {
+            INFO("TYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tQSCORE");
+        } else {
+            INFO("TYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE");
+        }
+        std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
+        for (auto q : quals) {
+
+            // fill out ED/DE for selected quals
+            std::vector<int> edit_dists(TYPES, 0);
+            std::vector<int> distinct_edits(TYPES, 0);
+            for (int type = 0; type < TYPES; type++) {
+                edit_dists[type] = edits.get_ed(q, type);
+                distinct_edits[type] = edits.get_de(q, type);
+            }
+
+            float ed_qscore = qscore(double(edit_dists[type]) / orig_edit_dists[type]);
+            float de_qscore = qscore(double(distinct_edits[type]) / orig_distinct_edits[type]);
+            float all_qscore = type == TYPE_ALL ? qscore(double(edits.get_score(q)) / orig_score) : 0;
+
+            // print summary
+            fprintf(dists_summ, "%s\t%d\t%d\t%d\t%f\t%f\t%f\n", type_strs2[type].data(),
+                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
+            if (type == TYPE_ALL) {
+                INFO("%s\tQ >= %d\t\t%-16d%-16d%f\t%f\t%f", type_strs2[type].data(),
+                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
+            } else {
+                INFO("%s\tQ >= %d\t\t%-16d%-16d%f\t%f", type_strs2[type].data(),
+                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore);
+            }
+        }
+    }
+    INFO(" ");
+    fclose(dists_summ);
+}
+
 
 /*******************************************************************************/
 
@@ -440,34 +565,7 @@ void write_results(
     write_precision_recall(phasedata_ptr);
 
     // print distance information
-    std::string dist_fn = g.out_prefix + "distance.tsv";
-    FILE* out_dists = fopen(dist_fn.data(), "w");
-    fprintf(out_dists, "QUAL\tSUB_DE\tINS_DE\tDEL_DE\tINS_ED\tDEL_ED\tDE\tED\t"
-            "SCORE\tSUB_DE_PCT\tINDEL_DE_PCT\tINDEL_ED_PCT\n");
-    INFO("  Printing distance results to '%s'", dist_fn.data());
-
-    int orig_sub_de = edits.get_de(g.max_qual+1, TYPE_SUB);
-    int orig_ins_de = edits.get_de(g.max_qual+1, TYPE_INS);
-    int orig_del_de = edits.get_de(g.max_qual+1, TYPE_DEL);
-    int orig_ins_ed = edits.get_ed(g.max_qual+1, TYPE_INS);
-    int orig_del_ed = edits.get_ed(g.max_qual+1, TYPE_DEL);
-    for (int q = g.min_qual; q <= g.max_qual+1; q++) {
-        int sub_de = edits.get_de(q, TYPE_SUB);
-        int ins_de = edits.get_de(q, TYPE_INS);
-        int del_de = edits.get_de(q, TYPE_DEL);
-        int sub_ed = edits.get_ed(q, TYPE_SUB);
-        int ins_ed = edits.get_ed(q, TYPE_INS);
-        int del_ed = edits.get_ed(q, TYPE_DEL);
-        fprintf(out_dists, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\n", 
-                q, sub_de, ins_de, del_de, ins_ed, del_ed, 
-                sub_de+ins_de+del_de,
-                sub_ed+ins_ed+del_ed, 
-                edits.get_score(q), 
-                1 - sub_de/float(orig_sub_de),
-                1 - (ins_de+del_de)/float(orig_ins_de+orig_del_de),
-                1 - (ins_ed+del_ed)/float(orig_ins_ed+orig_del_ed));
-    }
-    fclose(out_dists);
+    write_distance(edits);
 
     // print edit information
     std::string edit_fn = g.out_prefix + "edits.tsv";

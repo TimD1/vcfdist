@@ -29,16 +29,18 @@ public:
     int max_qual = 60;
 
     bool exit = false;
+    bool advanced = false;
+    bool new_prec_calc = false;
 
-    int query_sub = 1;
-    int query_open = 1;
-    int query_extend = 1;
-    int truth_sub = 1;
-    int truth_open = 1;
-    int truth_extend = 1;
-    int eval_sub = 1;
-    int eval_open = 1;
-    int eval_extend = 1;
+    int query_sub = 5;
+    int query_open = 6;
+    int query_extend = 2;
+    int truth_sub = 5;
+    int truth_open = 6;
+    int truth_extend = 2;
+    int eval_sub = 5;
+    int eval_open = 6;
+    int eval_extend = 2;
     std::vector<bool> query_penalties_set = {false, false, false};
     std::vector<bool> truth_penalties_set = {false, false, false};
     std::vector<bool> eval_penalties_set  = {false, false, false};
@@ -66,6 +68,7 @@ extern Globals g;
 extern std::vector<std::string> callset_strs;
 extern std::vector<std::string> vartype_strs;
 extern std::vector<std::string> type_strs;
+extern std::vector<std::string> type_strs2;
 extern std::vector<std::string> error_strs;
 extern std::vector<std::string> gt_strs;
 extern std::vector<std::string> region_strs;

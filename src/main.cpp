@@ -9,6 +9,7 @@
 
 Globals g;
 std::vector<std::string> type_strs = {"REF", "SUB", "INS", "DEL", "GRP"};
+std::vector<std::string> type_strs2 = {"ALL", "SUB", "INS", "DEL", "INDEL"};
 std::vector<std::string> vartype_strs = {"SNP", "INDEL"};
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "PP", "PE", "GE", "??"};
 std::vector<std::string> gt_strs = {
@@ -30,27 +31,29 @@ int main(int argc, char **argv) {
     std::unique_ptr<variantData> query_ptr(
             new variantData(g.query_vcf_fn, ref_ptr));
     query_ptr->write_vcf(g.out_prefix + "orig_query.vcf");
-    g.simple_cluster ? cluster(query_ptr) :
-        sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
     if (!g.keep_query) {
+        g.simple_cluster ? cluster(query_ptr) :
+            sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
         query_ptr = sw_realign(query_ptr, ref_ptr, 
                 g.query_sub, g.query_open, g.query_extend);
-        g.simple_cluster ?  cluster(query_ptr) :
-            sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
     }
+    g.simple_cluster ? cluster(query_ptr) :
+        sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
+    /* update_quals(query_ptr); // to min in cluster */
     
     // parse, realign, and cluster truth VCF
     std::unique_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr));
     truth_ptr->write_vcf(g.out_prefix + "orig_truth.vcf");
-    g.simple_cluster ?  cluster(truth_ptr) :
-        sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
     if (!g.keep_truth) {
-        truth_ptr = sw_realign(truth_ptr, ref_ptr, 
-                g.truth_sub, g.truth_open, g.truth_extend);
         g.simple_cluster ?  cluster(truth_ptr) :
             sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
+        truth_ptr = sw_realign(truth_ptr, ref_ptr, 
+                g.truth_sub, g.truth_open, g.truth_extend);
     }
+    g.simple_cluster ? cluster(truth_ptr) :
+        sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
+    /* update_quals(truth_ptr); // to min in cluster */
 
     if (g.exit) {
         query_ptr->write_vcf(g.out_prefix + "query.vcf");

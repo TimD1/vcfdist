@@ -90,11 +90,22 @@ void editData::add_edit(const std::string & ctg, int pos, uint8_t hap,
 
 /*******************************************************************************/
 
+bool is_type(int type, int category) {
+    if (type == TYPE_INDEL || type == TYPE_ALL) ERROR("Invalid type in is_type()");
+    if (category == TYPE_ALL) return true;
+    if (type == category) return true;
+    if (category == TYPE_INDEL && (type == TYPE_INS || type == TYPE_DEL)) return true;
+    return false;
+}
+
+float qscore(double p_error) {
+    return std::min(100.0, std::max(0.0, -10 * std::log10(p_error)));
+}
+
 int editData::get_ed(int qual, int type) const {
     int edit_dist = 0;
-    for (int i = 0; i < n; i++) {
-        if (this->quals[i] == qual && 
-                (type == TYPE_ALL || type == this->types[i])) {
+    for (int i = 0; i < this->n; i++) {
+        if (this->quals[i] == qual && is_type(this->types[i], type)) {
             edit_dist += this->lens[i];
         }
     }
@@ -103,9 +114,8 @@ int editData::get_ed(int qual, int type) const {
 
 int editData::get_de(int qual, int type) const {
     int distinct_edits = 0;
-    for (int i = 0; i < n; i++) {
-        if (this->quals[i] == qual && 
-                (type == TYPE_ALL || type == this->types[i])) {
+    for (int i = 0; i < this->n; i++) {
+        if (this->quals[i] == qual && is_type(this->types[i], type)) {
             distinct_edits++;
         }
     }
