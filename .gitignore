@@ -1,3 +1,4 @@
+# ignore certain file types
 .*.swp
 *.o
 *.log
@@ -8,16 +9,21 @@
 *.svg
 *.vcf
 *.gprof
-vcfdist
-r10.4_chr20
-pfda-v2
+src/vcfdist
+
+# ignore related projects
 wfa
-scripts/img
-scripts/lib
-scripts/data
-scripts/results
-scripts/phase
+lv89
+
+# ignore analysis
+scripts/*/
 analysis/*/
-src/compare
-test/
+
+# ignore input
+data/*/*
+
+# ignore output
 out/
+
+# test directory not ready yet
+test/

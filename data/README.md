@@ -21,8 +21,10 @@ nist-v4.2.1/                                          [1]
     GRCh38/
         HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
         HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
+        HG002_GRCh38_1_22_v4.2.1_benchmark_hifiasm_v11_phasetransfer.vcf.gz [2]
 ```
 1. [NIST/GIAB Truth VCFs and Benchmarking BEDs](https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/)
+2. [Phased GRCh38 Truth VCF](https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/SupplementaryFiles/)
 
 
 #### Challenging Medically Relevent Genes Benchmark v1.00
