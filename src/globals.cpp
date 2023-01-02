@@ -434,7 +434,14 @@ void Globals::parse_args(int argc, char ** argv) {
             ERROR("Unexpected option '%s'", argv[i]);
         }
     }
-    if (print_help) this->print_usage();
+    if (print_help) 
+        this->print_usage();
+    else {
+        std::string cmd = "";
+        for (int i = 0; i < argc; i++)
+            cmd += " " + std::string(argv[i]);
+        INFO("Command: '%s'", cmd.data()+1);
+    }
 }
 
 /* --------------------------------------------------------------------------- */

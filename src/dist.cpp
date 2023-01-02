@@ -595,8 +595,6 @@ void generate_ptrs_strs(
                             new_hap2_ptrs.begin(), new_hap2_ptrs.end());
 
                     // add sequence, update positions
-                    printf("%d:%d\n", hap1_ref_pos, ref_end-hap1_ref_pos);
-                    printf("%d:%d\n", hap2_ref_pos, ref_end-hap2_ref_pos);
                     hap1 += ref->fasta.at(ctg).substr(hap1_ref_pos, ref_end-hap1_ref_pos);
                     hap2 += ref->fasta.at(ctg).substr(hap2_ref_pos, ref_end-hap2_ref_pos);
                     hap1_ref_pos = ref_end;
