@@ -112,7 +112,7 @@ variantData edit_dist_realign(
                             alt_out_str += ref->fasta.at(ctg)[ref_pos];
                             ref_pos++;
                         } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA",
+                            ERROR("contig %s not present in reference FASTA (edit_dist_realign)",
                                     ctg.data());
                             exit(1);
                         }
@@ -407,7 +407,7 @@ std::string generate_str(
                 str += ref->fasta.at(ctg).substr(ref_pos, ref_end-ref_pos);
                 ref_pos = ref_end;
             } catch (const std::out_of_range & e) {
-                ERROR("Contig %s not present in reference FASTA",
+                ERROR("Contig %s not present in reference FASTA (generate_str)",
                         ctg.data());
                 exit(1);
             }
@@ -471,7 +471,7 @@ void generate_ptrs_strs(
                     hap1_ptrs.push_back(-1);
                     hap1_ref_pos++;
                 } catch (const std::out_of_range & e) {
-                    ERROR("Contig %s not present in reference FASTA",
+                    ERROR("Contig %s not present in reference FASTA (generate_ptrs_strs1)",
                             ctg.data());
                     exit(1);
                 }
@@ -508,7 +508,7 @@ void generate_ptrs_strs(
                     hap2_ptrs.push_back(-1);
                     hap2_ref_pos++;
                 } catch (const std::out_of_range & e) {
-                    ERROR("Contig %s not present in reference FASTA",
+                    ERROR("Contig %s not present in reference FASTA (generate_ptrs_strs2)",
                             ctg.data());
                     exit(1);
                 }
@@ -595,13 +595,15 @@ void generate_ptrs_strs(
                             new_hap2_ptrs.begin(), new_hap2_ptrs.end());
 
                     // add sequence, update positions
+                    printf("%d:%d\n", hap1_ref_pos, ref_end-hap1_ref_pos);
+                    printf("%d:%d\n", hap2_ref_pos, ref_end-hap2_ref_pos);
                     hap1 += ref->fasta.at(ctg).substr(hap1_ref_pos, ref_end-hap1_ref_pos);
                     hap2 += ref->fasta.at(ctg).substr(hap2_ref_pos, ref_end-hap2_ref_pos);
                     hap1_ref_pos = ref_end;
                     hap2_ref_pos = ref_end;
 
                 } catch (const std::out_of_range & e) {
-                    ERROR("Contig '%s' not present in reference FASTA",
+                    ERROR("Contig '%s' not present in reference FASTA (generate_ptrs_strs)",
                             ctg.data());
                     exit(1);
                 }

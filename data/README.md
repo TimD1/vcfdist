@@ -1,4 +1,5 @@
 ### Data
+This directory includes the following subdirectories containing the inputs used to evaluate VCFdist. If you would like to reproduce our analysis, please create the directory structure shown below, using publicly available data.
 
 #### Precision FDA Challenge v2 Submissions
 ```

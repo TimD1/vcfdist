@@ -388,11 +388,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         std::string query, ref;
                         std::vector<int> query_ref_ptrs, ref_query_ptrs;
                         // just after last variant in previous cluster
-                        int beg_pos = vcf->ctg_variants[hap][ctg]->poss[
+                        int beg_pos = std::max(0, vcf->ctg_variants[hap][ctg]->poss[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
                             vcf->ctg_variants[hap][ctg]->rlens[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust]-1]+1
-                                - buffer; // TODO: remove
+                                - buffer); // TODO: remove
                         // just after last variant in this cluster
                         int end_pos = vcf->ctg_variants[hap][ctg]->poss[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +

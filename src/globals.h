@@ -38,9 +38,9 @@ public:
     int truth_sub = 5;
     int truth_open = 6;
     int truth_extend = 2;
-    int eval_sub = 5;
-    int eval_open = 6;
-    int eval_extend = 2;
+    int eval_sub = 3;
+    int eval_open = 2;
+    int eval_extend = 1;
     std::vector<bool> query_penalties_set = {false, false, false};
     std::vector<bool> truth_penalties_set = {false, false, false};
     std::vector<bool> eval_penalties_set  = {false, false, false};
