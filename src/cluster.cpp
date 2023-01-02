@@ -293,7 +293,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
 
             // init: each variant is its own cluster
             size_t nvar = vcf->ctg_variants[hap][ctg]->n;
-            if (nvar) INFO("    Haplotype %d", hap+1);
+            if (nvar) { INFO("    Haplotype %d", hap+1); }
+            else { continue; }
             std::vector<int> prev_clusters(nvar+1);
             for (size_t i = 0; i < nvar+1; i++) prev_clusters[i] = i;
             std::vector<bool> prev_merged(nvar+1, true);
