@@ -434,10 +434,10 @@ void generate_ptrs_strs(
         ) {
 
     // generate hap1 and hap2 strings and pointers
-    int hap1_var_idx = hap1_vars->clusters[hap1_clust_beg_idx];
-    int hap2_var_idx = hap2_vars->clusters[hap2_clust_beg_idx];
-    int hap1_end_idx = hap1_vars->clusters[hap1_clust_end_idx];
-    int hap2_end_idx = hap2_vars->clusters[hap2_clust_end_idx];
+    int hap1_var_idx = hap1_vars->clusters.size() ? hap1_vars->clusters[hap1_clust_beg_idx] : 0;
+    int hap2_var_idx = hap2_vars->clusters.size() ? hap2_vars->clusters[hap2_clust_beg_idx] : 0;
+    int hap1_end_idx = hap1_vars->clusters.size() ? hap1_vars->clusters[hap1_clust_end_idx] : 0;
+    int hap2_end_idx = hap2_vars->clusters.size() ? hap2_vars->clusters[hap2_clust_end_idx] : 0;
     for (int hap1_ref_pos = beg_pos, hap2_ref_pos = beg_pos; 
             hap1_ref_pos < end_pos || hap2_ref_pos < end_pos; ) {
 
@@ -1210,14 +1210,14 @@ void calc_prec_recall(
                 clusterdata_ptr->ctg_superclusters[ctg]->ctg_variants[QUERY][qhi];
         std::shared_ptr<ctgVariants> truth_vars = 
                 clusterdata_ptr->ctg_superclusters[ctg]->ctg_variants[TRUTH][thi];
-        int query_beg_idx = query_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx]];
-        int query_end_idx = query_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx+1]];
-        int truth_beg_idx = truth_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx]];
-        int truth_end_idx = truth_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]];
+        int query_beg_idx = query_vars->clusters.size() ? query_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx]] : 0;
+        int query_end_idx = query_vars->clusters.size() ? query_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx+1]] : 0;
+        int truth_beg_idx = truth_vars->clusters.size() ? truth_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx]] : 0;
+        int truth_end_idx = truth_vars->clusters.size() ? truth_vars->clusters[
+            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0;
 
         // debug print
         if (print) printf("Alignment %s, aln_ptrs\n", aln_strs[i].data());
@@ -1237,10 +1237,10 @@ void calc_prec_recall(
         int ti = aln_ptrs[hi][0].size()-1;
         int new_ed = 0;
         int query_var_ptr = query_end_idx-1;
-        int query_var_pos = query_vars->poss[query_var_ptr] - beg;
+        int query_var_pos = query_vars->poss.size() ? query_vars->poss[query_var_ptr] - beg : 0;
         int prev_query_var_ptr = query_var_ptr;
         int truth_var_ptr = truth_end_idx-1;
-        int truth_var_pos = truth_vars->poss[truth_var_ptr] - beg;
+        int truth_var_pos = query_vars->poss.size() ? truth_vars->poss[truth_var_ptr] - beg : 0;
         int prev_truth_var_ptr = truth_var_ptr;
         int pidx = path[i].size()-1;
 
@@ -1635,23 +1635,25 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                 truth[HAP1] = truth1; truth[HAP2] = truth2;
             }
 
-            // calculate quality thresholds 
-            // (where string would change when including/excluding variants)
-            std::set<int> quals = {};
-            for (int hap = 0; hap < HAPS; hap++) {
-                int beg_idx = sc->ctg_variants[QUERY][hap]->clusters[
-                        sc->superclusters[QUERY][hap][sc_idx]];
-                int end_idx = sc->ctg_variants[QUERY][hap]->clusters[
-                        sc->superclusters[QUERY][hap][sc_idx+1]];
-                for (int var_idx = beg_idx; var_idx < end_idx; var_idx++) {
-                    quals.insert(sc->ctg_variants[QUERY][hap]->var_quals[var_idx]+1);
-                }
-            }
-            quals.insert(g.max_qual+2);
-
             // phasing is known, add scores for each hap
             std::vector<int> qual_dists(g.max_qual+2, 0);
             for (int hap = 0; hap < HAPS; hap++) {
+
+                // supercluster start/end indices
+                int beg_idx = sc->ctg_variants[QUERY][hap]->clusters.size() ?
+                    sc->ctg_variants[QUERY][hap]->clusters[
+                        sc->superclusters[QUERY][hap][sc_idx]] : 0;
+                int end_idx = sc->ctg_variants[QUERY][hap]->clusters.size() ?
+                    sc->ctg_variants[QUERY][hap]->clusters[
+                        sc->superclusters[QUERY][hap][sc_idx+1]] : 0;
+
+                // calculate quality thresholds 
+                // (where string would change when including/excluding variants)
+                std::set<int> quals = {};
+                for (int var_idx = beg_idx; var_idx < end_idx; var_idx++) {
+                    quals.insert(sc->ctg_variants[QUERY][hap]->var_quals[var_idx]+1);
+                }
+                quals.insert(g.max_qual+2);
 
                 // sweep through quality thresholds
                 int prev_qual = 0;
@@ -1662,12 +1664,8 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                             clusterdata_ptr->ref, 
                             sc->ctg_variants[QUERY][hap], 
                             ctg, 
-                            sc->ctg_variants[QUERY][hap]->clusters[
-                                sc->superclusters[QUERY][hap][sc_idx]],
-                            sc->ctg_variants[QUERY][hap]->clusters[
-                                sc->superclusters[QUERY][hap][sc_idx+1]],
-                            sc->begs[sc_idx], 
-                            sc->ends[sc_idx], 
+                            beg_idx, end_idx,
+                            sc->begs[sc_idx], sc->ends[sc_idx], 
                             prev_qual);
 
                     // align strings, backtrack, calculate distance

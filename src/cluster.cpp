@@ -180,10 +180,10 @@ void superclusterData::gap_supercluster() {
                 printf("POS: %d-%d\n", beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    printf("%s%d: clusters %d-%d, %lu total\n",
+                    printf("%s%d: clusters %d-%d, %d total\n",
                             callset_strs[i>>1].data(), (i&1)+1,
                             brks[i], next_brks[i], 
-                            vars[i>>1][i&1]->clusters.size()-1);
+                            std::max(int(vars[i>>1][i&1]->clusters.size())-1, 0));
                 }
             }
 

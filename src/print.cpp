@@ -616,28 +616,35 @@ void write_results(
                 phase_block_idx++;
             }
 
+            // count query vars, allowing empty haps
+            int query1_vars = ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters.size() ?
+                ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP1][i+1]] -
+                    ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP1][i]] : 0;
+            int query2_vars = ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters.size() ?
+                ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP2][i+1]] -
+                    ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
+                        ctg_supclusts->superclusters[QUERY][HAP2][i]] : 0;
+            int truth1_vars = ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters.size() ?
+                ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP1][i+1]] -
+                    ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP1][i]] : 0;
+            int truth2_vars = ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters.size() ?
+                ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP2][i+1]] -
+                    ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
+                        ctg_supclusts->superclusters[TRUTH][HAP2][i]] : 0;
+
             // print data
             fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
                 ctg_name.data(), 
                 ctg_supclusts->begs[i],
                 ctg_supclusts->ends[i],
                 ctg_supclusts->ends[i] - ctg_supclusts->begs[i],
-                ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP1][i+1]] -
-                    ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP1][i]],
-                ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP2][i+1]] -
-                    ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP2][i]],
-                ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP1][i+1]] -
-                    ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP1][i]],
-                ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP2][i+1]] -
-                    ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP2][i]],
+                query1_vars, query2_vars, truth1_vars, truth2_vars,
                 ctg_supclusts->orig_phase_dist[i],
                 ctg_supclusts->swap_phase_dist[i],
                 phase_strs[ctg_supclusts->phase[i]].data(),
