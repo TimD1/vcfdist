@@ -374,7 +374,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         score = calc_vcf_sw_score(
                                 vcf->ctg_variants[hap][ctg], clust, clust+1,
                                 sub, open, extend);
-                        printf("orig score: %d\n", score);
+                        if (g.print_verbosity >= 2)
+                            printf("orig score: %d\n", score);
                     }
 
                     // LEFT REACH 
@@ -426,18 +427,21 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 sub, open, extend,
                                 score, true); // reverse
                         l_reach = end_pos - reach;
-                        printf("left reach: %d\n", reach);
+                        if (g.print_verbosity >= 2)
+                            printf("left reach: %d\n", reach);
 
-                        printf("REF:        %s\n", ref.data());
-                        printf("QUERY:      %s\n", query.data());
-                        printf("QUERY->REF: ");
-                        for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
-                            printf("%d ", query_ref_ptrs[i]); 
-                        printf("\n");
-                        printf("REF->QUERY: ");
-                        for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
-                            printf("%d ", ref_query_ptrs[i]); 
-                        printf("\n");
+                        if (g.print_verbosity >= 2) {
+                            printf("REF:        %s\n", ref.data());
+                            printf("QUERY:      %s\n", query.data());
+                            printf("QUERY->REF: ");
+                            for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
+                                printf("%d ", query_ref_ptrs[i]); 
+                            printf("\n");
+                            printf("REF->QUERY: ");
+                            for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
+                                printf("%d ", ref_query_ptrs[i]); 
+                            printf("\n");
+                        }
                         
                     } else {
                         // past farthest right (unused)
@@ -481,24 +485,28 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score);
                         r_reach = beg_pos + reach;
-                        printf("right reach: %d\n", reach);
+                        if (g.print_verbosity >= 2)
+                            printf("right reach: %d\n", reach);
 
-                        printf("REF:        %s\n", ref.data());
-                        printf("QUERY:      %s\n", query.data());
-                        printf("QUERY->REF: ");
-                        for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
-                            printf("%d ", query_ref_ptrs[i]); 
-                        printf("\n");
-                        printf("REF->QUERY: ");
-                        for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
-                            printf("%d ", ref_query_ptrs[i]); 
-                        printf("\n");
+                        if (g.print_verbosity >= 2) {
+                            printf("REF:        %s\n", ref.data());
+                            printf("QUERY:      %s\n", query.data());
+                            printf("QUERY->REF: ");
+                            for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
+                                printf("%d ", query_ref_ptrs[i]); 
+                            printf("\n");
+                            printf("REF->QUERY: ");
+                            for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
+                                printf("%d ", ref_query_ptrs[i]); 
+                            printf("\n");
+                        }
                         
                     } else { // non-adjacent, don't really compute
                         r_reach = -10; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
-                    printf("span: %d - %d\n", l_reach, r_reach);
+                    if (g.print_verbosity >= 2)
+                        printf("span: %d - %d\n", l_reach, r_reach);
                 }
 
                 // merge dependent clusters
