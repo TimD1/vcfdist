@@ -378,7 +378,7 @@ std::string generate_str(
     for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
 
         // VARIANT
-        if (ref_pos == vars->poss[var_idx]  && var_idx < end_idx) {
+        if (var_idx < end_idx && ref_pos == vars->poss[var_idx]) {
             if (vars->var_quals[var_idx] >= min_qual) {
                 switch (vars->types[var_idx]) {
                     case TYPE_INS:
@@ -443,8 +443,8 @@ void generate_ptrs_strs(
 
         // CONSIDER TRUTH1 ONLY, PRIOR REFERENCE POSITION
         if (hap1_ref_pos < hap2_ref_pos) {
-            if (hap1_ref_pos == hap1_vars->poss[hap1_var_idx] && 
-                    hap1_var_idx < hap1_end_idx) { // in hap1 variant
+            if (hap1_var_idx < hap1_end_idx && 
+                    hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
                 switch (hap1_vars->types[hap1_var_idx]) {
                     case TYPE_INS:
                         hap1 += hap1_vars->alts[hap1_var_idx];
@@ -480,8 +480,8 @@ void generate_ptrs_strs(
 
         // CONSIDER TRUTH2 ONLY, PRIOR REFERENCE POSITION
         else if (hap2_ref_pos < hap1_ref_pos) {
-            if (hap2_ref_pos == hap2_vars->poss[hap2_var_idx] &&
-                    hap2_var_idx < hap2_end_idx) { // in hap2 variant
+            if (hap2_var_idx < hap2_end_idx && 
+                    hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
                 switch (hap2_vars->types[hap2_var_idx]) {
                     case TYPE_INS:
                         hap2 += hap2_vars->alts[hap2_var_idx];
@@ -518,8 +518,8 @@ void generate_ptrs_strs(
         // REFERENCE POSITIONS MATCH! POTENTIAL TRANSITIONS
         else {
             bool hap1_var = false;
-            if (hap1_ref_pos == hap1_vars->poss[hap1_var_idx] && 
-                    hap1_var_idx < hap1_end_idx) { // in hap1 variant
+            if (hap1_var_idx < hap1_end_idx && 
+                    hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
                 hap1_var = true;
                 switch (hap1_vars->types[hap1_var_idx]) {
                     case TYPE_INS:
@@ -544,8 +544,7 @@ void generate_ptrs_strs(
             } 
 
             bool hap2_var = false;
-            if (hap2_ref_pos == hap2_vars->poss[hap2_var_idx] && 
-                    hap2_var_idx < hap2_end_idx) { // in hap2 variant
+            if (hap2_var_idx < hap2_end_idx && hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
                 hap2_var = true;
                 switch (hap2_vars->types[hap2_var_idx]) {
                     case TYPE_INS:
