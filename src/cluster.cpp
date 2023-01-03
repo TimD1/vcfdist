@@ -292,11 +292,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
         for (int hap = 0; hap < HAPS; hap++) {
 
             // init: each variant is its own cluster
-            size_t nvar = vcf->ctg_variants[hap][ctg]->n;
+            int nvar = vcf->ctg_variants[hap][ctg]->n;
             if (nvar) { INFO("    Haplotype %d", hap+1); }
             else { continue; }
             std::vector<int> prev_clusters(nvar+1);
-            for (size_t i = 0; i < nvar+1; i++) prev_clusters[i] = i;
+            for (int i = 0; i < nvar+1; i++) prev_clusters[i] = i;
             std::vector<bool> prev_merged(nvar+1, true);
 
             std::vector<int> right_reach, left_reach;
@@ -334,11 +334,12 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     if (clust < prev_merged.size() - 1) // protect OOB
                         right_compute = right_compute || prev_merged[clust+1];
 
-                    // edge cases
+                    // no left cluster, not actual cluster
                     if (clust == 0 || clust == prev_clusters.size()-1) {
                         left_compute = false;
-                        right_compute = false;
-                    } else if (clust == prev_clusters.size()-2) {
+                    }
+                    // no right cluster (second-to-last is actual last cluster)
+                    if (clust >= prev_clusters.size()-2) {
                         right_compute = false;
                     }
 
@@ -373,32 +374,42 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         score = calc_vcf_sw_score(
                                 vcf->ctg_variants[hap][ctg], clust, clust+1,
                                 sub, open, extend);
-                        /* printf("orig score: %d\n", score); */
+                        printf("orig score: %d\n", score);
                     }
 
-                    // LEFT REACH
+                    // LEFT REACH 
+                    // upper bound on distance off main diagonal
+                    int buffer = score/extend + 1;
 
-                    // TODO: remove buffer
-                    // NOTE: this buffer is only temporary, to allow extension 
-                    // past the next variant for cluster merging. It should 
-                    // eventually be replaced with Djikstra->WFA max row.
-                    int buffer = 10;
                     if (left_compute) {
-
                         // calculate left reach
                         std::string query, ref;
                         std::vector<int> query_ref_ptrs, ref_query_ptrs;
                         // just after last variant in previous cluster
-                        int beg_pos = std::max(0, vcf->ctg_variants[hap][ctg]->poss[
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 < 0)
+                            ERROR("left var_idx < 0");
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 >= nvar)
+                            ERROR("left var_idx >= nvar");
+                        int beg_pos = std::max(0, 
+                            vcf->ctg_variants[hap][ctg]->poss[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
                             vcf->ctg_variants[hap][ctg]->rlens[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1]+1
-                                - buffer); // TODO: remove
+                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] + 1
+                            - buffer);
                         // just after last variant in this cluster
-                        int end_pos = vcf->ctg_variants[hap][ctg]->poss[
+                        if (clust+1 >= vcf->ctg_variants[hap][ctg]->clusters.size())
+                            ERROR("left next clust_idx >= nclust");
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1 < 0)
+                            ERROR("left next var_idx < 0");
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1 >= nvar)
+                            ERROR("left next var_idx >= nvar");
+                        int end_pos = 
+                            vcf->ctg_variants[hap][ctg]->poss[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
                             vcf->ctg_variants[hap][ctg]->rlens[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]+1;
+
+                        // generate reversed pointers/strings
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
@@ -415,22 +426,22 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 sub, open, extend,
                                 score, true); // reverse
                         l_reach = end_pos - reach;
-                        /* printf("left reach: %d\n", reach); */
+                        printf("left reach: %d\n", reach);
 
-                        /* printf("REF:        %s\n", ref.data()); */
-                        /* printf("QUERY:      %s\n", query.data()); */
-                        /* printf("QUERY->REF: "); */
-                        /* for(size_t i = 0; i < query_ref_ptrs.size(); i++) */ 
-                        /*     printf("%d ", query_ref_ptrs[i]); */ 
-                        /* printf("\n"); */
-                        /* printf("REF->QUERY: "); */
-                        /* for(size_t i = 0; i < ref_query_ptrs.size(); i++) */ 
-                        /*     printf("%d ", ref_query_ptrs[i]); */ 
-                        /* printf("\n"); */
+                        printf("REF:        %s\n", ref.data());
+                        printf("QUERY:      %s\n", query.data());
+                        printf("QUERY->REF: ");
+                        for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
+                            printf("%d ", query_ref_ptrs[i]); 
+                        printf("\n");
+                        printf("REF->QUERY: ");
+                        for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
+                            printf("%d ", ref_query_ptrs[i]); 
+                        printf("\n");
                         
                     } else {
                         // past farthest right (unused)
-                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10;
+                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+1;
                     }
                     left_reach.push_back(l_reach);
 
@@ -441,12 +452,22 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         std::string query, ref;
                         std::vector<int> query_ref_ptrs, ref_query_ptrs;
                         // right before current cluster
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust] < 0)
+                            ERROR("right var_idx < 0");
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust] >= nvar)
+                            ERROR("right var_idx >= nvar");
                         int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust]]-1;
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust] ]-1;
                         // right before next cluster
+                        if (clust+1 >= vcf->ctg_variants[hap][ctg]->clusters.size())
+                            ERROR("right next clust_idx >= nclust");
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1] < 0)
+                            ERROR("right next var_idx < 0");
+                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1] >= nvar)
+                            ERROR("right next var_idx >= nvar");
                         int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust+1]]
-                                    + buffer; // TODO: remove
+                                    + buffer;
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
@@ -460,24 +481,24 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score);
                         r_reach = beg_pos + reach;
-                        /* printf("right reach: %d\n", reach); */
+                        printf("right reach: %d\n", reach);
 
-                        /* printf("REF:        %s\n", ref.data()); */
-                        /* printf("QUERY:      %s\n", query.data()); */
-                        /* printf("QUERY->REF: "); */
-                        /* for(size_t i = 0; i < query_ref_ptrs.size(); i++) */ 
-                        /*     printf("%d ", query_ref_ptrs[i]); */ 
-                        /* printf("\n"); */
-                        /* printf("REF->QUERY: "); */
-                        /* for(size_t i = 0; i < ref_query_ptrs.size(); i++) */ 
-                        /*     printf("%d ", ref_query_ptrs[i]); */ 
-                        /* printf("\n"); */
+                        printf("REF:        %s\n", ref.data());
+                        printf("QUERY:      %s\n", query.data());
+                        printf("QUERY->REF: ");
+                        for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
+                            printf("%d ", query_ref_ptrs[i]); 
+                        printf("\n");
+                        printf("REF->QUERY: ");
+                        for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
+                            printf("%d ", ref_query_ptrs[i]); 
+                        printf("\n");
                         
                     } else { // non-adjacent, don't really compute
-                        r_reach = -10; // past farthest left (unused)
+                        r_reach = -1; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
-                    /* printf("span: %d-%d\n", l_reach, r_reach); */
+                    printf("span: %d - %d\n", l_reach, r_reach);
                 }
 
                 // merge dependent clusters
