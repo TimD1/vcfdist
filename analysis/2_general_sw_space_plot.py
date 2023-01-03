@@ -6,31 +6,28 @@ mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['text.usetex'] = True
 
 plt.figure(figsize=(12, 5))
-xmax = 3
-ymax = 1.5
+xmin, xmax = 0, 3.2
+ymin, ymax = -0.1, 1.5
 label_pad = 0.03
-plt.xlim(0,xmax)
-plt.ylim(0,ymax)
-x = list(np.arange(0, xmax+1, 0.1))
+plt.xlim(xmin,xmax)
+plt.ylim(ymin,ymax)
+x = list(np.arange(xmin, xmax+1, 0.1))
 
 # G_open > 0
-plt.annotate("$G_{\mathrm{open}} < 0$", (1.25,1.3), rotation=40, color="white")
+plt.annotate("$o < 0$", (1.32,1.37), rotation=35, color="white")
 plt.fill_between(x, x, ymax, alpha=0.8, facecolor='k')
 
-# G_start + G_start > P_sub  (otherwise all SUBs->INDELs)
+# vertical
+plt.annotate("$2(o+e) < x$", (0.46,1.18), rotation=90, color="white")
 plt.axvspan(0, 0.5, alpha=0.1, color='k', zorder=-100)
-plt.annotate("$2G_{\mathrm{start}} < P_{\mathrm{sub}}$", (0.46,1.13), 
-        rotation=90, color="white")
+plt.annotate("$3x < o+e$", (3.01,1.22), rotation=90, color="black")
+plt.axvspan(3, 3.2, alpha=0.1, color='k', zorder=-100)
 
-# G_start + G_extend > P_sub (same DE, decreases ED)
-plt.fill_between(x, [1-i for i in x], 0, facecolor='k', alpha=0.1)
-plt.annotate("$G_{\mathrm{start}} + G_{\mathrm{extend}} < P_{\mathrm{sub}}$", 
-        (label_pad,0.55), rotation=-40, color="white")
-
-# G_extend + G_extend < P_sub (shouldn't create new SUB to reduce INDEL length)
+# horizontal
+plt.annotate("$x < 2e$", (label_pad,0.57), ha="left", va="top", color="white")
 plt.fill_between(x, 0.5, ymax, facecolor='k', alpha=0.1)
-plt.annotate("$2G_{\mathrm{extend}} < P_{\mathrm{sub}}$", 
-        (label_pad,0.55), ha="left", va="top", color="white")
+plt.annotate("$e < 0$", (label_pad,-0.03), ha="left", va="top", color="white")
+plt.fill_between(x, -0.2, 0, facecolor='k', alpha=0.8)
 
 # min ED
 i = 0
@@ -64,6 +61,8 @@ for name, x in ngmlr_presets.items():
         plt.scatter(x["o"]/x["b"], e/x["b"], color=f"C{i}")
     plt.annotate(name, (x["o"]/x["b"]+label_pad, (x["e_max"]+x["e_min"])/(2*x["b"])), ha="left", va="center", color=f"C{i}")
     i += 1
+    plt.arrow(x["o"]/x["b"], x["e_max"]/x["b"], 0, x["e_min"]/x["b"]-x["e_max"]/x["b"], color='k',
+            length_includes_head=True, head_width=0.02, head_length = 0.016)
 
 # npore
 points = [[1.7, 0.5], [1.7,0.7], [1.7, 1], [1.7, 0.8], [1.7, 1.1], [2.3, 1.8], [2.8, 1], [3.2, 1.1], [3.2, 2.1], [3.2, 1], [3.7, 1.9], [3.7, 2], [3.7, 1], [3.7, 0.6], [3.8, 2.4], [3.8, 1.7], [3.8, 0.8], [4.6, 2.5], [4.6, 2.3], [4.6, 1.5]]
@@ -71,25 +70,36 @@ for p in points:
     plt.scatter(p[0]/5.72, p[1]/5.72, color=f"C{i}")
 plt.annotate("npore", (0.5, 0.25), ha="left", va="center", color=f"C{i}")
 plt.scatter(6/5.72, 1/5.72, color=f"C{i}")
+plt.scatter(6/5.72, 1/5.72, color=f"k", marker="*", s=5)
 plt.annotate("npore", (6/5.72+label_pad, 1/5.72), ha="left", va="center", color=f"C{i}")
 i += 1
 
 # verkko
-plt.scatter(0, 0, color=f"C{i}")
-plt.annotate("verkko", (label_pad, 0), ha="left", va="center", color=f"C{i}")
+plt.scatter(0, 0, color=f"C{i}", zorder=100)
+plt.annotate("HP-compression", (label_pad, 0), ha="left", va="bottom", color=f"C{i}")
 
 # points
-plt.scatter(0.3, 0.2, color=f"k")
-plt.annotate("A", (0.3+label_pad, 0.2), ha="left", va="center", color="k")
-plt.scatter(0.7, 0.2, color=f"k")
-plt.annotate("B", (0.7+label_pad, 0.2), ha="left", va="center", color="k")
+plt.scatter(0.3, 0.1, color=f"k")
+plt.annotate("A", (0.3+label_pad, 0.1), ha="left", va="center", color="k")
+plt.scatter(1, 0.333, color=f"k")
+plt.annotate("B", (1+label_pad, 0.333), ha="left", va="center", color="k")
 plt.scatter(1.6, 0.4, color=f"k")
 plt.annotate("C", (1.6+label_pad, 0.4), ha="left", va="center", color="k")
-plt.scatter(1, 0.8, color=f"k")
-plt.annotate("D", (1+label_pad, 0.8), ha="left", va="center", color="k")
+plt.scatter(1.5, 0.05, color=f"k")
+plt.annotate("D", (1.5+label_pad, 0.05), ha="left", va="center", color="k")
 
+# arrows
+plt.arrow(2.5, 0.9,  0.1,  0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # right
+plt.annotate("prefer\nsubstitutions", (2.6+label_pad, 0.95), ha="left", va="center")
+plt.arrow(2.5, 0.9, -0.1, -0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # left
+plt.annotate("prefer\nINDELs", (2.4-label_pad, 0.85), ha="right", va="center")
+plt.arrow(2.5, 0.9, -0.05,  0.1, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # up
+plt.annotate("prefer\nseparate\ngaps", (2.45, 1+label_pad), ha="center", va="bottom")
+plt.arrow(2.5, 0.9,  0.05, -0.1, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # down
+plt.annotate("prefer\nmerged\ngaps", (2.55, 0.8-label_pad), ha="center", va="top")
 
-plt.title("Gap Penalty Design Space")
-plt.xlabel(r'$\frac{G_{\mathrm{open}}+G_{\mathrm{extend}}}{P_\mathrm{sub}} = \frac{G_{\mathrm{start}}}{P_{\mathrm{sub}}}$')
-plt.ylabel(r'$\frac{G_{\mathrm{extend}}}{P_{\mathrm{sub}}}$')
-plt.savefig("img/2_sw_design_space.png")
+# labels
+plt.xlabel(r'\LARGE{$\frac{o+e}{x}$}')
+plt.ylabel(r'\LARGE{$\frac{e}{x}$}')
+plt.tight_layout()
+plt.savefig("img/2_general_sw_space.png")
