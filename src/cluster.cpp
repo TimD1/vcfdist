@@ -441,7 +441,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         
                     } else {
                         // past farthest right (unused)
-                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+1;
+                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10;
                     }
                     left_reach.push_back(l_reach);
 
@@ -495,7 +495,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         printf("\n");
                         
                     } else { // non-adjacent, don't really compute
-                        r_reach = -1; // past farthest left (unused)
+                        r_reach = -10; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
                     printf("span: %d - %d\n", l_reach, r_reach);
