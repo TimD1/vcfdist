@@ -2,10 +2,10 @@ import pysam
 import matplotlib.pyplot as plt
 import numpy as np
 
-# vcf_filename = "../r10.4_chr20/ont-case-study/input/data/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz"
-vcf_filename = "../out/orig_truth.vcf"
+data = "/x/vcfdist/data"
+vcf_filename = f"{data}/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz"
 vcf_file = pysam.VariantFile(vcf_filename, 'r')
-fasta_filename = "/x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
+fasta_filename = f"{data}/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
 fasta_file = pysam.FastaFile(fasta_filename)
 
 prev_contig = prev_start = prev_stop = None
@@ -275,20 +275,23 @@ bases *= 2
 
 print("total bases:", bases)
 print("subs:", subs)
-print("inss:", [insertion_sizes.count(i) for i in range(1,50)])
-print("dels:", [deletion_sizes.count(i) for i in range(1,50)])
+print("inss:", [max(1, insertion_sizes.count(i)) for i in range(1,50)])
+print("dels:", [max(1, deletion_sizes.count(i)) for i in range(1,50)])
 print("sub prob:", -np.log(subs/bases))
-print("ins probs:", [-np.log(insertion_sizes.count(i)/bases) for i in range(1,50)])
-print("del probs:", [-np.log(deletion_sizes.count(i)/bases) for i in range(1,50)])
+print("ins probs:", [-np.log(max(1, insertion_sizes.count(i))/bases) for i in range(1,50)])
+print("del probs:", [-np.log(max(1, deletion_sizes.count(i))/bases) for i in range(1,50)])
 
 plt.figure()
-plt.plot(range(1,50), [np.log(insertion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)])
-plt.plot(range(1,50), [np.log(deletion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)])
+plt.plot(range(1,50), [np.log(max(1, insertion_sizes.count(i))/bases)/np.log(subs/bases) for i in range(1,50)])
+plt.plot(range(1,50), [np.log(max(1, deletion_sizes.count(i))/bases)/np.log(subs/bases) for i in range(1,50)])
 x = list(range(1,50)) + list(range(1,50))
-y = [np.log(deletion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)] + \
-    [np.log(insertion_sizes.count(i)/bases)/np.log(subs/bases) for i in range(1,50)]
-a,b,c = np.polyfit(x, y, 2)
-print(f"{a}x**2+{b}x+{c}")
-plt.plot(range(1,50), [a*x**2 + b*x + c for x in range(1,50)])
-plt.legend(["insertions", "deletions", "best-fit"])
+y = [np.log(max(1, deletion_sizes.count(i))/bases)/np.log(subs/bases) for i in range(1,50)] + \
+    [np.log(max(1, insertion_sizes.count(i))/bases)/np.log(subs/bases) for i in range(1,50)]
+a,b = np.polyfit(x[:10], y[:10], 1)
+print(f"o1={a+b}, e1={a}")
+plt.plot(range(1,50), [a*x + b for x in range(1,50)])
+c,d = np.polyfit(x[10:], y[10:], 1)
+print(f"o2={c+d}, e2={c}")
+plt.plot(range(1,50), [c*x + d for x in range(1,50)])
+plt.legend(["insertions", "deletions", "best-fit1", "best-fit2"])
 plt.savefig("img/indel_gap_scores.png")
