@@ -1782,7 +1782,7 @@ int sw_max_reach(std::string query, std::string ref,
         std::vector<int> query_ref_ptrs,
         std::vector<int> ref_query_ptrs,
         int sub, int open, int extend,
-        int score, bool reverse /*= false*/) {
+        int score, bool reverse /*= false*/, int ref_section /*= -1*/) {
     
     int ref_len = ref.size();
     int query_len = query.size();
@@ -1797,19 +1797,20 @@ int sw_max_reach(std::string query, std::string ref,
 
     // find furthest-reaching alignment with lesser or equal score
     for (int s = 0; s <= score; s++) {
-        if (g.print_verbosity >= 2)
+        if (g.print_verbosity >= 3)
             printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
-            if (g.print_verbosity >= 2)
+            if (g.print_verbosity >= 3)
                 printf("  x = (%c, %d, %d)\n", 
                     std::string("SID")[x.mi], x.ci, x.ri);
             waves[s].insert(x);
 
             // allow non-main-diagonal match
             if (x.ci+1 < query_len && x.ri+1 < ref_len && ! (
+                        x.ri >= ref_section &&
                         query_ref_ptrs[x.ci] == x.ri &&
                         ref_query_ptrs[x.ri] == x.ci &&
                         query_ref_ptrs[x.ci+1] == x.ri+1 &&
@@ -2022,14 +2023,14 @@ std::unordered_map<idx2, idx2> sw_align(
     int s = 0;
     while(true) {
         waves.push_back(std::set<idx2>());
-        if (g.print_verbosity >= 2)
+        if (g.print_verbosity >= 3)
             printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
             idx2 prev = ptrs.find(x)->second;
-            if (g.print_verbosity >= 2)
+            if (g.print_verbosity >= 3)
                 printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
                     std::string("SID")[x.mi], x.ci, x.ri,
                     std::string("SID")[prev.mi], prev.ci, prev.ri);
@@ -2066,6 +2067,19 @@ std::unordered_map<idx2, idx2> sw_align(
                     idx2 next(x.mi, x.ci+1, x.ri+1);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
+
+                        // continue extending while match
+                        idx2 prev(next);
+                        next.ci++; next.ri++;
+                        while (next.ci < query_len && next.ri < ref_len &&
+                                query[next.ci] == ref[next.ri] &&
+                                !contains(done, next)) {
+                            queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                            // update
+                            prev = next;
+                            next.ci++; next.ri++;
+                        }
                     }
                 }
             }

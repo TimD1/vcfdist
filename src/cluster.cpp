@@ -421,11 +421,15 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         reverse_ptrs_strs(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs);
                         
+                        // get reference end pos of last variant in this cluster
+                        int ref_section_start = end_pos - vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust]];
+
                         // calculate max reaching path to left
                         int reach = sw_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend,
-                                score, true); // reverse
+                                score, true, ref_section_start); // reverse
                         l_reach = end_pos - reach;
                         if (g.print_verbosity >= 2)
                             printf("left reach: %d\n", reach);
@@ -433,6 +437,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         if (g.print_verbosity >= 2) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
+                            printf("ref start:  %d\n", ref_section_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
                                 printf("%d ", query_ref_ptrs[i]); 
@@ -480,10 +485,16 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 vcf->ref, ctg 
                         );
 
+                        // get reference end pos of last variant in this cluster
+                        int ref_section_start = vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]
+                                    + vcf->ctg_variants[hap][ctg]->rlens[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] - beg_pos;
+
                         // calculate max reaching path to right
                         int reach = sw_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
-                                sub, open, extend, score);
+                                sub, open, extend, score, false, ref_section_start);
                         r_reach = beg_pos + reach;
                         if (g.print_verbosity >= 2)
                             printf("right reach: %d\n", reach);
@@ -491,6 +502,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         if (g.print_verbosity >= 2) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
+                            printf("ref_start:  %d\n", ref_section_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
                                 printf("%d ", query_ref_ptrs[i]); 

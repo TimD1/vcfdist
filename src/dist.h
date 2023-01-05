@@ -159,7 +159,8 @@ int sw_max_reach(
         std::vector<int> ref_query_ptrs,
         int sub, int open, int extend,
         int score, 
-        bool reverse=false);
+        bool reverse = false,
+        int ref_section = -1);
 
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 

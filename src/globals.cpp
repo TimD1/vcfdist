@@ -134,8 +134,8 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid print verbosity provided");
             }
-            if (this->print_verbosity < 0 || this->print_verbosity > 2) {
-                ERROR("Print verbosity %d not a valid option (0,1,2)", 
+            if (this->print_verbosity < 0 || this->print_verbosity > 3) {
+                ERROR("Print verbosity %d not a valid option (0,1,2,3)", 
                         this->print_verbosity);
             }
 /*******************************************************************************/
@@ -486,7 +486,7 @@ void Globals::print_usage() const
     printf("      integer Smith-Waterman gap extension penalty\n\n");
 
     printf("  -p, --print-verbosity <VALUE> [%d]\n", g.print_verbosity);
-    printf("      printing verbosity (0: default, 1: verbose, 2:debugging)\n\n");
+    printf("      printing verbosity (0: default, 1: verbose, 2:debug, 3:verbose debug)\n\n");
 
     printf("  -x, --exit-after-realign\n");
     printf("      realign truth/query VCFs with Smith-Waterman params, then exit\n\n");
