@@ -528,8 +528,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                 size_t clust = 0;
                 while (clust < prev_clusters.size()) {
                     int clust_size = 1;
+                    int max_reach = right_reach[clust];
                     while (clust+clust_size < prev_clusters.size() &&  // merge
-                            right_reach[clust] >= left_reach[clust+clust_size]) {
+                            max_reach >= left_reach[clust+clust_size]) {
+                        max_reach = std::max(max_reach,
+                                right_reach[clust+clust_size]);
                         clust_size++;
                     }
                     next_clusters.push_back(prev_clusters[clust]);
