@@ -23,6 +23,8 @@ std::string PURPLE(std::string str);
 void print_ptrs(std::vector< std::vector<int> > ptrs, 
         std::string alt_str, std::string ref_str);
 
+void print_cigar(std::vector<int> cigar); 
+
 void print_wfa_ptrs(
         std::vector<std::string> query,
         std::vector<std::string> truth,

@@ -806,3 +806,33 @@ void write_results(
 
     return;
 }
+
+
+/*******************************************************************************/
+
+
+void print_cigar(std::vector<int> cigar) {
+    for (int i = 0; i < int(cigar.size()); i++) {
+        switch (cigar[i]) {
+        case PTR_DIAG:
+            i++;
+            printf("=");
+            break;
+        case PTR_SUB:
+            i++;
+            printf("X");
+            break;
+        case PTR_INS:
+            printf("I");
+            break;
+        case PTR_DEL:
+            printf("D");
+            break;
+        default:
+            printf("?");
+            break;
+            /* ERROR("Unexpected CIGAR type in print_cigar(): %d", cigar[i]); */
+        }
+    }
+    printf("\n");
+}

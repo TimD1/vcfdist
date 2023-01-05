@@ -506,7 +506,10 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     }
                     right_reach.push_back(r_reach);
                     if (g.print_verbosity >= 2)
-                        printf("span: %d - %d\n", l_reach, r_reach);
+                        printf("span: %s - %s\n", 
+                                l_reach == vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10 ? 
+                                    "X" : std::to_string(l_reach).data(), 
+                                r_reach == -10 ? "X" : std::to_string(r_reach).data());
                 }
 
                 // merge dependent clusters

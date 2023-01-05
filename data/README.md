@@ -10,6 +10,8 @@ pfda-v2/                                              [1]
     submission_vcfs/
         <id>/
             <id>_HG002.vcf.gz
+    input_fastqs/
+        HG002*
 ```
 1. [NIST Submission Data](https://data.nist.gov/od/id/mds2-2336)
 

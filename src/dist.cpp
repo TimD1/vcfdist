@@ -1797,18 +1797,23 @@ int sw_max_reach(std::string query, std::string ref,
 
     // find furthest-reaching alignment with lesser or equal score
     for (int s = 0; s <= score; s++) {
-        /* printf("s = %d\n", s); */
+        if (g.print_verbosity >= 2)
+            printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
-            /* printf("  x = (%c, %d, %d)\n", std::string("SID")[x.mi], x.ci, x.ri); */
+            if (g.print_verbosity >= 2)
+                printf("  x = (%c, %d, %d)\n", 
+                    std::string("SID")[x.mi], x.ci, x.ri);
             waves[s].insert(x);
 
-            // allow non-diagonal match
+            // allow non-main-diagonal match
             if (x.ci+1 < query_len && x.ri+1 < ref_len && ! (
                         query_ref_ptrs[x.ci] == x.ri &&
-                        ref_query_ptrs[x.ri] == x.ci) &&
+                        ref_query_ptrs[x.ri] == x.ci &&
+                        query_ref_ptrs[x.ci+1] == x.ri+1 &&
+                        ref_query_ptrs[x.ri+1] == x.ci+1) &&
                     query[x.ci+1] == ref[x.ri+1] && 
                     !contains(done, {x.mi, x.ci+1, x.ri+1})) {
                 idx2 next(x.mi, x.ci+1, x.ri+1);
@@ -1910,9 +1915,10 @@ int sw_max_reach(std::string query, std::string ref,
         }
     } // end reach
 
-    // search for farthest reach
+    // farthest reach isn't necessarily at max score
     int min_wave = std::max(0, std::min(std::min(
                     open_wave, extend_wave), sub_wave));
+    // get max reach
     int max_reach = 0;
     for (int w = min_wave; w <= score; w++) {
         for (idx2 x : waves[w]) {
@@ -1965,11 +1971,17 @@ std::unique_ptr<variantData> sw_realign(
                 std::string ref = ref_fasta->fasta.at(ctg).substr(beg, end-beg);
                 
                 // perform alignment
+                if (g.print_verbosity >= 2) {
+                    printf("REF:   %s\n", ref.data());
+                    printf("QUERY: %s\n", query.data());
+                }
                 std::unordered_map<idx2, idx2> ptrs = sw_align(query, ref,
                         sub, open, extend);
                 
                 // backtrack
                 std::vector<int> cigar = sw_backtrack(query, ref, ptrs);
+                if (g.print_verbosity >= 2)
+                    print_cigar(cigar);
                 
                 // save resulting variants
                 results->add_variants(cigar, hap, beg, ctg, query, ref, qual);
@@ -2004,21 +2016,26 @@ std::unordered_map<idx2, idx2> sw_align(
     queue.push({MAT_SUB, 0, 0});
     std::unordered_set<idx2> done;
     done.insert({MAT_SUB, 0, 0});
-    std::vector< std::unordered_set<idx2> > waves;
+    std::vector< std::set<idx2> > waves;
 
     // perform global alignment
     int s = 0;
     while(true) {
-        waves.push_back(std::unordered_set<idx2>());
-        /* printf("s = %d\n", s); */
+        waves.push_back(std::set<idx2>());
+        if (g.print_verbosity >= 2)
+            printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
-            /* printf("  x = (%c, %d, %d)\n", std::string("SID")[x.mi], x.ci, x.ri); */
+            idx2 prev = ptrs.find(x)->second;
+            if (g.print_verbosity >= 2)
+                printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
+                    std::string("SID")[x.mi], x.ci, x.ri,
+                    std::string("SID")[prev.mi], prev.ci, prev.ri);
             waves[s].insert(x);
 
-            // allow non-diagonal match
+            // allow match
             if (x.mi == MAT_SUB &&
                     x.ci+1 < query_len && x.ri+1 < ref_len &&
                     query[x.ci+1] == ref[x.ri+1] && 
@@ -2064,14 +2081,55 @@ std::unordered_map<idx2, idx2> sw_align(
                     idx2 next(MAT_INS, x.ci+1, x.ri);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
+
+                        // shift back to SUB_MAT immediately
+                        idx2 prev(next);
+                        next.mi = MAT_SUB;
+                        if (!contains(done, next)) {
+                            queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                            // continue extending while match
+                            prev = next;
+                            next.ci++; next.ri++;
+                            while (next.ci < query_len && next.ri < ref_len &&
+                                    query[next.ci] == ref[next.ri] &&
+                                    !contains(done, next)) {
+                                queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                                // update
+                                prev = next;
+                                next.ci++; next.ri++;
+                            }
+                        }
                     }
                 }
 
                 // DEL opening
                 if (x.mi == MAT_SUB && x.ri+1 < ref_len) {
+                    // add to queue if in range and unvisited
                     idx2 next(MAT_DEL, x.ci, x.ri+1);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
+
+                        // shift back to SUB_MAT immediately
+                        idx2 prev(next);
+                        next.mi = MAT_SUB;
+                        if (!contains(done, next)) {
+                            queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                            // continue extending while match
+                            prev = next;
+                            next.ci++; next.ri++;
+                            while (next.ci < query_len && next.ri < ref_len &&
+                                    query[next.ci] == ref[next.ri] &&
+                                    !contains(done, next)) {
+                                queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                                // update
+                                prev = next;
+                                next.ci++; next.ri++;
+                            }
+                        }
                     }
                 }
             }
@@ -2084,17 +2142,59 @@ std::unordered_map<idx2, idx2> sw_align(
 
                 // INS extending (only from MAT_INS)
                 if (x.mi == MAT_INS && x.ci+1 < query_len) {
-                    idx2 next({x.mi, x.ci+1, x.ri});
+                    // add to queue if in range and unvisited
+                    idx2 next(MAT_INS, x.ci+1, x.ri);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
+
+                        // shift back to SUB_MAT immediately
+                        idx2 prev(next);
+                        next.mi = MAT_SUB;
+                        if (!contains(done, next)) {
+                            queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                            // continue extending while match
+                            prev = next;
+                            next.ci++; next.ri++;
+                            while (next.ci < query_len && next.ri < ref_len &&
+                                    query[next.ci] == ref[next.ri] &&
+                                    !contains(done, next)) {
+                                queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                                // update
+                                prev = next;
+                                next.ci++; next.ri++;
+                            }
+                        }
                     }
                 }
 
                 // DEL extending (only from MAT_DEL)
                 if (x.mi == MAT_DEL && x.ri+1 < ref_len) {
-                    idx2 next({x.mi, x.ci, x.ri+1});
+                    // add to queue if in range and unvisited
+                    idx2 next(MAT_DEL, x.ci, x.ri+1);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
+
+                        // shift back to SUB_MAT immediately
+                        idx2 prev(next);
+                        next.mi = MAT_SUB;
+                        if (!contains(done, next)) {
+                            queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                            // continue extending while match
+                            prev = next;
+                            next.ci++; next.ri++;
+                            while (next.ci < query_len && next.ri < ref_len &&
+                                    query[next.ci] == ref[next.ri] &&
+                                    !contains(done, next)) {
+                                queue.push(next); done.insert(next); ptrs[next] = prev;
+
+                                // update
+                                prev = next;
+                                next.ci++; next.ri++;
+                            }
+                        }
                     }
                 }
             }
@@ -2146,11 +2246,18 @@ std::vector<int> sw_backtrack(
     idx2 pos(MAT_SUB, query.size()-1, ref.size()-1);
     int cigar_ptr = cigar.size()-1;
 
+    if (g.print_verbosity >= 2) {
+        printf("Backtrack:\n");
+    }
     while (pos.ci >= 0 || pos.ri >= 0) {
+        if (g.print_verbosity >= 2) {
+            printf("(%c, %d, %d)\n",
+                    std::string("SID")[pos.mi], pos.ci, pos.ri);
+        }
         auto next_itr = ptrs.find(pos);
         if (next_itr == ptrs.end())
-            ERROR("(%d, %d, %d) not found in ptrs during backtrack.",
-                    pos.mi, pos.ci, pos.ri);
+            ERROR("(%c, %d, %d) not found in ptrs during backtrack.",
+                    std::string("SID")[pos.mi], pos.ci, pos.ri);
         idx2 next = ptrs.find(pos)->second;
         if (next.mi == pos.mi) { // stay in same matrix
             switch (pos.mi) {
@@ -2169,6 +2276,8 @@ std::vector<int> sw_backtrack(
                 case MAT_DEL: // extend DEL
                     cigar[cigar_ptr--] = PTR_DEL;
                     break;
+                default:
+                    ERROR("Unexpected MAT type in sw_backtrack()");
             }
         } else { // change matrices
             switch (pos.mi) {
@@ -2180,6 +2289,8 @@ std::vector<int> sw_backtrack(
                 case MAT_DEL: // enter DEL
                     cigar[cigar_ptr--] = PTR_DEL;
                     break;
+                default:
+                    ERROR("Unexpected MAT type in sw_backtrack()");
             }
         }
         pos = next;
