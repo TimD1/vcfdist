@@ -9,6 +9,8 @@
 #include <algorithm>
 
 #include "defs.h"
+#include "fasta.h"
+#include "variant.h"
 
 struct contigRegions {
     std::vector<int> starts;
@@ -31,9 +33,13 @@ public:
 
     long size;
 
-private:
     std::unordered_map<std::string, contigRegions> regions;
     std::vector<std::string> contigs;
 };
+
+void check_contigs(
+        std::unique_ptr<variantData> & query_ptr,
+        std::unique_ptr<variantData> & truth_ptr,
+        std::shared_ptr<fastaData> ref_ptr);
 
 #endif

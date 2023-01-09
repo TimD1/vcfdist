@@ -20,6 +20,7 @@ public:
 
     std::string bed_fn;
     bedData bed;
+    bool bed_exists = false;
 
     std::string out_prefix;
 

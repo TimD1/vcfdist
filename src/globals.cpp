@@ -74,6 +74,7 @@ void Globals::parse_args(int argc, char ** argv) {
             try {
                 this->bed_fn = std::string(argv[i]);
                 this->bed = bedData(std::string(argv[i++]));
+                this->bed_exists = true;
                 this->bed.check();
             } catch (const std::exception & e) {
                 ERROR("Invalid BED filename provided");

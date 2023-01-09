@@ -752,7 +752,7 @@ void write_results(
         int supercluster_idx = 0;
         while (var1_idx < truth1_vars->n || var2_idx < truth2_vars->n) {
             if (var2_idx >= truth2_vars->n || // only truth1 has remaining vars
-                    truth1_vars->poss[var1_idx] < truth2_vars->poss[var2_idx]) { // truth1 var next
+                    (truth1_vars->n && truth1_vars->poss[var1_idx] < truth2_vars->poss[var2_idx])) { // truth1 var next
                 if (cluster1_idx+1 >= int(truth1_vars->clusters.size()))
                     ERROR("Out of bounds cluster during write_results(): truth1")
                 if (truth1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;

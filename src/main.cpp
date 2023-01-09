@@ -61,6 +61,9 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
+    // ensure each input contains all contigs in BED
+    check_contigs(query_ptr, truth_ptr, ref_ptr);
+
     // calculate superclusters
     std::shared_ptr<superclusterData> clusterdata_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));

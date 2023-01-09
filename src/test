@@ -1,25 +1,52 @@
 #!/bin/bash
 
-valgrind --leak-check=full \
-    --show-leak-kinds=all \
-    --track-origins=yes \
-    --dsymutil=yes \
-    --verbose \
-    --log-file=valgrind.log \
-    ./vcfdist \
-        ../analysis/1_results/A-query.vcf \
-        ../analysis/1_results/B-truth.vcf \
-        /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
-        -b ../scripts/data/bench_20.bed \
-        --simple-cluster \
-        --keep-query --keep-truth \
-        -r ../out/A-query_B-truth_
+source ../final-analysis/includes.sh
+
+sub_id="13678"
 
 # time ./vcfdist \
-#     ../analysis/1_results/A-query.vcf \
-#     ../analysis/1_results/B-truth.vcf \
-#     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
-#     -b ../scripts/data/bench_20.bed \
-#     --simple-cluster \
-#     --keep-query --keep-truth \
-#     -r ../out/A-query_B-truth_
+#     $data/pfda-v2/phased_vcfs/GRCh38/${sub_id}_HG002_O.vcf.gz \
+#     $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz \
+#     $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+#     -b $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent_chr4.bed \
+#     -p 2 \
+#     -r ../out/test_
+#     # --exit-after-realign \
+
+# valgrind --leak-check=full \
+#     --show-leak-kinds=all \
+#     --track-origins=yes \
+#     --dsymutil=yes \
+#     --verbose \
+#     --log-file=valgrind.log \
+#     ./vcfdist \
+#         $data/pfda-v2/phased_vcfs/GRCh38/${sub_id}_HG002_O.vcf.gz \
+#         $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz \
+#         $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+#         -b $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent_chr4.bed \
+#         -r ../out/test_
+#         # --exit-after-realign \
+
+# small example #1
+examples="/home/timdunn/vcfdist/examples"
+
+$vcfdist \
+    $examples/1.vcf \
+    $examples/1ref.vcf \
+    $examples/1.fasta \
+    -p 2 \
+    -r $examples/1/C
+
+# valgrind --leak-check=full \
+#     --show-leak-kinds=all \
+#     --track-origins=yes \
+#     --dsymutil=yes \
+#     --verbose \
+#     --log-file=valgrind.log \
+#     $vcfdist \
+#         $examples/1.vcf \
+#         $examples/1ref.vcf \
+#         $examples/1.fasta \
+#         -b $examples/1.bed \
+#         -p 2 \
+#         -r $examples/1/C

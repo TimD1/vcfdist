@@ -64,6 +64,8 @@ void bedData::check() {
 
 int bedData::contains(std::string contig, const int & start, const int & stop) {
 
+    if (!g.bed_exists) return BED_INSIDE;
+
     if (stop < start)
         ERROR("Invalid region %s:%d-%d in BED contains", contig.data(), start, stop);
 
@@ -112,4 +114,93 @@ bedData::operator std::string() const {
         }
     }
     return bed_regions;
+}
+
+
+/******************************************************************************/
+
+
+void check_contigs(
+        std::unique_ptr<variantData> & query_ptr,
+        std::unique_ptr<variantData> & truth_ptr,
+        std::shared_ptr<fastaData> ref_ptr) {
+
+    if (g.bed_exists) { // use BED to determine contigs
+
+        // ensure all inputs contain required contigs
+        for (std::string ctg : g.bed.contigs) {
+            if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
+                ERROR("Contig '%s' found in BED but not reference FASTA.", ctg.data());
+            if (std::find(query_ptr->contigs.begin(), 
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
+                ERROR("Contig '%s' found in BED but not query VCF.", ctg.data());
+            if (std::find(truth_ptr->contigs.begin(), 
+                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end())
+                ERROR("Contig '%s' found in BED but not truth VCF.", ctg.data());
+        }
+
+        // remove all extraneous contigs
+        std::vector<std::string>::iterator itr = query_ptr->contigs.begin();
+        while (itr != query_ptr->contigs.end()) { // query
+            if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
+                        *itr) == g.bed.contigs.end()) {
+                /* WARN("Ignoring contig '%s' from query VCF", (*itr).data()); */
+                query_ptr->lengths.erase(query_ptr->lengths.begin() + 
+                        (itr - query_ptr->contigs.begin()));
+                query_ptr->ctg_variants[HAP1].erase(*itr);
+                itr = query_ptr->contigs.erase(itr);
+            } else itr++;
+        }
+        itr = truth_ptr->contigs.begin();
+        while (itr != truth_ptr->contigs.end()) { // truth
+            if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
+                        *itr) == g.bed.contigs.end()) {
+                /* WARN("Ignoring contig '%s' from truth VCF", (*itr).data()); */
+                truth_ptr->lengths.erase(truth_ptr->lengths.begin() + 
+                        (itr - truth_ptr->contigs.begin()));
+                truth_ptr->ctg_variants[HAP1].erase(*itr);
+                itr = truth_ptr->contigs.erase(itr);
+            } else itr++;
+        }
+        auto itr2 = ref_ptr->fasta.begin();
+        while (itr2 != ref_ptr->fasta.end()) { // fasta
+            if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
+                        itr2->first) == g.bed.contigs.end()) {
+                /* WARN("Ignoring contig '%s' from ref FASTA", itr2->first.data()); */
+                itr2 = ref_ptr->fasta.erase(itr2);
+            } else itr2++;
+        }
+
+    } else { // use truth VCF to determine contigs
+
+        // ensure query/fasta contain all contigs
+        for (std::string ctg : truth_ptr->contigs) {
+            if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
+                ERROR("Contig '%s' found in truth VCF but not reference FASTA. Please provide BED file.", ctg.data());
+            if (std::find(query_ptr->contigs.begin(), 
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
+                ERROR("Contig '%s' found in truth VCF but not query VCF. Please provide BED file.", ctg.data());
+        }
+
+        // remove all extraneous contigs
+        std::vector<std::string>::iterator itr = query_ptr->contigs.begin();
+        while (itr != query_ptr->contigs.end()) { // query
+            if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
+                        *itr) == truth_ptr->contigs.end()) {
+                ERROR("Contig '%s' found in query VCF but not truth VCF. Please provide BED file.", (*itr).data());
+                query_ptr->lengths.erase(query_ptr->lengths.begin() + 
+                        (itr - query_ptr->contigs.begin()));
+                query_ptr->ctg_variants[HAP1].erase(*itr);
+                itr = query_ptr->contigs.erase(itr);
+            } else itr++;
+        }
+        auto itr2 = ref_ptr->fasta.begin();
+        while (itr2 != ref_ptr->fasta.end()) { // fasta
+            if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
+                        itr2->first) == truth_ptr->contigs.end()) {
+                /* WARN("Ignoring contig '%s' from ref FASTA", itr2->first.data()); */
+                itr2 = ref_ptr->fasta.erase(itr2);
+            } else itr2++;
+        }
+    }
 }
