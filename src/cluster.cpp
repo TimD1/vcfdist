@@ -308,6 +308,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
             while (std::find(prev_merged.begin(), 
                         prev_merged.end(), true) != prev_merged.end()) {
                 iter++;
+                if (iter > g.max_cluster_itrs) break;
                 if (g.print_verbosity >= 2)
                     printf("Iteration %d\n", iter);
 

@@ -124,6 +124,7 @@ void check_contigs(
         std::unique_ptr<variantData> & query_ptr,
         std::unique_ptr<variantData> & truth_ptr,
         std::shared_ptr<fastaData> ref_ptr) {
+    INFO("Checking contigs");
 
     if (g.bed_exists) { // use BED to determine contigs
 
@@ -148,6 +149,7 @@ void check_contigs(
                 query_ptr->lengths.erase(query_ptr->lengths.begin() + 
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->ctg_variants[HAP1].erase(*itr);
+                query_ptr->ctg_variants[HAP2].erase(*itr);
                 itr = query_ptr->contigs.erase(itr);
             } else itr++;
         }
@@ -159,6 +161,7 @@ void check_contigs(
                 truth_ptr->lengths.erase(truth_ptr->lengths.begin() + 
                         (itr - truth_ptr->contigs.begin()));
                 truth_ptr->ctg_variants[HAP1].erase(*itr);
+                truth_ptr->ctg_variants[HAP2].erase(*itr);
                 itr = truth_ptr->contigs.erase(itr);
             } else itr++;
         }
@@ -191,6 +194,7 @@ void check_contigs(
                 query_ptr->lengths.erase(query_ptr->lengths.begin() + 
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->ctg_variants[HAP1].erase(*itr);
+                query_ptr->ctg_variants[HAP2].erase(*itr);
                 itr = query_ptr->contigs.erase(itr);
             } else itr++;
         }

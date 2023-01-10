@@ -25,6 +25,7 @@ public:
     std::string out_prefix;
 
     int cluster_min_gap = 50;
+    int max_cluster_itrs = 10;
     int print_verbosity = 0;
     int min_qual = 0;
     int max_qual = 60;

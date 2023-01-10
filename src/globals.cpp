@@ -406,6 +406,21 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative eval gap-extension penalty");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-i" || 
+                std::string(argv[i]) == "--max-cluster-iterations") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-i' used without providing max cluster iterations");
+            }
+            try {
+                this->max_cluster_itrs = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid max cluster iterations provided");
+            }
+            if (this->max_cluster_itrs < 1) {
+                ERROR("Max cluster iterations must be positive");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-x" || 
                 std::string(argv[i]) == "--exit-after-realign") {
             i++;
@@ -473,6 +488,9 @@ void Globals::print_usage() const
 
     printf("  -m, --max-qual <VALUE> [%d]\n", g.max_qual);
     printf("      maximum variant quality (higher qualities kept, thresholded)\n\n");
+
+    printf("  -i, --max-cluster-iterations<VALUE> [%d]\n", g.max_cluster_itrs);
+    printf("      maximum iterations for growing clusters\n\n");
 
     printf("  -g, --supercluster-gap <VALUE> [%d]\n", g.cluster_min_gap);
     printf("      minimum base gap between independent superclusters\n\n");
