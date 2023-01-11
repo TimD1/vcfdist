@@ -9,9 +9,9 @@ sub_id="13678"
 #     $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz \
 #     $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
 #     -b $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent_chr4.bed \
-#     -p 2 \
-#     -r ../out/test_
-#     # --exit-after-realign \
+#     -v 2 \
+#     -p ../out/test_
+#     # --realign-only \
 
 # valgrind --leak-check=full \
 #     --show-leak-kinds=all \
@@ -24,8 +24,8 @@ sub_id="13678"
 #         $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz \
 #         $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
 #         -b $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent_chr4.bed \
-#         -r ../out/test_
-#         # --exit-after-realign \
+#         -p ../out/test_
+#         # --realign-only \
 
 # small example #1
 examples="/home/timdunn/vcfdist/examples"
@@ -34,8 +34,8 @@ $vcfdist \
     $examples/1.vcf \
     $examples/1ref.vcf \
     $examples/1.fasta \
-    -p 2 \
-    -r $examples/1/C
+    -v 2 \
+    -p $examples/1/C
 
 # valgrind --leak-check=full \
 #     --show-leak-kinds=all \
@@ -48,5 +48,5 @@ $vcfdist \
 #         $examples/1ref.vcf \
 #         $examples/1.fasta \
 #         -b $examples/1.bed \
-#         -p 2 \
-#         -r $examples/1/C
+#         -v 2 \
+#         -p $examples/1/C
