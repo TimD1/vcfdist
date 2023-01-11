@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 import numpy as np
-
 import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['text.usetex'] = True
@@ -31,30 +31,36 @@ plt.fill_between(x, -0.2, 0, facecolor='k', alpha=0.8)
 
 # min ED
 i = 0
-plt.scatter(1,1)
-plt.annotate("edit-dist", (1+label_pad,1), ha="left", va="center", color=f"C{i}")
+plt.scatter(1,1, marker="X")
+plt.annotate("edlib", (1+label_pad,1), ha="left", va="center", color=f"C{i}")
 i += 1
 
 # minimap2
 mm2_presets = {
-    "mm2-short":    { "a": 0, "b": 10, "o1": 13, "e1":3, "o2":25,  "e2": 2 },
-    "mm2-ont":  { "a": 0, "b": 6,  "o1": 5,  "e1":3, "o2":25,  "e2": 2 },
-    "mm2-hifi": { "a": 0, "b": 10, "o1": 13, "e1":5, "o2":53,  "e2": 3 },
-    "mm2-asm5":     { "a": 0, "b": 40, "o1": 79, "e1":7, "o2":163, "e2": 3 },
-    "mm2-asm10":    { "a": 0, "b": 20, "o1": 33, "e1":5, "o2":83,  "e2": 3 },
+        r"mm2 \texttt{sr}":     { "a": 0, "b": 10, "o1": 13, "e1":3, "o2":25,  "e2": 2, "m":"^" },
+        r"\noindent mm2 \texttt{map-ont}\\winnowmap":{ "a": 0, "b": 6,  "o1": 5,  "e1":3, "o2":25, "e2": 2, "m":"s" },
+        r"mm2 \texttt{map-pb}": { "a": 0, "b": 10, "o1": 13, "e1":5, "o2":53, "e2": 3, "m":"s" },
+        r"mm2 \texttt{asm5}":   { "a": 0, "b": 40, "o1": 79, "e1":7, "o2":163, "e2": 3, "m":"P" },
+        r"mm2 \texttt{asm10}":  { "a": 0, "b": 20, "o1": 33, "e1":5, "o2":83, "e2": 3, "m":"P" },
+    "pbmm2":                { "a": 0, "b": 7, "o1": 6, "e1":5, "o2":57, "e2": 3, "m":"s" },
 }
 for name, x in mm2_presets.items():
-    start = plt.scatter((x["o1"] + x["e1"])/x["b"], x["e1"]/x["b"], color=f"C{i}")
-    end = plt.scatter((x["o1"] + x["e1"])/x["b"], x["e2"]/x["b"], color=f"C{i}")
+    start = plt.scatter((x["o1"] + x["e1"])/x["b"], x["e1"]/x["b"], color=f"C{i}", marker=x["m"])
+    end = plt.scatter((x["o1"] + x["e1"])/x["b"], x["e2"]/x["b"], color=f"C{i}", marker=x["m"])
     plt.arrow((x["o1"] + x["e1"])/x["b"], x["e1"]/x["b"]-0.02, 0, x["e2"]/x["b"]-x["e1"]/x["b"]+0.04, color='k',
             length_includes_head=True, head_width=0.02, head_length = 0.016)
     plt.annotate(name, ((x["o1"] + x["e1"])/x["b"]+label_pad, x["e1"]/x["b"]), ha="left", va="center", color=f"C{i}")
     i += 1
 
+# BWA, GRAF, DRAGEN
+plt.scatter(1.6, 0.3, color=f"C{i}", marker="^", zorder=100)
+plt.annotate(r"\noindent DRAGEN\\ BWA\\GRAF", (1.6+label_pad, 0.275), ha="right", va="center", color=f"C{i}")
+i += 1
+
 # ngmlr
 ngmlr_presets = {
-    "ngmlr-ont":  { "a": 0, "b": 12, "o": 11, "e_max": 11, "e_min": 3, "e_dec": 0.15},
-    "ngmlr-hifi": { "a": 0, "b": 12, "o": 5,  "e_max": 5,  "e_min": 4, "e_dec": 0.15}
+    r"ngmlr \texttt{ont}":  { "a": 0, "b": 12, "o": 11, "e_max": 11, "e_min": 3, "e_dec": 0.15},
+    r"ngmlr \texttt{hifi}": { "a": 0, "b": 12, "o": 5,  "e_max": 5,  "e_min": 4, "e_dec": 0.15}
 }
 for name, x in ngmlr_presets.items():
     for e in np.arange(x["e_max"], x["e_min"], -x["e_dec"]):
@@ -69,24 +75,23 @@ points = [[1.7, 0.5], [1.7,0.7], [1.7, 1], [1.7, 0.8], [1.7, 1.1], [2.3, 1.8], [
 for p in points:
     plt.scatter(p[0]/5.72, p[1]/5.72, color=f"C{i}")
 plt.annotate("npore", (0.5, 0.25), ha="left", va="center", color=f"C{i}")
-plt.scatter(6/5.72, 1/5.72, color=f"C{i}")
-plt.scatter(6/5.72, 1/5.72, color=f"k", marker="*", s=5)
+plt.scatter(6/5.72, 1/5.72, marker="s", color=f"C{i}")
 plt.annotate("npore", (6/5.72+label_pad, 1/5.72), ha="left", va="center", color=f"C{i}")
 i += 1
 
 # verkko
 plt.scatter(0, 0, color=f"C{i}", zorder=100)
-plt.annotate("HP-compression", (label_pad, 0), ha="left", va="bottom", color=f"C{i}")
+plt.annotate("verkko", (label_pad, 0), ha="left", va="bottom", color=f"C{i}")
 
 # points
-plt.scatter(0.3, 0.1, color=f"k")
-plt.annotate("A", (0.3+label_pad, 0.1), ha="left", va="center", color="k")
-plt.scatter(1, 0.333, color=f"k")
+plt.scatter(0.4, 0.3, marker="*", color=f"k")
+plt.annotate("A", (0.4+label_pad, 0.3), ha="left", va="center", color="k")
+plt.scatter(1, 0.333, marker="*", color=f"k")
 plt.annotate("B", (1+label_pad, 0.333), ha="left", va="center", color="k")
-plt.scatter(1.6, 0.4, color=f"k")
+plt.scatter(1.6, 0.4, marker="*", color=f"k")
 plt.annotate("C", (1.6+label_pad, 0.4), ha="left", va="center", color="k")
-plt.scatter(1.5, 0.05, color=f"k")
-plt.annotate("D", (1.5+label_pad, 0.05), ha="left", va="center", color="k")
+plt.scatter(2, 0.2, marker="*", color=f"k")
+plt.annotate("D", (2+label_pad, 0.2), ha="left", va="center", color="k")
 
 # arrows
 plt.arrow(2.5, 0.9,  0.1,  0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # right
@@ -98,8 +103,24 @@ plt.annotate("prefer\nseparate\ngaps", (2.45, 1+label_pad), ha="center", va="bot
 plt.arrow(2.5, 0.9,  0.05, -0.1, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # down
 plt.annotate("prefer\nmerged\ngaps", (2.55, 0.8-label_pad), ha="center", va="top")
 
+# legend
+sra = mlines.Line2D([], [], color='k', marker='^', linestyle='None',
+        markersize=7, label = 'Short Read Aligners')
+lra = mlines.Line2D([], [], color='k', marker='s', linestyle='None',
+        markersize=7, label = 'Long Read Aligners')
+aa = mlines.Line2D([], [], color='k', marker='P', linestyle='None',
+        markersize=7, label = 'Assembly Aligners')
+sva = mlines.Line2D([], [], color='k', marker='o', linestyle='None',
+        markersize=7, label = 'SV/CNV Aligners')
+ed = mlines.Line2D([], [], color='k', marker='X', linestyle='None',
+        markersize=7, label = 'Edit Distance Align')
+points = mlines.Line2D([], [], color='k', marker='*', linestyle='None',
+        markersize=9, label = 'Select Design Points')
+plt.legend(handles = [sra, lra, aa, sva, ed, points], loc = "lower right")
+
+
 # labels
-plt.xlabel(r'\LARGE{$\frac{o+e}{x}$}')
-plt.ylabel(r'\LARGE{$\frac{e}{x}$}')
+plt.xlabel(r'\LARGE{$(o+e) / x$}')
+plt.ylabel(r'\LARGE{$e / x$}')
 plt.tight_layout()
 plt.savefig("img/2_general_sw_space.png")
