@@ -21,8 +21,7 @@ void Globals::parse_args(int argc, char ** argv) {
                     std::string(argv[i]) == "--help") {
                 i++;
                 print_help = true;
-            } else if (std::string(argv[i]) == "-v" || 
-                    std::string(argv[i]) == "--version") {
+            } else if (std::string(argv[i]) == "--version") {
                 i++;
                 this->print_version();
             }
@@ -80,11 +79,11 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid BED filename provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-r" || 
-                std::string(argv[i]) == "--results-prefix") {
+        } else if (std::string(argv[i]) == "-p" || 
+                std::string(argv[i]) == "--prefix") {
             i++;
             if (i == argc) {
-                ERROR("Option '-r' used without providing prefix for storing results");
+                ERROR("Option '-p' used without providing prefix for storing results");
             }
             try {
                 this->out_prefix = std::string(argv[i++]);
@@ -124,20 +123,20 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Maximum variant quality must exceed minimum variant quality");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-p" || 
-                std::string(argv[i]) == "--print-verbosity") {
+        } else if (std::string(argv[i]) == "-v" || 
+                std::string(argv[i]) == "--verbosity") {
             i++;
             if (i == argc) {
-                ERROR("Option '-p' used without providing print verbosity");
+                ERROR("Option '-v' used without providing printing verbosity");
             }
             try {
-                this->print_verbosity = std::stoi(argv[i++]);
+                this->verbosity = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
-                ERROR("Invalid print verbosity provided");
+                ERROR("Invalid printing verbosity provided");
             }
-            if (this->print_verbosity < 0 || this->print_verbosity > 3) {
-                ERROR("Print verbosity %d not a valid option (0,1,2,3)", 
-                        this->print_verbosity);
+            if (this->verbosity < 0 || this->verbosity > 3) {
+                ERROR("Printing verbosity %d not a valid option (0,1,2,3)", 
+                        this->verbosity);
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-h" || 
@@ -145,8 +144,7 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             print_help = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-v" || 
-                std::string(argv[i]) == "--version") {
+        } else if (std::string(argv[i]) == "--version") {
             i++;
             this->print_version();
 /*******************************************************************************/
@@ -166,17 +164,17 @@ void Globals::parse_args(int argc, char ** argv) {
             }
 
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-s" || 
-                std::string(argv[i]) == "--sub-penalty") {
+        } else if (std::string(argv[i]) == "-x" || 
+                std::string(argv[i]) == "--mismatch-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-s' used without providing substitution penalty");
+                ERROR("Option '-x' used without providing mismatch penalty");
             } else if (this->query_penalties_set[PEN_SUB]) {
-                ERROR("Query substitution penalty already set, cannot use '-s'");
+                ERROR("Query mismatch penalty already set, cannot use '-x'");
             } else if (this->truth_penalties_set[PEN_SUB]) {
-                ERROR("Truth substitution penalty already set, cannot use '-s'");
+                ERROR("Truth mismatch penalty already set, cannot use '-x'");
             } else if (this->eval_penalties_set[PEN_SUB]) {
-                ERROR("Eval substitution penalty already set, cannot use '-s'");
+                ERROR("Eval mismatch penalty already set, cannot use '-x'");
             }
             try {
                 this->eval_sub = std::stoi(argv[i]);
@@ -186,10 +184,10 @@ void Globals::parse_args(int argc, char ** argv) {
                 this->truth_sub = std::stoi(argv[i++]);
                 this->truth_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid substitution penalty provided");
+                ERROR("Invalid mismatch penalty provided");
             }
             if (this->query_sub < 0) {
-                ERROR("Must provide non-negative substitution penalty");
+                ERROR("Must provide non-negative mismatch penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-qs" || 
@@ -421,8 +419,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max cluster iterations must be positive");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-x" || 
-                std::string(argv[i]) == "--exit-after-realign") {
+        } else if (std::string(argv[i]) == "-r" || 
+                std::string(argv[i]) == "--realign-only") {
             i++;
             g.exit = true;
 /*******************************************************************************/
@@ -480,7 +478,7 @@ void Globals::print_usage() const
     printf("  -b, --bed <FILENAME>\n");
     printf("      BED file containing regions to evaluate\n\n");
 
-    printf("  -r, --results-prefix <FILENAME_PREFIX>\n");
+    printf("  -p, --prefix <FILENAME_PREFIX> [./]\n");
     printf("      output filepath prefix (directories should contain trailing slashes)\n\n");
 
     printf("  -q, --min-qual <VALUE> [%d]\n", g.min_qual);
@@ -495,7 +493,7 @@ void Globals::print_usage() const
     printf("  -g, --supercluster-gap <VALUE> [%d]\n", g.cluster_min_gap);
     printf("      minimum base gap between independent superclusters\n\n");
 
-    printf("  -s, --sub-penalty <VALUE> [%d]\n", g.eval_sub);
+    printf("  -x, --mismatch-penalty <VALUE> [%d]\n", g.eval_sub);
     printf("      integer Smith-Waterman substitution penalty\n\n");
 
     printf("  -o, --gap-open-penalty <VALUE> [%d]\n", g.eval_open);
@@ -504,10 +502,10 @@ void Globals::print_usage() const
     printf("  -e, --gap-extend-penalty <VALUE> [%d]\n", g.eval_extend);
     printf("      integer Smith-Waterman gap extension penalty\n\n");
 
-    printf("  -p, --print-verbosity <VALUE> [%d]\n", g.print_verbosity);
+    printf("  -v, --verbosity <VALUE> [%d]\n", g.verbosity);
     printf("      printing verbosity (0: default, 1: verbose, 2:debug, 3:verbose debug)\n\n");
 
-    printf("  -x, --exit-after-realign\n");
+    printf("  -r, --realign-only\n");
     printf("      realign truth/query VCFs with Smith-Waterman params, then exit\n\n");
 
     printf("  -h, --help\n");
@@ -516,7 +514,7 @@ void Globals::print_usage() const
     printf("  -a, --advanced\n");
     printf("      show advanced options\n\n");
 
-    printf("  -v, --version\n");
+    printf("  --version\n");
     printf("      show version number (%s v%s)\n\n", 
             this->PROGRAM.data(), this->VERSION.data());
 

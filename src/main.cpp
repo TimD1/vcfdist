@@ -8,8 +8,8 @@
 #include "phase.h"
 
 Globals g;
-std::vector<std::string> type_strs = {"REF", "SUB", "INS", "DEL", "GRP"};
-std::vector<std::string> type_strs2 = {"ALL", "SUB", "INS", "DEL", "INDEL"};
+std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "GRP"};
+std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
 std::vector<std::string> vartype_strs = {"SNP", "INDEL"};
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "PP", "PE", "GE", "??"};
 std::vector<std::string> gt_strs = {

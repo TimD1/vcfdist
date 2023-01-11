@@ -482,7 +482,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             // TODO: keep overlaps, test all non-overlapping subsets?
             // skip overlapping variants
             if (prev_end[hap] > pos) { // warn if overlap
-                if (g.print_verbosity >= 1) {
+                if (g.verbosity >= 1) {
                     WARN("VCF variant overlap at %s:%i, skipping", seq.data(), pos);
                 }
                 total_overlaps++;
@@ -573,7 +573,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     }
     INFO(" ");
 
-    if (g.print_verbosity >= 1) {
+    if (g.verbosity >= 1) {
         INFO("  Contigs:");
         for (std::string ctg : this->contigs) {
             for (int h = 0; h < HAPS; h++) {

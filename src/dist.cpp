@@ -265,7 +265,7 @@ variantData edit_dist_realign(
                 new_edits += new_edits_cluster;
 
                 // debug print alignment
-                if (g.print_verbosity > 1 && old_edits_cluster != new_edits_cluster) {
+                if (g.verbosity > 1 && old_edits_cluster != new_edits_cluster) {
                     printf("\n\nREF: %s\n", ref_out_str.data());
                     printf("ALT: %s\n", alt_out_str.data());
                     print_ptrs(ptrs, alt_str, ref_str);
@@ -1619,7 +1619,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
                     path, sync, edit, aln_ptrs, path_ptrs, 
-                    aln_query_ref_end, phase, g.print_verbosity >= 2
+                    aln_query_ref_end, phase, g.verbosity >= 2
             );
 
 
@@ -1689,7 +1689,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             /////////////////////////////////////////////////////////////////////
             // DEBUG PRINTING                                                    
             /////////////////////////////////////////////////////////////////////
-            if (g.print_verbosity >= 1) {
+            if (g.verbosity >= 1) {
                 // print cluster info
                 printf("\n\nSupercluster: %d\n", sc_idx);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -1797,13 +1797,13 @@ int sw_max_reach(std::string query, std::string ref,
 
     // find furthest-reaching alignment with lesser or equal score
     for (int s = 0; s <= score; s++) {
-        if (g.print_verbosity >= 3)
+        if (g.verbosity >= 3)
             printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
-            if (g.print_verbosity >= 3)
+            if (g.verbosity >= 3)
                 printf("  x = (%c, %d, %d)\n", 
                     std::string("SID")[x.mi], x.ci, x.ri);
             waves[s].insert(x);
@@ -1972,7 +1972,7 @@ std::unique_ptr<variantData> sw_realign(
                 std::string ref = ref_fasta->fasta.at(ctg).substr(beg, end-beg);
                 
                 // perform alignment
-                if (g.print_verbosity >= 2) {
+                if (g.verbosity >= 2) {
                     printf("REF:   %s\n", ref.data());
                     printf("QUERY: %s\n", query.data());
                 }
@@ -1981,7 +1981,7 @@ std::unique_ptr<variantData> sw_realign(
                 
                 // backtrack
                 std::vector<int> cigar = sw_backtrack(query, ref, ptrs);
-                if (g.print_verbosity >= 2)
+                if (g.verbosity >= 2)
                     print_cigar(cigar);
                 
                 // save resulting variants
@@ -2023,14 +2023,14 @@ std::unordered_map<idx2, idx2> sw_align(
     int s = 0;
     while(true) {
         waves.push_back(std::set<idx2>());
-        if (g.print_verbosity >= 3)
+        if (g.verbosity >= 3)
             printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
             idx2 prev = ptrs.find(x)->second;
-            if (g.print_verbosity >= 3)
+            if (g.verbosity >= 3)
                 printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
                     std::string("SID")[x.mi], x.ci, x.ri,
                     std::string("SID")[prev.mi], prev.ci, prev.ri);
@@ -2260,11 +2260,11 @@ std::vector<int> sw_backtrack(
     idx2 pos(MAT_SUB, query.size()-1, ref.size()-1);
     int cigar_ptr = cigar.size()-1;
 
-    if (g.print_verbosity >= 2) {
+    if (g.verbosity >= 2) {
         printf("Backtrack:\n");
     }
     while (pos.ci >= 0 || pos.ri >= 0) {
-        if (g.print_verbosity >= 2) {
+        if (g.verbosity >= 2) {
             printf("(%c, %d, %d)\n",
                     std::string("SID")[pos.mi], pos.ci, pos.ri);
         }

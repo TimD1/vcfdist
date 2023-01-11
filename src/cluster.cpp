@@ -175,7 +175,7 @@ void superclusterData::gap_supercluster() {
             largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
 
             // debug print
-            if (g.print_verbosity >= 1) {
+            if (g.verbosity >= 1) {
                 printf("\nSUPERCLUSTER: %d\n", this->ctg_superclusters[ctg]->n);
                 printf("POS: %d-%d\n", beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
@@ -309,7 +309,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         prev_merged.end(), true) != prev_merged.end()) {
                 iter++;
                 if (iter > g.max_cluster_itrs) break;
-                if (g.print_verbosity >= 2)
+                if (g.verbosity >= 2)
                     printf("Iteration %d\n", iter);
 
                 // count clusters currently being expanded
@@ -317,7 +317,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                 for (size_t i = 0; i < prev_merged.size()-1; i++) {
                     if (prev_merged[i]) active++;
                 }
-                if (g.print_verbosity >= 1)
+                if (g.verbosity >= 1)
                     INFO("      Iteration %d: %d clusters, %d active",
                         iter, int(prev_clusters.size()-1), active);
 
@@ -345,7 +345,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     }
 
                     // debug print
-                    if (g.print_verbosity >= 2 && clust < prev_clusters.size()-1) {
+                    if (g.verbosity >= 2 && clust < prev_clusters.size()-1) {
                         printf("\ncluster %d: vars %d-%d, pos %d-%d\n",
                                 int(clust), 
                                 vcf->ctg_variants[hap][ctg]->clusters[clust],
@@ -375,7 +375,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         score = calc_vcf_sw_score(
                                 vcf->ctg_variants[hap][ctg], clust, clust+1,
                                 sub, open, extend);
-                        if (g.print_verbosity >= 2)
+                        if (g.verbosity >= 2)
                             printf("orig score: %d\n", score);
                     }
 
@@ -432,10 +432,10 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 sub, open, extend,
                                 score, true, ref_section_start); // reverse
                         l_reach = end_pos - reach;
-                        if (g.print_verbosity >= 2)
+                        if (g.verbosity >= 2)
                             printf("left reach: %d\n", reach);
 
-                        if (g.print_verbosity >= 2) {
+                        if (g.verbosity >= 2) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
                             printf("ref start:  %d\n", ref_section_start);
@@ -497,10 +497,10 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score, false, ref_section_start);
                         r_reach = beg_pos + reach;
-                        if (g.print_verbosity >= 2)
+                        if (g.verbosity >= 2)
                             printf("right reach: %d\n", reach);
 
-                        if (g.print_verbosity >= 2) {
+                        if (g.verbosity >= 2) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
                             printf("ref_start:  %d\n", ref_section_start);
@@ -518,7 +518,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         r_reach = -10; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
-                    if (g.print_verbosity >= 2)
+                    if (g.verbosity >= 2)
                         printf("span: %s - %s\n", 
                                 l_reach == vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10 ? 
                                     "X" : std::to_string(l_reach).data(), 

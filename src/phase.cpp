@@ -103,7 +103,7 @@ void phaseData::phase()
     int switch_errors = 0;
     for (auto ctg : this->contigs) {
 
-        if (g.print_verbosity >= 2) {
+        if (g.verbosity >= 2) {
             int s = 0;
             std::vector<std::string> colors {"\033[34m", "\033[32m"};
             int color_idx = 0;
@@ -119,7 +119,7 @@ void phaseData::phase()
             printf("\033[0m\n");
         }
 
-        if (g.print_verbosity >= 1) {
+        if (g.verbosity >= 1) {
             printf("Contig '%s' phase block cluster indices: ", ctg.data());
             for(int i = 0; i < this->ctg_phasings[ctg].nswitches; i++)
                 printf("%d ", this->ctg_phasings[ctg].phase_blocks[i]);
