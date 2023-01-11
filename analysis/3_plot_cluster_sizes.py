@@ -14,7 +14,7 @@ def get_cluster_sizes(var_filename):
         prev_ctg = ""
         next(varfile) # skip header
         for variant in varfile:
-            ctg, pos, hap, ref, alt, q, typ, errtype, credit, orig_gt, \
+            ctg, pos, hap, ref, alt, q, typ, errtype, credit, \
                     clust, supclust, loc = variant.split("\t")
             hap = int(hap)
             pos = int(pos)
@@ -80,8 +80,9 @@ print(f"s-w clusters: {len(sw_vars)}")
 
 print(f"\ndeps broken: {len(gap_deps-sw_deps)}")
 print(f"deps added: {len(sw_deps-gap_deps)}")
-# for x in sw_deps-gap_deps:
-#     print(f"    {x}")
+with open("3_out.txt", 'w') as dep_out:
+    for x in sw_deps-gap_deps:
+        print(f"{x}", file=dep_out)
 
 print(f"\ngap avg variants: {np.mean(gap_vars):.2f}")
 print(f"s-w avg variants: {np.mean(sw_vars):.2f}")
