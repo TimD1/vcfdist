@@ -2,7 +2,7 @@
 
 source includes.sh
 
-for truth in "${truth_ids}"; do
+for truth in "${truth_ids[@]}"; do
     mkdir -p $data/pfda-v2/${truth}_vcfdist
 done
 
