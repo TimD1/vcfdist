@@ -290,18 +290,22 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
 
             // select PASS filter
             bool is_pass_filter = false;
-            for (int j = 0; j < hdr->hrec[i]->nkeys; j++)
-                if (hdr->hrec[i]->keys[j] == std::string("ID") && 
-                        hdr->hrec[i]->vals[j] == std::string("PASS"))
+            for (int j = 0; j < hdr->hrec[i]->nkeys; j++) {
+                if (std::string(hdr->hrec[i]->keys[j]) == std::string("ID") &&  
+                        std::string(hdr->hrec[i]->vals[j]) == std::string("PASS")) {
                     is_pass_filter = true;
+                }
+            }
 
             // save PASS filter index to keep only passing reads
-            if (is_pass_filter)
-                for (int j = 0; j < hdr->hrec[i]->nkeys; j++)
-                    if (hdr->hrec[i]->keys[j] == std::string("IDX")) {
+            if (is_pass_filter) {
+                for (int j = 0; j < hdr->hrec[i]->nkeys; j++) {
+                    if (std::string(hdr->hrec[i]->keys[j]) == std::string("IDX")) {
                         pass_filter_id = std::stoi(hdr->hrec[i]->vals[j]);
                         pass_found = true;
                     }
+                }
+            }
         }
 
         // store contig lengths (for output VCF)
@@ -319,7 +323,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         }
     }
     if (!pass_found)
-        ERROR("Failed to find PASS FILTER in VCF");
+        ERROR("Failed to find PASS FILTER index in VCF");
     if (bcf_hdr_nsamples(hdr) != 1) 
         ERROR("Expected 1 sample, found %d", bcf_hdr_nsamples(hdr));
     this->sample = hdr->samples[0];
@@ -345,7 +349,6 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     
     while (bcf_read(vcf, hdr, rec) == 0) {
 
-        // new contig!
         seq = seqnames[rec->rid];
         if (rec->rid != prev_rid) {
 
@@ -369,6 +372,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         for (int i = 0; i < rec->d.n_flt; i++) {
             if (rec->d.flt[i] == pass_filter_id) pass = true;
         }
+        if (rec->d.n_flt == 0) pass = true; // allow if no other filters
         if (!pass) continue;
 
         // check that variant exceeds min_qual
