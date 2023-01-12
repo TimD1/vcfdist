@@ -75,7 +75,6 @@ variantData edit_dist_realign(
                 std::string alt_out_str = "";
                 std::string alt_str = "";
                 for (int ref_pos = beg; ref_pos < end;) {
-                    // TODO: VALGRIND: conditional jump or move depends on uninitialized value
                     if (ref_pos == vars->poss[var]) { // in variant
                         switch (vars->types[var]) {
                             case TYPE_INS:
@@ -1240,7 +1239,7 @@ void calc_prec_recall(
         int query_var_pos = query_vars->poss.size() ? query_vars->poss[query_var_ptr] - beg : 0;
         int prev_query_var_ptr = query_var_ptr;
         int truth_var_ptr = truth_end_idx-1;
-        int truth_var_pos = query_vars->poss.size() ? truth_vars->poss[truth_var_ptr] - beg : 0;
+        int truth_var_pos = truth_vars->poss.size() ? truth_vars->poss[truth_var_ptr] - beg : 0;
         int prev_truth_var_ptr = truth_var_ptr;
         int pidx = path[i].size()-1;
 
@@ -1517,7 +1516,7 @@ void calc_edit_dist_aln(
 
 editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     INFO(" ");
-    INFO("Calculating edit distance");
+    INFO("Calculating precision/recall and distance metrics");
 
     // +2 since it's inclusive, but then also needs to include one quality higher
     // which doesn't contain any variants (to get draft reference edit dist)
