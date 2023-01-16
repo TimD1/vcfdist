@@ -332,29 +332,27 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
         for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
             int qidx = qual - g.min_qual;
 
-            int query_tot = query_counts[type][ERRTYPE_TP][qidx] + \
-                        query_counts[type][ERRTYPE_FP][qidx] + \
+            int query_tot = query_counts[type][ERRTYPE_TP][qidx] +
+                        query_counts[type][ERRTYPE_FP][qidx] +
                         query_counts[type][ERRTYPE_PP][qidx];
-            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] + \
+            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
                         query_counts[type][PP_FRAC][qidx];
             float query_fp_f = query_tot - query_tp_f;
-            if (!g.new_prec_calc && query_tot == 0) break;
 
-            int truth_tot = truth_counts[type][ERRTYPE_TP][0] + \
-                        truth_counts[type][ERRTYPE_PP][0] + \
+            int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
+                        truth_counts[type][ERRTYPE_PP][0] +
                         truth_counts[type][ERRTYPE_FN][0];
-            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] + \
+            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
                          truth_counts[type][PP_FRAC][qidx];
             if (truth_tot == 0) break;
-            if (g.new_prec_calc && truth_tp_f + query_fp_f == 0) break;
+            if (truth_tp_f + query_fp_f == 0) break;
 
             // ignore PP, this is only for summary output, not calculations
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] + \
-                         truth_counts[type][ERRTYPE_TP][0] - \
+            int truth_fn = truth_counts[type][ERRTYPE_FN][0] +
+                         truth_counts[type][ERRTYPE_TP][0] -
                          truth_counts[type][ERRTYPE_TP][qidx];
 
-            float precision = g.new_prec_calc ? 
-                truth_tp_f / (truth_tp_f + query_fp_f) : query_tp_f / query_tot;
+            float precision = truth_tp_f / (truth_tp_f + query_fp_f);
             float recall = truth_tp_f / truth_tot;
             float f1_score = 2*precision*recall / (precision + recall);
             if (f1_score > max_f1_score[type]) {
@@ -397,27 +395,26 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
             // redo calculations for these two
             int qidx = qual - g.min_qual;
 
-            int query_tot = query_counts[type][ERRTYPE_TP][qidx] + \
-                        query_counts[type][ERRTYPE_FP][qidx] + \
+            int query_tot = query_counts[type][ERRTYPE_TP][qidx] +
+                        query_counts[type][ERRTYPE_FP][qidx] +
                         query_counts[type][ERRTYPE_PP][qidx];
-            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] + \
+            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
                          query_counts[type][PP_FRAC][qidx];
             float query_fp_f = query_tot - query_tp_f;
             if (query_tot == 0) WARN("No QUERY variant calls.");
 
-            int truth_tot = truth_counts[type][ERRTYPE_TP][0] + \
-                        truth_counts[type][ERRTYPE_PP][0] + \
+            int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
+                        truth_counts[type][ERRTYPE_PP][0] +
                         truth_counts[type][ERRTYPE_FN][0];
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] + \
-                             truth_counts[type][ERRTYPE_TP][0] - \
+            int truth_fn = truth_counts[type][ERRTYPE_FN][0] +
+                             truth_counts[type][ERRTYPE_TP][0] -
                              truth_counts[type][ERRTYPE_TP][qidx];
-            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] + \
+            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
                              truth_counts[type][PP_FRAC][qidx];
             if (truth_tot == 0) WARN("No TRUTH variant calls.");
 
-            float precision = g.new_prec_calc ? 
-                (truth_tp_f + query_fp_f == 0 ? 1.0f : truth_tp_f / (truth_tp_f + query_fp_f)) :
-                (query_tot == 0 ? 1.0f : query_tp_f / query_tot);
+            float precision = truth_tp_f + query_fp_f == 0 ? 
+                1.0f : truth_tp_f / (truth_tp_f + query_fp_f);
             float recall = truth_tot == 0 ? 1.0f : truth_tp_f / truth_tot;
             float f1_score = 2*precision*recall / (precision + recall);
 

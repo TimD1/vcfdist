@@ -32,7 +32,6 @@ public:
 
     bool exit = false;
     bool advanced = false;
-    bool new_prec_calc = false;
 
     int query_sub = 5;
     int query_open = 6;

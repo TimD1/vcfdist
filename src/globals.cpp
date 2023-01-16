@@ -441,9 +441,6 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.simple_cluster = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--new-prec-calc") {
-            i++;
-            g.new_prec_calc = true;
         } else {
             ERROR("Unexpected option '%s'", argv[i]);
         }
@@ -528,9 +525,6 @@ void Globals::print_usage() const
 
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
-
-    printf("  --new-prec-calc\n");
-    printf("      New precision calculation, using truth TPs instead of query TPs\n\n");
 
     printf("  -qs, --query-sub-penalty <VALUE> [%d]\n", g.query_sub);
     printf("      integer Smith-Waterman substitution penalty for query variants\n\n");
