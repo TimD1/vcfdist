@@ -9,7 +9,7 @@ for truth in "${truth_ids[@]}"; do
     mkdir -p $data/pfda-v2/${truth}_vcfeval
 done
 
-$parallel -j25 --joblog 5_vcfeval.log \
+$parallel -j5 --joblog 5_vcfeval.log \
     "python ~/software/happy/install/bin/hap.py \
         $data/{3}/$ref_id/{5} \
         $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \

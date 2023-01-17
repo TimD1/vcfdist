@@ -67,30 +67,41 @@ pts=(
     "B"
     "C"
     "D"
+    # "bwa"
+    # "mm2-ont"
+    # "mm2-pb"
+    # "pbmm2"
 )
 x=(
     "10"
     "3"
     "5"
     "5"
+    # "10"
+    # "6"
+    # "10"
+    # "7"
 )
 o=(
     "1"
     "2"
     "6"
     "9"
+    # "13"
+    # "5"
+    # "13"
+    # "6"
 )
 e=(
     "3"
     "1"
     "2"
     "1"
+    # "3"
+    # "3"
+    # "5"
+    # "5"
 )
-# all representations for evaluation (include original)
-reps=(
-    "O"
-    "A"
-    "B"
-    "C"
-    "D"
-)
+# include orig rep for eval
+reps=("O")
+reps+=("${pts[@]}")
