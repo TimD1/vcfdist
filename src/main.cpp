@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     g.simple_cluster ? cluster(query_ptr) :
         sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
     /* update_quals(query_ptr); // to min in cluster */
-    
+
     // parse, realign, and cluster truth VCF
     std::unique_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr));

@@ -193,6 +193,9 @@ int calc_vcf_sw_score(
         int clust_beg_idx, 
         int clust_end_idx,
         int sub, int open, int extend);
+int calc_cig_sw_score(
+        const std::vector<int> & cigar,
+        int sub, int open, int extend);
 
 void calc_edit_dist_aln(
         std::string query1, 

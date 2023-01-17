@@ -1769,6 +1769,37 @@ int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars,
 }
 
 
+int calc_cig_sw_score(const std::vector<int> & cigar, 
+        int sub, int open, int extend) {
+    int score = 0;
+    int prev = PTR_DIAG;
+    for (int i = 0; i < int(cigar.size()); i++) {
+        switch (cigar[i]) {
+            case PTR_DIAG:
+                i++; // increment by 2
+                prev = PTR_DIAG;
+                break;
+            case PTR_SUB:
+                score += sub;
+                prev = PTR_SUB;
+                i++; // increment by 2
+                break;
+            case PTR_INS:
+                score += (prev == PTR_INS ? extend : open + extend);
+                prev = PTR_INS;
+                break;
+            case PTR_DEL:
+                score += (prev == PTR_DEL ? extend : open + extend);
+                prev = PTR_DEL;
+                break;
+            default:
+                ERROR("Unexpected variant type in calc_cig_sw_score()");
+        }
+    }
+    return score;
+}
+
+
 /******************************************************************************/
 
 
@@ -1953,7 +1984,7 @@ std::unique_ptr<variantData> sw_realign(
             INFO("  Haplotype %d Contig %s", hap+1, ctg.data());
 
             // realign each cluster of variants
-            for (size_t cluster = 0; cluster < vars->clusters.size()-1; cluster++) {
+            for (int cluster = 0; cluster < int(vars->clusters.size()-1); cluster++) {
                 int beg_idx = vars->clusters[cluster];
                 int end_idx = vars->clusters[cluster+1];
                 int beg = vars->poss[beg_idx]-1;
@@ -1982,6 +2013,26 @@ std::unique_ptr<variantData> sw_realign(
                 std::vector<int> cigar = sw_backtrack(query, ref, ptrs);
                 if (g.verbosity >= 2)
                     print_cigar(cigar);
+
+                // compare distances
+                if (g.verbosity >= 1) {
+                    int new_score = calc_cig_sw_score(cigar, sub, open, extend);
+                    int old_score = calc_vcf_sw_score(vars, cluster, cluster+1, 
+                            sub, open, extend);
+                    if (new_score < old_score) {
+                        printf("\n\tCluster %d: %d variants (%d-%d)\n", 
+                            cluster, end_idx-beg_idx, beg_idx, end_idx);
+                        for (int i = beg_idx; i < end_idx; i++) {
+                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", 
+                                ctg.data(), vars->poss[i], 
+                                vars->refs[i].size() ?  vars->refs[i].data() : "_", 
+                                vars->alts[i].size() ?  vars->alts[i].data() : "_",
+                                vars->var_quals[i]);
+                        }
+                        printf("Old score: %d\n", old_score);
+                        printf("New score: %d\n", new_score);
+                    }
+                }
                 
                 // save resulting variants
                 results->add_variants(cigar, hap, beg, ctg, query, ref, qual);
