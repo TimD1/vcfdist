@@ -49,18 +49,18 @@ for di, dataset in enumerate(datasets):
             ax[di][ei*2].set_xlim(0.99, 1)
             ax[di][ei*2].set_xticks(np.arange(0.99, 1.001, 0.002))
             ax[di][ei*2].set_ylim(0.999, 1.00001)
-            ax[di][ei*2].set_yticks(np.arange(0.999, 1.0001, 0.0001))
+            ax[di][ei*2].set_yticks(np.arange(0.999, 1.0001, 0.0002))
             ax[di][ei*2].set_yticklabels([f"{x:.4f}" for x in 
-                np.arange(0.999, 1.00001, 0.0001)])
+                np.arange(0.999, 1.00001, 0.0002)])
         if dataset == "cmrg":
             ax[di][ei*2].set_xlim(0.9, 1)
-            ax[di][ei*2].set_xticks(np.arange(0.9, 1.01, 0.01))
-            ax[di][ei*2].set_ylim(0.995, 1.0001)
-            ax[di][ei*2].set_yticks(np.arange(0.995, 1.001, 0.001))
+            ax[di][ei*2].set_xticks(np.arange(0.9, 1.01, 0.02))
+            ax[di][ei*2].set_ylim(0.95, 1.0001)
+            ax[di][ei*2].set_yticks(np.arange(0.95, 1.001, 0.01))
             ax[di][ei*2].set_yticklabels([f"{x:.3f}" for x in 
-                np.arange(0.995, 1.001, 0.001)])
-        ax[di][ei*2].legend(loc="lower left")
-        ax[di][ei*2].set_title(f"{dataset.upper()} SNPs")
+                np.arange(0.95, 1.001, 0.01)])
+        if di == 0:
+            ax[di][ei*2].legend(loc="lower left", fontsize=15, markerscale=3)
 
         # INDEL plot
         ax[di][ei*2+1].set_xlabel("Recall")
@@ -72,11 +72,9 @@ for di, dataset in enumerate(datasets):
             ax[di][ei*2+1].set_yticks(np.arange(0.995, 1.001, 0.001))
         if dataset == "cmrg":
             ax[di][ei*2+1].set_xlim(0.9, 1)
-            ax[di][ei*2+1].set_xticks(np.arange(0.9, 1.01, 0.01))
+            ax[di][ei*2+1].set_xticks(np.arange(0.9, 1.01, 0.02))
             ax[di][ei*2+1].set_ylim(0.9, 1.001)
-            ax[di][ei*2+1].set_yticks(np.arange(0.9, 1.01, 0.01))
-        ax[di][ei*2+1].legend(loc="lower left")
-        ax[di][ei*2+1].set_title(f"{dataset.upper()} INDELs")
+            ax[di][ei*2+1].set_yticks(np.arange(0.9, 1.01, 0.02))
 
 plt.tight_layout()
 plt.savefig('img/7_vcfeval_pr_plot.png')
