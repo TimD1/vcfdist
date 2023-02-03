@@ -1,4 +1,4 @@
-# vcfdist: Accurately benchmarking complex small variant calls
+# vcfdist: benchmarking complex small variant calls
 
 <!-- [![DOI](https://zenodo.org/badge/365294513.svg)](https://zenodo.org/badge/latestdoi/365294513) -->
 
@@ -65,17 +65,17 @@ vcfdist 1.0.0
 
 ## Usage
 
-Here's an example usage vcfdist:
+Here's an example usage of vcfdist:
 
 ```bash
-./vcfdist \
+> ./vcfdist \
     query.vcf.gz \
     truth.vcf.gz \
     reference.fasta \
     -b analysis-regions.bed \
     -p results/output-prefix
 ```
-Please see additional options documented <a href="./img">here</a>, or run `./vcfdist --help`.
+Please see additional options documented <a href="./src/README.md">here</a>, or run `./vcfdist --help`.
 
 
 ## Acknowledgements
