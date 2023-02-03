@@ -84,14 +84,14 @@ plt.scatter(0, 0, color=f"C{i}", zorder=100)
 plt.annotate("verkko", (label_pad, 0), ha="left", va="bottom", color=f"C{i}")
 
 # points
-plt.scatter(0.4, 0.3, marker="*", color=f"k")
-plt.annotate("A", (0.4+label_pad, 0.3), ha="left", va="center", color="k")
-plt.scatter(1, 0.333, marker="*", color=f"k")
-plt.annotate("B", (1+label_pad, 0.333), ha="left", va="center", color="k")
-plt.scatter(1.6, 0.4, marker="*", color=f"k")
-plt.annotate("C", (1.6+label_pad, 0.4), ha="left", va="center", color="k")
-plt.scatter(2, 0.2, marker="*", color=f"k")
-plt.annotate("D", (2+label_pad, 0.2), ha="left", va="center", color="k")
+plt.scatter(0.4, 0.3, marker="*", color=f"C0")
+plt.annotate("A", (0.4+label_pad, 0.3), ha="left", va="center", color="C0")
+plt.scatter(1, 0.333, marker="*", color=f"C1")
+plt.annotate("B", (1+label_pad, 0.333), ha="left", va="center", color="C1")
+plt.scatter(1.6, 0.4, marker="*", color=f"C2")
+plt.annotate("C", (1.6+label_pad, 0.4), ha="left", va="center", color="C2")
+plt.scatter(2, 0.2, marker="*", color=f"C3")
+plt.annotate("D", (2+label_pad, 0.2), ha="left", va="center", color="C3")
 
 # arrows
 plt.arrow(2.5, 0.9,  0.1,  0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # right
@@ -123,4 +123,4 @@ plt.legend(handles = [sra, lra, aa, sva, ed, points], loc = "lower right")
 plt.xlabel(r'\LARGE{$(o+e) / x$}')
 plt.ylabel(r'\LARGE{$e / x$}')
 plt.tight_layout()
-plt.savefig("img/2_general_sw_space.png")
+plt.savefig("img/2_general_sw_space.png", dpi=200)
