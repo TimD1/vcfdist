@@ -8,6 +8,7 @@
 *gmon.out
 *.svg
 *.vcf
+*.gz
 *.gprof
 src/vcfdist
 
