@@ -1538,20 +1538,20 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             /////////////////////////////////////////////////////////////////////
             
             // set pointers between each hap (query1/2, truth1/2) and reference
-            std::string query1 = "", ref_c1 = ""; 
+            std::string query1 = "", ref_q1 = ""; 
             std::vector<int> query1_ref_ptrs, ref_query1_ptrs;
             generate_ptrs_strs(
-                    query1, ref_c1,
+                    query1, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     sc->ctg_variants[QUERY][HAP1], sc->ctg_variants[QUERY][HAP1],
                     sc->superclusters[QUERY][HAP1][sc_idx], 0,
                     sc->superclusters[QUERY][HAP1][sc_idx+1], 0,
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-            std::string query2 = "", ref_c2 = ""; 
+            std::string query2 = "", ref_q2 = ""; 
             std::vector<int> query2_ref_ptrs, ref_query2_ptrs;
             generate_ptrs_strs(
-                    query2, ref_c2,
+                    query2, ref_q2,
                     query2_ref_ptrs, ref_query2_ptrs, 
                     sc->ctg_variants[QUERY][HAP2], sc->ctg_variants[QUERY][HAP2],
                     sc->superclusters[QUERY][HAP2][sc_idx], 0,
@@ -1584,7 +1584,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             std::vector<int> aln_score(4), aln_query_ref_end(4);
             std::vector< std::vector< std::vector<int> > > aln_ptrs;
             calc_prec_recall_aln(
-                    query1, query2, truth1, truth2, ref_c1,
+                    query1, query2, truth1, truth2, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     aln_score, aln_ptrs, aln_query_ref_end
@@ -1613,7 +1613,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             // calculate precision/recall from paths
             calc_prec_recall(
                     clusterdata_ptr, sc_idx, ctg,
-                    query1, query2, truth1, truth2, ref_c1,
+                    query1, query2, truth1, truth2, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
@@ -1716,7 +1716,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     }
                 }
 
-                printf("ORIG:      %s\n", ref_c1.data());
+                printf("ORIG:      %s\n", ref_q1.data());
                 printf("QUERY1:    %s\n", query1.data());
                 printf("QUERY2:    %s\n", query2.data());
                 printf("TRUTH1:    %s\n", truth1.data());
