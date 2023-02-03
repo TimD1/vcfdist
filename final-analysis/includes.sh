@@ -1,9 +1,12 @@
 #!/bin/bash
 
-data="/x/vcfdist/data"
-# data="/home/timdunn/vcfdist/data"
+# data="/x/vcfdist/data"
+data="/home/timdunn/vcfdist/data"
 parallel="/home/timdunn/parallel-20211222/src/parallel"
 vcfdist="/home/timdunn/vcfdist/src/vcfdist"
+tabix="/home/timdunn/software/htslib-1.16/tabix"
+bgzip="/home/timdunn/software/htslib-1.16/bgzip"
+timer="/usr/bin/time"
 
 # get IDs for each pFDA v2 submission VCF
 # sub_ids=( $(ls $data/pfda-v2/submission_vcfs) )
@@ -14,6 +17,10 @@ vcfdist="/home/timdunn/vcfdist/src/vcfdist"
 # sub_ids=("J04SL" "K33QJ" "KPXT2" "M9KLP" "NFT0L" "QUE7Q" "S7K7S" "TZMTX" "W607K" "WX8VK") # mbit8
 
 sub_ids=("K4GT3")
+# sub_ids=("XV7ZN" "Y8QR8" "WGQ43" "YGOTK") # failed during 4_vcf_reps.sh
+# sub_ids=("HB8P3") # failed during 3_phase_vcfs.sh?
+# sub_ids=("0GOOR" "BARQS" "HB8P3") # whatshap failed, ploidy, extra contigs
+# sub_ids=("XV7ZN" "Y8QR8" "WGQ43" "YGOTK" "0GOOR" "BARQS" "HB8P3" "CZA1Y" "WX8VK")
 
 # define shorthand IDs for reference sequences (used for directories)
 ref_id="GRCh38"
@@ -103,5 +110,6 @@ e=(
     # "5"
 )
 # include orig rep for eval
+# reps=()
 reps=("O")
 reps+=("${pts[@]}")
