@@ -17,7 +17,6 @@ wfa
 lv89
 
 # ignore analysis
-scripts/*/
 analysis/*/
 
 # ignore input
