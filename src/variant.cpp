@@ -1,6 +1,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cmath>
 
 #include "htslib/vcf.h"
 
@@ -318,8 +319,11 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                 else if (hdr->hrec[i]->keys[j] == std::string("length"))
                     length = std::stoi(hdr->hrec[i]->vals[j]);
             }
-            if (length >= 0 && idx >= 0) seqlens[idx] = length;
-            else ERROR("VCF header contig line didn't have 'IDX' and 'length'");
+            if (length >= 0 && idx >= 0) {
+                seqlens[idx] = length;
+            } else {
+                ERROR("VCF header contig line didn't have 'IDX' and 'length'");
+            }
         }
     }
     if (!pass_found)
@@ -376,7 +380,9 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         if (!pass) continue;
 
         // check that variant exceeds min_qual
-        pass = rec->qual >= g.min_qual;
+        float vq = rec->qual;
+        if (isnan(vq)) vq = 0; // no quality reported (.)
+        pass = vq >= g.min_qual;
         pass_min_qual[pass]++;
         if (!pass) continue;
 
@@ -528,12 +534,12 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             // add to haplotype-specific query info
             if (type == TYPE_GRP) { // split GRP into INS+DEL
                 this->ctg_variants[hap][seq]->add_var(pos, 0, // INS
-                    hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], rec->qual);
+                    hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq);
                 this->ctg_variants[hap][seq]->add_var(pos, rlen, // DEL
-                    hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], rec->qual);
+                    hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], vq);
             } else {
                 this->ctg_variants[hap][seq]->add_var(pos, rlen,
-                        hap, type, loc, ref, alt, simple_gt, gq[0], rec->qual);
+                        hap, type, loc, ref, alt, simple_gt, gq[0], vq);
             }
 
             prev_end[hap] = pos + rlen;
