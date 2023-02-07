@@ -11,11 +11,6 @@ vcfdist is a distance-based small variant calling evaluator that:
 
 This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfeval also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
 
-<div align="center">
-<img src="img/f1_overview.png" width="900p" alt="vcfdist vs vcfeval precision-recall curve stability">
-</div>
-
-
 ## Citation
 Please cite the following pre-print if you use vcfdist:
 
