@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# valgrind --leak-check=full \
-#     --show-leak-kinds=all \
-#     --track-origins=yes \
-#     --dsymutil=yes \
-#     --verbose \
-#     --log-file=valgrind.log \
+valgrind --leak-check=full \
+    --show-leak-kinds=all \
+    --track-origins=yes \
+    --dsymutil=yes \
+    --verbose \
+    --log-file=valgrind.log \
 ./vcfdist \
     ../test/query.vcf.gz \
     ../test/truth.vcf.gz \

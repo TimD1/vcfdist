@@ -22,7 +22,7 @@ Please cite the following pre-print if you use vcfdist:
 <pre>
 @article {dunn-vcfdist,
 author = {Dunn, Tim and Narayanasamy, Satish},
-title = {vcfdist: vcfdist: Accurately benchmarking small complex variant calls in human genomes},
+title = {vcfdist: Accurately benchmarking small complex variant calls in human genomes},
 elocation-id = {},
 year = {2023},
 doi = {},
@@ -43,7 +43,7 @@ journal = {bioRxiv}
 
 ## Installation
 
-vcfdist's only dependencies are a C++20 compliant compiler (`g++` will do the trick) and HTSlib, so if you don't have it already, please download from <a href="http://www.htslib.org/">here</a>. Then, add HTSlib to your library path:
+vcfdist's only dependencies are a C++20 compliant compiler (`g++` will do the trick) and HTSlib, so if you don't have HTSlib already, please download from <a href="http://www.htslib.org/">here</a>. Then, add it to your library path:
 ```bash
 > export LD_LIBRARY_PATH=/path/to/htslib-1.16:$LD_LIBRARY_PATH
 ```
