@@ -17,6 +17,7 @@ done
 #     -p $data/pfda-v2/{4}_vcfdist/{1}_HG002_{2}." ::: \
 #     ${sub_ids[@]} ::: ${reps[@]} ::: \
 #     ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
+
 # # standardize representations
 # $parallel -j5 --joblog 6_vcfdiststd.log \
 # "$vcfdist  \
@@ -30,7 +31,7 @@ done
 
 # standard reps
 $parallel -j1 --joblog 6_vcfdist.log \
-"$timer -v -o 6_{4}_{2}.txt taskset 1 $vcfdist  \
+"$vcfdist  \
     $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
     $data/{3}/$ref_id/{5} \
     $data/refs/$ref_name \

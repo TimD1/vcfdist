@@ -48,6 +48,7 @@ for di, dataset in enumerate(datasets):
     all_aln_f1_y = []
     all_aln_f1_meds = []
     for si, sub_id in enumerate(sub_ids):
+        print(f"\n{dataset} {sub_id}: ", end="")
         ed_f1_list = []
         de_f1_list = []
         aln_f1_list = []
@@ -64,8 +65,12 @@ for di, dataset in enumerate(datasets):
                     ed_f1_list.append(ed_f1q)
                     de_f1_list.append(de_f1q)
                     aln_f1_list.append(aln_f1q)
+                    print(f"{filename}={ed_f1q:.4f}\t", end="")
             except FileNotFoundError:
                 # print(f"File '{data}/pfda-v2/{dataset}_vcfdist/{sub_id}_HG002_{filename}.distance-summary.tsv' not found.")
+                break
+            except IndexError:
+                print(f"File '{data}/pfda-v2/{dataset}_vcfdist/{sub_id}_HG002_{filename}.distance-summary.tsv' empty.")
                 break
         if len(ed_f1_list) != 5: continue
         ed_f1_mean = np.mean(ed_f1_list)
@@ -88,6 +93,7 @@ for di, dataset in enumerate(datasets):
         all_aln_f1_x.extend([aln_f1_mean]*5)
         all_aln_f1_meds.append(statistics.median(aln_f1_list))
 
+    print(" ")
     m, b, r, p, std_err = scipy.stats.linregress(all_ed_f1_x, all_ed_f1_y)
     ax[di*3].set_xlabel("Avg ED Q-score", fontsize=15)
     ax[di*3].set_ylabel("ED Q-score", fontsize=15)
@@ -131,6 +137,8 @@ for di, dataset in enumerate(datasets):
                     de_f1_list.append(de_f1q)
                     aln_f1_list.append(aln_f1q)
             except FileNotFoundError:
+                break
+            except IndexError:
                 break
         if len(ed_f1_list) != 5: continue
         # remove this median from list before doing rank calcs

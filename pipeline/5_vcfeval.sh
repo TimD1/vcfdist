@@ -23,8 +23,9 @@ done
 #     ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
 
 # hap.py vcfeval timing evaluation
-$parallel -j1 --joblog 5_vcfeval.log \
-    "$timer -v -o 5_{4}_{2}.txt python ~/software/happy/install/bin/hap.py \
+# "$timer -v -o 5_{4}_{2}.txt python ~/software/happy/install/bin/hap.py \
+$parallel -j5 --joblog 5_vcfeval.log \
+    "$timer -v -o 5_{4}_{2}.txt taskset 1 python ~/software/happy/install/bin/hap.py \
         $data/{3}/$ref_id/{5} \
         $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
         -r $data/refs/$ref_name \

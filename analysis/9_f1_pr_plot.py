@@ -48,6 +48,7 @@ for di, dataset in enumerate(datasets):
             all_snp_f1_meds = []
             all_indel_f1_meds = []
             for si, sub_id in enumerate(sub_ids):
+                print(f"\nvcfeval {dataset} {sub_id}: ", end="")
                 snp_f1_list = []
                 indel_f1_list = []
                 for ni, name in enumerate(names):
@@ -70,6 +71,7 @@ for di, dataset in enumerate(datasets):
                             indel_f1q = -10 * np.log10(1-indel_f1)
                             snp_f1_list.append(snp_f1q)
                             indel_f1_list.append(indel_f1q)
+                            print(f"{filename}={snp_f1q:6.4f},{indel_f1q:6.4f}\t", end="")
                     except FileNotFoundError:
                         print(f"File '{data}/pfda-v2/{dataset}_vcfeval/{sub_id}_HG002_{filename}.summary.csv' not found.")
                         continue
@@ -156,6 +158,7 @@ for di, dataset in enumerate(datasets):
             all_snp_f1_meds = []
             all_indel_f1_meds = []
             for si, sub_id in enumerate(sub_ids):
+                print(f"\nvcfdist {dataset} {sub_id}: ", end="")
                 snp_f1_list = []
                 indel_f1_list = []
                 for ni, name in enumerate(names):
@@ -170,6 +173,7 @@ for di, dataset in enumerate(datasets):
                             indel_f1q = float(indel_line.split("\t")[9])
                             snp_f1_list.append(snp_f1q)
                             indel_f1_list.append(indel_f1q)
+                            print(f"{filename}={snp_f1q:6.4f},{indel_f1q:6.4f}\t", end="")
                     except FileNotFoundError:
                         print(f"File '{data}/pfda-v2/{dataset}_vcfdist/{sub_id}_HG002_{filename}.precision-recall-summary.tsv' not found.")
                         continue
@@ -258,7 +262,7 @@ C = mlines.Line2D([], [], linestyle="", color='C2', marker='.',
 D = mlines.Line2D([], [], linestyle="", color='C3', marker='.',
                                   markersize=12, label='D')
 ax2 = ax[0][0].twinx()
-ax2.legend(handles=[O,A,B,C,D], loc="center left", fontsize=15)
+ax2.legend(handles=[O,A,B,C,D], loc="center right", fontsize=15)
 
 
 plt.tight_layout()

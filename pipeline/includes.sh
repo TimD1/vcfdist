@@ -16,11 +16,9 @@ timer="/usr/bin/time"
 # sub_ids=("PGXA4" "RU88N" "TG5TE" "VES2R" "WGQ43" "XV7ZN" "YGOTK" "13678" "32LOW" "60Z59" "JBBK0" "K4GT3" "7RR8Z" "ASJT6" "BSODP" "CZA1Y" "0O7FL" "2OT9Q" "FFFGB" "HF8CT" "Y8QR8" "YJN61" "LR1FD" "MT57N") # mbit7
 # sub_ids=("J04SL" "K33QJ" "KPXT2" "M9KLP" "NFT0L" "QUE7Q" "S7K7S" "TZMTX" "W607K" "WX8VK") # mbit8
 
-sub_ids=("K4GT3")
-# sub_ids=("XV7ZN" "Y8QR8" "WGQ43" "YGOTK") # failed during 4_vcf_reps.sh
-# sub_ids=("HB8P3") # failed during 3_phase_vcfs.sh?
-# sub_ids=("0GOOR" "BARQS" "HB8P3") # whatshap failed, ploidy, extra contigs
-# sub_ids=("XV7ZN" "Y8QR8" "WGQ43" "YGOTK" "0GOOR" "BARQS" "HB8P3" "CZA1Y" "WX8VK")
+sub_ids=("K4GT3") # example
+# sub_ids=("XV7ZN") # failed during 4_vcf_reps.sh, ???
+# sub_ids=("YGOTK" "WGQ43")
 
 # define shorthand IDs for reference sequences (used for directories)
 ref_id="GRCh38"
@@ -29,19 +27,19 @@ ref_id="GRCh38"
 ref_name="GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
 truth_names=(
     "nist-v4.2.1"
-    "cmrg-v1.00"
+    # "cmrg-v1.00"
 )
 truth_ids=(
     "nist"
-    "cmrg"
+    # "cmrg"
 )
 truth_vcfs=(
     "HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz"
-    "HG002_GRCh38_CMRG_smallvar_v1.00.vcf.gz"
+    # "HG002_GRCh38_CMRG_smallvar_v1.00.vcf.gz"
 )
 truth_beds=(
     "HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed"
-    "HG002_GRCh38_CMRG_smallvar_v1.00.bed"
+    # "HG002_GRCh38_CMRG_smallvar_v1.00.bed"
 )
 
 # shorthand IDs for each sequencing dataset
@@ -112,4 +110,4 @@ e=(
 # include orig rep for eval
 # reps=()
 reps=("O")
-reps+=("${pts[@]}")
+# reps+=("${pts[@]}")
