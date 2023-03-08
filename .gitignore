@@ -5,6 +5,7 @@
 *.txt
 *.bed
 *.nfs*
+*.tsv
 *gmon.out
 *.svg
 *.vcf

@@ -617,6 +617,7 @@ void calc_prec_recall_aln(
         std::string truth1, std::string truth2, std::string ref,
         std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
         std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
         std::vector<int> & pr_query_ref_end
@@ -628,6 +629,8 @@ void calc_prec_recall_aln(
     std::vector<std::string> truth {truth1, truth2, truth1, truth2};
     std::vector< std::vector<int> > query_ref_ptrs {
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
+    std::vector< std::vector<int> > truth_ref_ptrs {
+            truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
     std::vector< std::vector<int> > ref_query_ptrs {
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
     std::vector<int> query_lens = 
@@ -688,8 +691,8 @@ void calc_prec_recall_aln(
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
                         }
                     }
-                    // allow phase swap
-                    if (query_ref_ptrs[i][x.cri] >= 0) {
+                    // allow phase swaps, outside query/truth variants
+                    if (query_ref_ptrs[i][x.cri] >= 0 && truth_ref_ptrs[i][x.ti] >= 0) {
                         if (!done[ri][query_ref_ptrs[i][x.cri]][x.ti] &&
                                 !contains(done_this_wave, idx1(ri, query_ref_ptrs[i][x.cri], x.ti))) {
                             queue.push(idx1(ri, 
@@ -714,8 +717,8 @@ void calc_prec_recall_aln(
                             ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
                         }
                     }
-                    // allow phase swap
-                    if (ref_query_ptrs[i][x.cri] >= 0) {
+                    // allow phase swaps, outside query/truth variants
+                    if (ref_query_ptrs[i][x.cri] >= 0 && truth_ref_ptrs[i][x.ti] >= 0) {
                         if (!done[ci][ref_query_ptrs[i][x.cri]][x.ti] &&
                                 !contains(this_wave, idx1(ci, ref_query_ptrs[i][x.cri], x.ti))) {
                             queue.push(idx1(ci, 
@@ -1587,6 +1590,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     query1, query2, truth1, truth2, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
+                    truth1_ref_ptrs, truth2_ref_ptrs,
                     aln_score, aln_ptrs, aln_query_ref_end
             );
 

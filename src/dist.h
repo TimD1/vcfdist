@@ -106,6 +106,7 @@ void calc_prec_recall_aln(
         std::string truth1, std::string truth2, std::string ref,
         std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
         std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
+        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
         std::vector<int> & pr_query_ref_end

@@ -9,7 +9,7 @@ vcfdist is a distance-based small variant calling evaluator that:
 - requires local phasing of both input VCFs and enforces correct local phasing of variants
 - gives partial credit to variant calls which are mostly correct
 
-This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfeval also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
+This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
 
 ## Citation
 Please cite the following pre-print if you use vcfdist:
