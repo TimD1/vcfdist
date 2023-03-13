@@ -53,7 +53,7 @@ vcfdist's only dependencies are a C++20 compliant compiler (`g++` will do the tr
 > ./configure --prefix=/usr/local
 > make
 > sudo make install
-> export LD_LIBRARY_PATH=/usr/local:$LD_LIBRARY_PATH
+> export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 ```
 If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable:
 
