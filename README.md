@@ -1,4 +1,4 @@
-# vcfdist: benchmarking complex small variant calls
+# vcfdist: benchmarking phased small variant calls
 
 <!-- [![DOI](https://zenodo.org/badge/365294513.svg)](https://zenodo.org/badge/latestdoi/365294513) -->
 
@@ -11,24 +11,26 @@ vcfdist is a distance-based small variant calling evaluator that:
 
 This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
 
+This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement!
+
 ## Citation
 Please cite the following pre-print if you use vcfdist:
 
 <details>
 <summary>
-<a href=""><b>[bioRxiv]</b> vcfdist: Accurately benchmarking small complex variant calls in human genomes</a>
+<a href=""><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
 </summary>
 
 <pre>
-@article {dunn-vcfdist,
+@article {dunn2023vcfdist,
 author = {Dunn, Tim and Narayanasamy, Satish},
-title = {vcfdist: Accurately benchmarking small complex variant calls in human genomes},
-elocation-id = {},
+title = {vcfdist: Accurately benchmarking phased small variant calls in human genomes},
+elocation-id = {2023.03.10.532078},
 year = {2023},
-doi = {},
-publisher = {},
-URL = {},
-eprint = {},
+doi = {10.1101/2023.03.10.532078},
+publisher = {Cold Spring Harbor Laboratory},
+URL = {https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078},
+eprint = {https://biorxiv.org/content/early/2023/03/12/2023.03.10.532078.full.pdf},
 journal = {bioRxiv}
 }
 </pre>
