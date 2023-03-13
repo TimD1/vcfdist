@@ -381,7 +381,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
 
         // check that variant exceeds min_qual
         float vq = rec->qual;
-        if (isnan(vq)) vq = 0; // no quality reported (.)
+        if (std::isnan(vq)) vq = 0; // no quality reported (.)
         pass = vq >= g.min_qual;
         pass_min_qual[pass]++;
         if (!pass) continue;

@@ -45,11 +45,17 @@ journal = {bioRxiv}
 
 ## Installation
 
-vcfdist's only dependencies are a C++20 compliant compiler (`g++` will do the trick) and HTSlib, so if you don't have HTSlib already, please download from <a href="http://www.htslib.org/">here</a>. Then, add it to your library path:
+vcfdist's only dependencies are a C++20 compliant compiler (`g++` will do the trick) and HTSlib. If you don't have HTSlib already, please set it up as follows:
 ```bash
-> export LD_LIBRARY_PATH=/path/to/htslib-1.16:$LD_LIBRARY_PATH
+> wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
+> tar -xvf htslib-1.17.tar.bz2
+> cd htslib-1.17
+> ./configure --prefix=/usr/local
+> make
+> sudo make install
+> export LD_LIBRARY_PATH=/usr/local:$LD_LIBRARY_PATH
 ```
-At this point, installation is as simple as cloning the repository and building the executable:
+If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable:
 
 ```bash
 > git clone https://github.com/timd1/vcfdist
