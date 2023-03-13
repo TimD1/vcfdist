@@ -18,7 +18,7 @@ Please cite the following pre-print if you use vcfdist:
 
 <details>
 <summary>
-<a href=""><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
+<a href="https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078"><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
 </summary>
 
 <pre>
