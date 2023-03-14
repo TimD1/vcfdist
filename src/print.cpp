@@ -322,7 +322,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
     INFO("  Printing precision-recall results to '%s'", out_pr_fn.data());
     FILE* out_pr = fopen(out_pr_fn.data(), "w");
-    fprintf(out_pr, "TYPE\tQUAL\tPRECISION\tRECALL\tF1_SCORE\tF1_QSCORE\t"
+    fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
             "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_PP\tQUERY_FP\n");
     std::vector<float> max_f1_score = {0, 0};
     std::vector<int> max_f1_qual = {0, 0};
@@ -385,11 +385,11 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     std::string out_pr_summ_fn = g.out_prefix + "precision-recall-summary.tsv";
     INFO("  Printing precision-recall summary to '%s'", out_pr_summ_fn.data());
     FILE* out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
-    fprintf(out_pr_summ, "TYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
+    fprintf(out_pr_summ, "VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         INFO(" ");
-        INFO("TYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE");
+        INFO("VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE");
 
         for (int qual : quals) {
             // redo calculations for these two
@@ -459,8 +459,8 @@ void write_distance(const editData & edits) {
     // log all distance results
     std::string dist_fn = g.out_prefix + "distance.tsv";
     FILE* out_dists = fopen(dist_fn.data(), "w");
-    fprintf(out_dists, "QUAL\tSUB_DE\tINS_DE\tDEL_DE\tSUB_ED\tINS_ED\tDEL_ED\t"
-            "DISTINCT_EDITS\tEDIT_DIST\tSCORE\tQSCORE\n");
+    fprintf(out_dists, "MIN_QUAL\tSUB_DE\tINS_DE\tDEL_DE\tSUB_ED\tINS_ED\tDEL_ED\t"
+            "DISTINCT_EDITS\tEDIT_DIST\tALN_SCORE\tALN_QSCORE\n");
     INFO("  Printing distance results to '%s'", dist_fn.data());
 
     // get original scores / distance (above g.max_qual, no vars applied)
@@ -504,7 +504,7 @@ void write_distance(const editData & edits) {
     std::string dist_summ_fn = g.out_prefix + "distance-summary.tsv";
     FILE* dists_summ = fopen(dist_summ_fn.data(), "w");
     INFO("  Printing distance summary to '%s'", dist_summ_fn.data());
-    fprintf(dists_summ, "TYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tQSCORE\n");
+    fprintf(dists_summ, "VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
     for (int type = 0; type < TYPES; type++) {
 
         // skip INS/DEL individually unless higher print verbosity
@@ -513,9 +513,9 @@ void write_distance(const editData & edits) {
 
         INFO(" ");
         if (type == TYPE_ALL) {
-            INFO("TYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tQSCORE");
+            INFO("VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE");
         } else {
-            INFO("TYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE");
+            INFO("VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE");
         }
         std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
         for (auto q : quals) {
@@ -567,7 +567,7 @@ void write_results(
     // print edit information
     std::string edit_fn = g.out_prefix + "edits.tsv";
     FILE* out_edits = fopen(edit_fn.data(), "w");
-    fprintf(out_edits, "CONTIG\tPOS\tHAP\tTYPE\tLEN\tSUPERCLUSTER\tQUAL\n");
+    fprintf(out_edits, "CONTIG\tSTART\tHAP\tTYPE\tSIZE\tSUPERCLUSTER\tQUAL\n");
     INFO("  Printing edit results to '%s'", edit_fn.data());
     for (int i = 0; i < edits.n; i++) {
         fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\n", 
@@ -655,7 +655,7 @@ void write_results(
     std::string out_query_fn = g.out_prefix + "query.tsv";
     INFO("  Printing call variant results to '%s'", out_query_fn.data());
     FILE* out_query = fopen(out_query_fn.data(), "w");
-    fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
+    fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
             "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
 

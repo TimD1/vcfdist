@@ -455,14 +455,14 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             int pos = rec->pos;
             int type = -1;
             int lm = 0; // match from left->right (trim prefix)
-            int rm = -1;// match from right->left (simplify complex variants GRP->INDEL)
+            int rm = -1;// match from right->left (simplify complex variants CPX->INDEL)
             int reflen = int(ref.size());
             int altlen = int(alt.size());
             if (altlen-reflen > 0) { // insertion
                 while (lm < reflen && ref[lm] == alt[lm]) lm++;
                 while (reflen+rm >= lm && 
                         ref[reflen+rm] == alt[altlen+rm]) rm--;
-                if (lm > reflen+rm) type = TYPE_INS; else type = TYPE_GRP;
+                if (lm > reflen+rm) type = TYPE_INS; else type = TYPE_CPX;
                 pos += lm;
                 alt = alt.substr(lm, altlen+rm-lm+1);
                 ref = ref.substr(lm, reflen+rm-lm+1);
@@ -471,7 +471,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                 while (lm < altlen && ref[lm] == alt[lm]) lm++;
                 while (altlen+rm >= lm && 
                         ref[reflen+rm] == alt[altlen+rm]) rm--;
-                if (lm > altlen+rm) type = TYPE_DEL; else type = TYPE_GRP;
+                if (lm > altlen+rm) type = TYPE_DEL; else type = TYPE_CPX;
                 pos += lm;
                 alt = alt.substr(lm, altlen+rm-lm+1);
                 ref = ref.substr(lm, reflen+rm-lm+1);
@@ -485,7 +485,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                         type = TYPE_SUB;
                         ref = ref[0]; alt = alt[0]; // chop off matches
                     }
-                    else type = TYPE_GRP;
+                    else type = TYPE_CPX;
                 }
             }
 
@@ -508,7 +508,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
                 case TYPE_REF:
                     rlen = 1; break;
                 case TYPE_DEL:
-                case TYPE_GRP:
+                case TYPE_CPX:
                     rlen = ref.size(); break;
                 default:
                     ERROR("Unexpected variant type: %d", type);
@@ -532,7 +532,7 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             }
 
             // add to haplotype-specific query info
-            if (type == TYPE_GRP) { // split GRP into INS+DEL
+            if (type == TYPE_CPX) { // split CPX into INS+DEL
                 this->ctg_variants[hap][seq]->add_var(pos, 0, // INS
                     hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq);
                 this->ctg_variants[hap][seq]->add_var(pos, rlen, // DEL

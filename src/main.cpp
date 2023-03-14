@@ -8,7 +8,7 @@
 #include "phase.h"
 
 Globals g;
-std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "GRP"};
+std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
 std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
 std::vector<std::string> vartype_strs = {"SNP", "INDEL"};
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "PP", "PE", "GE", "??"};
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     // parse, realign, and cluster query VCF
     std::unique_ptr<variantData> query_ptr(
             new variantData(g.query_vcf_fn, ref_ptr));
-    query_ptr->write_vcf(g.out_prefix + "orig_query.vcf");
+    query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
     if (!g.keep_query) {
         g.simple_cluster ? cluster(query_ptr) :
             sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
     // parse, realign, and cluster truth VCF
     std::unique_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr));
-    truth_ptr->write_vcf(g.out_prefix + "orig_truth.vcf");
+    truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
     if (!g.keep_truth) {
         g.simple_cluster ?  cluster(truth_ptr) :
             sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 

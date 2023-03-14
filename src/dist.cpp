@@ -93,7 +93,7 @@ variantData edit_dist_realign(
                                 ref_out_str += RED(vars->refs[var]) + " ";
                                 ref_pos++;
                                 break;
-                            case TYPE_GRP:
+                            case TYPE_CPX:
                                 alt_str += vars->alts[var];
                                 alt_out_str += std::string(vars->refs[var].size(), ' ') 
                                     + GREEN(vars->alts[var]);
@@ -390,7 +390,7 @@ std::string generate_str(
                         str += vars->alts[var_idx];
                         ref_pos++;
                         break;
-                    case TYPE_GRP:
+                    case TYPE_CPX:
                         str += vars->alts[var_idx];
                         ref_pos += vars->refs[var_idx].size();
                         break;
@@ -457,7 +457,7 @@ void generate_ptrs_strs(
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos++;
                         break;
-                    case TYPE_GRP:
+                    case TYPE_CPX:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
@@ -494,7 +494,7 @@ void generate_ptrs_strs(
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos++;
                         break;
-                    case TYPE_GRP:
+                    case TYPE_CPX:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
@@ -533,7 +533,7 @@ void generate_ptrs_strs(
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos++;
                         break;
-                    case TYPE_GRP:
+                    case TYPE_CPX:
                         hap1 += hap1_vars->alts[hap1_var_idx];
                         hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
@@ -558,7 +558,7 @@ void generate_ptrs_strs(
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos++;
                         break;
-                    case TYPE_GRP:
+                    case TYPE_CPX:
                         hap2 += hap2_vars->alts[hap2_var_idx];
                         hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
@@ -1293,7 +1293,7 @@ void calc_prec_recall(
                         case TYPE_DEL:
                             old_ed += truth_vars->refs[truth_var_idx].length();
                             break;
-                        case TYPE_GRP:
+                        case TYPE_CPX:
                             old_ed += truth_vars->alts[truth_var_idx].length();
                             old_ed += truth_vars->refs[truth_var_idx].length();
                             break;

@@ -80,6 +80,8 @@ Here's an example usage of vcfdist:
 ```
 Please see additional options documented <a href="./src/README.md">here</a>, or run `./vcfdist --help`.
 
+The output TSV files are documented <a href="./docs/outputs.md">here</a>.
+
 
 ## Acknowledgements
 Datasets used in the evaluation of the accompanying paper are listed <a href="./data/README.md">here</a>.
