@@ -2,6 +2,14 @@
 #include "print.h"
 
 bedData::bedData(const std::string & bed_fn) {
+
+    // fail if file doesn't exist
+    auto bed_fp = fopen(bed_fn.data(), "r");
+    if (bed_fp == NULL) {
+        ERROR("Failed to open BED file '%s'", bed_fn.data());
+    }
+    fclose(bed_fp);
+
     std::ifstream bed(bed_fn);
     std::string region;
     while (getline(bed, region)) {

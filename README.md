@@ -61,8 +61,7 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 > git clone https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
-> ./vcfdist --version
-vcfdist 1.0.0
+> ./vcfdist -h
 ```
 
 

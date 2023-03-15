@@ -16,7 +16,7 @@
 #define TYPE_SUB 1
 #define TYPE_INS 2
 #define TYPE_DEL 3
-#define TYPE_GRP 4
+#define TYPE_CPX 4
 #define TYPE_INDEL 4
 #define TYPES 5
 

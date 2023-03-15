@@ -389,7 +389,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         INFO(" ");
-        INFO("VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE");
+        INFO("TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE");
 
         for (int qual : quals) {
             // redo calculations for these two
@@ -513,9 +513,9 @@ void write_distance(const editData & edits) {
 
         INFO(" ");
         if (type == TYPE_ALL) {
-            INFO("VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE");
+            INFO("TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE");
         } else {
-            INFO("VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE");
+            INFO("TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE");
         }
         std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
         for (auto q : quals) {

@@ -14,8 +14,10 @@ plt.rcParams.update({"figure.facecolor": (0,0,0,0)})
 data = "/home/timdunn/vcfdist/data"
 datasets = ["nist", "cmrg"]
 tools = ["vcfeval", "vcfdist"]
-names = ["original", "A", "B", "C", "D"]
-colors = ["k", "C0", "C1", "C2", "C3"]
+# names = ["original", "A", "B", "C", "D"]
+# colors = ["k", "C0", "C1", "C2", "C3"]
+names = ["original", "B", "C", "D"]
+colors = ["k", "C1", "C2", "C3"]
 
 sub_ids = [
     "0GOOR", "23O09", "4GKR1", "61YRJ", "8H0ZB", "B1S5A", "C6JUX", "EIUT6", "H9OJ3", "IA789",
@@ -75,7 +77,7 @@ for di, dataset in enumerate(datasets):
                     except FileNotFoundError:
                         print(f"File '{data}/pfda-v2/{dataset}_vcfeval/{sub_id}_HG002_{filename}.summary.csv' not found.")
                         continue
-                if len(snp_f1_list) != 5: continue
+                if len(snp_f1_list) != len(names): continue
                 snp_f1_mean = sum(snp_f1_list) / len(snp_f1_list)
                 indel_f1_mean = sum(indel_f1_list) / len(indel_f1_list)
                 for ni, name in enumerate(names):
@@ -84,10 +86,10 @@ for di, dataset in enumerate(datasets):
                     ax[ti][di*2+1].plot(indel_f1_mean, indel_f1_list[ni], linestyle='', 
                             marker=markers[si], color=colors[ni], label=label)
                 all_snp_f1_y.extend(snp_f1_list)
-                all_snp_f1_x.extend([snp_f1_mean]*5)
+                all_snp_f1_x.extend([snp_f1_mean]*len(names))
                 all_snp_f1_meds.append(statistics.median(snp_f1_list))
                 all_indel_f1_y.extend(indel_f1_list)
-                all_indel_f1_x.extend([indel_f1_mean]*5)
+                all_indel_f1_x.extend([indel_f1_mean]*len(names))
                 all_indel_f1_meds.append(statistics.median(indel_f1_list))
 
             m, b, r, p, std_err = scipy.stats.linregress(all_snp_f1_x, all_snp_f1_y)
@@ -130,7 +132,7 @@ for di, dataset in enumerate(datasets):
                             indel_f1_list.append(indel_f1q)
                     except FileNotFoundError:
                         break
-                if len(snp_f1_list) != 5: continue
+                if len(snp_f1_list) != len(names): continue
                 # remove this median from list before doing rank calcs
                 snp_f1_meds = all_snp_f1_meds[:]
                 snp_f1_med = statistics.median(snp_f1_list)
@@ -177,7 +179,7 @@ for di, dataset in enumerate(datasets):
                     except FileNotFoundError:
                         print(f"File '{data}/pfda-v2/{dataset}_vcfdist/{sub_id}_HG002_{filename}.precision-recall-summary.tsv' not found.")
                         continue
-                if len(snp_f1_list) != 5: continue
+                if len(snp_f1_list) != len(names): continue
                 snp_f1_mean = sum(snp_f1_list) / len(snp_f1_list)
                 indel_f1_mean = sum(indel_f1_list) / len(indel_f1_list)
                 for ni, name in enumerate(names):
@@ -186,10 +188,10 @@ for di, dataset in enumerate(datasets):
                     ax[ti][di*2+1].plot(indel_f1_mean, indel_f1_list[ni], linestyle='', 
                             marker=markers[si], color=colors[ni], label=label)
                 all_snp_f1_y.extend(snp_f1_list)
-                all_snp_f1_x.extend([snp_f1_mean]*5)
+                all_snp_f1_x.extend([snp_f1_mean]*len(names))
                 all_snp_f1_meds.append(statistics.median(snp_f1_list))
                 all_indel_f1_y.extend(indel_f1_list)
-                all_indel_f1_x.extend([indel_f1_mean]*5)
+                all_indel_f1_x.extend([indel_f1_mean]*len(names))
                 all_indel_f1_meds.append(statistics.median(indel_f1_list))
 
             m, b, r, p, std_err = scipy.stats.linregress(all_snp_f1_x, all_snp_f1_y)
@@ -224,7 +226,7 @@ for di, dataset in enumerate(datasets):
                             indel_f1_list.append(indel_f1q)
                     except FileNotFoundError:
                         break
-                if len(snp_f1_list) != 5: continue
+                if len(snp_f1_list) != len(names): continue
                 # remove this median from list before doing rank calcs
                 snp_f1_meds = all_snp_f1_meds[:]
                 snp_f1_med = statistics.median(snp_f1_list)
