@@ -344,21 +344,39 @@ variantData edit_dist_realign(
 
 
 /* Reverse two strings and their associated pointers for reverse alignment. */
-void reverse_ptrs_strs(std::string & query, std::string & ref,
-        std::vector<int> & query_ptrs, std::vector<int> & ref_ptrs) {
+void reverse_ptrs_strs(
+        std::string & query, std::string & ref,
+        std::vector< std::vector<int> > & query_ptrs, 
+        std::vector< std::vector<int> > & ref_ptrs) {
 
     // reverse strings and vectors
     std::reverse(query.begin(), query.end());
     std::reverse(ref.begin(), ref.end());
-    std::reverse(query_ptrs.begin(), query_ptrs.end());
-    std::reverse(ref_ptrs.begin(), ref_ptrs.end());
+    std::reverse(query_ptrs[PTRS].begin(), query_ptrs[PTRS].end());
+    std::reverse(query_ptrs[FLAGS].begin(), query_ptrs[FLAGS].end());
+    std::reverse(ref_ptrs[PTRS].begin(), ref_ptrs[PTRS].end());
+    std::reverse(ref_ptrs[FLAGS].begin(), ref_ptrs[FLAGS].end());
 
     // update pointers
-    for(int & ptr : query_ptrs) {
+    for (int & ptr : query_ptrs[PTRS]) {
         if (ptr >= 0) { ptr = ref.size()-1 - ptr; }
     }
-    for(int & ptr : ref_ptrs) {
+    for (int & ptr : ref_ptrs[PTRS]) {
         if (ptr >= 0) { ptr = query.size()-1 - ptr; }
+    }
+    for (int & flags : query_ptrs[FLAGS]) { // flip beg/end if only one is set
+        if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
+            flags = PTR_VARIANT | PTR_VAR_END;
+        } else if (flags & PTR_VAR_END && !(flags & PTR_VAR_BEG)) {
+            flags = PTR_VARIANT | PTR_VAR_BEG;
+        }
+    }
+    for (int & flags : ref_ptrs[FLAGS]) { // flip beg/end if only one is set
+        if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
+            flags = PTR_VARIANT | PTR_VAR_END;
+        } else if (flags & PTR_VAR_END && !(flags & PTR_VAR_BEG)) {
+            flags = PTR_VARIANT | PTR_VAR_BEG;
+        }
     }
     return;
 }
@@ -425,7 +443,8 @@ std::string generate_str(
  */
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,          // actual strings 
-        std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
+        std::vector< std::vector<int> > & hap1_ptrs, 
+        std::vector< std::vector<int> > & hap2_ptrs,
         std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
         size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
         size_t hap1_clust_end_idx, size_t hap2_clust_end_idx,
@@ -433,6 +452,8 @@ void generate_ptrs_strs(
         ) {
 
     // generate hap1 and hap2 strings and pointers
+    hap1_ptrs.resize(PTR_DIMS);
+    hap2_ptrs.resize(PTR_DIMS);
     int hap1_var_idx = hap1_vars->clusters.size() ? hap1_vars->clusters[hap1_clust_beg_idx] : 0;
     int hap2_var_idx = hap2_vars->clusters.size() ? hap2_vars->clusters[hap2_clust_beg_idx] : 0;
     int hap1_end_idx = hap1_vars->clusters.size() ? hap1_vars->clusters[hap1_clust_end_idx] : 0;
@@ -447,19 +468,19 @@ void generate_ptrs_strs(
                 switch (hap1_vars->types[hap1_var_idx]) {
                     case TYPE_INS:
                         hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         break;
                     case TYPE_DEL:
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos++;
                         break;
                     case TYPE_CPX:
                         hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                 }
@@ -467,7 +488,7 @@ void generate_ptrs_strs(
             } else { // no hap1 variant, in hap2 variant
                 try {
                     hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
-                    hap1_ptrs.push_back(-1);
+                    hap1_ptrs[PTRS].push_back(-1);
                     hap1_ref_pos++;
                 } catch (const std::out_of_range & e) {
                     ERROR("Contig %s not present in reference FASTA (generate_ptrs_strs1)",
@@ -484,19 +505,19 @@ void generate_ptrs_strs(
                 switch (hap2_vars->types[hap2_var_idx]) {
                     case TYPE_INS:
                         hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         break;
                     case TYPE_DEL:
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos++;
                         break;
                     case TYPE_CPX:
                         hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                 }
@@ -504,7 +525,7 @@ void generate_ptrs_strs(
             } else { // match
                 try {
                     hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
-                    hap2_ptrs.push_back(-1);
+                    hap2_ptrs[PTRS].push_back(-1);
                     hap2_ref_pos++;
                 } catch (const std::out_of_range & e) {
                     ERROR("Contig %s not present in reference FASTA (generate_ptrs_strs2)",
@@ -523,19 +544,19 @@ void generate_ptrs_strs(
                 switch (hap1_vars->types[hap1_var_idx]) {
                     case TYPE_INS:
                         hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         break;
                     case TYPE_DEL:
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos++;
                         break;
                     case TYPE_CPX:
                         hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
+                        hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), hap1_vars->alts[hap1_var_idx].size(), -1);
                         hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
                         break;
                 }
@@ -548,19 +569,19 @@ void generate_ptrs_strs(
                 switch (hap2_vars->types[hap2_var_idx]) {
                     case TYPE_INS:
                         hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         break;
                     case TYPE_DEL:
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                     case TYPE_SUB:
                         hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos++;
                         break;
                     case TYPE_CPX:
                         hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
+                        hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), hap2_vars->alts[hap2_var_idx].size(), -1);
                         hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
                         break;
                 }
@@ -580,16 +601,22 @@ void generate_ptrs_strs(
                     int ref_end = std::min(
                             std::min(hap1_next_var, hap2_next_var), end_pos);
 
-                    // add pointers
-                    std::vector<int> new_hap1_ptrs(ref_end-hap1_ref_pos);
+                    // add pointers, hap1
+                    std::vector<int> new_hap1_ptrs(ref_end-hap1_ref_pos, 0);
+                    hap1_ptrs[FLAGS].insert(hap1_ptrs[FLAGS].end(),
+                            new_hap1_ptrs.begin(), new_hap1_ptrs.end()); // zeros
                     for(size_t i = 0; i < new_hap1_ptrs.size(); i++)
                         new_hap1_ptrs[i] = hap2.size() + i;
-                    hap1_ptrs.insert(hap1_ptrs.end(), 
+                    hap1_ptrs[PTRS].insert(hap1_ptrs[PTRS].end(), 
                             new_hap1_ptrs.begin(), new_hap1_ptrs.end());
-                    std::vector<int> new_hap2_ptrs(ref_end-hap2_ref_pos);
+
+                    // add pointers, hap2
+                    std::vector<int> new_hap2_ptrs(ref_end-hap2_ref_pos, 0);
+                    hap2_ptrs[FLAGS].insert(hap2_ptrs[FLAGS].end(),
+                            new_hap2_ptrs.begin(), new_hap2_ptrs.end()); // zeros
                     for(size_t i = 0; i < new_hap2_ptrs.size(); i++)
                         new_hap2_ptrs[i] = hap1.size() + i;
-                    hap2_ptrs.insert(hap2_ptrs.end(), 
+                    hap2_ptrs[PTRS].insert(hap2_ptrs[PTRS].end(), 
                             new_hap2_ptrs.begin(), new_hap2_ptrs.end());
 
                     // add sequence, update positions
@@ -615,9 +642,12 @@ void generate_ptrs_strs(
 void calc_prec_recall_aln(
         std::string query1, std::string query2,
         std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
         std::vector<int> & pr_query_ref_end
@@ -627,11 +657,11 @@ void calc_prec_recall_aln(
     int ref_len = ref.size();
     std::vector<std::string> query {query1, query1, query2, query2};
     std::vector<std::string> truth {truth1, truth2, truth1, truth2};
-    std::vector< std::vector<int> > query_ref_ptrs {
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs {
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs {
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs {
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs {
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs {
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
     std::vector<int> query_lens = 
             {int(query1.size()), int(query1.size()), int(query2.size()), int(query2.size())};
@@ -692,16 +722,16 @@ void calc_prec_recall_aln(
                         }
                     }
                     // allow phase swaps, outside query/truth variants
-                    if (query_ref_ptrs[i][x.cri] >= 0 && truth_ref_ptrs[i][x.ti] >= 0) {
-                        if (!done[ri][query_ref_ptrs[i][x.cri]][x.ti] &&
-                                !contains(done_this_wave, idx1(ri, query_ref_ptrs[i][x.cri], x.ti))) {
+                    if (query_ref_ptrs[i][PTRS][x.cri] >= 0 && truth_ref_ptrs[i][PTRS][x.ti] >= 0) {
+                        if (!done[ri][ query_ref_ptrs[i][PTRS][x.cri] ][x.ti] &&
+                                !contains(done_this_wave, idx1(ri, query_ref_ptrs[i][PTRS][x.cri], x.ti))) {
                             queue.push(idx1(ri, 
-                                    query_ref_ptrs[i][x.cri], 
+                                    query_ref_ptrs[i][PTRS][x.cri], 
                                     x.ti));
-                            done_this_wave.insert(idx1(ri, query_ref_ptrs[i][x.cri], x.ti));
+                            done_this_wave.insert(idx1(ri, query_ref_ptrs[i][PTRS][x.cri], x.ti));
                         }
-                        if (!done[ri][query_ref_ptrs[i][x.cri]][x.ti]) {
-                            ptrs[ri][query_ref_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
+                        if (!done[ri][ query_ref_ptrs[i][PTRS][x.cri] ][x.ti]) {
+                            ptrs[ri][ query_ref_ptrs[i][PTRS][x.cri] ][x.ti] |= PTR_SWAP;
                         }
                     }
                 } else { // x.hi == ri == REF
@@ -718,16 +748,16 @@ void calc_prec_recall_aln(
                         }
                     }
                     // allow phase swaps, outside query/truth variants
-                    if (ref_query_ptrs[i][x.cri] >= 0 && truth_ref_ptrs[i][x.ti] >= 0) {
-                        if (!done[ci][ref_query_ptrs[i][x.cri]][x.ti] &&
-                                !contains(this_wave, idx1(ci, ref_query_ptrs[i][x.cri], x.ti))) {
+                    if (ref_query_ptrs[i][PTRS][x.cri] >= 0 && truth_ref_ptrs[i][PTRS][x.ti] >= 0) {
+                        if (!done[ci][ref_query_ptrs[i][PTRS][x.cri]][x.ti] &&
+                                !contains(this_wave, idx1(ci, ref_query_ptrs[i][PTRS][x.cri], x.ti))) {
                             queue.push(idx1(ci, 
-                                        ref_query_ptrs[i][x.cri], 
+                                        ref_query_ptrs[i][PTRS][x.cri], 
                                         x.ti));
-                            done_this_wave.insert(idx1(ci, ref_query_ptrs[i][x.cri], x.ti));
+                            done_this_wave.insert(idx1(ci, ref_query_ptrs[i][PTRS][x.cri], x.ti));
                         }
-                        if (!done[ci][ref_query_ptrs[i][x.cri]][x.ti]) {
-                            ptrs[ci][ref_query_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
+                        if (!done[ci][ ref_query_ptrs[i][PTRS][x.cri] ][x.ti]) {
+                            ptrs[ci][ ref_query_ptrs[i][PTRS][x.cri] ][x.ti] |= PTR_SWAP;
                         }
                     }
                 }
@@ -857,17 +887,20 @@ void calc_prec_recall_path(
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_scores, 
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs,
         std::vector<int> pr_query_ref_end
         ) {
 
-    std::vector< std::vector<int> > query_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { 
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
     std::vector<int> pr_query_ref_beg(4);
     std::vector< std::vector<bool> > ref_loc_sync;
@@ -907,11 +940,11 @@ void calc_prec_recall_path(
             // ref locations which consume a query base and aren't 
             // on the main diagonal cannot be sync points
             if (aln_ptrs[x.hi][x.cri][x.ti] & (PTR_DIAG | PTR_SUB | PTR_INS)) {
-                if (x.hi == ri && x.cri != truth_ref_ptrs[i][x.ti])
+                if (x.hi == ri && x.cri != truth_ref_ptrs[i][PTRS][x.ti])
                     ref_loc_sync[i][x.cri] = false;
-                if (x.hi == ci && query_ref_ptrs[i][x.cri] >= 0 && 
-                        query_ref_ptrs[i][x.cri] != truth_ref_ptrs[i][x.ti])
-                    ref_loc_sync[i][query_ref_ptrs[i][x.cri]] = false;
+                if (x.hi == ci && query_ref_ptrs[i][PTRS][x.cri] >= 0 && 
+                        query_ref_ptrs[i][PTRS][x.cri] != truth_ref_ptrs[i][PTRS][x.ti])
+                    ref_loc_sync[i][query_ref_ptrs[i][PTRS][x.cri]] = false;
             }
 
             if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DIAG && // MATCH
@@ -923,8 +956,8 @@ void calc_prec_recall_path(
 
                 // check for fp
                 int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][y.cri] >= 0 &&
-                        ref_query_ptrs[i][x.cri] != ref_query_ptrs[i][y.cri]+1) { // fp
+                if (x.hi == ri && ref_query_ptrs[i][PTRS][y.cri] >= 0 &&
+                        ref_query_ptrs[i][PTRS][x.cri] != ref_query_ptrs[i][PTRS][y.cri]+1) { // fp
                     is_fp = TRUE;
                 }
 
@@ -949,8 +982,8 @@ void calc_prec_recall_path(
 
                 // check for fp
                 int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][y.cri] >= 0 &&
-                        ref_query_ptrs[i][x.cri] != ref_query_ptrs[i][y.cri]+1) { // fp
+                if (x.hi == ri && ref_query_ptrs[i][PTRS][y.cri] >= 0 &&
+                        ref_query_ptrs[i][PTRS][x.cri] != ref_query_ptrs[i][PTRS][y.cri]+1) { // fp
                     is_fp = TRUE;
                 }
 
@@ -973,8 +1006,8 @@ void calc_prec_recall_path(
 
                 // check for fp
                 int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][y.cri] >= 0 &&
-                        ref_query_ptrs[i][x.cri] != ref_query_ptrs[i][y.cri]+1) { // fp
+                if (x.hi == ri && ref_query_ptrs[i][PTRS][y.cri] >= 0 &&
+                        ref_query_ptrs[i][PTRS][x.cri] != ref_query_ptrs[i][PTRS][y.cri]+1) { // fp
                     is_fp = TRUE;
                 }
 
@@ -1008,10 +1041,10 @@ void calc_prec_recall_path(
 
             if (x.hi == ri) { // REF -> QUERY SWAP
                 if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SWAP &&
-                        ref_query_ptrs[i][x.cri] >= 0) {
+                        ref_query_ptrs[i][PTRS][x.cri] >= 0) {
 
                     // add to path
-                    idx1 y = idx1(ci, ref_query_ptrs[i][x.cri], x.ti);
+                    idx1 y = idx1(ci, ref_query_ptrs[i][PTRS][x.cri], x.ti);
                     aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                     // update score
@@ -1027,10 +1060,10 @@ void calc_prec_recall_path(
 
             } else { // QUERY -> REF SWAP
                 if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SWAP &&
-                        query_ref_ptrs[i][x.cri] >= 0) {
+                        query_ref_ptrs[i][PTRS][x.cri] >= 0) {
 
                     // add to path
-                    idx1 y = idx1(ri, query_ref_ptrs[i][x.cri], x.ti);
+                    idx1 y = idx1(ri, query_ref_ptrs[i][PTRS][x.cri], x.ti);
                     aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
 
                     // update score
@@ -1068,17 +1101,20 @@ void get_prec_recall_path_sync(
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector<int> & pr_query_ref_beg,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs
         ) {
 
     // query <-> ref pointers
-    std::vector< std::vector<int> > query_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { 
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
 
     for (int i = 0; i < 4; i++) {
@@ -1111,10 +1147,10 @@ void get_prec_recall_path_sync(
             } else if (path_ptrs[hi][cri][ti] & PTR_SWAP) {
                 if (hi == ri) {
                     hi = ci;
-                    cri = ref_query_ptrs[i][cri];
+                    cri = ref_query_ptrs[i][PTRS][cri];
                 } else if(hi == ci) { // hi == ci
                     hi = ri;
-                    cri = query_ref_ptrs[i][cri];
+                    cri = query_ref_ptrs[i][PTRS][cri];
                 } else {
                     ERROR("Unexpected hap index (%d)", hi);
                 } 
@@ -1134,14 +1170,14 @@ void get_prec_recall_path_sync(
             // determine if sync point
             bool is_sync;
             if (hi == ci) {
-                if (query_ref_ptrs[i][cri] >= 0 &&  // on main diag
-                    query_ref_ptrs[i][cri] == truth_ref_ptrs[i][ti]) {
-                    is_sync = ref_loc_sync[i][ query_ref_ptrs[i][cri] ];
+                if (query_ref_ptrs[i][PTRS][cri] >= 0 &&  // on main diag
+                    query_ref_ptrs[i][PTRS][cri] == truth_ref_ptrs[i][PTRS][ti]) {
+                    is_sync = ref_loc_sync[i][ query_ref_ptrs[i][PTRS][cri] ];
                 } else {
                     is_sync = false;
                 }
             } else { // hi == ri
-                if (cri == truth_ref_ptrs[i][ti]) { // on main diag
+                if (cri == truth_ref_ptrs[i][PTRS][ti]) { // on main diag
                     is_sync = ref_loc_sync[i][cri];
                 } else {
                     is_sync = false;
@@ -1165,9 +1201,12 @@ void calc_prec_recall(
         std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::string query1, std::string query2, 
         std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs,
         std::vector< std::vector<idx1> > & path,
         std::vector< std::vector<bool> > & sync,
         std::vector< std::vector<bool> > & edits,
@@ -1180,11 +1219,11 @@ void calc_prec_recall(
     int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
     std::vector<std::string> query = {query1, query1, query2, query2};
     std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
-    std::vector< std::vector<int> > query_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { 
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
 
     // indices into ptr/off matrices depend on decided phasing
@@ -1250,7 +1289,7 @@ void calc_prec_recall(
         while (pidx >= 0) {
 
             // set FP if necessary
-            int cref_pos = (hi == ri) ? cri : query_ref_ptrs[i][cri];
+            int cref_pos = (hi == ri) ? cri : query_ref_ptrs[i][PTRS][cri];
             if (cref_pos < 0) cref_pos = query_var_pos+1;
             while (cref_pos < query_var_pos) {
                 if (hi == ri) { // FP
@@ -1269,8 +1308,8 @@ void calc_prec_recall(
                     query_vars->poss[query_var_ptr] - beg;
             }
 
-            while (truth_ref_ptrs[i][ti] >= 0 && 
-                    truth_ref_ptrs[i][ti] < truth_var_pos) { // passed REF variant
+            while (truth_ref_ptrs[i][PTRS][ti] >= 0 && 
+                    truth_ref_ptrs[i][PTRS][ti] < truth_var_pos) { // passed REF variant
                 truth_var_ptr--;
                 truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
                     truth_vars->poss[truth_var_ptr] - beg;
@@ -1380,8 +1419,8 @@ void calc_prec_recall(
 
                 if (print) printf("SYNC @%s(%d,%d)=REF(%d,%d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n",
                         (hi == ri) ? "REF" : "QUERY", cri, ti,
-                        (hi == ri) ? cri : query_ref_ptrs[i][cri],
-                        truth_ref_ptrs[i][ti], old_ed, new_ed, 
+                        (hi == ri) ? cri : query_ref_ptrs[i][PTRS][cri],
+                        truth_ref_ptrs[i][PTRS][ti], old_ed, new_ed, 
                         prev_query_var_ptr, query_var_ptr,
                         prev_truth_var_ptr, truth_var_ptr
                 );
@@ -1542,7 +1581,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             
             // set pointers between each hap (query1/2, truth1/2) and reference
             std::string query1 = "", ref_q1 = ""; 
-            std::vector<int> query1_ref_ptrs, ref_query1_ptrs;
+            std::vector< std::vector<int> > query1_ref_ptrs, ref_query1_ptrs;
             generate_ptrs_strs(
                     query1, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
@@ -1552,7 +1591,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string query2 = "", ref_q2 = ""; 
-            std::vector<int> query2_ref_ptrs, ref_query2_ptrs;
+            std::vector< std::vector<int> > query2_ref_ptrs, ref_query2_ptrs;
             generate_ptrs_strs(
                     query2, ref_q2,
                     query2_ref_ptrs, ref_query2_ptrs, 
@@ -1562,7 +1601,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth1 = "", ref_t1 = ""; 
-            std::vector<int> truth1_ref_ptrs, ref_truth1_ptrs;
+            std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
             generate_ptrs_strs(
                     truth1, ref_t1,
                     truth1_ref_ptrs, ref_truth1_ptrs, 
@@ -1572,7 +1611,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth2 = "", ref_t2 = ""; 
-            std::vector<int> truth2_ref_ptrs, ref_truth2_ptrs;
+            std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
             generate_ptrs_strs(
                     truth2, ref_t2,
                     truth2_ref_ptrs, ref_truth2_ptrs, 
@@ -1813,8 +1852,8 @@ int calc_cig_sw_score(const std::vector<int> & cigar,
  * variants is not allowed. Neither is a diagonal ref transition.
  */
 int sw_max_reach(std::string query, std::string ref, 
-        std::vector<int> query_ref_ptrs,
-        std::vector<int> ref_query_ptrs,
+        std::vector< std::vector<int> > query_ref_ptrs,
+        std::vector< std::vector<int> > ref_query_ptrs,
         int sub, int open, int extend,
         int score, bool reverse /*= false*/, int ref_section /*= -1*/) {
     
@@ -1845,10 +1884,10 @@ int sw_max_reach(std::string query, std::string ref,
             // allow non-main-diagonal match
             if (x.ci+1 < query_len && x.ri+1 < ref_len && ! (
                         x.ri >= ref_section &&
-                        query_ref_ptrs[x.ci] == x.ri &&
-                        ref_query_ptrs[x.ri] == x.ci &&
-                        query_ref_ptrs[x.ci+1] == x.ri+1 &&
-                        ref_query_ptrs[x.ri+1] == x.ci+1) &&
+                        query_ref_ptrs[PTRS][x.ci] == x.ri &&
+                        ref_query_ptrs[PTRS][x.ri] == x.ci &&
+                        query_ref_ptrs[PTRS][x.ci+1] == x.ri+1 &&
+                        ref_query_ptrs[PTRS][x.ri+1] == x.ci+1) &&
                     query[x.ci+1] == ref[x.ri+1] && 
                     !contains(done, {x.mi, x.ci+1, x.ri+1})) {
                 idx2 next(x.mi, x.ci+1, x.ri+1);

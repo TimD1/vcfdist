@@ -11,15 +11,19 @@
 
 void generate_ptrs_strs(
         std::string & hap1, std::string & hap2,
-        std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
+        std::vector< std::vector<int> > & hap1_ptrs, 
+        std::vector< std::vector<int> > & hap2_ptrs,
         std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
         size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
         size_t hap1_clust_end_idx, size_t hap2_clust_end_idx,
         int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
         );
 
-void reverse_ptrs_strs(std::string & query, std::string & ref,
-        std::vector<int> & query_ptrs, std::vector<int> & ref_ptrs);
+void reverse_ptrs_strs(
+        std::string & query, std::string & ref,
+        std::vector< std::vector<int> > & query_ptrs, 
+        std::vector< std::vector<int> > & ref_ptrs
+        );
 
 /******************************************************************************/
 
@@ -104,9 +108,12 @@ namespace std {
 void calc_prec_recall_aln(
         std::string query1, std::string query2,
         std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
         std::vector<int> & pr_query_ref_end
@@ -120,9 +127,12 @@ void get_prec_recall_path_sync(
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector<int> & pr_query_ref_beg,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs
         );
 
 void calc_prec_recall_path(
@@ -131,9 +141,12 @@ void calc_prec_recall_path(
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs,
         std::vector<int> pr_query_ref_end
         );
 
@@ -141,9 +154,12 @@ void calc_prec_recall(
         std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
         std::string query1, std::string query2, 
         std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        std::vector< std::vector<int> > query1_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query1_ptrs,
+        std::vector< std::vector<int> > query2_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query2_ptrs,
+        std::vector< std::vector<int> > truth1_ref_ptrs, 
+        std::vector< std::vector<int> > truth2_ref_ptrs,
         std::vector< std::vector<idx1> > & path,
         std::vector< std::vector<bool> > & sync,
         std::vector< std::vector<bool> > & edits,
@@ -156,8 +172,8 @@ void calc_prec_recall(
 int sw_max_reach(
         std::string query, 
         std::string ref, 
-        std::vector<int> query_ref_ptrs, 
-        std::vector<int> ref_query_ptrs,
+        std::vector< std::vector<int> > query_ref_ptrs, 
+        std::vector< std::vector<int> > ref_query_ptrs,
         int sub, int open, int extend,
         int score, 
         bool reverse = false,

@@ -16,7 +16,7 @@
 #define TYPE_SUB 1
 #define TYPE_INS 2
 #define TYPE_DEL 3
-#define TYPE_GRP 4
+#define TYPE_CPX 4
 #define TYPE_INDEL 4
 #define TYPES 5
 
@@ -82,6 +82,14 @@
 #define PTR_RPATH 64
 #define MAIN_PATH 96
 #define PTR_SYNC  128
+
+// 2 x N pointer array stores REF <-> QUERY/TRUTH
+#define PTRS 0 // dimension for pointer position
+#define FLAGS 1 // dimension for flags
+#define PTR_DIMS 2
+#define PTR_VARIANT 1
+#define PTR_VAR_BEG 2
+#define PTR_VAR_END 4
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1

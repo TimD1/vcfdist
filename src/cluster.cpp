@@ -386,7 +386,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     if (left_compute) {
                         // calculate left reach
                         std::string query, ref;
-                        std::vector<int> query_ref_ptrs, ref_query_ptrs;
+                        std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
                         // just after last variant in previous cluster
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 < 0)
                             ERROR("left var_idx < 0");
@@ -441,11 +441,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                             printf("ref start:  %d\n", ref_section_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
-                                printf("%d ", query_ref_ptrs[i]); 
+                                printf("%d ", query_ref_ptrs[PTRS][i]); 
                             printf("\n");
                             printf("REF->QUERY: ");
                             for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
-                                printf("%d ", ref_query_ptrs[i]); 
+                                printf("%d ", ref_query_ptrs[PTRS][i]); 
                             printf("\n");
                         }
                         
@@ -460,7 +460,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
 
                         // calculate right reach
                         std::string query, ref;
-                        std::vector<int> query_ref_ptrs, ref_query_ptrs;
+                        std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
                         // right before current cluster
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust] < 0)
                             ERROR("right var_idx < 0");
@@ -506,11 +506,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                             printf("ref_start:  %d\n", ref_section_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
-                                printf("%d ", query_ref_ptrs[i]); 
+                                printf("%d ", query_ref_ptrs[PTRS][i]); 
                             printf("\n");
                             printf("REF->QUERY: ");
                             for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
-                                printf("%d ", ref_query_ptrs[i]); 
+                                printf("%d ", ref_query_ptrs[PTRS][i]); 
                             printf("\n");
                         }
                         
