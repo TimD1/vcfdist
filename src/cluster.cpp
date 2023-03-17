@@ -414,9 +414,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // generate reversed pointers/strings
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
-                                vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
-                                clust, 0, clust+1, 0, beg_pos, end_pos,
+                                clust, clust+1, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
                         reverse_ptrs_strs(query, ref, 
@@ -481,8 +480,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
-                                vcf->ctg_variants[hap][ctg],
-                                clust, 0, clust+1, 0, beg_pos, end_pos,
+                                clust, clust+1, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
 
