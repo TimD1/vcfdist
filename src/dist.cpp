@@ -351,12 +351,8 @@ void reverse_ptrs_strs(
     std::reverse(ref_ptrs[FLAGS].begin(), ref_ptrs[FLAGS].end());
 
     // update pointers
-    for (int & ptr : query_ptrs[PTRS]) {
-        if (ptr >= 0) { ptr = ref.size()-1 - ptr; }
-    }
-    for (int & ptr : ref_ptrs[PTRS]) {
-        if (ptr >= 0) { ptr = query.size()-1 - ptr; }
-    }
+    for (int & ptr : query_ptrs[PTRS]) { ptr = ref.size()-1 - ptr; }
+    for (int & ptr : ref_ptrs[PTRS]) { ptr = query.size()-1 - ptr; }
     for (int & flags : query_ptrs[FLAGS]) { // flip beg/end if only one is set
         if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
             flags = PTR_VARIANT | PTR_VAR_END;
@@ -616,7 +612,8 @@ void calc_prec_recall_aln(
                         }
                     }
                     // allow phase swaps, outside query/truth variants
-                    if (query_ref_ptrs[i][PTRS][x.qri] >= 0 && truth_ref_ptrs[i][PTRS][x.ti] >= 0) {
+                    if ( !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) && 
+                         !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT)) {
                         if (!done[ri][ query_ref_ptrs[i][PTRS][x.qri] ][x.ti] &&
                                 !contains(curr_wave, idx1(ri, query_ref_ptrs[i][PTRS][x.qri], x.ti))) {
                             queue.push(idx1(ri, 
@@ -642,12 +639,11 @@ void calc_prec_recall_aln(
                         }
                     }
                     // allow phase swaps, outside query/truth variants
-                    if (ref_query_ptrs[i][PTRS][x.qri] >= 0 && truth_ref_ptrs[i][PTRS][x.ti] >= 0) {
+                    if ( !(ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) && 
+                         !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT)) {
                         if (!done[qi][ref_query_ptrs[i][PTRS][x.qri]][x.ti] &&
                                 !contains(curr_wave, idx1(qi, ref_query_ptrs[i][PTRS][x.qri], x.ti))) {
-                            queue.push(idx1(qi, 
-                                        ref_query_ptrs[i][PTRS][x.qri], 
-                                        x.ti));
+                            queue.push(idx1(qi, ref_query_ptrs[i][PTRS][x.qri], x.ti));
                             curr_wave.insert(idx1(qi, ref_query_ptrs[i][PTRS][x.qri], x.ti));
                         }
                         if (!done[qi][ ref_query_ptrs[i][PTRS][x.qri] ][x.ti]) {
@@ -835,9 +831,11 @@ void calc_prec_recall_path(
             // ref locations which consume a query base and aren't 
             // on the main diagonal cannot be sync points
             if (aln_ptrs[x.hi][x.qri][x.ti] & (PTR_DIAG | PTR_SUB | PTR_INS)) {
-                if (x.hi == ri && x.qri != truth_ref_ptrs[i][PTRS][x.ti])
+                if (x.hi == ri && !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) && 
+                        x.qri != truth_ref_ptrs[i][PTRS][x.ti])
                     ref_loc_sync[i][x.qri] = false;
-                if (x.hi == qi && query_ref_ptrs[i][PTRS][x.qri] >= 0 && 
+                if (x.hi == qi && !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) && 
+                        !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) &&
                         query_ref_ptrs[i][PTRS][x.qri] != truth_ref_ptrs[i][PTRS][x.ti])
                     ref_loc_sync[i][query_ref_ptrs[i][PTRS][x.qri]] = false;
             }
@@ -851,8 +849,8 @@ void calc_prec_recall_path(
 
                 // check for fp
                 int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][PTRS][y.qri] >= 0 &&
-                        ref_query_ptrs[i][PTRS][x.qri] != ref_query_ptrs[i][PTRS][y.qri]+1) { // fp
+                if (x.hi == ri && !(ref_query_ptrs[i][FLAGS][y.qri] & PTR_VARIANT) &&
+                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) {
                     is_fp = TRUE;
                 }
 
@@ -877,8 +875,8 @@ void calc_prec_recall_path(
 
                 // check for fp
                 int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][PTRS][y.qri] >= 0 &&
-                        ref_query_ptrs[i][PTRS][x.qri] != ref_query_ptrs[i][PTRS][y.qri]+1) { // fp
+                if (x.hi == ri && !(ref_query_ptrs[i][FLAGS][y.qri] & PTR_VARIANT) &&
+                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) {
                     is_fp = TRUE;
                 }
 
@@ -901,8 +899,8 @@ void calc_prec_recall_path(
 
                 // check for fp
                 int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][PTRS][y.qri] >= 0 &&
-                        ref_query_ptrs[i][PTRS][x.qri] != ref_query_ptrs[i][PTRS][y.qri]+1) { // fp
+                if (x.hi == ri && !(ref_query_ptrs[i][FLAGS][y.qri] & PTR_VARIANT) &&
+                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) {
                     is_fp = TRUE;
                 }
 
@@ -936,7 +934,7 @@ void calc_prec_recall_path(
 
             if (x.hi == ri) { // REF -> QUERY SWAP
                 if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWAP &&
-                        ref_query_ptrs[i][PTRS][x.qri] >= 0) {
+                        !(ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT)) {
 
                     // add to path
                     idx1 y = idx1(qi, ref_query_ptrs[i][PTRS][x.qri], x.ti);
@@ -955,7 +953,7 @@ void calc_prec_recall_path(
 
             } else { // QUERY -> REF SWAP
                 if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWAP &&
-                        query_ref_ptrs[i][PTRS][x.qri] >= 0) {
+                        !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT)) {
 
                     // add to path
                     idx1 y = idx1(ri, query_ref_ptrs[i][PTRS][x.qri], x.ti);
@@ -1065,7 +1063,8 @@ void get_prec_recall_path_sync(
             // determine if sync point
             bool is_sync;
             if (hi == qi) {
-                if (query_ref_ptrs[i][PTRS][qri] >= 0 &&  // on main diag
+                if (!(query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) &&  // on main diag
+                    !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT) &&
                     query_ref_ptrs[i][PTRS][qri] == truth_ref_ptrs[i][PTRS][ti]) {
                     is_sync = ref_loc_sync[i][ query_ref_ptrs[i][PTRS][qri] ];
                 } else {
@@ -1185,9 +1184,9 @@ void calc_prec_recall(
         while (pidx >= 0) {
 
             // set FP if necessary
-            int cref_pos = (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri];
-            if (cref_pos < 0) cref_pos = query_var_pos+1;
-            while (cref_pos < query_var_pos) {
+            int qref_pos = (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri];
+            if (query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) qref_pos = query_var_pos+1;
+            while (qref_pos < query_var_pos) {
                 if (hi == ri) { // FP
                     query_vars->errtypes[query_var_ptr] = ERRTYPE_FP;
                     query_vars->credit[query_var_ptr] = 0;
@@ -1204,7 +1203,7 @@ void calc_prec_recall(
                     query_vars->poss[query_var_ptr] - beg;
             }
 
-            while (truth_ref_ptrs[i][PTRS][ti] >= 0 && 
+            while (!(truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT) && 
                     truth_ref_ptrs[i][PTRS][ti] < truth_var_pos) { // passed REF variant
                 truth_var_ptr--;
                 truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
