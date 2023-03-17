@@ -30,26 +30,26 @@ void reverse_ptrs_strs(
 class idx1 {
 public:
     int hi;  // hap idx1
-    int cri; // query/ref idx1
+    int qri; // query/ref idx1
     int ti;  // truth idx1
 
-    idx1() : hi(0), cri(0), ti(0) {};
-    idx1(int h, int c, int t) : hi(h), cri(c), ti(t) {};
-    idx1(const idx1 & i2) : hi(i2.hi), cri(i2.cri), ti(i2.ti) {};
+    idx1() : hi(0), qri(0), ti(0) {};
+    idx1(int h, int q, int t) : hi(h), qri(q), ti(t) {};
+    idx1(const idx1 & i2) : hi(i2.hi), qri(i2.qri), ti(i2.ti) {};
 
     bool operator<(const idx1 & other) const {
         if (this->hi < other.hi) return true;
-        else if (this->hi == other.hi && this->cri < other.cri) return true;
-        else if (this->hi == other.hi && this->cri == other.cri && this->ti < other.ti) return true;
+        else if (this->hi == other.hi && this->qri < other.qri) return true;
+        else if (this->hi == other.hi && this->qri == other.qri && this->ti < other.ti) return true;
         return false;
     }
     bool operator==(const idx1 & other) const {
-        return this->hi == other.hi && this->cri == other.cri && this->ti == other.ti;
+        return this->hi == other.hi && this->qri == other.qri && this->ti == other.ti;
     }
     idx1 & operator=(const idx1 & other) {
         if (this == &other) return *this;
         this->hi = other.hi;
-        this->cri = other.cri;
+        this->qri = other.qri;
         this->ti = other.ti;
         return *this;
     }
@@ -58,7 +58,7 @@ public:
 namespace std {
     template<> struct hash<idx1> {
         std::uint64_t operator()(const idx1& other) const noexcept {
-            return uint64_t(other.hi)<<60 | uint64_t(other.cri) << 30 | uint64_t(other.ti);
+            return uint64_t(other.hi)<<60 | uint64_t(other.qri) << 30 | uint64_t(other.ti);
         }
     };
 }
@@ -69,27 +69,27 @@ bool contains(const std::unordered_set<T> & wave, const T & idx);
 class idx2 {
 public:
     int mi;  // matrix idx2
-    int ci;  // query idx2
+    int qi;  // query idx2
     int ri;  // ref idx2
 
-    idx2() : mi(0), ci(0), ri(0) {};
-    idx2(int c, int r) : mi(0), ci(c), ri(r) {};
-    idx2(int m, int c, int r) : mi(m), ci(c), ri(r) {};
-    idx2(const idx2 & i2) : mi(i2.mi), ci(i2.ci), ri(i2.ri) {};
+    idx2() : mi(0), qi(0), ri(0) {};
+    idx2(int q, int r) : mi(0), qi(q), ri(r) {};
+    idx2(int m, int q, int r) : mi(m), qi(q), ri(r) {};
+    idx2(const idx2 & i2) : mi(i2.mi), qi(i2.qi), ri(i2.ri) {};
 
     bool operator<(const idx2 & other) const {
         if (this->mi < other.mi) return true;
-        else if (this->mi == other.mi && this->ci < other.ci) return true;
-        else if (this->mi == other.mi && this->ci == other.ci && this->ri < other.ri) return true;
+        else if (this->mi == other.mi && this->qi < other.qi) return true;
+        else if (this->mi == other.mi && this->qi == other.qi && this->ri < other.ri) return true;
         return false;
     }
     bool operator==(const idx2 & other) const {
-        return this->mi == other.mi && this->ci == other.ci && this->ri == other.ri;
+        return this->mi == other.mi && this->qi == other.qi && this->ri == other.ri;
     }
     idx2 & operator=(const idx2 & other) {
         if (this == &other) return *this;
         this->mi = other.mi;
-        this->ci = other.ci;
+        this->qi = other.qi;
         this->ri = other.ri;
         return *this;
     }
@@ -98,7 +98,7 @@ public:
 namespace std {
     template<> struct hash<idx2> {
         std::uint64_t operator()(const idx2& other) const noexcept {
-            return uint64_t(other.mi)<<60 | uint64_t(other.ci) << 30 | uint64_t(other.ri);
+            return uint64_t(other.mi)<<60 | uint64_t(other.qi) << 30 | uint64_t(other.ri);
         }
     };
 }
