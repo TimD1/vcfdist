@@ -831,10 +831,12 @@ void calc_prec_recall_path(
             // ref locations which consume a query base and aren't 
             // on the main diagonal cannot be sync points
             if (aln_ptrs[x.hi][x.qri][x.ti] & (PTR_DIAG | PTR_SUB | PTR_INS)) {
-                if (x.hi == ri && x.qri != truth_ref_ptrs[i][PTRS][x.ti])
+                if (x.hi == ri && (x.qri != truth_ref_ptrs[i][PTRS][x.ti] ||
+                            truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT))
                     ref_loc_sync[i][x.qri] = false;
                 if (x.hi == qi && !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) && 
-                        query_ref_ptrs[i][PTRS][x.qri] != truth_ref_ptrs[i][PTRS][x.ti])
+                        (query_ref_ptrs[i][PTRS][x.qri] != truth_ref_ptrs[i][PTRS][x.ti] ||
+                         truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT))
                     ref_loc_sync[i][query_ref_ptrs[i][PTRS][x.qri]] = false;
             }
 
@@ -1072,7 +1074,8 @@ void get_prec_recall_path_sync(
                     is_sync = false;
                 }
             } else { // hi == ri
-                if (qri == truth_ref_ptrs[i][PTRS][ti]) { // on main diag
+                if (qri == truth_ref_ptrs[i][PTRS][ti] &&
+                        !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT)) { // on main diag
                     is_sync = ref_loc_sync[i][qri];
                 } else {
                     is_sync = false;
