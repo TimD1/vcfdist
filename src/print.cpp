@@ -255,12 +255,12 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
     // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN,PP,PP_FRAC, ax2: QUAL
     int PP_FRAC = 4;
-    std::vector< std::vector< std::vector<double> > > query_counts(VARTYPES,
-            std::vector< std::vector<double> >(5, 
-            std::vector<double>(g.max_qual-g.min_qual+1, 0))) ;
-    std::vector< std::vector< std::vector<double> > > truth_counts(VARTYPES,
-            std::vector< std::vector<double> >(5, 
-            std::vector<double>(g.max_qual-g.min_qual+1, 0))) ;
+    std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
+            std::vector< std::vector<float> >(5, 
+            std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
+    std::vector< std::vector< std::vector<float> > > truth_counts(VARTYPES,
+            std::vector< std::vector<float> >(5, 
+            std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
 
     // calculate summary statistics
     for (auto ctg_name : phasedata_ptr->contigs) {

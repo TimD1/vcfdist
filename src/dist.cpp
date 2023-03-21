@@ -831,11 +831,9 @@ void calc_prec_recall_path(
             // ref locations which consume a query base and aren't 
             // on the main diagonal cannot be sync points
             if (aln_ptrs[x.hi][x.qri][x.ti] & (PTR_DIAG | PTR_SUB | PTR_INS)) {
-                if (x.hi == ri && !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) && 
-                        x.qri != truth_ref_ptrs[i][PTRS][x.ti])
+                if (x.hi == ri && x.qri != truth_ref_ptrs[i][PTRS][x.ti])
                     ref_loc_sync[i][x.qri] = false;
                 if (x.hi == qi && !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) && 
-                        !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) &&
                         query_ref_ptrs[i][PTRS][x.qri] != truth_ref_ptrs[i][PTRS][x.ti])
                     ref_loc_sync[i][query_ref_ptrs[i][PTRS][x.qri]] = false;
             }
@@ -850,7 +848,8 @@ void calc_prec_recall_path(
                 // check for fp
                 int is_fp = FALSE;
                 if (x.hi == ri && !(ref_query_ptrs[i][FLAGS][y.qri] & PTR_VARIANT) &&
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) {
+                        (ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT ||
+                         ref_query_ptrs[i][PTRS][x.qri] != ref_query_ptrs[i][PTRS][y.qri]+1)) {
                     is_fp = TRUE;
                 }
 
@@ -876,7 +875,8 @@ void calc_prec_recall_path(
                 // check for fp
                 int is_fp = FALSE;
                 if (x.hi == ri && !(ref_query_ptrs[i][FLAGS][y.qri] & PTR_VARIANT) &&
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) {
+                        (ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT ||
+                         ref_query_ptrs[i][PTRS][x.qri] != ref_query_ptrs[i][PTRS][y.qri]+1)) {
                     is_fp = TRUE;
                 }
 
@@ -900,7 +900,8 @@ void calc_prec_recall_path(
                 // check for fp
                 int is_fp = FALSE;
                 if (x.hi == ri && !(ref_query_ptrs[i][FLAGS][y.qri] & PTR_VARIANT) &&
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) {
+                        (ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT ||
+                        ref_query_ptrs[i][PTRS][x.qri] != ref_query_ptrs[i][PTRS][y.qri]+1)) {
                     is_fp = TRUE;
                 }
 
