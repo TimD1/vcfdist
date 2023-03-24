@@ -401,14 +401,14 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         }
         if ( ngq == -3 ) {
             if (!gq_warn) {
-                WARN("No GQ tag at %s:%lu", seq.data(), rec->pos);
+                WARN("No GQ tag at %s:%li", seq.data(), rec->pos);
                 gq_warn = true; // only warn once
             }
             gq[0] = 0;
         }
         ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
         if (ngt < 0) {
-            ERROR("Failed to read GT at %s:%lu\n", seq.data(), rec->pos);
+            ERROR("Failed to read GT at %s:%li\n", seq.data(), rec->pos);
         }
 
         // parse genotype info
