@@ -13,10 +13,7 @@ public:
     FILE* ref_fasta_fp;
 
     std::string query_vcf_fn;
-    std::filesystem::path query_vcf_path;
-
     std::string truth_vcf_fn;
-    std::filesystem::path truth_vcf_path;
 
     std::string bed_fn;
     bedData bed;

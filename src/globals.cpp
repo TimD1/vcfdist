@@ -1,5 +1,3 @@
-#include <filesystem>
-
 #include "htslib/vcf.h"
 
 #include "globals.h"
@@ -38,7 +36,6 @@ void Globals::parse_args(int argc, char ** argv) {
 
     /* verify input VCF/FASTA filepaths */
     this->query_vcf_fn = std::string(argv[1]);
-    this->query_vcf_path = std::filesystem::path(this->query_vcf_fn);
     htsFile* query_vcf_fp = bcf_open(query_vcf_fn.data(), "r");
     if (query_vcf_fp == NULL) {
         ERROR("Failed to open query VCF file '%s'", query_vcf_fn.data());
@@ -47,7 +44,6 @@ void Globals::parse_args(int argc, char ** argv) {
     }
 
     this->truth_vcf_fn = std::string(argv[2]);
-    this->truth_vcf_path = std::filesystem::path(this->truth_vcf_fn);
     htsFile* truth_vcf_fp = bcf_open(truth_vcf_fn.data(), "r");
     if (truth_vcf_fp == NULL) {
         ERROR("Failed to open truth VCF file '%s'", truth_vcf_fn.data());
