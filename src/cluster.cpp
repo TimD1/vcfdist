@@ -428,8 +428,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // calculate max reaching path to left
                         int reach = sw_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
-                                sub, open, extend,
-                                score, true, ref_section_start); // reverse
+                                sub, open, extend, score, 
+                                g.verbosity >= 2, true, ref_section_start); // reverse
                         l_reach = end_pos - reach;
                         if (g.verbosity >= 2)
                             printf("left reach: %d\n", reach);
@@ -493,7 +493,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // calculate max reaching path to right
                         int reach = sw_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
-                                sub, open, extend, score, false, ref_section_start);
+                                sub, open, extend, score, g.verbosity >= 2, 
+                                false, ref_section_start);
                         r_reach = beg_pos + reach;
                         if (g.verbosity >= 2)
                             printf("right reach: %d\n", reach);

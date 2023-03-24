@@ -117,7 +117,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs,
-        std::vector<int> & pr_query_ref_end
+        std::vector<int> & pr_query_ref_end, bool print
         );
 
 void get_prec_recall_path_sync(
@@ -138,7 +138,9 @@ void get_prec_recall_path_sync(
 
 void calc_prec_recall_path(
         std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx,
-        const std::string & ctg,
+        const std::string & ctg, const std::string & ref,
+        const std::string & query1, const std::string & query2, 
+        const std::string & truth1, const std::string & truth2, 
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
@@ -151,7 +153,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_end
+        const std::vector<int> & pr_query_ref_end, bool print
         );
 
 void calc_prec_recall(
@@ -170,7 +172,7 @@ void calc_prec_recall(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_end, int phase, int print
+        const std::vector<int> & pr_query_ref_end, int phase, bool print
         );
 
 /******************************************************************************/
@@ -181,24 +183,24 @@ int sw_max_reach(
         const std::vector< std::vector<int> > & query_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query_ptrs,
         int sub, int open, int extend,
-        int score, 
+        int score, bool print,
         bool reverse = false,
         int ref_section = -1);
 
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref,
-        int sub, int open, int extend);
+        int sub, int open, int extend, bool print);
 
 std::unordered_map<idx2,idx2> sw_align(
         const std::string & query, 
         const std::string & truth,
-        int sub, int open, int extend);
+        int sub, int open, int extend, bool print);
 
 std::vector<int> sw_backtrack(
         const std::string & query,
         const std::string & truth,
-        const std::unordered_map<idx2, idx2> & ptrs);
+        const std::unordered_map<idx2, idx2> & ptrs, bool print);
 
 int count_dist(const std::vector<int> & cigar);
 

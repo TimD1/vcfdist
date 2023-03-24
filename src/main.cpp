@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
         g.simple_cluster ? cluster(query_ptr) :
             sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
         query_ptr = sw_realign(query_ptr, ref_ptr, 
-                g.query_sub, g.query_open, g.query_extend);
+                g.query_sub, g.query_open, g.query_extend, g.verbosity >= 2);
     }
     g.simple_cluster ? cluster(query_ptr) :
         sw_cluster(query_ptr, g.query_sub, g.query_open, g.query_extend); 
@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
         g.simple_cluster ?  cluster(truth_ptr) :
             sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 
         truth_ptr = sw_realign(truth_ptr, ref_ptr, 
-                g.truth_sub, g.truth_open, g.truth_extend);
+                g.truth_sub, g.truth_open, g.truth_extend, g.verbosity >= 2);
     }
     g.simple_cluster ? cluster(truth_ptr) :
         sw_cluster(truth_ptr, g.truth_sub, g.truth_open, g.truth_extend); 

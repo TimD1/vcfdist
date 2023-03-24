@@ -6,18 +6,42 @@
 #include "dist.h"
 #include "edit.h"
 
+std::string GREEN(int i) { return "\033[32m" + std::to_string(i) + "\033[0m"; }
 std::string GREEN(char c) { return "\033[32m" + std::string(1,c) + "\033[0m"; }
 std::string GREEN(std::string str) { return "\033[32m" + str + "\033[0m"; }
+std::string RED(int i) { return "\033[31m" + std::to_string(i) + "\033[0m"; }
 std::string RED(char c) { return "\033[31m" + std::string(1,c) + "\033[0m"; }
 std::string RED(std::string str) { return "\033[31m" + str + "\033[0m"; }
 std::string BLUE(int i) { return "\033[34m" + std::to_string(i) + "\033[0m"; }
 std::string BLUE(char c) { return "\033[34m" + std::string(1,c) + "\033[0m"; }
 std::string BLUE(std::string str) { return "\033[34m" + str + "\033[0m"; }
+std::string YELLOW(int i) { return "\033[33m" + std::to_string(i) + "\033[0m"; }
 std::string YELLOW(char c) { return "\033[33m" + std::string(1,c) + "\033[0m"; }
 std::string YELLOW(std::string str) { return "\033[33m" + str + "\033[0m"; }
+std::string PURPLE(int i) { return "\033[35m" + std::to_string(i) + "\033[0m"; }
 std::string PURPLE(char c) { return "\033[35m" + std::string(1,c) + "\033[0m"; }
 std::string PURPLE(std::string str) { return "\033[35m" + str + "\033[0m"; }
 
+
+/*******************************************************************************/
+
+
+void print_ref_ptrs(std::vector< std::vector<int> > ptrs) {
+    for(int i = 0; i < int(ptrs[0].size()); i++) {
+        if (ptrs[FLAGS][i] & PTR_VAR_BEG && ptrs[FLAGS][i] & PTR_VAR_END) {
+            printf("%s ", YELLOW(ptrs[PTRS][i]).data());
+        } else if (ptrs[FLAGS][i] & PTR_VAR_BEG) {
+            printf("%s ", GREEN(ptrs[PTRS][i]).data());
+        } else if (ptrs[FLAGS][i] & PTR_VAR_END) {
+            printf("%s ", RED(ptrs[PTRS][i]).data());
+        } else if (ptrs[FLAGS][i] & PTR_VARIANT) {
+            printf("%s ", BLUE(ptrs[PTRS][i]).data());
+        } else {
+            printf("%d ", ptrs[PTRS][i]);
+        }
+    }
+    printf("\n");
+}
 
 /*******************************************************************************/
 
@@ -125,19 +149,19 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
             // states
             if (ptrs[alt_idx][ref_idx] & PTR_SYNC)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '#';
-            else if (ptrs[alt_idx][ref_idx] & PTR_SWAP)
+            if (ptrs[alt_idx][ref_idx] & PTR_SWP_MAT)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
             else
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
 
             // movements
-            if (ptrs[alt_idx][ref_idx] & PTR_DIAG)
+            if (ptrs[alt_idx][ref_idx] & PTR_MAT)
                 ptr_str[alt_idx*2][ref_idx*2] = '\\';
             if (ptrs[alt_idx][ref_idx] & PTR_SUB)
                 ptr_str[alt_idx*2][ref_idx*2] = 'X';
-            if (ptrs[alt_idx][ref_idx] & PTR_LEFT)
+            if (ptrs[alt_idx][ref_idx] & PTR_DEL)
                 ptr_str[alt_idx*2+1][ref_idx*2] = '-';
-            if (ptrs[alt_idx][ref_idx] & PTR_UP)
+            if (ptrs[alt_idx][ref_idx] & PTR_INS)
                 ptr_str[alt_idx*2][ref_idx*2+1] = '|';
         }
     }
@@ -811,7 +835,7 @@ void write_results(
 void print_cigar(std::vector<int> cigar) {
     for (int i = 0; i < int(cigar.size()); i++) {
         switch (cigar[i]) {
-        case PTR_DIAG:
+        case PTR_MAT:
             i++;
             printf("=");
             break;
