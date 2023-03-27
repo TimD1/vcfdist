@@ -650,12 +650,13 @@ void calc_prec_recall_aln(
                          (!(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) ||
                             truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_END)) {
                         if (z.qri < query_lens[i] && z.ti < truth_lens[i] &&
-                                query[i][z.qri] == truth[i][z.ti])
-                        if (!done[qi][z.qri][z.ti]) {
-                            if (!contains(curr_wave, z)) {
-                                queue.push(z); curr_wave.insert(z);
+                                query[i][z.qri] == truth[i][z.ti]) {
+                            if (!done[qi][z.qri][z.ti]) {
+                                if (!contains(curr_wave, z)) {
+                                    queue.push(z); curr_wave.insert(z);
+                                }
+                                ptrs[qi][z.qri][z.ti] |= PTR_SWP_MAT;
                             }
-                            ptrs[qi][z.qri][z.ti] |= PTR_SWP_MAT;
                         }
                     }
                 }
@@ -887,13 +888,14 @@ void calc_prec_recall_path(
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] + is_fp >
                         path_scores[y.hi][y.qri][y.ti]) {
-                    if (y.qri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
                     path_ptrs  [y.hi][y.qri][y.ti] = PTR_MAT;
                     path_scores[y.hi][y.qri][y.ti] = 
                         path_scores[x.hi][x.qri][x.ti] + is_fp;
                     queue.push(y);
+                } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                        path_scores[y.hi][y.qri][y.ti]) {
+                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
                 }
-
             }
 
             if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SUB && // SUB mvmt
@@ -915,11 +917,13 @@ void calc_prec_recall_path(
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
                         path_scores[y.hi][y.qri][y.ti]) {
-                    if (y.qri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
                     path_ptrs  [y.hi][y.qri][y.ti] = PTR_SUB;
                     path_scores[y.hi][y.qri][y.ti] = 
                         path_scores[x.hi][x.qri][x.ti] + is_fp;
                     queue.push(y);
+                } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                        path_scores[y.hi][y.qri][y.ti]) {
+                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
                 }
             }
 
@@ -941,12 +945,14 @@ void calc_prec_recall_path(
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
                         path_scores[y.hi][y.qri][y.ti]) {
-                    if (y.qri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
                     path_ptrs  [y.hi][y.qri][y.ti] = PTR_INS;
                     path_scores[y.hi][y.qri][y.ti] = 
                         path_scores[x.hi][x.qri][x.ti] + is_fp;
                     queue.push(y);
-                } 
+                } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                        path_scores[y.hi][y.qri][y.ti]) {
+                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
+                }
             }
 
             if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_DEL && x.ti > 0) { // DEL mvmt
@@ -960,11 +966,13 @@ void calc_prec_recall_path(
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] > 
                         path_scores[y.hi][y.qri][y.ti]) {
-                    if (y.qri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
                     path_ptrs  [y.hi][y.qri][y.ti] = PTR_DEL;
                     path_scores[y.hi][y.qri][y.ti] = 
                         path_scores[x.hi][x.qri][x.ti];
                     queue.push(y);
+                } else if (path_scores[x.hi][x.qri][x.ti] == 
+                        path_scores[y.hi][y.qri][y.ti]) {
+                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
                 }
             }
 
@@ -985,19 +993,21 @@ void calc_prec_recall_path(
                     bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
                             ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
                             ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-                if (is_fp) printf("FP @ (%s, %d, %d) -> (%s, %d, %d) Total:%d %s\n",
-                        x.hi % 2 ? "REF  " : "QUERY", x.qri, x.ti,
-                        z.hi % 2 ? "REF  " : "QUERY", z.qri, z.ti,
-                        path_scores[x.hi][x.qri][x.ti]+1, "R->Q SWP");
+                    if (is_fp) printf("FP @ (%s, %d, %d) -> (%s, %d, %d) Total:%d %s\n",
+                            x.hi % 2 ? "REF  " : "QUERY", x.qri, x.ti,
+                            z.hi % 2 ? "REF  " : "QUERY", z.qri, z.ti,
+                            path_scores[x.hi][x.qri][x.ti]+1, "R->Q SWP");
 
                     // update score
                     if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
                             path_scores[z.hi][z.qri][z.ti]) {
-                        if (z.qri == 0 && z.ti == 0) pr_query_ref_beg[i] = z.hi;
                         path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
                         path_scores[z.hi][z.qri][z.ti] = 
                             path_scores[x.hi][x.qri][x.ti] + is_fp;
                         queue.push(z);
+                    } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[z.hi][z.qri][z.ti]) {
+                        path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                     }
                 }
             } else { // QUERY -> REF SWAP mvmt
@@ -1018,16 +1028,24 @@ void calc_prec_recall_path(
                     // update score
                     if (path_scores[x.hi][x.qri][x.ti] > 
                             path_scores[z.hi][z.qri][z.ti]) {
-                        if (z.qri == 0 && z.ti == 0) pr_query_ref_beg[i] = z.hi;
                         path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
                         path_scores[z.hi][z.qri][z.ti] = 
                             path_scores[x.hi][x.qri][x.ti];
                         queue.push(z);
+                    } else if (path_scores[x.hi][x.qri][x.ti] == 
+                            path_scores[z.hi][z.qri][z.ti]) {
+                        path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                     }
                 }
             }
 
         } // queue is empty
+
+        // set pointers
+        if (aln_ptrs[ri][0][0] & PATH)
+            pr_query_ref_beg[i] = ri;
+        else
+            pr_query_ref_beg[i] = qi;
 
         // debug print
         if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
@@ -1096,7 +1114,11 @@ void get_prec_recall_path_sync(
 
         // follow best-path pointers
         while (qri < int(path_ptrs[hi].size()) || ti < int(path_ptrs[hi][0].size())) {
-            if (path_ptrs[hi][qri][ti] & PTR_MAT) {
+            if (hi == qi && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) { // prefer FPs
+                hi = ri;
+                qri = query_ref_ptrs[i][PTRS][qri];
+                qri++; ti++; edits[i].push_back(false);
+            } else if (path_ptrs[hi][qri][ti] & PTR_MAT) {
                 qri++; ti++; edits[i].push_back(false);
             } else if (path_ptrs[hi][qri][ti] & PTR_SUB) {
                 qri++; ti++; edits[i].push_back(true);
@@ -1104,18 +1126,10 @@ void get_prec_recall_path_sync(
                 qri++; edits[i].push_back(true);
             } else if (path_ptrs[hi][qri][ti] & PTR_DEL) {
                 ti++; edits[i].push_back(true);
-            } else if (path_ptrs[hi][qri][ti] & PTR_SWP_MAT) {
-                if (hi == ri) {
-                    hi = qi;
-                    qri = ref_query_ptrs[i][PTRS][qri];
-                    qri++; ti++; edits[i].push_back(false);
-                } else if(hi == qi) { // hi == qi
-                    hi = ri;
-                    qri = query_ref_ptrs[i][PTRS][qri];
-                    qri++; ti++; edits[i].push_back(false);
-                } else {
-                    ERROR("Unexpected hap index at (%d, %d, %d). Backtracking likely didn't finish.", hi, qri, ti);
-                } 
+            } else if (hi == ri && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) {
+                hi = qi;
+                qri = ref_query_ptrs[i][PTRS][qri];
+                qri++; ti++; edits[i].push_back(false);
             } else {
                 ERROR("No valid pointer (value '%d') at (%d, %d, %d)", 
                         path_ptrs[hi][qri][ti], hi, qri, ti);
