@@ -1272,7 +1272,7 @@ void calc_prec_recall(
 
             // set FP if necessary
             int query_ref_pos = (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri];
-            if (query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) // ignore in variant
+            if (hi != ri && query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) // ignore in variant
                 query_ref_pos = query_var_pos+1; 
             while (query_ref_pos < query_var_pos) { // just passed variant(s)
                 if (prev_hi == ri) { // FP if when in variant was on REF
