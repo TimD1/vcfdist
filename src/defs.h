@@ -75,9 +75,9 @@
 #define PTR_MAT   4
 #define PTR_SUB   8
 #define PTR_SWP_MAT   16
-#define PTR_SWP_SUB   32
-#define PTR_SWP_INS   64
-#define PTR_SWP_DEL   128
+#define PTR_SWP_SUB   32  // not used atm
+#define PTR_SWP_INS   64  // not used atm
+#define PTR_SWP_DEL   128 // not used atm
 #define PTR_LPATH 256
 #define PATH      256
 #define PTR_RPATH 512
