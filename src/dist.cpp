@@ -818,6 +818,7 @@ void calc_prec_recall_path(
     std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
     std::vector<int> pr_query_ref_beg(4);
+    std::vector< std::vector<bool> > ref_loc_sync;
 
     for (int i = 0; i < 4; i++) {
         /* printf("\nBKWD %s path\n", aln_strs[i].data()); */
@@ -828,6 +829,7 @@ void calc_prec_recall_path(
         path.push_back(std::vector<idx1>());
         sync.push_back(std::vector<bool>());
         edits.push_back(std::vector<bool>());
+        ref_loc_sync.push_back(std::vector<bool>(aln_ptrs[ri].size(), true));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[qi].size(), 
             std::vector<int>(aln_ptrs[qi][0].size(), PTR_NONE)));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
@@ -855,18 +857,29 @@ void calc_prec_recall_path(
             if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_MAT && // MATCH mvmt
                     x.qri > 0 && x.ti > 0) {
 
-                // add to path
-                idx1 y = idx1(x.hi, x.qri-1, x.ti-1); // next cell
+                // get next cell, add to path
+                idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
                 aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                // check if mvmt is in variant
+                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                bool in_query_var = (x.hi == ri) ? false : 
+                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                // if off-diagonal or in truth var, this ref loc isn't a sync point
+                if (y.hi == ri && (
+                        in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                    ref_loc_sync[i][y.qri] = false;
+                if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                        query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                    ref_loc_sync[i][ query_ref_ptrs[i][PTRS][y.qri] ] = false;
 
                 // check for fp
                 bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
                         ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                         ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-                if (is_fp) printf("FP @ (%s, %2d, %2d) -> (%s, %2d, %2d) Total:%d %s\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti,
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        path_scores[x.hi][x.qri][x.ti]+1, "MAT");
 
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] + is_fp >
@@ -879,23 +892,41 @@ void calc_prec_recall_path(
                         path_scores[y.hi][y.qri][y.ti]) {
                     path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
                 }
+
+                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                        is_fp ? "Y" : "N");
             }
 
             if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SUB && // SUB mvmt
                     x.qri > 0 && x.ti > 0) {
 
-                // add to path
+                // get next cell, add to path
                 idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
                 aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                // check if mvmt is in variant
+                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                bool in_query_var = (x.hi == ri) ? false : 
+                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                // if off-diagonal or in truth var, this ref loc isn't a sync point
+                if (y.hi == ri && (
+                        in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                    ref_loc_sync[i][y.qri] = false;
+                if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                        query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                    ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
 
                 // check for fp
                 bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
                         ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                         ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-                if (is_fp) printf("FP @ (%s, %2d, %2d) -> (%s, %2d, %2d) Total:%d %s\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti,
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        path_scores[x.hi][x.qri][x.ti]+1, "SUB");
 
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
@@ -908,22 +939,39 @@ void calc_prec_recall_path(
                         path_scores[y.hi][y.qri][y.ti]) {
                     path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
                 }
+
+                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SUB",
+                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                        is_fp ? "Y" : "N");
             }
 
             if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_INS && x.qri > 0) { // INS mvmt
 
-                // add to path
+                // get next cell, add to path
                 idx1 y = idx1(x.hi, x.qri-1, x.ti);
                 aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                // check if mvmt is in variant
+                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                bool in_query_var = (x.hi == ri) ? false : 
+                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                // if off-diagonal or in truth var, this ref loc isn't a sync point
+                if (y.hi == ri && (
+                        in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                    ref_loc_sync[i][y.qri] = false;
+                if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                        query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                    ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
 
                 // check for fp
                 bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
                         ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                         ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-                if (is_fp) printf("FP @ (%s, %2d, %2d) -> (%s, %2d, %2d) Total:%d %s\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti,
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        path_scores[x.hi][x.qri][x.ti]+1, "INS");
 
                 // update score
                 if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
@@ -936,6 +984,13 @@ void calc_prec_recall_path(
                         path_scores[y.hi][y.qri][y.ti]) {
                     path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
                 }
+
+                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "INS",
+                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                        is_fp ? "Y" : "N");
             }
 
             if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_DEL && x.ti > 0) { // DEL mvmt
@@ -943,6 +998,11 @@ void calc_prec_recall_path(
                 // add to path
                 idx1 y = idx1(x.hi, x.qri, x.ti-1);
                 aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                bool in_query_var = (x.hi == ri) ? false : 
+                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
 
                 // no need to check for FP since we don't consume a REF/QUERY base
                 
@@ -957,6 +1017,12 @@ void calc_prec_recall_path(
                         path_scores[y.hi][y.qri][y.ti]) {
                     path_ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
                 }
+
+                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
+                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "DEL",
+                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N");
             }
 
             if (x.hi == ri) { // REF -> QUERY SWAP mvmt
@@ -965,21 +1031,29 @@ void calc_prec_recall_path(
                         ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
                         x.qri > 0 && x.ti > 0) {
 
-                    // add to path
+                    // get next cell, add to path
                     idx1 z = idx1(qi, ref_query_ptrs[i][PTRS][x.qri-1], x.ti-1);
                     while (z.qri+1 < int(query_ref_ptrs[i][PTRS].size()) && 
                             query_ref_ptrs[i][PTRS][z.qri] == 
                             query_ref_ptrs[i][PTRS][z.qri+1]) z.qri++;
                     aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
 
+                    // check if mvmt is in variant
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                    // if off-diag or in truth var, this ref loc isn't a sync point
+                    if (!in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][z.qri] != truth_ref_ptrs[i][PTRS][z.ti]))
+                        ref_loc_sync[i][query_ref_ptrs[i][PTRS][z.qri]] = false;
+
                     // check for fp
                     bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
                             ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
                             ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-                    if (is_fp) printf("FP @ (%s, %2d, %2d) -> (%s, %2d, %2d) Total:%d %s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti,
-                            z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
-                            path_scores[x.hi][x.qri][x.ti]+1, "R->Q SWP");
 
                     // update score
                     if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
@@ -992,7 +1066,15 @@ void calc_prec_recall_path(
                             path_scores[z.hi][z.qri][z.ti]) {
                         path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                     }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                            z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N",
+                            is_fp ? "Y" : "N");
                 }
+
             } else { // QUERY -> REF SWAP mvmt
                 if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
                         (!(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
@@ -1005,6 +1087,17 @@ void calc_prec_recall_path(
                             ref_query_ptrs[i][PTRS][z.qri] == 
                             ref_query_ptrs[i][PTRS][z.qri+1]) z.qri++;
                     aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+
+                    // check if mvmt is in variant
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                    // if off-diag or in truth var, this ref loc isn't a sync point
+                    if (in_truth_var || z.qri != truth_ref_ptrs[i][PTRS][z.ti])
+                        ref_loc_sync[i][z.qri] = false;
 
                     // no need to check for FP since we were on QUERY, not REF
 
@@ -1019,6 +1112,12 @@ void calc_prec_recall_path(
                             path_scores[z.hi][z.qri][z.ti]) {
                         path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                     }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                            z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N");
                 }
             }
 
@@ -1040,7 +1139,7 @@ void calc_prec_recall_path(
     } // 4 alignments
 
     // get path and sync points
-    get_prec_recall_path_sync(path, sync, edits, aln_ptrs, path_ptrs, 
+    get_prec_recall_path_sync(path, sync, edits, aln_ptrs, path_ptrs, ref_loc_sync,
             query1_ref_ptrs, ref_query1_ptrs, query2_ref_ptrs, ref_query2_ptrs,
             truth1_ref_ptrs, truth2_ref_ptrs, pr_query_ref_beg, true
     );
@@ -1059,6 +1158,7 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        const std::vector< std::vector<bool> > & ref_loc_sync, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
@@ -1079,6 +1179,12 @@ void get_prec_recall_path_sync(
     for (int i = 0; i < 4; i++) {
 
         if (print) printf("Alignment %s:\n", aln_strs[i].data());
+
+        printf("REF LOC SYNC:");
+        for(int j = 0; j < int(ref_loc_sync[i].size()); j++) {
+            printf(ref_loc_sync[i][j] ? "=" : "X");
+        }
+        printf("\n");
 
         // init
         int qi = i*2 + QUERY;
@@ -1162,13 +1268,19 @@ void get_prec_recall_path_sync(
             }
 
             // SYNC POINTS
-            bool prev_sync = !in_truth_var && !in_query_var; // sync outside vars
-            // sync on matrix diagonal (ref) only
-            if (prev_hi == ri && prev_qri != truth_ref_ptrs[i][PTRS][prev_ti])
+            bool prev_sync;
+            // no info about movements from previous rows, default to false
+            if (prev_qri == 0 || query_ref_ptrs[i][PTRS][prev_qri] == 0) {
                 prev_sync = false;
-            if (prev_hi == qi && query_ref_ptrs[i][PTRS][prev_qri] != 
-                     truth_ref_ptrs[i][PTRS][prev_ti])
-                prev_sync = false;
+            } else { // use ref_loc_sync info, enforce diag, not in variant
+                prev_sync = !in_truth_var && !in_query_var && 
+                    truth_ref_ptrs[i][PTRS][prev_ti] == (prev_hi == ri ? prev_qri :
+                            query_ref_ptrs[i][PTRS][prev_qri]) &&
+                    ptr_type & (PTR_MAT | PTR_SWP_MAT | PTR_SUB) &&
+                    ref_loc_sync[i][ prev_hi == ri ? prev_qri-1 : 
+                            query_ref_ptrs[i][PTRS][prev_qri]-1 ];
+            }
+            if (prev_qri == 0 && prev_ti == 0) prev_sync = true; // only start
             if (prev_sync) aln_ptrs[prev_hi][prev_qri][prev_ti] |= PTR_SYNC;
             sync[i].push_back(prev_sync);
 
@@ -1186,6 +1298,8 @@ void get_prec_recall_path_sync(
         }
 
         // last position is sync
+        if (print) printf("SYNC (%s, %2d, %2d) DONE \n",
+                hi % 2 ? "REF" : "QRY", qri, ti);
         sync[i].push_back(true);
         aln_ptrs[hi][qri][ti] |= PTR_SYNC;
     }
@@ -1272,10 +1386,12 @@ void calc_prec_recall(
         if (print) print_ptrs(path_ptrs[ri], ref, truth[i]);
 
         // init
-        int prev_hi = pr_query_ref_end[i];
         int hi = pr_query_ref_end[i];
+        int prev_hi = hi;
         int qri = aln_ptrs[hi].size()-1;
+        int prev_qri = qri;
         int ti = aln_ptrs[hi][0].size()-1;
+        int prev_ti = ti;
         int new_ed = 0;
         int query_var_ptr = query_end_idx-1;
         int query_var_pos = query_vars->poss.size() ? 
@@ -1290,10 +1406,25 @@ void calc_prec_recall(
         if (print) printf("\n%s: %d\n", aln_strs[i].data(), beg);
         while (path_idx >= 0) {
 
-            // set FP if necessary
-            int query_ref_pos = (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri];
-            if (hi != ri && query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) // ignore in variant
-                query_ref_pos = query_var_pos+1; 
+            // set corresponding REF position
+            int query_ref_pos = 0;
+            if (hi == ri) { // REF, no variants
+                query_ref_pos = qri;
+            } else { // hi == qi, QUERY
+                query_ref_pos = query_ref_ptrs[i][PTRS][qri];
+
+                // in variant, ignore if didn't just finish REF FP or QRY PP/TP variant
+                if (query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) {
+                    if(prev_hi == ri && !(ref_query_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG)) {
+                        query_ref_pos = query_var_pos+1; // skip next while loop
+                    }
+                    if (prev_hi == qi && (prev_qri == qri || 
+                            !(query_ref_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG))) { // not query var
+                        query_ref_pos = query_var_pos+1; // skip next while loop
+                    }
+                }
+            }
+            // mark FPs and record variants within sync group
             while (query_ref_pos < query_var_pos) { // just passed variant(s)
                 if (prev_hi == ri) { // FP if when in variant was on REF
                     query_vars->errtypes[query_var_ptr] = ERRTYPE_FP;
@@ -1311,8 +1442,12 @@ void calc_prec_recall(
                         query_vars->poss[query_var_ptr] - beg;
             }
 
-            while (!(truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT) && 
-                    truth_ref_ptrs[i][PTRS][ti] < truth_var_pos) { // passed REF variant
+            int truth_ref_pos = truth_ref_ptrs[i][PTRS][ti];
+            if (truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT) {
+                if (prev_ti == ti || !(truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VAR_BEG))
+                    truth_ref_pos = truth_var_pos + 1;
+            }
+            while (truth_ref_pos < truth_var_pos) { // passed REF variant
                 truth_var_ptr--;
                 truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
                     truth_vars->poss[truth_var_ptr] - beg;
@@ -1359,12 +1494,12 @@ void calc_prec_recall(
                     if (query_vars->errtypes[query_var_idx] == ERRTYPE_UN) {
                         if (new_ed == 0) { // TP
                             query_vars->errtypes[query_var_idx] = ERRTYPE_TP;
-                            query_vars->credit[query_var_idx] = 1;
+                            query_vars->credit[query_var_idx] = credit;
                             query_vars->callq[query_var_idx] = callq;
                             if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
-                                    "TP", 1.0f);
+                                    "TP", credit);
                         } else if (new_ed == old_ed) { // FP
                             query_vars->errtypes[query_var_idx] = ERRTYPE_FP;
                             query_vars->credit[query_var_idx] = 0;
@@ -1391,12 +1526,12 @@ void calc_prec_recall(
                     float credit = 1 - float(new_ed)/old_ed;
                     if (new_ed == 0) { // TP
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_TP;
-                        truth_vars->credit[truth_var_idx] = 1;
+                        truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = callq;
                         if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
-                                "TP", 1.0f);
+                                "TP", credit);
                     } else if (new_ed == old_ed) { // FP call, FN truth
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_FN;
                         truth_vars->credit[truth_var_idx] = credit;
@@ -1428,8 +1563,6 @@ void calc_prec_recall(
                 prev_truth_var_ptr = truth_var_ptr;
                 new_ed = 0;
             }
-            if (print) printf("%d %d %d\n", path_idx, int(sync[i].size()),
-                    int(edits[i].size()));
 
             // update pointers and edit distance
             if (print) printf("%s %s (%2d,%2d) %s\n", 
@@ -1442,7 +1575,9 @@ void calc_prec_recall(
             if (path_idx < 0) break;
 
             // update location
+            prev_qri = qri;
             qri = path[i][path_idx].qri;
+            prev_ti = ti;
             ti = path[i][path_idx].ti;
             prev_hi = hi;
             hi = path[i][path_idx].hi;

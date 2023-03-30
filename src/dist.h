@@ -126,6 +126,7 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        const std::vector< std::vector<bool> > & ref_loc_sync, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 

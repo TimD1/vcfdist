@@ -149,7 +149,7 @@ void print_ptrs(std::vector< std::vector<int> > ptrs,
             // states
             if (ptrs[alt_idx][ref_idx] & PTR_SYNC)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '#';
-            if (ptrs[alt_idx][ref_idx] & PTR_SWP_MAT)
+            else if (ptrs[alt_idx][ref_idx] & PTR_SWP_MAT)
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
             else
                 ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
