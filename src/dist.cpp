@@ -819,6 +819,7 @@ void calc_prec_recall_path(
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
     std::vector<int> pr_query_ref_beg(4);
     std::vector< std::vector<bool> > ref_loc_sync;
+    std::vector< std::vector< std::vector<bool> > > done;
 
     for (int i = 0; i < 4; i++) {
         /* printf("\nBKWD %s path\n", aln_strs[i].data()); */
@@ -838,6 +839,10 @@ void calc_prec_recall_path(
             std::vector<int>(aln_ptrs[qi][0].size(), -1)));
         path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
             std::vector<int>(aln_ptrs[ri][0].size(), -1)));
+        done.push_back(std::vector< std::vector<bool> >(aln_ptrs[qi].size(), 
+            std::vector<bool>(aln_ptrs[qi][0].size(), false)));
+        done.push_back(std::vector< std::vector<bool> >(aln_ptrs[ri].size(), 
+            std::vector<bool>(aln_ptrs[ri][0].size(), false)));
 
         // backtrack start
         std::queue<idx1> queue;
@@ -848,195 +853,20 @@ void calc_prec_recall_path(
         path_ptrs[start_hi][start_qri][start_ti] = PTR_MAT;
         aln_ptrs[start_hi][start_qri][start_ti] |= MAIN_PATH; // all alignments end here
         path_scores[start_hi][start_qri][start_ti] = 0;
+        std::unordered_set<idx1> curr_wave, prev_wave;
         queue.push(start);
 
-        while (!queue.empty()) {
-            idx1 x = queue.front(); queue.pop(); // current cell
-            /* printf("  x = (%d, %d, %d)\n", x.hi, x.qri, x.ti); */
+        while (true) {
+            while (!queue.empty()) {
+                idx1 x = queue.front(); queue.pop(); // current cell
+                prev_wave.insert(x);
 
-            if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_MAT && // MATCH mvmt
-                    x.qri > 0 && x.ti > 0) {
-
-                // get next cell, add to path
-                idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
-                aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
-
-                // check if mvmt is in variant
-                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
-                in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
-                bool in_query_var = (x.hi == ri) ? false : 
-                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
-
-                // if off-diagonal or in truth var, this ref loc isn't a sync point
-                if (y.hi == ri && (
-                        in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
-                    ref_loc_sync[i][y.qri] = false;
-                if (y.hi == qi && !in_query_var && ( in_truth_var || 
-                        query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
-                    ref_loc_sync[i][ query_ref_ptrs[i][PTRS][y.qri] ] = false;
-
-                // check for fp
-                bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                        ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-
-                // update score
-                if (path_scores[x.hi][x.qri][x.ti] + is_fp >
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs  [y.hi][y.qri][y.ti] = PTR_MAT;
-                    path_scores[y.hi][y.qri][y.ti] = 
-                        path_scores[x.hi][x.qri][x.ti] + is_fp;
-                    queue.push(y);
-                } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
-                }
-
-                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
-                        is_fp ? "Y" : "N");
-            }
-
-            if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SUB && // SUB mvmt
-                    x.qri > 0 && x.ti > 0) {
-
-                // get next cell, add to path
-                idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
-                aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
-
-                // check if mvmt is in variant
-                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
-                in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
-                bool in_query_var = (x.hi == ri) ? false : 
-                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
-
-                // if off-diagonal or in truth var, this ref loc isn't a sync point
-                if (y.hi == ri && (
-                        in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
-                    ref_loc_sync[i][y.qri] = false;
-                if (y.hi == qi && !in_query_var && ( in_truth_var || 
-                        query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
-                    ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
-
-                // check for fp
-                bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                        ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-
-                // update score
-                if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs  [y.hi][y.qri][y.ti] = PTR_SUB;
-                    path_scores[y.hi][y.qri][y.ti] = 
-                        path_scores[x.hi][x.qri][x.ti] + is_fp;
-                    queue.push(y);
-                } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
-                }
-
-                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SUB",
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
-                        is_fp ? "Y" : "N");
-            }
-
-            if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_INS && x.qri > 0) { // INS mvmt
-
-                // get next cell, add to path
-                idx1 y = idx1(x.hi, x.qri-1, x.ti);
-                aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
-
-                // check if mvmt is in variant
-                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
-                bool in_query_var = (x.hi == ri) ? false : 
-                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
-
-                // if off-diagonal or in truth var, this ref loc isn't a sync point
-                if (y.hi == ri && (
-                        in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
-                    ref_loc_sync[i][y.qri] = false;
-                if (y.hi == qi && !in_query_var && ( in_truth_var || 
-                        query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
-                    ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
-
-                // check for fp
-                bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                        ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-
-                // update score
-                if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs  [y.hi][y.qri][y.ti] = PTR_INS;
-                    path_scores[y.hi][y.qri][y.ti] = 
-                        path_scores[x.hi][x.qri][x.ti] + is_fp;
-                    queue.push(y);
-                } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
-                }
-
-                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "INS",
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
-                        is_fp ? "Y" : "N");
-            }
-
-            if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_DEL && x.ti > 0) { // DEL mvmt
-
-                // add to path
-                idx1 y = idx1(x.hi, x.qri, x.ti-1);
-                aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
-
-                bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
-                in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
-                bool in_query_var = (x.hi == ri) ? false : 
-                    query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-
-                // no need to check for FP since we don't consume a REF/QUERY base
-                
-                // update score
-                if (path_scores[x.hi][x.qri][x.ti] > 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs  [y.hi][y.qri][y.ti] = PTR_DEL;
-                    path_scores[y.hi][y.qri][y.ti] = 
-                        path_scores[x.hi][x.qri][x.ti];
-                    queue.push(y);
-                } else if (path_scores[x.hi][x.qri][x.ti] == 
-                        path_scores[y.hi][y.qri][y.ti]) {
-                    path_ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
-                }
-
-                if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
-                        x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "DEL",
-                        y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                        in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                        ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N");
-            }
-
-            if (x.hi == ri) { // REF -> QUERY SWAP mvmt
-                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
-                        (!(ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
-                        ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
-                        x.qri > 0 && x.ti > 0) {
+                // MATCH movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_MAT && x.qri > 0 && x.ti > 0) {
 
                     // get next cell, add to path
-                    idx1 z = idx1(qi, ref_query_ptrs[i][PTRS][x.qri-1], x.ti-1);
-                    while (z.qri+1 < int(query_ref_ptrs[i][PTRS].size()) && 
-                            query_ref_ptrs[i][PTRS][z.qri] == 
-                            query_ref_ptrs[i][PTRS][z.qri+1]) z.qri++;
-                    aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+                    idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
 
                     // check if mvmt is in variant
                     bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
@@ -1045,48 +875,160 @@ void calc_prec_recall_path(
                         query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
                     in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
 
-                    // if off-diag or in truth var, this ref loc isn't a sync point
-                    if (!in_query_var && ( in_truth_var || 
-                            query_ref_ptrs[i][PTRS][z.qri] != truth_ref_ptrs[i][PTRS][z.ti]))
-                        ref_loc_sync[i][query_ref_ptrs[i][PTRS][z.qri]] = false;
+                    // if off-diagonal or in truth var, this ref loc isn't a sync point
+                    if (y.hi == ri && (
+                            in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][y.qri] = false;
+                    if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][ query_ref_ptrs[i][PTRS][y.qri] ] = false;
 
                     // check for fp
                     bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                            ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
+                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                             ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
-                    if (path_scores[x.hi][x.qri][x.ti] + is_fp > 
-                            path_scores[z.hi][z.qri][z.ti]) {
-                        path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
-                        path_scores[z.hi][z.qri][z.ti] = 
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp >
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_MAT;
+                        path_scores[y.hi][y.qri][y.ti] = 
                             path_scores[x.hi][x.qri][x.ti] + is_fp;
-                        queue.push(z);
-                    } else if (path_scores[x.hi][x.qri][x.ti] + is_fp == 
-                            path_scores[z.hi][z.qri][z.ti]) {
-                        path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
+                        queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
                     }
 
                     if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
-                            z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                            ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
                             is_fp ? "Y" : "N");
                 }
 
-            } else { // QUERY -> REF SWAP mvmt
-                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
-                        (!(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
-                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
+
+                if (x.hi == ri) { // REF -> QUERY SWAP mvmt
+                    if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
+                            (!(ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
+                            x.qri > 0 && x.ti > 0) {
+
+                        // get next cell, add to path
+                        idx1 z = idx1(qi, ref_query_ptrs[i][PTRS][x.qri-1], x.ti-1);
+                        while (z.qri+1 < int(query_ref_ptrs[i][PTRS].size()) && 
+                                query_ref_ptrs[i][PTRS][z.qri] == 
+                                query_ref_ptrs[i][PTRS][z.qri+1]) z.qri++;
+                        aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+
+                        // check if mvmt is in variant
+                        bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                        in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                        bool in_query_var = (x.hi == ri) ? false : 
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                        // if off-diag or in truth var, this ref loc isn't a sync point
+                        if (!in_query_var && ( in_truth_var || 
+                                query_ref_ptrs[i][PTRS][z.qri] != truth_ref_ptrs[i][PTRS][z.ti]))
+                            ref_loc_sync[i][query_ref_ptrs[i][PTRS][z.qri]] = false;
+
+                        // check for fp
+                        bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                                ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
+                                ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+
+                        // update score
+                        if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] + is_fp > 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
+                            path_scores[z.hi][z.qri][z.ti] = 
+                                path_scores[x.hi][x.qri][x.ti] + is_fp;
+                            if (!contains(curr_wave, z)) curr_wave.insert(z);
+                            queue.push(z);
+                        } else if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
+                        }
+
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                                z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                                in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N",
+                                is_fp ? "Y" : "N");
+                    }
+
+                } else { // QUERY -> REF SWAP mvmt
+                    if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
+                            (!(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
+                            x.qri > 0 && x.ti > 0) {
+
+                        // add to path
+                        idx1 z = idx1(ri, query_ref_ptrs[i][PTRS][x.qri-1], x.ti-1);
+                        while (z.qri+1 < int(ref_query_ptrs[i][PTRS].size()) && 
+                                ref_query_ptrs[i][PTRS][z.qri] == 
+                                ref_query_ptrs[i][PTRS][z.qri+1]) z.qri++;
+                        aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+
+                        // check if mvmt is in variant
+                        bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                        in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                        bool in_query_var = (x.hi == ri) ? false : 
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                        // if off-diag or in truth var, this ref loc isn't a sync point
+                        if (in_truth_var || z.qri != truth_ref_ptrs[i][PTRS][z.ti])
+                            ref_loc_sync[i][z.qri] = false;
+
+                        // no need to check for FP since we were on QUERY, not REF
+
+                        // update score
+                        if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] > 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
+                            path_scores[z.hi][z.qri][z.ti] = 
+                                path_scores[x.hi][x.qri][x.ti];
+                            if (!contains(curr_wave, z)) curr_wave.insert(z);
+                            queue.push(z);
+                        } else if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] == 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
+                        }
+
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                                z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                                in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N");
+                    }
+                }
+
+            } // end of curr_wave, same score
+
+            for (idx1 x : curr_wave) done[x.hi][x.qri][x.ti] = true;
+            curr_wave.clear();
+            if (done[qi][0][0] || done[ri][0][0]) break;
+
+            for (idx1 x : prev_wave) {
+
+                // SUB movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SUB &&
                         x.qri > 0 && x.ti > 0) {
 
-                    // add to path
-                    idx1 z = idx1(ri, query_ref_ptrs[i][PTRS][x.qri-1], x.ti-1);
-                    while (z.qri+1 < int(ref_query_ptrs[i][PTRS].size()) && 
-                            ref_query_ptrs[i][PTRS][z.qri] == 
-                            ref_query_ptrs[i][PTRS][z.qri+1]) z.qri++;
-                    aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+                    // get next cell, add to path
+                    idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
 
                     // check if mvmt is in variant
                     bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
@@ -1095,33 +1037,130 @@ void calc_prec_recall_path(
                         query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
                     in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
 
-                    // if off-diag or in truth var, this ref loc isn't a sync point
-                    if (in_truth_var || z.qri != truth_ref_ptrs[i][PTRS][z.ti])
-                        ref_loc_sync[i][z.qri] = false;
+                    // if off-diagonal or in truth var, this ref loc isn't a sync point
+                    if (y.hi == ri && (
+                            in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][y.qri] = false;
+                    if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
 
-                    // no need to check for FP since we were on QUERY, not REF
+                    // check for fp
+                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
-                    if (path_scores[x.hi][x.qri][x.ti] > 
-                            path_scores[z.hi][z.qri][z.ti]) {
-                        path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
-                        path_scores[z.hi][z.qri][z.ti] = 
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp > 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_SUB;
+                        path_scores[y.hi][y.qri][y.ti] = 
+                            path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
+                        queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
+                    }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SUB",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                            is_fp ? "Y" : "N");
+                }
+
+                // INS movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_INS && x.qri > 0) {
+
+                    // get next cell, add to path
+                    idx1 y = idx1(x.hi, x.qri-1, x.ti);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                    // check if mvmt is in variant
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                    // if off-diagonal or in truth var, this ref loc isn't a sync point
+                    if (y.hi == ri && (
+                            in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][y.qri] = false;
+                    if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
+
+                    // check for fp
+                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+
+                    // update score
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp > 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_INS;
+                        path_scores[y.hi][y.qri][y.ti] = 
+                            path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
+                        queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
+                    }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "INS",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                            is_fp ? "Y" : "N");
+                }
+
+                // DEL movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_DEL && x.ti > 0) {
+
+                    // add to path
+                    idx1 y = idx1(x.hi, x.qri, x.ti-1);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+
+                    // no need to check for FP since we don't consume a REF/QUERY base
+                    
+                    // update score
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] > 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_DEL;
+                        path_scores[y.hi][y.qri][y.ti] = 
                             path_scores[x.hi][x.qri][x.ti];
-                        queue.push(z);
-                    } else if (path_scores[x.hi][x.qri][x.ti] == 
-                            path_scores[z.hi][z.qri][z.ti]) {
-                        path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
+                        queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
                     }
 
                     if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
-                            z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "DEL",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                            ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N");
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N");
                 }
-            }
 
-        } // queue is empty
+            } // done adding to next wave
+            prev_wave.clear();
+        }
 
         // set pointers
         if (aln_ptrs[ri][0][0] & PATH)
@@ -1755,7 +1794,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             );
 
             if (true) {
-                printf("\n\n");
+                printf("\n%s:%d\n", ctg.data(), sc->begs[sc_idx]);
                 printf("REF:       %s\n", ref_q1.data());
                 printf("QUERY1:    %s\n", query1.data());
                 printf("QUERY2:    %s\n", query2.data());
