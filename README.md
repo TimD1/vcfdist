@@ -45,7 +45,7 @@ journal = {bioRxiv}
 
 ## Installation
 
-vcfdist's only dependencies are a C++20 compliant compiler (`g++` will do the trick) and HTSlib. If you don't have HTSlib already, please set it up as follows:
+vcfdist's only dependencies are GCC v8+ and HTSlib. Please note that on Mac, `g++` is aliased to `clang`, which is currently not supported. If you don't have HTSlib already, please set it up as follows:
 ```bash
 > wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
 > tar -xvf htslib-1.17.tar.bz2

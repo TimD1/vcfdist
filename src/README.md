@@ -37,10 +37,10 @@ Options:
         integer Smith-Waterman gap extension penalty
 
     -v, --verbosity <VALUE> [0]
-        printing verbosity (0: default, 1: verbose, 2:debug, 3:verbose debug)
+        printing verbosity (0: default, 1: verbose, 2:debug)
 
     -r, --realign-only
-        realign truth/query VCFs with Smith-Waterman params, then exit
+        realign truth/query VCFs with Smith-Waterman parameters, then exit
 
     -h, --help
         show this help message
