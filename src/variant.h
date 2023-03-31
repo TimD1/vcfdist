@@ -50,7 +50,8 @@ class variantData {
 public:
     // constructors
     variantData();
-    variantData(std::string vcf_fn, std::shared_ptr<fastaData> reference);
+    variantData(std::string vcf_fn, 
+            std::shared_ptr<fastaData> reference, int callset);
 
     // functions
     void write_vcf(std::string vcf_fn);
@@ -65,6 +66,7 @@ public:
         int qual);
 
     // data
+    int callset;                     // 0=QUERY, 1=TRUTH
     std::string filename;
     std::string sample;
     std::vector<std::string> contigs;

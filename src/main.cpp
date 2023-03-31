@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 
     // parse, realign, and cluster query VCF
     std::unique_ptr<variantData> query_ptr(
-            new variantData(g.query_vcf_fn, ref_ptr));
+            new variantData(g.query_vcf_fn, ref_ptr, QUERY));
     query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
     if (!g.keep_query) {
         g.simple_cluster ? cluster(query_ptr) :
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
 
     // parse, realign, and cluster truth VCF
     std::unique_ptr<variantData> truth_ptr(
-            new variantData(g.truth_vcf_fn, ref_ptr));
+            new variantData(g.truth_vcf_fn, ref_ptr, TRUTH));
     truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
     if (!g.keep_truth) {
         g.simple_cluster ?  cluster(truth_ptr) :

@@ -88,8 +88,8 @@ superclusterData::superclusterData(
 
 
 void superclusterData::gap_supercluster() {
-    INFO(" ");
-    INFO("Superclustering truth and call variants across haplotypes");
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Superclustering truth and call variants across haplotypes");
 
     // iterate over each contig
     int total_superclusters = 0;
@@ -101,7 +101,7 @@ void superclusterData::gap_supercluster() {
         for (int i = 0; i < CALLSETS*HAPS; i++)
             nvars += this->ctg_superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
         if (nvars > 0) { 
-            INFO("  Contig '%s': %d variants", ctg.data(), nvars); 
+            if (g.verbosity >= 1) INFO("  Contig '%s': %d variants", ctg.data(), nvars); 
         } else { continue; }
 
         // for each cluster of variants (merge query and truth haps)
@@ -175,7 +175,7 @@ void superclusterData::gap_supercluster() {
             largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
 
             // debug print
-            if (g.verbosity >= 1) {
+            if (g.verbosity >= 2) {
                 printf("\nSUPERCLUSTER: %d\n", this->ctg_superclusters[ctg]->n);
                 printf("POS: %d-%d\n", beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
@@ -199,13 +199,13 @@ void superclusterData::gap_supercluster() {
             std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
         this->ctg_superclusters[ctg]->n--;
 
-        if (this->ctg_superclusters[ctg]->n)
+        if (this->ctg_superclusters[ctg]->n && g.verbosity >= 1)
             INFO("    %d superclusters", this->ctg_superclusters[ctg]->n);
         total_superclusters += this->ctg_superclusters[ctg]->n;
     }
-    INFO(" ");
-    INFO("  Total superclusters:  %d", total_superclusters);
-    INFO("  Largest supercluster: %d", largest_supercluster);
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Total superclusters:  %d", total_superclusters);
+    if (g.verbosity >= 1) INFO("  Largest supercluster: %d", largest_supercluster);
 }
 
 
@@ -237,20 +237,20 @@ void update_quals(std::unique_ptr<variantData> & vcf) {
 
 void cluster(std::unique_ptr<variantData> & vcf) {
     /* Add single-VCF cluster indices to `variantData` */
-    INFO(" ");
-    INFO("Gap Clustering VCF '%s'", vcf->filename.data());
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Gap Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
 
         // only print for non-empty contigs
         if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n)
-            INFO("  Contig '%s'", ctg.data());
+            if (g.verbosity >= 1) INFO("  Contig '%s'", ctg.data());
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
             int nvar = vcf->ctg_variants[hap][ctg]->n;
-            if (nvar) INFO("    Haplotype %d", hap+1);
+            if (nvar && g.verbosity >= 1) INFO("    Haplotype %d", hap+1);
             int prev_end = -g.cluster_min_gap * 2;
             int pos = 0;
             int end = 0;
@@ -263,7 +263,7 @@ void cluster(std::unique_ptr<variantData> & vcf) {
                 prev_end = std::max(prev_end, end);
             }
             vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
-            if (nvar) INFO("      %d resulting clusters.", 
+            if (nvar && g.verbosity >= 1) INFO("      %d resulting clusters.", 
                     int(vcf->ctg_variants[hap][ctg]->clusters.size()-1));
         }
     }
@@ -277,15 +277,15 @@ void cluster(std::unique_ptr<variantData> & vcf) {
  * all variant calls are true positives (doesn't allow skipping)
  */
 void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int extend) {
-    INFO(" ");
-    INFO("SW Clustering VCF '%s'", vcf->filename.data());
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("SW Clustering VCF '%s'", vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
 
         // only print for non-empty contigs
         if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n) {
-            INFO("  Contig '%s'", ctg.data());
+            if (g.verbosity >= 1) INFO("  Contig '%s'", ctg.data());
         } else { continue; }
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
@@ -293,7 +293,9 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
 
             // init: each variant is its own cluster
             int nvar = vcf->ctg_variants[hap][ctg]->n;
-            if (nvar) { INFO("    Haplotype %d", hap+1); }
+            if (nvar) { 
+                if (g.verbosity >= 1) INFO("    Haplotype %d", hap+1); 
+            }
             else { continue; }
             std::vector<int> prev_clusters(nvar+1);
             for (int i = 0; i < nvar+1; i++) prev_clusters[i] = i;
@@ -317,7 +319,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                 for (size_t i = 0; i < prev_merged.size()-1; i++) {
                     if (prev_merged[i]) active++;
                 }
-                if (g.verbosity >= 1)
+                if (g.verbosity >= 2)
                     INFO("      Iteration %d: %d clusters, %d active",
                         iter, int(prev_clusters.size()-1), active);
 
@@ -552,7 +554,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
             // save final clustering
             vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
 
-            if (nvar) INFO("      %d resulting clusters.", int(prev_clusters.size()-1));
+            if (nvar && g.verbosity >= 1) INFO("      %d resulting clusters.", int(prev_clusters.size()-1));
         }
     }
 }

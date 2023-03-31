@@ -344,7 +344,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
     // write results
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
-    INFO("  Printing precision-recall results to '%s'", out_pr_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing precision-recall results to '%s'", out_pr_fn.data());
     FILE* out_pr = fopen(out_pr_fn.data(), "w");
     fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
             "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_PP\tQUERY_FP\n");
@@ -407,9 +407,11 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
     // print summary output
     std::string out_pr_summ_fn = g.out_prefix + "precision-recall-summary.tsv";
-    INFO("  Printing precision-recall summary to '%s'", out_pr_summ_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing precision-recall summary to '%s'", out_pr_summ_fn.data());
     FILE* out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
     fprintf(out_pr_summ, "VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
+    INFO(" ");
+    INFO("PRECISION-RECALL SUMMARY");
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         INFO(" ");
@@ -485,7 +487,7 @@ void write_distance(const editData & edits) {
     FILE* out_dists = fopen(dist_fn.data(), "w");
     fprintf(out_dists, "MIN_QUAL\tSUB_DE\tINS_DE\tDEL_DE\tSUB_ED\tINS_ED\tDEL_ED\t"
             "DISTINCT_EDITS\tEDIT_DIST\tALN_SCORE\tALN_QSCORE\n");
-    INFO("  Printing distance results to '%s'", dist_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing distance results to '%s'", dist_fn.data());
 
     // get original scores / distance (above g.max_qual, no vars applied)
     std::vector<int> orig_edit_dists(TYPES, 0);
@@ -527,8 +529,10 @@ void write_distance(const editData & edits) {
     // summarize distance results
     std::string dist_summ_fn = g.out_prefix + "distance-summary.tsv";
     FILE* dists_summ = fopen(dist_summ_fn.data(), "w");
-    INFO("  Printing distance summary to '%s'", dist_summ_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing distance summary to '%s'", dist_summ_fn.data());
     fprintf(dists_summ, "VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
+    INFO(" ");
+    INFO("ALIGNMENT DISTANCE SUMMARY");
     for (int type = 0; type < TYPES; type++) {
 
         // skip INS/DEL individually unless higher print verbosity
@@ -579,8 +583,8 @@ void write_distance(const editData & edits) {
 void write_results(
         std::unique_ptr<phaseData> & phasedata_ptr, 
         const editData & edits) {
-    INFO(" ");
-    INFO("Writing results");
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Writing results");
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
@@ -592,7 +596,7 @@ void write_results(
     std::string edit_fn = g.out_prefix + "edits.tsv";
     FILE* out_edits = fopen(edit_fn.data(), "w");
     fprintf(out_edits, "CONTIG\tSTART\tHAP\tTYPE\tSIZE\tSUPERCLUSTER\tQUAL\n");
-    INFO("  Printing edit results to '%s'", edit_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing edit results to '%s'", edit_fn.data());
     for (int i = 0; i < edits.n; i++) {
         fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\n", 
                 edits.ctgs[i].data(), edits.poss[i], edits.haps[i],
@@ -604,7 +608,7 @@ void write_results(
     // print phasing information
     std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
-    INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
         ctgPhasings ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
@@ -623,7 +627,7 @@ void write_results(
     // print clustering information
     std::string out_clusterings_fn = g.out_prefix + "superclusters.tsv";
     FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
-    INFO("  Printing superclustering results to '%s'", out_clusterings_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing superclustering results to '%s'", out_clusterings_fn.data());
     fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
             "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
@@ -677,7 +681,7 @@ void write_results(
 
     // print query variant information
     std::string out_query_fn = g.out_prefix + "query.tsv";
-    INFO("  Printing call variant results to '%s'", out_query_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing call variant results to '%s'", out_query_fn.data());
     FILE* out_query = fopen(out_query_fn.data(), "w");
     fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
             "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
@@ -753,7 +757,7 @@ void write_results(
     
     //print truth variant information
     std::string out_truth_fn = g.out_prefix + "truth.tsv";
-    INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
+    if (g.verbosity >= 1) INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
     fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
     for (auto ctg_name : phasedata_ptr->contigs) {

@@ -231,14 +231,20 @@ void variantData::add_variants(
 
 variantData::variantData() : ctg_variants(2) { ; }
 
-variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> reference) : ctg_variants(2) {
+variantData::variantData(std::string vcf_fn, 
+        std::shared_ptr<fastaData> reference, 
+        int callset) : ctg_variants(2) {
 
     // set reference fasta pointer
     this->ref = reference;
     this->filename = vcf_fn;
 
-    INFO(" ");
-    INFO("Parsing VCF '%s'", vcf_fn.data());
+    if (callset < 0 || callset >= CALLSETS)
+        ERROR("Invalid callset (%d).", callset);
+    this->callset = callset;
+
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Parsing VCF '%s'", vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
     // counters
@@ -401,14 +407,16 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
         }
         if ( ngq == -3 ) {
             if (!gq_warn) {
-                WARN("No GQ tag at %s:%li", seq.data(), rec->pos);
+                WARN("No GQ tag in %s VCF at %s:%li",
+                        callset_strs[callset].data(), seq.data(), rec->pos);
                 gq_warn = true; // only warn once
             }
             gq[0] = 0;
         }
         ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
         if (ngt < 0) {
-            ERROR("Failed to read GT at %s:%li\n", seq.data(), rec->pos);
+            ERROR("Failed to read %s GT at %s:%li\n", 
+                    callset_strs[callset].data(), seq.data(), rec->pos);
         }
 
         // parse genotype info
@@ -493,7 +501,8 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             // skip overlapping variants
             if (prev_end[hap] > pos) { // warn if overlap
                 if (g.verbosity >= 1) {
-                    WARN("VCF variant overlap at %s:%i, skipping", seq.data(), pos);
+                    WARN("%s VCF variant overlap at %s:%i, skipping", 
+                            callset_strs[callset].data(), seq.data(), pos);
                 }
                 total_overlaps++;
                 continue;
@@ -549,41 +558,42 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
     }
 
     if (total_overlaps)
-        WARN("%d total VCF variant overlaps skipped", total_overlaps);
-
-    INFO("  Contigs:");
-    for (size_t i = 0; i < this->contigs.size(); i++) {
-        INFO("    [%2lu] %s", i, this->contigs[i].data());
-    }
-    INFO(" ");
-
-    INFO("  Genotypes:");
-    for (size_t i = 0; i < gt_strs.size(); i++) {
-        INFO("    %s  %i", gt_strs[i].data(), ngts[i]);
-    }
-    INFO(" ");
-
-    INFO("  Variant exceeds Min Qual (%d):", g.min_qual);
-    INFO("    FAIL  %d", pass_min_qual[FAIL]);
-    INFO("    PASS  %d", pass_min_qual[PASS]);
-    INFO(" ");
-
-    INFO("  Variants in BED Regions:");
-    for (size_t i = 0; i < region_strs.size(); i++) {
-        INFO("  %s  %i", region_strs[i].data(), nregions[i]);
-    }
-    INFO(" ");
-
-    INFO("  Variant Types:");
-    for (int h = 0; h < HAPS; h++) {
-        INFO("    Haplotype %i", h+1);
-        for (size_t i = 0; i < type_strs.size(); i++) {
-            INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
-        }
-    }
-    INFO(" ");
+        WARN("%d total overlapping %s VCF variant calls skipped", 
+                total_overlaps, callset_strs[callset].data());
 
     if (g.verbosity >= 1) {
+        INFO("  Contigs:");
+        for (size_t i = 0; i < this->contigs.size(); i++) {
+            INFO("    [%2lu] %s", i, this->contigs[i].data());
+        }
+        INFO(" ");
+
+        INFO("  Genotypes:");
+        for (size_t i = 0; i < gt_strs.size(); i++) {
+            INFO("    %s  %i", gt_strs[i].data(), ngts[i]);
+        }
+        INFO(" ");
+
+        INFO("  Variant exceeds Min Qual (%d):", g.min_qual);
+        INFO("    FAIL  %d", pass_min_qual[FAIL]);
+        INFO("    PASS  %d", pass_min_qual[PASS]);
+        INFO(" ");
+
+        INFO("  Variants in BED Regions:");
+        for (size_t i = 0; i < region_strs.size(); i++) {
+            INFO("  %s  %i", region_strs[i].data(), nregions[i]);
+        }
+        INFO(" ");
+
+        INFO("  Variant Types:");
+        for (int h = 0; h < HAPS; h++) {
+            INFO("    Haplotype %i", h+1);
+            for (size_t i = 0; i < type_strs.size(); i++) {
+                INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
+            }
+        }
+        INFO(" ");
+
         INFO("  Contigs:");
         for (std::string ctg : this->contigs) {
             for (int h = 0; h < HAPS; h++) {
@@ -596,13 +606,13 @@ variantData::variantData(std::string vcf_fn, std::shared_ptr<fastaData> referenc
             }
         }
         INFO(" ");
-    }
 
-    INFO("  VCF Overview:");
-    INFO("    VARIANTS  %d", n);
-    INFO("    KEPT HAP1 %d", npass[HAP1]);
-    INFO("    KEPT HAP2 %d", npass[HAP2]);
-    INFO(" ");
+        INFO("  VCF Overview:");
+        INFO("    VARIANTS  %d", n);
+        INFO("    KEPT HAP1 %d", npass[HAP1]);
+        INFO("    KEPT HAP2 %d", npass[HAP2]);
+        INFO(" ");
+    }
 
     free(gq);
     free(fgq);

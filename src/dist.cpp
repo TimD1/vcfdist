@@ -324,9 +324,9 @@ variantData edit_dist_realign(
             } // cluster
         } // contig
     } // hap
-    INFO("Edit distance reduced from %d to %d.", old_edits, new_edits);
-    INFO("OLD: SUBs=%d  INSs=%d  DELs=%d  Total=%d", old_subs, old_inss, old_dels, old_edits);
-    INFO("NEW: SUBs=%d  INSs=%d  DELs=%d  Total=%d", new_subs, new_inss, new_dels, new_edits);
+    if (g.verbosity >= 1) INFO("Edit distance reduced from %d to %d.", old_edits, new_edits);
+    if (g.verbosity >= 1) INFO("OLD: SUBs=%d  INSs=%d  DELs=%d  Total=%d", old_subs, old_inss, old_dels, old_edits);
+    if (g.verbosity >= 1) INFO("NEW: SUBs=%d  INSs=%d  DELs=%d  Total=%d", new_subs, new_inss, new_dels, new_edits);
 
     return results;
 
@@ -1180,7 +1180,7 @@ void calc_prec_recall_path(
     // get path and sync points
     get_prec_recall_path_sync(path, sync, edits, aln_ptrs, path_ptrs, ref_loc_sync,
             query1_ref_ptrs, ref_query1_ptrs, query2_ref_ptrs, ref_query2_ptrs,
-            truth1_ref_ptrs, truth2_ref_ptrs, pr_query_ref_beg, true
+            truth1_ref_ptrs, truth2_ref_ptrs, pr_query_ref_beg, print
     );
 
 }
@@ -1219,11 +1219,11 @@ void get_prec_recall_path_sync(
 
         if (print) printf("Alignment %s:\n", aln_strs[i].data());
 
-        printf("REF LOC SYNC:");
+        if (print) printf("REF LOC SYNC:");
         for(int j = 0; j < int(ref_loc_sync[i].size()); j++) {
-            printf(ref_loc_sync[i][j] ? "=" : "X");
+            if (print) printf(ref_loc_sync[i][j] ? "=" : "X");
         }
-        printf("\n");
+        if (print) printf("\n");
 
         // init
         int qi = i*2 + QUERY;
@@ -1733,8 +1733,8 @@ void calc_edit_dist_aln(
 
 
 editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
-    INFO(" ");
-    INFO("Calculating precision/recall and distance metrics");
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Calculating precision/recall and distance metrics");
 
     // +2 since it's inclusive, but then also needs to include one quality higher
     // which doesn't contain any variants (to get draft reference edit dist)
@@ -1742,7 +1742,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     editData edits;
     for (std::string ctg : clusterdata_ptr->contigs) {
         std::vector<int> ctg_qual_dists(g.max_qual+2,0);
-        if (clusterdata_ptr->ctg_superclusters[ctg]->n)
+        if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
             INFO("  Contig '%s'", ctg.data())
 
         // set superclusters pointer
@@ -1793,7 +1793,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            if (true) {
+            if (g.verbosity >= 2) {
                 printf("\n%s:%d\n", ctg.data(), sc->begs[sc_idx]);
                 printf("REF:       %s\n", ref_q1.data());
                 printf("QUERY1:    %s\n", query1.data());
@@ -1850,7 +1850,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_query_ref_end, phase, true);
+                    aln_query_ref_end, phase, false);
 
 
             /////////////////////////////////////////////////////////////////////
@@ -1919,7 +1919,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             /////////////////////////////////////////////////////////////////////
             // DEBUG PRINTING                                                    
             /////////////////////////////////////////////////////////////////////
-            if (g.verbosity >= 1) {
+            if (g.verbosity >= 2) {
                 // print cluster info
                 printf("\n\nSupercluster: %d\n", sc_idx);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -1952,12 +1952,12 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             } // debug print
 
         } // each cluster
-        if (clusterdata_ptr->ctg_superclusters[ctg]->n)
+        if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
             INFO("    %d edits", 
                 *std::min_element(ctg_qual_dists.begin(), ctg_qual_dists.end()));
     } // each contig
-    INFO(" ");
-    INFO("  Total edit distance: %d", 
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Total edit distance: %d", 
                 *std::min_element(all_qual_dists.begin(), all_qual_dists.end()));
     return edits;
 }
@@ -2195,8 +2195,8 @@ std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend, bool print) {
-    INFO(" ");
-    INFO("Realigning VCF '%s'", vcf->filename.data());
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Realigning VCF '%s'", vcf->filename.data());
 
     // copy vcf header data over to results vcf
     std::unique_ptr<variantData> results(new variantData());
@@ -2209,7 +2209,7 @@ std::unique_ptr<variantData> sw_realign(
             std::string ctg = itr->first;
             std::shared_ptr<ctgVariants> vars = itr->second;
             if (vars->poss.size() == 0) continue;
-            INFO("  Haplotype %d Contig %s", hap+1, ctg.data());
+            if (g.verbosity >= 1) INFO("  Haplotype %d Contig %s", hap+1, ctg.data());
 
             // realign each cluster of variants
             for (int cluster = 0; cluster < int(vars->clusters.size()-1); cluster++) {

@@ -53,7 +53,7 @@ void Globals::parse_args(int argc, char ** argv) {
 
     // load reference FASTA
     this->ref_fasta_fn = std::string(argv[3]);
-    INFO("Loading reference FASTA '%s'", ref_fasta_fn.data());
+    if (g.verbosity >= 1) INFO("Loading reference FASTA '%s'", ref_fasta_fn.data());
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
         ERROR("Failed to open reference FASTA file '%s'", ref_fasta_fn.data());
@@ -130,8 +130,8 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid printing verbosity provided");
             }
-            if (this->verbosity < 0 || this->verbosity > 3) {
-                ERROR("Printing verbosity %d not a valid option (0,1,2,3)", 
+            if (this->verbosity < 0 || this->verbosity > 2) {
+                ERROR("Printing verbosity %d not a valid option (0,1,2)", 
                         this->verbosity);
             }
 /*******************************************************************************/
@@ -447,7 +447,7 @@ void Globals::parse_args(int argc, char ** argv) {
         std::string cmd = "";
         for (int i = 0; i < argc; i++)
             cmd += " " + std::string(argv[i]);
-        INFO("Command: '%s'", cmd.data()+1);
+        if (g.verbosity >= 1) INFO("Command: '%s'", cmd.data()+1);
     }
 }
 
@@ -496,10 +496,10 @@ void Globals::print_usage() const
     printf("      integer Smith-Waterman gap extension penalty\n\n");
 
     printf("  -v, --verbosity <VALUE> [%d]\n", g.verbosity);
-    printf("      printing verbosity (0: default, 1: verbose, 2:debug, 3:verbose debug)\n\n");
+    printf("      printing verbosity (0: default, 1: verbose, 2:debug)\n\n");
 
     printf("  -r, --realign-only\n");
-    printf("      realign truth/query VCFs with Smith-Waterman params, then exit\n\n");
+    printf("      realign truth/query VCFs with Smith-Waterman parameters, then exit\n\n");
 
     printf("  -h, --help\n");
     printf("      show this help message\n\n");

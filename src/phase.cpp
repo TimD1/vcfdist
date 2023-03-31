@@ -31,15 +31,15 @@ phaseData::phaseData(std::shared_ptr<superclusterData> clusterdata_ptr)
 
 void phaseData::phase()
 {
-    INFO(" ");
-    INFO("Phasing superclusters");
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Phasing superclusters");
     // phase each contig separately
     for (auto ctg : this->contigs) {
         std::vector< std::vector<int> > 
             mat(2, std::vector<int>(this->ctg_phasings[ctg].n+1));
         std::vector< std::vector<int> > 
             ptrs(2, std::vector<int>(this->ctg_phasings[ctg].n));
-        if (this->ctg_phasings[ctg].n)
+        if (this->ctg_phasings[ctg].n && g.verbosity >= 1)
             INFO("  Contig '%s'", ctg.data());
 
         // forward pass
@@ -94,7 +94,7 @@ void phaseData::phase()
             std::reverse(this->ctg_phasings[ctg].phase_blocks.begin(),
                     this->ctg_phasings[ctg].phase_blocks.end());
         }
-        if (this->ctg_phasings[ctg].n)
+        if (this->ctg_phasings[ctg].n && g.verbosity >= 1)
             INFO("    %d switch errors", this->ctg_phasings[ctg].nswitches);
     }
     
@@ -119,7 +119,7 @@ void phaseData::phase()
             printf("\033[0m\n");
         }
 
-        if (g.verbosity >= 1) {
+        if (g.verbosity >= 2) {
             printf("Contig '%s' phase block cluster indices: ", ctg.data());
             for(int i = 0; i < this->ctg_phasings[ctg].nswitches; i++)
                 printf("%d ", this->ctg_phasings[ctg].phase_blocks[i]);
@@ -127,6 +127,6 @@ void phaseData::phase()
         }
         switch_errors += this->ctg_phasings[ctg].nswitches;
     }
-    INFO(" ");
-    INFO("  Total switch errors: %d", switch_errors);
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Total switch errors: %d", switch_errors);
 }
