@@ -180,7 +180,7 @@ void variantData::add_variants(
         int indel_len = 0;
         switch (cigar[cig_idx]) {
 
-            case PTR_DIAG: // no variant, update pointers
+            case PTR_MAT: // no variant, update pointers
                 cig_idx += 2;
                 ref_idx++;
                 query_idx++;

@@ -64,8 +64,7 @@ variantData edit_dist_realign(
                         case TYPE_SUB: old_subs_cluster++; break;
                         case TYPE_INS: old_inss_cluster += vars->alts[var].size(); break;
                         case TYPE_DEL: old_dels_cluster += vars->refs[var].size(); break;
-                        default: ERROR("unexpected variant type (%i)", vars->types[var]) 
-                                 std::exit(1); break;
+                        default: ERROR("Unexpected variant type (%i)", vars->types[var]);
                     }
                 }
 
@@ -93,14 +92,8 @@ variantData edit_dist_realign(
                                 ref_out_str += RED(vars->refs[var]) + " ";
                                 ref_pos++;
                                 break;
-                            case TYPE_CPX:
-                                alt_str += vars->alts[var];
-                                alt_out_str += std::string(vars->refs[var].size(), ' ') 
-                                    + GREEN(vars->alts[var]);
-                                ref_out_str += RED(vars->refs[var]) + std::string(
-                                        vars->alts[var].size(), ' ');
-                                ref_pos += vars->refs[var].size();
-                                break;
+                            default: 
+                                ERROR("Unexpected variant type (%i)", vars->types[var]);
                         }
                         var++; // next variant
                     }
@@ -111,7 +104,7 @@ variantData edit_dist_realign(
                             alt_out_str += ref->fasta.at(ctg)[ref_pos];
                             ref_pos++;
                         } catch (const std::out_of_range & e) {
-                            ERROR("contig %s not present in reference FASTA (edit_dist_realign)",
+                            ERROR("Contig '%s' not present in reference FASTA (edit_dist_realign)",
                                     ctg.data());
                             exit(1);
                         }
@@ -128,7 +121,7 @@ variantData edit_dist_realign(
                 std::queue<idx2> curr_q, next_q;
 
                 // init
-                ptrs[0][0] = PTR_DIAG;
+                ptrs[0][0] = PTR_MAT;
                 done[0][0] = true;
 
                 // set first diag (wavefront)
@@ -136,7 +129,7 @@ variantData edit_dist_realign(
                 for(int n = 1; n < std::min(ref_len, alt_len); n++) {
                     if (ref_str[n] == alt_str[n]) {
                         curr_q.push({n,n});
-                        ptrs[n][n] = PTR_DIAG;
+                        ptrs[n][n] = PTR_MAT;
                         done[n][n] = true;
                     } else  {
                         break;
@@ -151,7 +144,7 @@ variantData edit_dist_realign(
 
                         // get current cell
                         idx2 cell = curr_q.front(); curr_q.pop();
-                        int alt_idx = cell.ci;
+                        int alt_idx = cell.qi;
                         int ref_idx = cell.ri;
 
                         // expand diagonal sub, then diagonally
@@ -165,7 +158,7 @@ variantData edit_dist_realign(
                                     !done[alt_idx+1+off][ref_idx+1+off] &&
                                     alt_str[alt_idx+1+off] == ref_str[ref_idx+1+off]) {
                                 next_q.push({alt_idx+1+off, ref_idx+1+off});
-                                ptrs[alt_idx+1+off][ref_idx+1+off] |= PTR_DIAG;
+                                ptrs[alt_idx+1+off][ref_idx+1+off] |= PTR_MAT;
                                 off++;
                             }
                         }
@@ -173,14 +166,14 @@ variantData edit_dist_realign(
                         // expand down, then diagonally
                         if (alt_idx+1 < alt_len && !done[alt_idx+1][ref_idx]) {
                             next_q.push({alt_idx+1, ref_idx});
-                            ptrs[alt_idx+1][ref_idx] |= PTR_UP;
+                            ptrs[alt_idx+1][ref_idx] |= PTR_INS;
                             int off = 1;
                             while (alt_idx+1+off < alt_len && 
                                     ref_idx+off < ref_len && 
                                     !done[alt_idx+1+off][ref_idx+off] &&
                                     alt_str[alt_idx+1+off] == ref_str[ref_idx+off]) {
                                 next_q.push({alt_idx+1+off, ref_idx+off});
-                                ptrs[alt_idx+1+off][ref_idx+off] |= PTR_DIAG;
+                                ptrs[alt_idx+1+off][ref_idx+off] |= PTR_MAT;
                                 off++;
                             }
                         }
@@ -188,14 +181,14 @@ variantData edit_dist_realign(
                         // expand right, then diagonally
                         if (ref_idx+1 < ref_len && !done[alt_idx][ref_idx+1]) {
                             next_q.push({alt_idx, ref_idx+1});
-                            ptrs[alt_idx][ref_idx+1] |= PTR_LEFT;
+                            ptrs[alt_idx][ref_idx+1] |= PTR_DEL;
                             int off = 1;
                             while (alt_idx+off < alt_len && 
                                     ref_idx+1+off < ref_len && 
                                     !done[alt_idx+off][ref_idx+1+off] &&
                                     alt_str[alt_idx+off] == ref_str[ref_idx+1+off]) {
                                 next_q.push({alt_idx+off, ref_idx+1+off});
-                                ptrs[alt_idx+off][ref_idx+1+off] |= PTR_DIAG;
+                                ptrs[alt_idx+off][ref_idx+1+off] |= PTR_MAT;
                                 off++;
                             }
                         }
@@ -206,7 +199,7 @@ variantData edit_dist_realign(
 
                         // get current cell
                         idx2 cell = next_q.front(); next_q.pop();
-                        int alt_idx = cell.ci;
+                        int alt_idx = cell.qi;
                         int ref_idx = cell.ri;
 
                         if (!done[alt_idx][ref_idx]) {
@@ -230,20 +223,20 @@ variantData edit_dist_realign(
                 int cig_ptr = cig.size()-1;
                 while (alt_idx >= 0 || ref_idx >= 0) {
                     ptrs[alt_idx][ref_idx] |= PTR_LPATH; // color print path
-                    if (ptrs[alt_idx][ref_idx] & PTR_DIAG) {
+                    if (ptrs[alt_idx][ref_idx] & PTR_MAT) {
                         ref_idx--; alt_idx--;
-                        cig[cig_ptr--] = PTR_DIAG;
-                        cig[cig_ptr--] = PTR_DIAG;
+                        cig[cig_ptr--] = PTR_MAT;
+                        cig[cig_ptr--] = PTR_MAT;
                     } else if (ptrs[alt_idx][ref_idx] & PTR_SUB) {
                         ref_idx--; alt_idx--; new_subs_cluster++;
                         cig[cig_ptr--] = PTR_SUB;
                         cig[cig_ptr--] = PTR_SUB;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_LEFT) {
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_DEL) {
                         ref_idx--; new_dels_cluster++;
-                        cig[cig_ptr--] = PTR_LEFT;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_UP) {
+                        cig[cig_ptr--] = PTR_DEL;
+                    } else if (ptrs[alt_idx][ref_idx] & PTR_INS) {
                         alt_idx--; new_inss_cluster++;
-                        cig[cig_ptr--] = PTR_UP;
+                        cig[cig_ptr--] = PTR_INS;
                     } else {
                         ERROR("no pointer during backtrack at (%d,%d)", alt_idx, ref_idx);
                     }
@@ -281,7 +274,7 @@ variantData edit_dist_realign(
                     int indel_len = 0;
                     switch (cig[cig_idx]) {
 
-                        case PTR_DIAG: // no variant, update pointers
+                        case PTR_MAT: // no variant, update pointers
                             cig_idx += 2;
                             ref_idx++;
                             alt_idx++;
@@ -297,11 +290,11 @@ variantData edit_dist_realign(
                             alt_idx++;
                             break;
 
-                        case PTR_LEFT: // deletion
+                        case PTR_DEL: // deletion
                             cig_idx++; indel_len++;
 
                             // multi-base deletion
-                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_LEFT) {
+                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_DEL) {
                                 cig_idx++; indel_len++;
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
@@ -311,11 +304,11 @@ variantData edit_dist_realign(
                             ref_idx += indel_len;
                             break;
 
-                        case PTR_UP: // insertion
+                        case PTR_INS: // insertion
                             cig_idx++; indel_len++;
 
                             // multi-base insertion
-                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_UP) {
+                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_INS) {
                                 cig_idx++; indel_len++;
                             }
                             results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
@@ -344,21 +337,35 @@ variantData edit_dist_realign(
 
 
 /* Reverse two strings and their associated pointers for reverse alignment. */
-void reverse_ptrs_strs(std::string & query, std::string & ref,
-        std::vector<int> & query_ptrs, std::vector<int> & ref_ptrs) {
+void reverse_ptrs_strs(
+        std::string & query, std::string & ref,
+        std::vector< std::vector<int> > & query_ptrs, 
+        std::vector< std::vector<int> > & ref_ptrs) {
 
     // reverse strings and vectors
     std::reverse(query.begin(), query.end());
     std::reverse(ref.begin(), ref.end());
-    std::reverse(query_ptrs.begin(), query_ptrs.end());
-    std::reverse(ref_ptrs.begin(), ref_ptrs.end());
+    std::reverse(query_ptrs[PTRS].begin(), query_ptrs[PTRS].end());
+    std::reverse(query_ptrs[FLAGS].begin(), query_ptrs[FLAGS].end());
+    std::reverse(ref_ptrs[PTRS].begin(), ref_ptrs[PTRS].end());
+    std::reverse(ref_ptrs[FLAGS].begin(), ref_ptrs[FLAGS].end());
 
     // update pointers
-    for(int & ptr : query_ptrs) {
-        if (ptr >= 0) { ptr = ref.size()-1 - ptr; }
+    for (int & ptr : query_ptrs[PTRS]) { ptr = ref.size()-1 - ptr; }
+    for (int & ptr : ref_ptrs[PTRS]) { ptr = query.size()-1 - ptr; }
+    for (int & flags : query_ptrs[FLAGS]) { // flip beg/end if only one is set
+        if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
+            flags = PTR_VARIANT | PTR_VAR_END;
+        } else if (flags & PTR_VAR_END && !(flags & PTR_VAR_BEG)) {
+            flags = PTR_VARIANT | PTR_VAR_BEG;
+        }
     }
-    for(int & ptr : ref_ptrs) {
-        if (ptr >= 0) { ptr = query.size()-1 - ptr; }
+    for (int & flags : ref_ptrs[FLAGS]) { // flip beg/end if only one is set
+        if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
+            flags = PTR_VARIANT | PTR_VAR_END;
+        } else if (flags & PTR_VAR_END && !(flags & PTR_VAR_BEG)) {
+            flags = PTR_VARIANT | PTR_VAR_BEG;
+        }
     }
     return;
 }
@@ -370,7 +377,7 @@ void reverse_ptrs_strs(std::string & query, std::string & ref,
 /* Generate the new sequence by applying variants to the reference. */
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
-        std::shared_ptr<ctgVariants> vars, std::string ctg,
+        std::shared_ptr<ctgVariants> vars, const std::string & ctg,
         int var_idx, int end_idx, int beg_pos, int end_pos, int min_qual=0) {
 
     std::string str = "";
@@ -419,190 +426,100 @@ std::string generate_str(
 /******************************************************************************/
 
 
-/* For each position on hap1 and hap2, it generates pointers from one hap to the
- * other if both match the reference, or else -1. This method also generates the
- * strings for alignment, and the pretty-printing strings for debug output.
+/* For each position on hap1 and hap2, it generates pointers from the query to 
+ * the reference and vice versa, as well as the strings for alignment.
  */
 void generate_ptrs_strs(
-        std::string & hap1, std::string & hap2,          // actual strings 
-        std::vector<int> & hap1_ptrs, std::vector<int> & hap2_ptrs,
-        std::shared_ptr<ctgVariants> hap1_vars, std::shared_ptr<ctgVariants> hap2_vars,
-        size_t hap1_clust_beg_idx, size_t hap2_clust_beg_idx,
-        size_t hap1_clust_end_idx, size_t hap2_clust_end_idx,
-        int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, std::string ctg
+        std::string & query_str, std::string & ref_str,
+        std::vector< std::vector<int> > & query_ptrs, 
+        std::vector< std::vector<int> > & ref_ptrs,
+        std::shared_ptr<ctgVariants> query_vars,
+        size_t query_clust_beg_idx, size_t query_clust_end_idx,
+        int beg_pos, int end_pos, 
+        std::shared_ptr<fastaData> ref, const std::string & ctg
         ) {
 
-    // generate hap1 and hap2 strings and pointers
-    int hap1_var_idx = hap1_vars->clusters.size() ? hap1_vars->clusters[hap1_clust_beg_idx] : 0;
-    int hap2_var_idx = hap2_vars->clusters.size() ? hap2_vars->clusters[hap2_clust_beg_idx] : 0;
-    int hap1_end_idx = hap1_vars->clusters.size() ? hap1_vars->clusters[hap1_clust_end_idx] : 0;
-    int hap2_end_idx = hap2_vars->clusters.size() ? hap2_vars->clusters[hap2_clust_end_idx] : 0;
-    for (int hap1_ref_pos = beg_pos, hap2_ref_pos = beg_pos; 
-            hap1_ref_pos < end_pos || hap2_ref_pos < end_pos; ) {
+    // generate query and ref strings and pointers
+    query_ptrs.resize(PTR_DIMS);
+    ref_ptrs.resize(PTR_DIMS);
+    int query_var_idx = query_vars->clusters.size() ? 
+            query_vars->clusters[query_clust_beg_idx] : 0;
+    int query_end_idx = query_vars->clusters.size() ? 
+            query_vars->clusters[query_clust_end_idx] : 0;
+    for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
 
-        // CONSIDER TRUTH1 ONLY, PRIOR REFERENCE POSITION
-        if (hap1_ref_pos < hap2_ref_pos) {
-            if (hap1_var_idx < hap1_end_idx && 
-                    hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
-                switch (hap1_vars->types[hap1_var_idx]) {
-                    case TYPE_INS:
-                        hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        break;
-                    case TYPE_DEL:
-                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
-                        break;
-                    case TYPE_SUB:
-                        hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_ref_pos++;
-                        break;
-                    case TYPE_CPX:
-                        hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
-                        break;
-                }
-                hap1_var_idx++; // next variant
-            } else { // no hap1 variant, in hap2 variant
-                try {
-                    hap1 += ref->fasta.at(ctg)[hap1_ref_pos];
-                    hap1_ptrs.push_back(-1);
-                    hap1_ref_pos++;
-                } catch (const std::out_of_range & e) {
-                    ERROR("Contig %s not present in reference FASTA (generate_ptrs_strs1)",
-                            ctg.data());
-                    exit(1);
-                }
+        if (query_var_idx < query_end_idx && 
+                ref_pos == query_vars->poss[query_var_idx]) { // start query variant
+            switch (query_vars->types[query_var_idx]) {
+                case TYPE_INS:
+                    query_ptrs[PTRS].insert(query_ptrs[PTRS].end(), 
+                            query_vars->alts[query_var_idx].size(), ref_str.size()-1);
+                    query_ptrs[FLAGS].insert(query_ptrs[FLAGS].end(),
+                            query_vars->alts[query_var_idx].size(), PTR_VARIANT);
+                    query_ptrs[FLAGS][ query_ptrs[FLAGS].size()-1] |= PTR_VAR_END;
+                    query_ptrs[FLAGS][ query_ptrs[FLAGS].size() - 
+                        query_vars->alts[query_var_idx].size()] |= PTR_VAR_BEG;
+                    query_str += query_vars->alts[query_var_idx];
+                    break;
+                case TYPE_DEL:
+                    ref_ptrs[PTRS].insert(ref_ptrs[PTRS].end(),
+                            query_vars->refs[query_var_idx].size(), query_str.size()-1);
+                    ref_ptrs[FLAGS].insert(ref_ptrs[FLAGS].end(),
+                            query_vars->refs[query_var_idx].size(), PTR_VARIANT);
+                    ref_ptrs[FLAGS][ ref_ptrs[FLAGS].size()-1] |= PTR_VAR_END;
+                    ref_ptrs[FLAGS][ ref_ptrs[FLAGS].size() - 
+                        query_vars->refs[query_var_idx].size()] |= PTR_VAR_BEG;
+                    ref_str += query_vars->refs[query_var_idx];
+                    ref_pos += query_vars->refs[query_var_idx].size();
+                    break;
+                case TYPE_SUB:
+                    ref_ptrs[PTRS].push_back(query_str.size());
+                    ref_ptrs[FLAGS].push_back(PTR_VARIANT|PTR_VAR_BEG|PTR_VAR_END);
+                    query_ptrs[PTRS].push_back(ref_str.size());
+                    query_ptrs[FLAGS].push_back(PTR_VARIANT|PTR_VAR_BEG|PTR_VAR_END);
+                    ref_str += query_vars->refs[query_var_idx];
+                    query_str += query_vars->alts[query_var_idx];
+                    ref_pos++;
+                    break;
+                default:
+                    ERROR("Unexpected variant type '%d' in generate_ptrs_strs()",
+                            query_vars->types[query_var_idx]);
             }
-        }
+            query_var_idx++; // next variant
 
-        // CONSIDER TRUTH2 ONLY, PRIOR REFERENCE POSITION
-        else if (hap2_ref_pos < hap1_ref_pos) {
-            if (hap2_var_idx < hap2_end_idx && 
-                    hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
-                switch (hap2_vars->types[hap2_var_idx]) {
-                    case TYPE_INS:
-                        hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        break;
-                    case TYPE_DEL:
-                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
-                        break;
-                    case TYPE_SUB:
-                        hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_ref_pos++;
-                        break;
-                    case TYPE_CPX:
-                        hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
-                        break;
-                }
-                hap2_var_idx++; // next variant
-            } else { // match
-                try {
-                    hap2 += ref->fasta.at(ctg)[hap2_ref_pos];
-                    hap2_ptrs.push_back(-1);
-                    hap2_ref_pos++;
-                } catch (const std::out_of_range & e) {
-                    ERROR("Contig %s not present in reference FASTA (generate_ptrs_strs2)",
-                            ctg.data());
-                    exit(1);
-                }
-            }
-        }
+        } else { // add all matching ref bases
 
-        // REFERENCE POSITIONS MATCH! POTENTIAL TRANSITIONS
-        else {
-            bool hap1_var = false;
-            if (hap1_var_idx < hap1_end_idx && 
-                    hap1_ref_pos == hap1_vars->poss[hap1_var_idx]) { // in hap1 variant
-                hap1_var = true;
-                switch (hap1_vars->types[hap1_var_idx]) {
-                    case TYPE_INS:
-                        hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        break;
-                    case TYPE_DEL:
-                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
-                        break;
-                    case TYPE_SUB:
-                        hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_ref_pos++;
-                        break;
-                    case TYPE_CPX:
-                        hap1 += hap1_vars->alts[hap1_var_idx];
-                        hap1_ptrs.insert(hap1_ptrs.end(), hap1_vars->alts[hap1_var_idx].size(), -1);
-                        hap1_ref_pos += hap1_vars->refs[hap1_var_idx].size();
-                        break;
-                }
-                hap1_var_idx++; // next variant
-            } 
+            try {
+                // find next position w/o ref match (next var or end)
+                int ref_end = (query_var_idx < query_end_idx) ?
+                    query_vars->poss[query_var_idx] : end_pos;
 
-            bool hap2_var = false;
-            if (hap2_var_idx < hap2_end_idx && hap2_ref_pos == hap2_vars->poss[hap2_var_idx]) { // in hap2 variant
-                hap2_var = true;
-                switch (hap2_vars->types[hap2_var_idx]) {
-                    case TYPE_INS:
-                        hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        break;
-                    case TYPE_DEL:
-                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
-                        break;
-                    case TYPE_SUB:
-                        hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_ref_pos++;
-                        break;
-                    case TYPE_CPX:
-                        hap2 += hap2_vars->alts[hap2_var_idx];
-                        hap2_ptrs.insert(hap2_ptrs.end(), hap2_vars->alts[hap2_var_idx].size(), -1);
-                        hap2_ref_pos += hap2_vars->refs[hap2_var_idx].size();
-                        break;
-                }
-                hap2_var_idx++; // next variant
+                // add pointers, query
+                std::vector<int> new_query_ptrs(ref_end - ref_pos, 0);
+                query_ptrs[FLAGS].insert(query_ptrs[FLAGS].end(),
+                        new_query_ptrs.begin(), new_query_ptrs.end()); // zeros
+                for(size_t i = 0; i < new_query_ptrs.size(); i++)
+                    new_query_ptrs[i] = ref_str.size() + i;
+                query_ptrs[PTRS].insert(query_ptrs[PTRS].end(), 
+                        new_query_ptrs.begin(), new_query_ptrs.end());
 
-            } 
+                // add pointers, ref
+                std::vector<int> new_ref_ptrs(ref_end - ref_pos, 0);
+                ref_ptrs[FLAGS].insert(ref_ptrs[FLAGS].end(),
+                        new_ref_ptrs.begin(), new_ref_ptrs.end()); // zeros
+                for(size_t i = 0; i < new_ref_ptrs.size(); i++)
+                    new_ref_ptrs[i] = query_str.size() + i;
+                ref_ptrs[PTRS].insert(ref_ptrs[PTRS].end(), 
+                        new_ref_ptrs.begin(), new_ref_ptrs.end());
 
-            // BOTH MATCH REFERENCE, ADD POINTERS FOR TRANSITIONS
-            if (!hap1_var && !hap2_var) { // add pointers
-                try {
+                // add sequence, update positions
+                std::string matches = ref->fasta.at(ctg).substr(ref_pos, ref_end-ref_pos);
+                query_str += matches;
+                ref_str += matches;
+                ref_pos = ref_end;
 
-                    // find next position w/o ref match
-                    int hap1_next_var = (hap1_var_idx < hap1_end_idx) ?
-                        hap1_vars->poss[hap1_var_idx] : end_pos;
-                    int hap2_next_var = (hap2_var_idx < hap2_end_idx) ?
-                        hap2_vars->poss[hap2_var_idx] : end_pos;
-                    int ref_end = std::min(
-                            std::min(hap1_next_var, hap2_next_var), end_pos);
-
-                    // add pointers
-                    std::vector<int> new_hap1_ptrs(ref_end-hap1_ref_pos);
-                    for(size_t i = 0; i < new_hap1_ptrs.size(); i++)
-                        new_hap1_ptrs[i] = hap2.size() + i;
-                    hap1_ptrs.insert(hap1_ptrs.end(), 
-                            new_hap1_ptrs.begin(), new_hap1_ptrs.end());
-                    std::vector<int> new_hap2_ptrs(ref_end-hap2_ref_pos);
-                    for(size_t i = 0; i < new_hap2_ptrs.size(); i++)
-                        new_hap2_ptrs[i] = hap1.size() + i;
-                    hap2_ptrs.insert(hap2_ptrs.end(), 
-                            new_hap2_ptrs.begin(), new_hap2_ptrs.end());
-
-                    // add sequence, update positions
-                    hap1 += ref->fasta.at(ctg).substr(hap1_ref_pos, ref_end-hap1_ref_pos);
-                    hap2 += ref->fasta.at(ctg).substr(hap2_ref_pos, ref_end-hap2_ref_pos);
-                    hap1_ref_pos = ref_end;
-                    hap2_ref_pos = ref_end;
-
-                } catch (const std::out_of_range & e) {
-                    ERROR("Contig '%s' not present in reference FASTA (generate_ptrs_strs)",
-                            ctg.data());
-                    exit(1);
-                }
+            } catch (const std::out_of_range & e) {
+                ERROR("Contig '%s' not present in reference FASTA", ctg.data());
             }
         }
     }
@@ -611,27 +528,34 @@ void generate_ptrs_strs(
 
 /******************************************************************************/
 
-
+/* Calculate initial forward-pass alignment for truth and query strings, given
+ * pointers to/from reference. This function generates the pointer matrix, 
+ * scores for each alignment, and pointer to if alignment ends on QUERY/REF.
+ */
 void calc_prec_recall_aln(
-        std::string query1, std::string query2,
-        std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
+        const std::string & query1, const std::string & query2,
+        const std::string & truth1, const std::string & truth2, 
+        const std::string & ref,
+        const std::vector< std::vector<int> > & query1_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query1_ptrs,
+        const std::vector< std::vector<int> > & query2_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query2_ptrs,
+        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
+        const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
-        std::vector<int> & pr_query_ref_end
+        std::vector<int> & pr_query_ref_end, bool print
         ) {
     
     // set loop variables
     int ref_len = ref.size();
     std::vector<std::string> query {query1, query1, query2, query2};
     std::vector<std::string> truth {truth1, truth2, truth1, truth2};
-    std::vector< std::vector<int> > query_ref_ptrs {
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs {
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs {
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs {
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs {
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs {
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
     std::vector<int> query_lens = 
             {int(query1.size()), int(query1.size()), int(query2.size()), int(query2.size())};
@@ -642,181 +566,192 @@ void calc_prec_recall_aln(
 
     // for each combination of query and truth
     for (int i = 0; i < 4; i++) {
-        int ci = 2*i + QUERY; // query index (offs and ptrs)
-        int ri = 2*i + REF;   // ref index   (offs and ptrs)
+        int qi = 2*i + QUERY; // query index (ptrs)
+        int ri = 2*i + REF;   // ref index   (ptrs)
 
         // init full pointer/done matrices
         ptrs.push_back(std::vector< std::vector<int> >(query_lens[i], 
                 std::vector<int>(truth_lens[i], PTR_NONE)));
         ptrs.push_back(std::vector< std::vector<int> >(ref_len, 
                 std::vector<int>(truth_lens[i], PTR_NONE)));
-        ptrs[ci][0][0] = PTR_DIAG;
-
         done.push_back(std::vector< std::vector<bool> >(query_lens[i], 
                 std::vector<bool>(truth_lens[i], false)));
         done.push_back(std::vector< std::vector<bool> >(ref_len, 
                 std::vector<bool>(truth_lens[i], false)));
         
         // set first wavefront
-        std::queue<idx1> queue;
-        queue.push({ci, 0, 0});
-        ptrs[ci][0][0] |= PTR_DIAG;
-        done[ci][0][0] = true;
+        std::queue<idx1> queue; // still to be explored in this wave
+        queue.push({qi, 0, 0});
+        ptrs[qi][0][0] |= PTR_MAT;
+        done[qi][0][0] = true;
         queue.push({ri, 0, 0});
-        ptrs[ri][0][0] |= PTR_DIAG;
+        ptrs[ri][0][0] |= PTR_MAT;
         done[ri][0][0] = true;
 
         // continue looping until full alignment found
-        std::unordered_set<idx1> done_this_wave;
-        std::unordered_set<idx1> this_wave;
+        std::unordered_set<idx1> curr_wave; // everything explored this wave
+        std::unordered_set<idx1> prev_wave; // everything explored prev wave
+        /* if (print) printf("\nFWD %s aln: (%d|%d, %d|%d, %d)\n", aln_strs[i].data(), */ 
+        /*         qi, ri, query_lens[i], ref_len, truth_lens[i]); */
         while (true) {
-            /* printf("s = %d\n", s[i]); */
+            /* if (print) printf("  s = %d\n", s[i]); */
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
             // EXTEND WAVEFRONT (stay at same score)
             while (!queue.empty()) {
                 idx1 x = queue.front(); queue.pop();
-                /* printf("  x = (%d, %d, %d)\n", x.hi, x.cri, x.ti); */
-                this_wave.insert(x);
-                if (x.hi == ci) { // == QUERY
-                    // allow match
-                    if (x.cri+1 < query_lens[i] && x.ti+1 < truth_lens[i] &&
-                            query[i][x.cri+1] == truth[i][x.ti+1]) {
-                        if (!done[x.hi][x.cri+1][x.ti+1] && 
-                                !contains(done_this_wave, idx1(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
-                        }
-                        if (!done[x.hi][x.cri+1][x.ti+1]) {
-                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
+                /* if (print) printf("    x = (%s, %d, %d)\n", */ 
+                /*         (x.hi % 2) ? "REF  " : "QUERY", x.qri, x.ti); */
+                prev_wave.insert(x);
+                if (x.hi == qi) { // QUERY
+                    // allow match on query
+                    idx1 y(qi, x.qri+1, x.ti+1);
+                    if (y.qri < query_lens[i] && y.ti < truth_lens[i] &&
+                            query[i][y.qri] == truth[i][y.ti]) {
+                        if (!done[qi][y.qri][y.ti]) {
+                            if (!contains(curr_wave, y)) {
+                                queue.push(y); curr_wave.insert(y);
+                            }
+                            ptrs[qi][y.qri][y.ti] |= PTR_MAT;
                         }
                     }
-                    // allow phase swaps, outside query/truth variants
-                    if (query_ref_ptrs[i][x.cri] >= 0 && truth_ref_ptrs[i][x.ti] >= 0) {
-                        if (!done[ri][query_ref_ptrs[i][x.cri]][x.ti] &&
-                                !contains(done_this_wave, idx1(ri, query_ref_ptrs[i][x.cri], x.ti))) {
-                            queue.push(idx1(ri, 
-                                    query_ref_ptrs[i][x.cri], 
-                                    x.ti));
-                            done_this_wave.insert(idx1(ri, query_ref_ptrs[i][x.cri], x.ti));
-                        }
-                        if (!done[ri][query_ref_ptrs[i][x.cri]][x.ti]) {
-                            ptrs[ri][query_ref_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
+                    // allow match, swapping to reference
+                    idx1 z(ri, query_ref_ptrs[i][PTRS][x.qri]+1, x.ti+1);
+                    if ( (!(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_END) &&
+                         (!(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) ||
+                            truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_END)) {
+                        if (z.qri < ref_len && z.ti < truth_lens[i] &&
+                                ref[z.qri] == truth[i][z.ti]) {
+                            if (!done[ri][z.qri][z.ti]) {
+                                if (!contains(curr_wave, z)) {
+                                    queue.push(z); curr_wave.insert(z);
+                                }
+                                ptrs[ri][z.qri][z.ti] |= PTR_SWP_MAT;
+                            }
                         }
                     }
                 } else { // x.hi == ri == REF
                     // allow match
-                    if (x.cri+1 < ref_len && x.ti+1  < truth_lens[i] &&
-                            ref[x.cri+1] == truth[i][x.ti+1]) {
-                        if (!done[x.hi][x.cri+1][x.ti+1] &&
-                                !contains(done_this_wave, idx1(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
-                        }
-                        if (!done[x.hi][x.cri+1][x.ti+1]) {
-                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_DIAG;
+                    idx1 y(ri, x.qri+1, x.ti+1);
+                    if (y.qri < ref_len && y.ti < truth_lens[i] &&
+                            ref[y.qri] == truth[i][y.ti]) {
+                        if (!done[ri][y.qri][y.ti]) {
+                            if (!contains(curr_wave, y)) {
+                                queue.push(y); curr_wave.insert(y);
+                            }
+                            ptrs[ri][y.qri][y.ti] |= PTR_MAT;
                         }
                     }
-                    // allow phase swaps, outside query/truth variants
-                    if (ref_query_ptrs[i][x.cri] >= 0 && truth_ref_ptrs[i][x.ti] >= 0) {
-                        if (!done[ci][ref_query_ptrs[i][x.cri]][x.ti] &&
-                                !contains(this_wave, idx1(ci, ref_query_ptrs[i][x.cri], x.ti))) {
-                            queue.push(idx1(ci, 
-                                        ref_query_ptrs[i][x.cri], 
-                                        x.ti));
-                            done_this_wave.insert(idx1(ci, ref_query_ptrs[i][x.cri], x.ti));
-                        }
-                        if (!done[ci][ref_query_ptrs[i][x.cri]][x.ti]) {
-                            ptrs[ci][ref_query_ptrs[i][x.cri]][x.ti] |= PTR_SWAP;
+                    // allow match, swapping to query
+                    idx1 z(qi, ref_query_ptrs[i][PTRS][x.qri]+1, x.ti+1);
+                    if ( (!(ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_END) &&
+                         (!(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT) ||
+                            truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_END)) {
+                        if (z.qri < query_lens[i] && z.ti < truth_lens[i] &&
+                                query[i][z.qri] == truth[i][z.ti]) {
+                            if (!done[qi][z.qri][z.ti]) {
+                                if (!contains(curr_wave, z)) {
+                                    queue.push(z); curr_wave.insert(z);
+                                }
+                                ptrs[qi][z.qri][z.ti] |= PTR_SWP_MAT;
+                            }
                         }
                     }
                 }
             }
 
             // mark all cells visited this wave as done
-            for (auto x : done_this_wave) { done[x.hi][x.cri][x.ti] = true; }
-            done_this_wave.clear();
+            for (auto x : curr_wave) { done[x.hi][x.qri][x.ti] = true; }
+            curr_wave.clear();
 
             // exit if we're done aligning
-            if (done[ci][query_lens[i]-1][truth_lens[i]-1] ||
+            if (done[qi][query_lens[i]-1][truth_lens[i]-1] ||
                 done[ri][ref_len-1][truth_lens[i]-1]) break;
 
 
             // NEXT WAVEFRONT (increase score by one)
-            for (auto x : this_wave) {
-                if (x.hi == ci) { // QUERY
-                    if (x.cri+1 < query_lens[i]) { // INS
-                        if (!done[x.hi][x.cri+1][x.ti] && 
-                                !contains(done_this_wave,
-                                    idx1(x.hi, x.cri+1, x.ti))) {
-                            queue.push(idx1(x.hi, x.cri+1, x.ti));
-                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti));
+            for (auto x : prev_wave) {
+                if (x.hi == qi) { // QUERY
+                    if (x.qri+1 < query_lens[i]) { // INS
+                        if (!done[x.hi][x.qri+1][x.ti] && 
+                                !contains(curr_wave,
+                                    idx1(x.hi, x.qri+1, x.ti))) {
+                            queue.push(idx1(x.hi, x.qri+1, x.ti));
+                            curr_wave.insert(idx1(x.hi, x.qri+1, x.ti));
                         }
-                        if (!done[x.hi][x.cri+1][x.ti])
-                            ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
+                        if (!done[x.hi][x.qri+1][x.ti])
+                            ptrs[x.hi][x.qri+1][x.ti] |= PTR_INS;
                     }
                     if (x.ti+1 < truth_lens[i]) { // DEL
-                        if (!done[x.hi][x.cri][x.ti+1] &&
-                                !contains(done_this_wave,
-                                    idx1(x.hi, x.cri, x.ti+1))) {
-                            queue.push(idx1(x.hi, x.cri, x.ti+1));
-                            done_this_wave.insert(idx1(x.hi, x.cri, x.ti+1));
+                        if (!done[x.hi][x.qri][x.ti+1] &&
+                                !contains(curr_wave,
+                                    idx1(x.hi, x.qri, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.qri, x.ti+1));
+                            curr_wave.insert(idx1(x.hi, x.qri, x.ti+1));
                         }
-                        if (!done[x.hi][x.cri][x.ti+1])
-                            ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
+                        if (!done[x.hi][x.qri][x.ti+1])
+                            ptrs[x.hi][x.qri][x.ti+1] |= PTR_DEL;
                     }
-                    if (x.cri+1 < query_lens[i] && x.ti+1 < truth_lens[i]) { // SUB
-                        if (!done[x.hi][x.cri+1][x.ti+1] &&
-                                !contains(done_this_wave,
-                                    idx1(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
+                    if (x.qri+1 < query_lens[i] && x.ti+1 < truth_lens[i]) { // SUB
+                        if (!done[x.hi][x.qri+1][x.ti+1] &&
+                                !contains(curr_wave,
+                                    idx1(x.hi, x.qri+1, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.qri+1, x.ti+1));
+                            curr_wave.insert(idx1(x.hi, x.qri+1, x.ti+1));
                         }
-                        if (!done[x.hi][x.cri+1][x.ti+1])
-                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
+                        if (!done[x.hi][x.qri+1][x.ti+1])
+                            ptrs[x.hi][x.qri+1][x.ti+1] |= PTR_SUB;
                     }
                 } else { //x.hi == REF
-                    if (x.cri+1 < ref_len) { // INS
-                        if (!done[x.hi][x.cri+1][x.ti] &&
-                                !contains(done_this_wave,
-                                    idx1(x.hi, x.cri+1, x.ti))) {
-                            queue.push(idx1(x.hi, x.cri+1, x.ti));
-                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti));
+                    if (x.qri+1 < ref_len) { // INS
+                        if (!done[x.hi][x.qri+1][x.ti] &&
+                                !contains(curr_wave,
+                                    idx1(x.hi, x.qri+1, x.ti))) {
+                            queue.push(idx1(x.hi, x.qri+1, x.ti));
+                            curr_wave.insert(idx1(x.hi, x.qri+1, x.ti));
                         }
-                        if (!done[x.hi][x.cri+1][x.ti])
-                            ptrs[x.hi][x.cri+1][x.ti] |= PTR_UP;
+                        if (!done[x.hi][x.qri+1][x.ti])
+                            ptrs[x.hi][x.qri+1][x.ti] |= PTR_INS;
                     }
                     if (x.ti+1 < truth_lens[i]) { // DEL
-                        if (!done[x.hi][x.cri][x.ti+1] &&
-                                !contains(done_this_wave,
-                                    idx1(x.hi, x.cri, x.ti+1))) {
-                            queue.push(idx1(x.hi, x.cri, x.ti+1));
-                            done_this_wave.insert(idx1(x.hi, x.cri, x.ti+1));
+                        if (!done[x.hi][x.qri][x.ti+1] &&
+                                !contains(curr_wave,
+                                    idx1(x.hi, x.qri, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.qri, x.ti+1));
+                            curr_wave.insert(idx1(x.hi, x.qri, x.ti+1));
                         }
-                        if (!done[x.hi][x.cri][x.ti+1])
-                            ptrs[x.hi][x.cri][x.ti+1] |= PTR_LEFT;
+                        if (!done[x.hi][x.qri][x.ti+1])
+                            ptrs[x.hi][x.qri][x.ti+1] |= PTR_DEL;
                     }
-                    if (x.cri+1 < ref_len && x.ti+1 < truth_lens[i]) { // SUB
-                        if (!done[x.hi][x.cri+1][x.ti+1] &&
-                                !contains(done_this_wave, 
-                                    idx1(x.hi, x.cri+1, x.ti+1))) {
-                            queue.push(idx1(x.hi, x.cri+1, x.ti+1));
-                            done_this_wave.insert(idx1(x.hi, x.cri+1, x.ti+1));
+                    if (x.qri+1 < ref_len && x.ti+1 < truth_lens[i]) { // SUB
+                        if (!done[x.hi][x.qri+1][x.ti+1] &&
+                                !contains(curr_wave, 
+                                    idx1(x.hi, x.qri+1, x.ti+1))) {
+                            queue.push(idx1(x.hi, x.qri+1, x.ti+1));
+                            curr_wave.insert(idx1(x.hi, x.qri+1, x.ti+1));
                         }
-                        if (!done[x.hi][x.cri+1][x.ti+1])
-                            ptrs[x.hi][x.cri+1][x.ti+1] |= PTR_SUB;
+                        if (!done[x.hi][x.qri+1][x.ti+1])
+                            ptrs[x.hi][x.qri+1][x.ti+1] |= PTR_SUB;
                     }
                 }
             }
-            this_wave.clear();
+            prev_wave.clear();
             s[i]++;
         } // while loop (this alignment)
+
+        if (print) printf("\nAlignment %s, aln_ptrs\n", aln_strs[i].data());
+        if (print) printf("\nQUERY");
+        if (print) print_ptrs(ptrs[qi], query[i], truth[i]);
+        if (print) printf("\nREF");
+        if (print) print_ptrs(ptrs[ri], ref, truth[i]);
 
         // save where to start backtrack (prefer ref: omit vars which don't reduce ED)
         if (done[ri][ref_len-1][truth_lens[i]-1]) {
             pr_query_ref_end[i] = ri;
-        } else if (done[ci][query_lens[i]-1][truth_lens[i]-1]) {
-            pr_query_ref_end[i] = ci;
+        } else if (done[qi][query_lens[i]-1][truth_lens[i]-1]) {
+            pr_query_ref_end[i] = qi;
         } else { ERROR("Alignment not finished in 'prec_recall_aln()'."); }
 
     } // 4 alignments
@@ -828,8 +763,8 @@ void calc_prec_recall_aln(
 
 int store_phase( 
         std::shared_ptr<superclusterData> clusterdata_ptr, 
-        std::string ctg,
-        std::vector<int> & s
+        const std::string & ctg,
+        const std::vector<int> & s
         ) {
 
     // calculate best phasing
@@ -849,209 +784,403 @@ int store_phase(
 /******************************************************************************/
 
 
+/* Given alignment pointers (aln_ptrs) from minED forward-pass, as well as 
+ * reference pointers to/from truth/query, backtrack and find path which 
+ * maximizes FP variants. Results are stored in path_ptrs. Then call 
+ * get_prec_recall_path_sync() to parse this path.
+ */
 void calc_prec_recall_path(
-        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
+        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, 
+        const std::string & ctg, const std::string & ref,
+        const std::string & query1, const std::string & query2, 
+        const std::string & truth1, const std::string & truth2, 
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_scores, 
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
-        std::vector<int> pr_query_ref_end
+        const std::vector< std::vector<int> > & query1_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query1_ptrs,
+        const std::vector< std::vector<int> > & query2_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query2_ptrs,
+        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
+        const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector<int> & pr_query_ref_end, bool print
         ) {
 
-    std::vector< std::vector<int> > query_ref_ptrs = { 
+    std::vector<std::string> query = {query1, query1, query2, query2};
+    std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { 
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
     std::vector<int> pr_query_ref_beg(4);
     std::vector< std::vector<bool> > ref_loc_sync;
+    std::vector< std::vector< std::vector<bool> > > done;
 
     for (int i = 0; i < 4; i++) {
+        /* printf("\nBKWD %s path\n", aln_strs[i].data()); */
 
         // init
-        int ci = i*2 + QUERY;
+        int qi = i*2 + QUERY;
         int ri = i*2 + REF;
         path.push_back(std::vector<idx1>());
         sync.push_back(std::vector<bool>());
         edits.push_back(std::vector<bool>());
-        ref_loc_sync.push_back(std::vector<bool>(int(aln_ptrs[ri].size()), true));
-        path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ci].size(), 
-            std::vector<int>(aln_ptrs[ci][0].size(), PTR_NONE)));
+        ref_loc_sync.push_back(std::vector<bool>(aln_ptrs[ri].size(), true));
+        path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[qi].size(), 
+            std::vector<int>(aln_ptrs[qi][0].size(), PTR_NONE)));
         path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
             std::vector<int>(aln_ptrs[ri][0].size(), PTR_NONE)));
-        path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[ci].size(), 
-            std::vector<int>(aln_ptrs[ci][0].size(), -1)));
+        path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[qi].size(), 
+            std::vector<int>(aln_ptrs[qi][0].size(), -1)));
         path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
             std::vector<int>(aln_ptrs[ri][0].size(), -1)));
+        done.push_back(std::vector< std::vector<bool> >(aln_ptrs[qi].size(), 
+            std::vector<bool>(aln_ptrs[qi][0].size(), false)));
+        done.push_back(std::vector< std::vector<bool> >(aln_ptrs[ri].size(), 
+            std::vector<bool>(aln_ptrs[ri][0].size(), false)));
 
         // backtrack start
         std::queue<idx1> queue;
         int start_hi = pr_query_ref_end[i];
-        int start_cri = aln_ptrs[start_hi].size()-1;
+        int start_qri = aln_ptrs[start_hi].size()-1;
         int start_ti = aln_ptrs[start_hi][0].size()-1;
-        idx1 start(start_hi, start_cri, start_ti);
-        path_ptrs[start_hi][start_cri][start_ti] = PTR_DIAG;
-        aln_ptrs[start_hi][start_cri][start_ti] |= MAIN_PATH;
-        path_scores[start_hi][start_cri][start_ti] = 0;
+        idx1 start(start_hi, start_qri, start_ti);
+        path_ptrs[start_hi][start_qri][start_ti] = PTR_MAT;
+        aln_ptrs[start_hi][start_qri][start_ti] |= MAIN_PATH; // all alignments end here
+        path_scores[start_hi][start_qri][start_ti] = 0;
+        std::unordered_set<idx1> curr_wave, prev_wave;
         queue.push(start);
 
-        while (!queue.empty()) {
-            idx1 x = queue.front(); queue.pop(); // current cell
+        while (true) {
+            while (!queue.empty()) {
+                idx1 x = queue.front(); queue.pop(); // current cell
+                prev_wave.insert(x);
 
-            // ref locations which consume a query base and aren't 
-            // on the main diagonal cannot be sync points
-            if (aln_ptrs[x.hi][x.cri][x.ti] & (PTR_DIAG | PTR_SUB | PTR_INS)) {
-                if (x.hi == ri && x.cri != truth_ref_ptrs[i][x.ti])
-                    ref_loc_sync[i][x.cri] = false;
-                if (x.hi == ci && query_ref_ptrs[i][x.cri] >= 0 && 
-                        query_ref_ptrs[i][x.cri] != truth_ref_ptrs[i][x.ti])
-                    ref_loc_sync[i][query_ref_ptrs[i][x.cri]] = false;
-            }
+                // MATCH movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_MAT && x.qri > 0 && x.ti > 0) {
 
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DIAG && // MATCH
-                    x.cri > 0 && x.ti > 0) {
+                    // get next cell, add to path
+                    idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
 
-                // add to path
-                idx1 y = idx1(x.hi, x.cri-1, x.ti-1); // next cell
-                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+                    // check if mvmt is in variant
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
 
-                // check for fp
-                int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][y.cri] >= 0 &&
-                        ref_query_ptrs[i][x.cri] != ref_query_ptrs[i][y.cri]+1) { // fp
-                    is_fp = TRUE;
-                }
+                    // if off-diagonal or in truth var, this ref loc isn't a sync point
+                    if (y.hi == ri && (
+                            in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][y.qri] = false;
+                    if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][ query_ref_ptrs[i][PTRS][y.qri] ] = false;
 
-                // update score
-                if (path_scores[x.hi][x.cri][x.ti]+is_fp > 
-                        path_scores[y.hi][y.cri][y.ti]) {
-                    if (y.cri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
-                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_DIAG;
-                    path_scores[y.hi][y.cri][y.ti] = 
-                        path_scores[x.hi][x.cri][x.ti]+is_fp;
-                    queue.push(y);
-                }
-
-            }
-
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SUB && // SUB
-                    x.cri > 0 && x.ti > 0) {
-
-                // add to path
-                idx1 y = idx1(x.hi, x.cri-1, x.ti-1);
-                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
-
-                // check for fp
-                int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][y.cri] >= 0 &&
-                        ref_query_ptrs[i][x.cri] != ref_query_ptrs[i][y.cri]+1) { // fp
-                    is_fp = TRUE;
-                }
-
-                // update score
-                if (path_scores[x.hi][x.cri][x.ti]+is_fp > 
-                        path_scores[y.hi][y.cri][y.ti]) {
-                    if (y.cri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
-                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_SUB;
-                    path_scores[y.hi][y.cri][y.ti] = 
-                        path_scores[x.hi][x.cri][x.ti]+is_fp;
-                    queue.push(y);
-                }
-            }
-
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_INS && x.cri > 0) { // INS
-
-                // add to path
-                idx1 y = idx1(x.hi, x.cri-1, x.ti);
-                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
-
-                // check for fp
-                int is_fp = FALSE;
-                if (x.hi == ri && ref_query_ptrs[i][y.cri] >= 0 &&
-                        ref_query_ptrs[i][x.cri] != ref_query_ptrs[i][y.cri]+1) { // fp
-                    is_fp = TRUE;
-                }
-
-                // update score
-                if (path_scores[x.hi][x.cri][x.ti]+is_fp > 
-                        path_scores[y.hi][y.cri][y.ti]) {
-                    if (y.cri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
-                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_INS;
-                    path_scores[y.hi][y.cri][y.ti] = 
-                        path_scores[x.hi][x.cri][x.ti]+is_fp;
-                    queue.push(y);
-                } 
-            }
-
-            if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_DEL && x.ti > 0) { // DEL
-
-                // add to path
-                idx1 y = idx1(x.hi, x.cri, x.ti-1);
-                aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
-
-                // update score
-                if (path_scores[x.hi][x.cri][x.ti] > 
-                        path_scores[y.hi][y.cri][y.ti]) {
-                    if (y.cri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
-                    path_ptrs  [y.hi][y.cri][y.ti] = PTR_DEL;
-                    path_scores[y.hi][y.cri][y.ti] = 
-                        path_scores[x.hi][x.cri][x.ti];
-                    queue.push(y);
-                }
-            }
-
-            if (x.hi == ri) { // REF -> QUERY SWAP
-                if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SWAP &&
-                        ref_query_ptrs[i][x.cri] >= 0) {
-
-                    // add to path
-                    idx1 y = idx1(ci, ref_query_ptrs[i][x.cri], x.ti);
-                    aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+                    // check for fp
+                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
-                    if (path_scores[x.hi][x.cri][x.ti] > 
-                            path_scores[y.hi][y.cri][y.ti]) {
-                        if (y.cri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
-                        path_ptrs  [y.hi][y.cri][y.ti] = PTR_SWAP;
-                        path_scores[y.hi][y.cri][y.ti] = 
-                            path_scores[x.hi][x.cri][x.ti];
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp >
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_MAT;
+                        path_scores[y.hi][y.qri][y.ti] = 
+                            path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
                         queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
+                    }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                            is_fp ? "Y" : "N");
+                }
+
+
+                if (x.hi == ri) { // REF -> QUERY SWAP mvmt
+                    if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
+                            (!(ref_query_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
+                            x.qri > 0 && x.ti > 0) {
+
+                        // get next cell, add to path
+                        idx1 z = idx1(qi, ref_query_ptrs[i][PTRS][x.qri-1], x.ti-1);
+                        while (z.qri+1 < int(query_ref_ptrs[i][PTRS].size()) && 
+                                query_ref_ptrs[i][PTRS][z.qri] == 
+                                query_ref_ptrs[i][PTRS][z.qri+1]) z.qri++;
+                        aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+
+                        // check if mvmt is in variant
+                        bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                        in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                        bool in_query_var = (x.hi == ri) ? false : 
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                        // if off-diag or in truth var, this ref loc isn't a sync point
+                        if (!in_query_var && ( in_truth_var || 
+                                query_ref_ptrs[i][PTRS][z.qri] != truth_ref_ptrs[i][PTRS][z.ti]))
+                            ref_loc_sync[i][query_ref_ptrs[i][PTRS][z.qri]] = false;
+
+                        // check for fp
+                        bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                                ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
+                                ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+
+                        // update score
+                        if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] + is_fp > 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
+                            path_scores[z.hi][z.qri][z.ti] = 
+                                path_scores[x.hi][x.qri][x.ti] + is_fp;
+                            if (!contains(curr_wave, z)) curr_wave.insert(z);
+                            queue.push(z);
+                        } else if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
+                        }
+
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                                z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                                in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N",
+                                is_fp ? "Y" : "N");
+                    }
+
+                } else { // QUERY -> REF SWAP mvmt
+                    if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SWP_MAT &&
+                            (!(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT) ||
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG) && 
+                            x.qri > 0 && x.ti > 0) {
+
+                        // add to path
+                        idx1 z = idx1(ri, query_ref_ptrs[i][PTRS][x.qri-1], x.ti-1);
+                        while (z.qri+1 < int(ref_query_ptrs[i][PTRS].size()) && 
+                                ref_query_ptrs[i][PTRS][z.qri] == 
+                                ref_query_ptrs[i][PTRS][z.qri+1]) z.qri++;
+                        aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
+
+                        // check if mvmt is in variant
+                        bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                        in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                        bool in_query_var = (x.hi == ri) ? false : 
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                        // if off-diag or in truth var, this ref loc isn't a sync point
+                        if (in_truth_var || z.qri != truth_ref_ptrs[i][PTRS][z.ti])
+                            ref_loc_sync[i][z.qri] = false;
+
+                        // no need to check for FP since we were on QUERY, not REF
+
+                        // update score
+                        if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] > 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs  [z.hi][z.qri][z.ti] = PTR_SWP_MAT;
+                            path_scores[z.hi][z.qri][z.ti] = 
+                                path_scores[x.hi][x.qri][x.ti];
+                            if (!contains(curr_wave, z)) curr_wave.insert(z);
+                            queue.push(z);
+                        } else if (!done[z.hi][z.qri][z.ti] &&
+                                path_scores[x.hi][x.qri][x.ti] == 
+                                path_scores[z.hi][z.qri][z.ti]) {
+                            path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
+                        }
+
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                                z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
+                                in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N");
                     }
                 }
 
-            } else { // QUERY -> REF SWAP
-                if (aln_ptrs[x.hi][x.cri][x.ti] & PTR_SWAP &&
-                        query_ref_ptrs[i][x.cri] >= 0) {
+            } // end of curr_wave, same score
 
-                    // add to path
-                    idx1 y = idx1(ri, query_ref_ptrs[i][x.cri], x.ti);
-                    aln_ptrs[y.hi][y.cri][y.ti] |= PATH;
+            for (idx1 x : curr_wave) done[x.hi][x.qri][x.ti] = true;
+            curr_wave.clear();
+            if (done[qi][0][0] || done[ri][0][0]) break;
+
+            for (idx1 x : prev_wave) {
+
+                // SUB movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_SUB &&
+                        x.qri > 0 && x.ti > 0) {
+
+                    // get next cell, add to path
+                    idx1 y = idx1(x.hi, x.qri-1, x.ti-1);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                    // check if mvmt is in variant
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                    // if off-diagonal or in truth var, this ref loc isn't a sync point
+                    if (y.hi == ri && (
+                            in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][y.qri] = false;
+                    if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
+
+                    // check for fp
+                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
-                    if (path_scores[x.hi][x.cri][x.ti] > 
-                            path_scores[y.hi][y.cri][y.ti]) {
-                        if (y.cri == 0 && y.ti == 0) pr_query_ref_beg[i] = y.hi;
-                        path_ptrs  [y.hi][y.cri][y.ti] = PTR_SWAP;
-                        path_scores[y.hi][y.cri][y.ti] = 
-                            path_scores[x.hi][x.cri][x.ti];
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp > 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_SUB;
+                        path_scores[y.hi][y.qri][y.ti] = 
+                            path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
                         queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
                     }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SUB",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                            is_fp ? "Y" : "N");
                 }
-            }
+
+                // INS movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_INS && x.qri > 0) {
+
+                    // get next cell, add to path
+                    idx1 y = idx1(x.hi, x.qri-1, x.ti);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                    // check if mvmt is in variant
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+
+                    // if off-diagonal or in truth var, this ref loc isn't a sync point
+                    if (y.hi == ri && (
+                            in_truth_var || y.qri != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][y.qri] = false;
+                    if (y.hi == qi && !in_query_var && ( in_truth_var || 
+                            query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
+                        ref_loc_sync[i][query_ref_ptrs[i][PTRS][y.qri]] = false;
+
+                    // check for fp
+                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
+                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+
+                    // update score
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp > 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_INS;
+                        path_scores[y.hi][y.qri][y.ti] = 
+                            path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
+                        queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] + is_fp == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
+                    }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "INS",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
+                            is_fp ? "Y" : "N");
+                }
+
+                // DEL movement
+                if (aln_ptrs[x.hi][x.qri][x.ti] & PTR_DEL && x.ti > 0) {
+
+                    // add to path
+                    idx1 y = idx1(x.hi, x.qri, x.ti-1);
+                    aln_ptrs[y.hi][y.qri][y.ti] |= PATH;
+
+                    bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
+                    bool in_query_var = (x.hi == ri) ? false : 
+                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+
+                    // no need to check for FP since we don't consume a REF/QUERY base
+                    
+                    // update score
+                    if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] > 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs  [y.hi][y.qri][y.ti] = PTR_DEL;
+                        path_scores[y.hi][y.qri][y.ti] = 
+                            path_scores[x.hi][x.qri][x.ti];
+                        if (!contains(curr_wave, y)) curr_wave.insert(y);
+                        queue.push(y);
+                    } else if (!done[y.hi][y.qri][y.ti] &&
+                            path_scores[x.hi][x.qri][x.ti] == 
+                            path_scores[y.hi][y.qri][y.ti]) {
+                        path_ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
+                    }
+
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "DEL",
+                            y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
+                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N");
+                }
+
+            } // done adding to next wave
+            prev_wave.clear();
         }
-    }
+
+        // set pointers
+        if (aln_ptrs[ri][0][0] & PATH)
+            pr_query_ref_beg[i] = ri;
+        else
+            pr_query_ref_beg[i] = qi;
+
+        // debug print
+        if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
+        if (print) printf("\nQUERY");
+        if (print) print_ptrs(path_ptrs[qi], query[i], truth[i]);
+        if (print) printf("\nREF");
+        if (print) print_ptrs(path_ptrs[ri], ref, truth[i]);
+
+    } // 4 alignments
 
     // get path and sync points
-    get_prec_recall_path_sync(path, sync, edits, ref_loc_sync,
-            path_ptrs, aln_ptrs, pr_query_ref_beg,
+    get_prec_recall_path_sync(path, sync, edits, aln_ptrs, path_ptrs, ref_loc_sync,
             query1_ref_ptrs, ref_query1_ptrs, query2_ref_ptrs, ref_query2_ptrs,
-            truth1_ref_ptrs, truth2_ref_ptrs
+            truth1_ref_ptrs, truth2_ref_ptrs, pr_query_ref_beg, true
     );
 
 }
@@ -1060,100 +1189,158 @@ void calc_prec_recall_path(
 /******************************************************************************/
 
 
+/* Follow path which maximizes FP and minimizes ED, saving sync points and edits.
+ */
 void get_prec_recall_path_sync(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector<bool> > ref_loc_sync, 
-        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
-        std::vector<int> & pr_query_ref_beg,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        const std::vector< std::vector<bool> > & ref_loc_sync, 
+        const std::vector< std::vector<int> > & query1_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query1_ptrs,
+        const std::vector< std::vector<int> > & query2_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query2_ptrs,
+        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
+        const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector<int> & pr_query_ref_beg, bool print
         ) {
 
     // query <-> ref pointers
-    std::vector< std::vector<int> > query_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { 
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
 
     for (int i = 0; i < 4; i++) {
 
+        if (print) printf("Alignment %s:\n", aln_strs[i].data());
+
+        printf("REF LOC SYNC:");
+        for(int j = 0; j < int(ref_loc_sync[i].size()); j++) {
+            printf(ref_loc_sync[i][j] ? "=" : "X");
+        }
+        printf("\n");
+
         // init
-        int ci = i*2 + QUERY;
+        int qi = i*2 + QUERY;
         int ri = i*2 + REF;
 
         // path start
         int hi = pr_query_ref_beg[i];
-        int cri = 0;
+        int qri = 0;
         int ti = 0;
+        int prev_hi, prev_qri, prev_ti = 0;
+        int ptr_type = PTR_NONE;
 
         // first position is sync point
-        path[i].push_back(idx1(hi, cri, ti));
-        sync[i].push_back(true);
-        aln_ptrs[hi][cri][ti] |= MAIN_PATH | PTR_SYNC;
-        path_ptrs[hi][cri][ti] |= MAIN_PATH;
+        path[i].push_back(idx1(hi, qri, ti));
+        aln_ptrs[hi][qri][ti] |= MAIN_PATH | PTR_SYNC;
+        path_ptrs[hi][qri][ti] |= MAIN_PATH;
 
         // follow best-path pointers
-        while (cri < int(path_ptrs[hi].size()) || ti < int(path_ptrs[hi][0].size())) {
-            if (path_ptrs[hi][cri][ti] & PTR_DIAG) {
-                cri++; ti++; edits[i].push_back(false);
-            } else if (path_ptrs[hi][cri][ti] & PTR_SUB) {
-                cri++; ti++; edits[i].push_back(true);
-            } else if (path_ptrs[hi][cri][ti] & PTR_INS) {
-                cri++; edits[i].push_back(true);
-            } else if (path_ptrs[hi][cri][ti] & PTR_DEL) {
+        while (qri < int(path_ptrs[hi].size()-1) || ti < int(path_ptrs[hi][0].size()-1)) {
+            prev_hi = hi; prev_qri = qri; prev_ti = ti;
+            if (hi == qi && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) { // prefer FPs
+                ptr_type = PTR_SWP_MAT;
+                hi = ri;
+                qri = query_ref_ptrs[i][PTRS][qri];
+                qri++; ti++; edits[i].push_back(false);
+
+            } else if (path_ptrs[hi][qri][ti] & PTR_MAT) {
+                ptr_type = PTR_MAT;
+                qri++; ti++; edits[i].push_back(false);
+
+            } else if (path_ptrs[hi][qri][ti] & PTR_SUB) {
+                ptr_type = PTR_SUB;
+                qri++; ti++; edits[i].push_back(true);
+
+            } else if (path_ptrs[hi][qri][ti] & PTR_INS) {
+                ptr_type = PTR_INS;
+                qri++; edits[i].push_back(true);
+
+            } else if (path_ptrs[hi][qri][ti] & PTR_DEL) {
+                ptr_type = PTR_DEL;
                 ti++; edits[i].push_back(true);
-            } else if (path_ptrs[hi][cri][ti] & PTR_SWAP) {
-                if (hi == ri) {
-                    hi = ci;
-                    cri = ref_query_ptrs[i][cri];
-                } else if(hi == ci) { // hi == ci
-                    hi = ri;
-                    cri = query_ref_ptrs[i][cri];
-                } else {
-                    ERROR("Unexpected hap index (%d)", hi);
-                } 
-                edits[i].push_back(false);
+
+            } else if (hi == ri && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) {
+                ptr_type = PTR_SWP_MAT;
+                hi = qi;
+                qri = ref_query_ptrs[i][PTRS][qri];
+                qri++; ti++; edits[i].push_back(false);
+
             } else {
-                ERROR("No pointer for MAIN_PATH at (%d, %d, %d)", hi, cri, ti);
+                ERROR("No valid pointer (value '%d') at (%d, %d, %d)", 
+                        path_ptrs[hi][qri][ti], hi, qri, ti);
             }
 
-            if (cri >= int(aln_ptrs[hi].size()) ||
+            if (qri >= int(aln_ptrs[hi].size()) ||
                     ti >= int(aln_ptrs[hi][0].size())) break;
 
             // add point to path
-            path[i].push_back(idx1(hi, cri, ti));
-            aln_ptrs[hi][cri][ti] |= MAIN_PATH;
-            path_ptrs[hi][cri][ti] |= MAIN_PATH;
+            path[i].push_back(idx1(hi, qri, ti));
+            aln_ptrs[hi][qri][ti] |= MAIN_PATH;
+            path_ptrs[hi][qri][ti] |= MAIN_PATH;
 
-            // determine if sync point
-            bool is_sync;
-            if (hi == ci) {
-                if (query_ref_ptrs[i][cri] >= 0 &&  // on main diag
-                    query_ref_ptrs[i][cri] == truth_ref_ptrs[i][ti]) {
-                    is_sync = ref_loc_sync[i][ query_ref_ptrs[i][cri] ];
-                } else {
-                    is_sync = false;
-                }
-            } else { // hi == ri
-                if (cri == truth_ref_ptrs[i][ti]) { // on main diag
-                    is_sync = ref_loc_sync[i][cri];
-                } else {
-                    is_sync = false;
-                }
+            // set boolean flags for if in query/truth variants
+            bool in_truth_var = truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT;
+            bool in_query_var = (hi == ri) ? false : 
+                    query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT;
+            switch(ptr_type) { // not really in variant if just moved into it
+                case PTR_MAT: // just consumed truth and query
+                case PTR_SWP_MAT:
+                case PTR_SUB:
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VAR_BEG);
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG);
+                    break;
+                case PTR_INS: // just consumed query
+                    in_query_var &= !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG);
+                    break;
+                case PTR_DEL: // just consumed truth
+                    in_truth_var &= !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VAR_BEG);
+                    break;
+                default:
+                    ERROR("Unexpected pointer type (%d) in calc_path()", ptr_type);
             }
-            if (is_sync) aln_ptrs[hi][cri][ti] |= PTR_SYNC;
-            sync[i].push_back(is_sync);
+
+            // SYNC POINTS
+            bool prev_sync;
+            // no info about movements from previous rows, default to false
+            if (prev_qri == 0 || query_ref_ptrs[i][PTRS][prev_qri] == 0) {
+                prev_sync = false;
+            } else { // use ref_loc_sync info, enforce diag, not in variant
+                prev_sync = !in_truth_var && !in_query_var && 
+                    truth_ref_ptrs[i][PTRS][prev_ti] == (prev_hi == ri ? prev_qri :
+                            query_ref_ptrs[i][PTRS][prev_qri]) &&
+                    ptr_type & (PTR_MAT | PTR_SWP_MAT | PTR_SUB) &&
+                    ref_loc_sync[i][ prev_hi == ri ? prev_qri-1 : 
+                            query_ref_ptrs[i][PTRS][prev_qri]-1 ];
+            }
+            if (prev_qri == 0 && prev_ti == 0) prev_sync = true; // only start
+            if (prev_sync) aln_ptrs[prev_hi][prev_qri][prev_ti] |= PTR_SYNC;
+            sync[i].push_back(prev_sync);
+
+            // debug print
+            std::string ptr_str;
+            if (ptr_type == PTR_MAT) ptr_str = "MAT";
+            if (ptr_type == PTR_SUB) ptr_str = "SUB";
+            if (ptr_type == PTR_INS) ptr_str = "INS";
+            if (ptr_type == PTR_DEL) ptr_str = "DEL";
+            if (ptr_type == PTR_SWP_MAT) ptr_str = "SWP";
+            if (print) printf("%s (%s, %2d, %2d) --%s-> (%s, %2d, %2d)\n",
+                    prev_sync ? "SYNC" : "    ", prev_hi % 2 ? "REF" : "QRY", 
+                    prev_qri, prev_ti, 
+                    ptr_str.data(), hi % 2 ? "REF" : "QRY", qri, ti);
         }
+
         // last position is sync
-        sync[i][sync[i].size()-1] = true;
-        idx1 last = path[i][path[i].size()-1];
-        aln_ptrs[last.hi][last.cri][last.ti] |= PTR_SYNC;
+        if (print) printf("SYNC (%s, %2d, %2d) DONE \n",
+                hi % 2 ? "REF" : "QRY", qri, ti);
+        sync[i].push_back(true);
+        aln_ptrs[hi][qri][ti] |= PTR_SYNC;
     }
 }
 
@@ -1162,29 +1349,33 @@ void get_prec_recall_path_sync(
 
 
 void calc_prec_recall(
-        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, std::string ctg,
-        std::string query1, std::string query2, 
-        std::string truth1, std::string truth2, std::string ref,
-        std::vector<int> query1_ref_ptrs, std::vector<int> ref_query1_ptrs,
-        std::vector<int> query2_ref_ptrs, std::vector<int> ref_query2_ptrs,
-        std::vector<int> truth1_ref_ptrs, std::vector<int> truth2_ref_ptrs,
-        std::vector< std::vector<idx1> > & path,
-        std::vector< std::vector<bool> > & sync,
-        std::vector< std::vector<bool> > & edits,
-        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
-        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
-        std::vector<int> pr_query_ref_end, int phase, int print
+        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, 
+        const std::string & ctg, const std::string & ref,
+        const std::string & query1, const std::string & query2, 
+        const std::string & truth1, const std::string & truth2, 
+        const std::vector< std::vector<idx1> > & path,
+        const std::vector< std::vector<bool> > & sync,
+        const std::vector< std::vector<bool> > & edits,
+        const std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        const std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        const std::vector< std::vector<int> > & query1_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query1_ptrs,
+        const std::vector< std::vector<int> > & query2_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query2_ptrs,
+        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
+        const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector<int> & pr_query_ref_end, int phase, bool print
         ) {
 
     // set query/truth strings and pointers
     int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
     std::vector<std::string> query = {query1, query1, query2, query2};
     std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
-    std::vector< std::vector<int> > query_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
             query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs };
-    std::vector< std::vector<int> > ref_query_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { 
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
-    std::vector< std::vector<int> > truth_ref_ptrs = { 
+    std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
 
     // indices into ptr/off matrices depend on decided phasing
@@ -1203,8 +1394,8 @@ void calc_prec_recall(
     for (int i : indices) {
 
         int ri = i*2 + REF;   // ref index
-        int ci = i*2 + QUERY; // call index
-        int qhi = i >> 1;      // query hap index
+        int qi = i*2 + QUERY; // call index
+        int qhi = i >> 1;     // query hap index
         int thi = i & 1;      // truth hap index
 
         // set variant ranges
@@ -1222,62 +1413,87 @@ void calc_prec_recall(
             clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0;
 
         // debug print
-        if (print) printf("Alignment %s, aln_ptrs\n", aln_strs[i].data());
+        if (print) printf("\nAlignment %s, aln_ptrs\n", aln_strs[i].data());
         if (print) printf("\nQUERY");
-        if (print) print_ptrs(aln_ptrs[ci], query[i], truth[i]);
+        if (print) print_ptrs(aln_ptrs[qi], query[i], truth[i]);
         if (print) printf("\nREF");
         if (print) print_ptrs(aln_ptrs[ri], ref, truth[i]);
         if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
         if (print) printf("\nQUERY");
-        if (print) print_ptrs(path_ptrs[ci], query[i], truth[i]);
+        if (print) print_ptrs(path_ptrs[qi], query[i], truth[i]);
         if (print) printf("\nREF");
         if (print) print_ptrs(path_ptrs[ri], ref, truth[i]);
 
         // init
         int hi = pr_query_ref_end[i];
-        int cri = aln_ptrs[hi].size()-1;
+        int prev_hi = hi;
+        int qri = aln_ptrs[hi].size()-1;
+        int prev_qri = qri;
         int ti = aln_ptrs[hi][0].size()-1;
+        int prev_ti = ti;
         int new_ed = 0;
         int query_var_ptr = query_end_idx-1;
-        int query_var_pos = query_vars->poss.size() ? query_vars->poss[query_var_ptr] - beg : 0;
+        int query_var_pos = query_vars->poss.size() ? 
+                query_vars->poss[query_var_ptr] - beg : 0;
         int prev_query_var_ptr = query_var_ptr;
         int truth_var_ptr = truth_end_idx-1;
-        int truth_var_pos = truth_vars->poss.size() ? truth_vars->poss[truth_var_ptr] - beg : 0;
+        int truth_var_pos = truth_vars->poss.size() ? 
+                truth_vars->poss[truth_var_ptr] - beg : 0;
         int prev_truth_var_ptr = truth_var_ptr;
-        int pidx = path[i].size()-1;
+        int path_idx = path[i].size()-1;
 
-        if (print) printf("\n%s:\n", aln_strs[i].data());
-        while (pidx >= 0) {
+        if (print) printf("\n%s: %d\n", aln_strs[i].data(), beg);
+        while (path_idx >= 0) {
 
-            // set FP if necessary
-            int cref_pos = (hi == ri) ? cri : query_ref_ptrs[i][cri];
-            if (cref_pos < 0) cref_pos = query_var_pos+1;
-            while (cref_pos < query_var_pos) {
-                if (hi == ri) { // FP
+            // set corresponding REF position
+            int query_ref_pos = 0;
+            if (hi == ri) { // REF, no variants
+                query_ref_pos = qri;
+            } else { // hi == qi, QUERY
+                query_ref_pos = query_ref_ptrs[i][PTRS][qri];
+
+                // in variant, ignore if didn't just finish REF FP or QRY PP/TP variant
+                if (query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) {
+                    if(prev_hi == ri && !(ref_query_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG)) {
+                        query_ref_pos = query_var_pos+1; // skip next while loop
+                    }
+                    if (prev_hi == qi && (prev_qri == qri || 
+                            !(query_ref_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG))) { // not query var
+                        query_ref_pos = query_var_pos+1; // skip next while loop
+                    }
+                }
+            }
+            // mark FPs and record variants within sync group
+            while (query_ref_pos < query_var_pos) { // just passed variant(s)
+                if (prev_hi == ri) { // FP if when in variant was on REF
                     query_vars->errtypes[query_var_ptr] = ERRTYPE_FP;
                     query_vars->credit[query_var_ptr] = 0;
                     query_vars->callq[query_var_ptr] = 
                         query_vars->var_quals[query_var_ptr];
-                    if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                    if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
                             query_vars->refs[query_var_ptr].data(),
                             query_vars->alts[query_var_ptr].data(), "FP", 0.0f);
                     query_var_ptr--;
-                } else { // passed variant
+                } else { // TP/PP
                     query_var_ptr--;
                 }
                 query_var_pos = (query_var_ptr < query_beg_idx) ? -1 :
-                    query_vars->poss[query_var_ptr] - beg;
+                        query_vars->poss[query_var_ptr] - beg;
             }
 
-            while (truth_ref_ptrs[i][ti] >= 0 && 
-                    truth_ref_ptrs[i][ti] < truth_var_pos) { // passed REF variant
+            int truth_ref_pos = truth_ref_ptrs[i][PTRS][ti];
+            if (truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT) {
+                if (prev_ti == ti || !(truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VAR_BEG))
+                    truth_ref_pos = truth_var_pos + 1;
+            }
+            while (truth_ref_pos < truth_var_pos) { // passed REF variant
                 truth_var_ptr--;
                 truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
                     truth_vars->poss[truth_var_ptr] - beg;
             }
 
             // sync point: set TP/PP
-            if (sync[i][pidx]) {
+            if (sync[i][path_idx]) {
 
                 // calculate old edit distance
                 int old_ed = 0;
@@ -1291,10 +1507,6 @@ void calc_prec_recall(
                             old_ed += truth_vars->alts[truth_var_idx].length();
                             break;
                         case TYPE_DEL:
-                            old_ed += truth_vars->refs[truth_var_idx].length();
-                            break;
-                        case TYPE_CPX:
-                            old_ed += truth_vars->alts[truth_var_idx].length();
                             old_ed += truth_vars->refs[truth_var_idx].length();
                             break;
                         default:
@@ -1323,7 +1535,7 @@ void calc_prec_recall(
                             query_vars->errtypes[query_var_idx] = ERRTYPE_TP;
                             query_vars->credit[query_var_idx] = credit;
                             query_vars->callq[query_var_idx] = callq;
-                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                            if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "TP", credit);
@@ -1331,15 +1543,15 @@ void calc_prec_recall(
                             query_vars->errtypes[query_var_idx] = ERRTYPE_FP;
                             query_vars->credit[query_var_idx] = 0;
                             query_vars->callq[query_var_idx] = callq;
-                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                            if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
-                                    "FP", 0.0);
+                                    "FP", 0.0f);
                         } else { // PP
                             query_vars->errtypes[query_var_idx] = ERRTYPE_PP;
                             query_vars->credit[query_var_idx] = credit;
                             query_vars->callq[query_var_idx] = callq;
-                            if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                            if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "PP", credit);
@@ -1355,7 +1567,7 @@ void calc_prec_recall(
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_TP;
                         truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = callq;
-                        if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                        if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "TP", credit);
@@ -1363,7 +1575,7 @@ void calc_prec_recall(
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_FN;
                         truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = g.max_qual;
-                        if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                        if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "FN", credit);
@@ -1371,17 +1583,17 @@ void calc_prec_recall(
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_PP;
                         truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = callq;
-                        if (print) printf("REF='%s'\tALT='%s'\t%s\t%f\n",
+                        if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "PP", credit);
                     }
                 }
 
-                if (print) printf("SYNC @%s(%d,%d)=REF(%d,%d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n",
-                        (hi == ri) ? "REF" : "QUERY", cri, ti,
-                        (hi == ri) ? cri : query_ref_ptrs[i][cri],
-                        truth_ref_ptrs[i][ti], old_ed, new_ed, 
+                if (print) printf("SYNC @%s(%2d,%2d) = REF(%2d,%2d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n",
+                        (hi == ri) ? "REF" : "QRY", qri, ti,
+                        (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri],
+                        truth_ref_ptrs[i][PTRS][ti], old_ed, new_ed, 
                         prev_query_var_ptr, query_var_ptr,
                         prev_truth_var_ptr, truth_var_ptr
                 );
@@ -1392,20 +1604,23 @@ void calc_prec_recall(
             }
 
             // update pointers and edit distance
-            if (print) printf("%s %s (%d,%d) %s\n", 
-                    sync[i][pidx] ? "*" : " ",
-                    (hi == ri) ? "REF  " : "QUERY", cri, ti,
-                    edits[i][pidx] ? "X" : "=");
+            if (print) printf("%s %s (%2d,%2d) %s\n", 
+                    sync[i][path_idx] ? "*" : " ",
+                    (hi == ri) ? "REF" : "QRY", qri, ti,
+                    edits[i][path_idx] ? "X" : "=");
 
             // update path pointer
-            pidx--;
-            if (pidx < 0) break;
+            path_idx--;
+            if (path_idx < 0) break;
 
             // update location
-            cri = path[i][pidx].cri;
-            ti = path[i][pidx].ti;
-            hi = path[i][pidx].hi;
-            new_ed += edits[i][pidx];
+            prev_qri = qri;
+            qri = path[i][path_idx].qri;
+            prev_ti = ti;
+            ti = path[i][path_idx].ti;
+            prev_hi = hi;
+            hi = path[i][path_idx].hi;
+            new_ed += edits[i][path_idx];
 
             // update next variant position
             query_var_pos = (query_var_ptr < query_beg_idx) ? -1 :
@@ -1421,8 +1636,8 @@ void calc_prec_recall(
 
 
 void calc_edit_dist_aln(
-        std::string query1, std::string query2, 
-        std::string truth1, std::string truth2,
+        const std::string & query1, const std::string & query2, 
+        const std::string & truth1, const std::string & truth2,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs
@@ -1487,8 +1702,8 @@ void calc_edit_dist_aln(
                 offs[i][s[i]+1][mat_len-1] = s[i]+1;
 
             ptrs[i].push_back(std::vector<int>(mat_len));
-            ptrs[i][s[i]+1][0] = PTR_UP;
-            ptrs[i][s[i]+1][s[i]+1] = PTR_LEFT;
+            ptrs[i][s[i]+1][0] = PTR_INS;
+            ptrs[i][s[i]+1][s[i]+1] = PTR_DEL;
 
             // central cells
             for (int d = 1; d < mat_len-1; d++) {
@@ -1502,10 +1717,10 @@ void calc_edit_dist_aln(
                     ptrs[i][s[i]+1][d] = PTR_SUB;
                 } else if (offleft >= offtop) {
                     offs[i][s[i]+1][d] = offleft;
-                    ptrs[i][s[i]+1][d] = PTR_LEFT;
+                    ptrs[i][s[i]+1][d] = PTR_DEL;
                 } else {
                     offs[i][s[i]+1][d] = offtop;
-                    ptrs[i][s[i]+1][d] = PTR_UP;
+                    ptrs[i][s[i]+1][d] = PTR_INS;
                 }
             }
             ++s[i];
@@ -1542,45 +1757,58 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             
             // set pointers between each hap (query1/2, truth1/2) and reference
             std::string query1 = "", ref_q1 = ""; 
-            std::vector<int> query1_ref_ptrs, ref_query1_ptrs;
+            std::vector< std::vector<int> > query1_ref_ptrs, ref_query1_ptrs;
             generate_ptrs_strs(
-                    query1, ref_q1,
-                    query1_ref_ptrs, ref_query1_ptrs, 
-                    sc->ctg_variants[QUERY][HAP1], sc->ctg_variants[QUERY][HAP1],
-                    sc->superclusters[QUERY][HAP1][sc_idx], 0,
-                    sc->superclusters[QUERY][HAP1][sc_idx+1], 0,
+                    query1, ref_q1, query1_ref_ptrs, ref_query1_ptrs, 
+                    sc->ctg_variants[QUERY][HAP1], 
+                    sc->superclusters[QUERY][HAP1][sc_idx],
+                    sc->superclusters[QUERY][HAP1][sc_idx+1],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string query2 = "", ref_q2 = ""; 
-            std::vector<int> query2_ref_ptrs, ref_query2_ptrs;
+            std::vector< std::vector<int> > query2_ref_ptrs, ref_query2_ptrs;
             generate_ptrs_strs(
-                    query2, ref_q2,
-                    query2_ref_ptrs, ref_query2_ptrs, 
-                    sc->ctg_variants[QUERY][HAP2], sc->ctg_variants[QUERY][HAP2],
-                    sc->superclusters[QUERY][HAP2][sc_idx], 0,
-                    sc->superclusters[QUERY][HAP2][sc_idx+1], 0,
+                    query2, ref_q2, query2_ref_ptrs, ref_query2_ptrs, 
+                    sc->ctg_variants[QUERY][HAP2],
+                    sc->superclusters[QUERY][HAP2][sc_idx],
+                    sc->superclusters[QUERY][HAP2][sc_idx+1],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth1 = "", ref_t1 = ""; 
-            std::vector<int> truth1_ref_ptrs, ref_truth1_ptrs;
+            std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
             generate_ptrs_strs(
-                    truth1, ref_t1,
-                    truth1_ref_ptrs, ref_truth1_ptrs, 
-                    sc->ctg_variants[TRUTH][HAP1], sc->ctg_variants[TRUTH][HAP1],
-                    sc->superclusters[TRUTH][HAP1][sc_idx], 0,
-                    sc->superclusters[TRUTH][HAP1][sc_idx+1], 0,
+                    truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
+                    sc->ctg_variants[TRUTH][HAP1],
+                    sc->superclusters[TRUTH][HAP1][sc_idx],
+                    sc->superclusters[TRUTH][HAP1][sc_idx+1],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
             std::string truth2 = "", ref_t2 = ""; 
-            std::vector<int> truth2_ref_ptrs, ref_truth2_ptrs;
+            std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
             generate_ptrs_strs(
-                    truth2, ref_t2,
-                    truth2_ref_ptrs, ref_truth2_ptrs, 
-                    sc->ctg_variants[TRUTH][HAP2], sc->ctg_variants[TRUTH][HAP2],
-                    sc->superclusters[TRUTH][HAP2][sc_idx], 0,
-                    sc->superclusters[TRUTH][HAP2][sc_idx+1], 0,
+                    truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
+                    sc->ctg_variants[TRUTH][HAP2],
+                    sc->superclusters[TRUTH][HAP2][sc_idx],
+                    sc->superclusters[TRUTH][HAP2][sc_idx+1],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
+
+            if (true) {
+                printf("\n%s:%d\n", ctg.data(), sc->begs[sc_idx]);
+                printf("REF:       %s\n", ref_q1.data());
+                printf("QUERY1:    %s\n", query1.data());
+                printf("QUERY2:    %s\n", query2.data());
+                printf("TRUTH1:    %s\n", truth1.data());
+                printf("TRUTH2:    %s\n", truth2.data());
+                printf("Q1->REF PTRS: "); print_ref_ptrs(query1_ref_ptrs);
+                printf("REF->Q1 PTRS: "); print_ref_ptrs(ref_query1_ptrs);
+                printf("Q2->REF PTRS: "); print_ref_ptrs(query2_ref_ptrs);
+                printf("REF->Q2 PTRS: "); print_ref_ptrs(ref_query2_ptrs);
+                printf("T1->REF PTRS: "); print_ref_ptrs(truth1_ref_ptrs);
+                printf("REF->T1 PTRS: "); print_ref_ptrs(ref_truth1_ptrs);
+                printf("T2->REF PTRS: "); print_ref_ptrs(truth2_ref_ptrs);
+                printf("REF->T2 PTRS: "); print_ref_ptrs(ref_truth2_ptrs);
+            }
 
             // calculate four forward-pass alignment edit dists
             // query1-truth2, query1-truth1, query2-truth1, query2-truth2
@@ -1591,7 +1819,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_score, aln_ptrs, aln_query_ref_end
+                    aln_score, aln_ptrs, aln_query_ref_end, false
             );
 
             // store optimal phasing for each supercluster
@@ -1601,29 +1829,28 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
 
             // calculate paths from alignment
             std::vector< std::vector<idx1> > path;
-            std::vector< std::vector<bool> > sync;
-            std::vector< std::vector<bool> > edit;
-            std::vector< std::vector< std::vector<int> > > path_ptrs;
-            std::vector< std::vector< std::vector<int> > > path_scores;
+            std::vector< std::vector<bool> > sync, edit;
+            std::vector< std::vector< std::vector<int> > > path_ptrs, path_scores;
             calc_prec_recall_path(
-                    clusterdata_ptr, sc_idx, ctg,
+                    clusterdata_ptr, sc_idx, ctg, ref_q1,
+                    query1, query2, truth1, truth2,
                     path, sync, edit,
                     aln_ptrs, path_ptrs, path_scores,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs, 
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_query_ref_end);
+                    aln_query_ref_end, false);
 
             // calculate precision/recall from paths
             calc_prec_recall(
-                    clusterdata_ptr, sc_idx, ctg,
-                    query1, query2, truth1, truth2, ref_q1,
+                    clusterdata_ptr, sc_idx, ctg, ref_q1,
+                    query1, query2, truth1, truth2,
+                    path, sync, edit,
+                    aln_ptrs, path_ptrs, 
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    path, sync, edit, aln_ptrs, path_ptrs, 
-                    aln_query_ref_end, phase, g.verbosity >= 2
-            );
+                    aln_query_ref_end, phase, true);
 
 
             /////////////////////////////////////////////////////////////////////
@@ -1666,15 +1893,15 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     std::string query = generate_str(
                             clusterdata_ptr->ref, 
                             sc->ctg_variants[QUERY][hap], 
-                            ctg, 
-                            beg_idx, end_idx,
+                            ctg, beg_idx, end_idx,
                             sc->begs[sc_idx], sc->ends[sc_idx], 
                             prev_qual);
 
                     // align strings, backtrack, calculate distance
-                    auto ptrs = sw_align(query, truth[hap], 
-                            g.eval_sub, g.eval_open, g.eval_extend);
-                    std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs);
+                    auto ptrs = sw_align(query, truth[hap], g.eval_sub, 
+                            g.eval_open, g.eval_extend, g.verbosity >= 2);
+                    std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs,
+                            g.verbosity >= 2);
                     int dist = count_dist(cigar);
 
                     // add distance for range of corresponding quals
@@ -1719,12 +1946,6 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                         }
                     }
                 }
-
-                printf("ORIG:      %s\n", ref_q1.data());
-                printf("QUERY1:    %s\n", query1.data());
-                printf("QUERY2:    %s\n", query2.data());
-                printf("TRUTH1:    %s\n", truth1.data());
-                printf("TRUTH2:    %s\n", truth2.data());
                 printf("Edit Distance: %d\n", 
                     *std::min_element(qual_dists.begin(), qual_dists.end()));
 
@@ -1776,12 +1997,12 @@ int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars,
 int calc_cig_sw_score(const std::vector<int> & cigar, 
         int sub, int open, int extend) {
     int score = 0;
-    int prev = PTR_DIAG;
+    int prev = PTR_MAT;
     for (int i = 0; i < int(cigar.size()); i++) {
         switch (cigar[i]) {
-            case PTR_DIAG:
+            case PTR_MAT:
                 i++; // increment by 2
-                prev = PTR_DIAG;
+                prev = PTR_MAT;
                 break;
             case PTR_SUB:
                 score += sub;
@@ -1812,11 +2033,11 @@ int calc_cig_sw_score(const std::vector<int> & cigar,
  * Strings are generated by applying variants to draft ref, and skipping 
  * variants is not allowed. Neither is a diagonal ref transition.
  */
-int sw_max_reach(std::string query, std::string ref, 
-        std::vector<int> query_ref_ptrs,
-        std::vector<int> ref_query_ptrs,
-        int sub, int open, int extend,
-        int score, bool reverse /*= false*/, int ref_section /*= -1*/) {
+int sw_max_reach(const std::string & query, const std::string & ref, 
+        const std::vector< std::vector<int> > & query_ref_ptrs,
+        const std::vector< std::vector<int> > & ref_query_ptrs,
+        int sub, int open, int extend, int score, bool print,
+        bool reverse /*= false*/, int ref_section /*= -1*/) {
     
     int ref_len = ref.size();
     int query_len = query.size();
@@ -1831,36 +2052,39 @@ int sw_max_reach(std::string query, std::string ref,
 
     // find furthest-reaching alignment with lesser or equal score
     for (int s = 0; s <= score; s++) {
-        if (g.verbosity >= 3)
-            printf("s = %d\n", s);
+        if (print) printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
-            if (g.verbosity >= 3)
-                printf("  x = (%c, %d, %d)\n", 
-                    std::string("SID")[x.mi], x.ci, x.ri);
+            if (print) printf("  x = (%c, %d, %d)\n", 
+                    std::string("SID")[x.mi], x.qi, x.ri);
             waves[s].insert(x);
 
             // allow non-main-diagonal match
-            if (x.ci+1 < query_len && x.ri+1 < ref_len && ! (
-                        x.ri >= ref_section &&
-                        query_ref_ptrs[x.ci] == x.ri &&
-                        ref_query_ptrs[x.ri] == x.ci &&
-                        query_ref_ptrs[x.ci+1] == x.ri+1 &&
-                        ref_query_ptrs[x.ri+1] == x.ci+1) &&
-                    query[x.ci+1] == ref[x.ri+1] && 
-                    !contains(done, {x.mi, x.ci+1, x.ri+1})) {
-                idx2 next(x.mi, x.ci+1, x.ri+1);
+            bool main_diag = x.ri >= ref_section &&
+                    !(query_ref_ptrs[FLAGS][x.qi] & PTR_VARIANT) && // neither prev/curr are variants
+                    !(ref_query_ptrs[FLAGS][x.ri] & PTR_VARIANT) &&
+                    !(query_ref_ptrs[FLAGS][x.qi+1] & PTR_VARIANT) &&
+                    !(ref_query_ptrs[FLAGS][x.ri+1] & PTR_VARIANT) &&
+                    query_ref_ptrs[PTRS][x.qi] == x.ri && // point to one another (main diag)
+                    ref_query_ptrs[PTRS][x.ri] == x.qi &&
+                    query_ref_ptrs[PTRS][x.qi+1] == x.ri+1 &&
+                    ref_query_ptrs[PTRS][x.ri+1] == x.qi+1;
+            if (x.qi+1 < query_len && x.ri+1 < ref_len && 
+                    !main_diag &&
+                    query[x.qi+1] == ref[x.ri+1] && 
+                    !contains(done, {x.mi, x.qi+1, x.ri+1})) {
+                idx2 next(x.mi, x.qi+1, x.ri+1);
                 queue.push(next);
                 done.insert(next);
             }
 
             // allow exiting D/I state (no penalty for forward only)
             if (!reverse && (x.mi == MAT_INS || x.mi == MAT_DEL) && 
-                    !contains(done, {MAT_SUB, x.ci, x.ri})) {
-                queue.push({MAT_SUB, x.ci, x.ri});
-                done.insert({MAT_SUB, x.ci, x.ri});
+                    !contains(done, {MAT_SUB, x.qi, x.ri})) {
+                queue.push({MAT_SUB, x.qi, x.ri});
+                done.insert({MAT_SUB, x.qi, x.ri});
             }
         }
 
@@ -1874,8 +2098,8 @@ int sw_max_reach(std::string query, std::string ref,
         sub_wave = s + 1 - sub;
         if (sub_wave >= 0 && sub_wave <= score) {
             for (idx2 x : waves[sub_wave]) {
-                if (x.mi == MAT_SUB && x.ci+1 < query_len && x.ri+1 < ref_len) {
-                    idx2 next({x.mi, x.ci+1, x.ri+1});
+                if (x.mi == MAT_SUB && x.qi+1 < query_len && x.ri+1 < ref_len) {
+                    idx2 next({x.mi, x.qi+1, x.ri+1});
                     if (!contains(done, next)) {
                         queue.push(next);
                         done.insert(next);
@@ -1893,8 +2117,8 @@ int sw_max_reach(std::string query, std::string ref,
             for(idx2 x : waves[open_wave]) {
 
                 // INS opening
-                if (x.mi == MAT_SUB && x.ci+1 < query_len) {
-                    idx2 next({MAT_INS, x.ci+1, x.ri});
+                if (x.mi == MAT_SUB && x.qi+1 < query_len) {
+                    idx2 next({MAT_INS, x.qi+1, x.ri});
                     if (!contains(done, next)) {
                         queue.push(next);
                         done.insert(next);
@@ -1903,7 +2127,7 @@ int sw_max_reach(std::string query, std::string ref,
 
                 // DEL opening
                 if (x.mi == MAT_SUB && x.ri+1 < ref_len) {
-                    idx2 next({MAT_DEL, x.ci, x.ri+1});
+                    idx2 next({MAT_DEL, x.qi, x.ri+1});
                     if (!contains(done, next)) {
                         queue.push(next);
                         done.insert(next);
@@ -1917,9 +2141,9 @@ int sw_max_reach(std::string query, std::string ref,
         if (reverse && end_wave >= 0 && end_wave <= score) {
             for (idx2 x : waves[end_wave]) {
                 if ((x.mi == MAT_INS || x.mi == MAT_DEL) && 
-                        !contains(done, {MAT_SUB, x.ci, x.ri})) {
-                    queue.push({MAT_SUB, x.ci, x.ri});
-                    done.insert({MAT_SUB, x.ci, x.ri});
+                        !contains(done, {MAT_SUB, x.qi, x.ri})) {
+                    queue.push({MAT_SUB, x.qi, x.ri});
+                    done.insert({MAT_SUB, x.qi, x.ri});
                 }
             }
         }
@@ -1930,8 +2154,8 @@ int sw_max_reach(std::string query, std::string ref,
             for(idx2 x : waves[extend_wave]) {
 
                 // INS extending (only from MAT_INS)
-                if (x.mi == MAT_INS && x.ci+1 < query_len) {
-                    idx2 next({x.mi, x.ci+1, x.ri});
+                if (x.mi == MAT_INS && x.qi+1 < query_len) {
+                    idx2 next({x.mi, x.qi+1, x.ri});
                     if (!contains(done, next)) {
                         queue.push(next);
                         done.insert(next);
@@ -1940,7 +2164,7 @@ int sw_max_reach(std::string query, std::string ref,
 
                 // DEL extending (only from MAT_DEL)
                 if (x.mi == MAT_DEL && x.ri+1 < ref_len) {
-                    idx2 next({x.mi, x.ci, x.ri+1});
+                    idx2 next({x.mi, x.qi, x.ri+1});
                     if (!contains(done, next)) {
                         queue.push(next);
                         done.insert(next);
@@ -1970,7 +2194,7 @@ int sw_max_reach(std::string query, std::string ref,
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_fasta, 
-        int sub, int open, int extend) {
+        int sub, int open, int extend, bool print) {
     INFO(" ");
     INFO("Realigning VCF '%s'", vcf->filename.data());
 
@@ -2006,20 +2230,17 @@ std::unique_ptr<variantData> sw_realign(
                 std::string ref = ref_fasta->fasta.at(ctg).substr(beg, end-beg);
                 
                 // perform alignment
-                if (g.verbosity >= 2) {
-                    printf("REF:   %s\n", ref.data());
-                    printf("QUERY: %s\n", query.data());
-                }
+                if (print) printf("REF:   %s\n", ref.data());
+                if (print) printf("QUERY: %s\n", query.data());
                 std::unordered_map<idx2, idx2> ptrs = sw_align(query, ref,
-                        sub, open, extend);
+                        sub, open, extend, print);
                 
                 // backtrack
-                std::vector<int> cigar = sw_backtrack(query, ref, ptrs);
-                if (g.verbosity >= 2)
-                    print_cigar(cigar);
+                std::vector<int> cigar = sw_backtrack(query, ref, ptrs, print);
+                if (print) print_cigar(cigar);
 
                 // compare distances
-                if (g.verbosity >= 1) {
+                if (print) {
                     int new_score = calc_cig_sw_score(cigar, sub, open, extend);
                     int old_score = calc_vcf_sw_score(vars, cluster, cluster+1, 
                             sub, open, extend);
@@ -2058,7 +2279,7 @@ std::unique_ptr<variantData> sw_realign(
 std::unordered_map<idx2, idx2> sw_align(
         const std::string & query, 
         const std::string & ref, 
-        int sub, int open, int extend) { 
+        int sub, int open, int extend, bool print) { 
     
     std::unordered_map<idx2, idx2> ptrs;
     ptrs[idx2(0,0,0)] = idx2(0,-1,-1);
@@ -2077,32 +2298,30 @@ std::unordered_map<idx2, idx2> sw_align(
     int s = 0;
     while(true) {
         waves.push_back(std::set<idx2>());
-        if (g.verbosity >= 3)
-            printf("s = %d\n", s);
+        if (print) printf("s = %d\n", s);
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
             idx2 prev = ptrs.find(x)->second;
-            if (g.verbosity >= 3)
-                printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
-                    std::string("SID")[x.mi], x.ci, x.ri,
-                    std::string("SID")[prev.mi], prev.ci, prev.ri);
+            if (print) printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
+                    std::string("SID")[x.mi], x.qi, x.ri,
+                    std::string("SID")[prev.mi], prev.qi, prev.ri);
             waves[s].insert(x);
 
             // allow match
             if (x.mi == MAT_SUB &&
-                    x.ci+1 < query_len && x.ri+1 < ref_len &&
-                    query[x.ci+1] == ref[x.ri+1] && 
-                    !contains(done, {x.mi, x.ci+1, x.ri+1})) {
-                idx2 next(x.mi, x.ci+1, x.ri+1);
+                    x.qi+1 < query_len && x.ri+1 < ref_len &&
+                    query[x.qi+1] == ref[x.ri+1] && 
+                    !contains(done, {x.mi, x.qi+1, x.ri+1})) {
+                idx2 next(x.mi, x.qi+1, x.ri+1);
                 queue.push(next); done.insert(next); ptrs[next] = x;
             }
 
             // allow exiting D/I state freely
             if ((x.mi == MAT_INS || x.mi == MAT_DEL) && 
-                    !contains(done, {MAT_SUB, x.ci, x.ri})) {
-                idx2 next(MAT_SUB, x.ci, x.ri);
+                    !contains(done, {MAT_SUB, x.qi, x.ri})) {
+                idx2 next(MAT_SUB, x.qi, x.ri);
                 queue.push(next); done.insert(next); ptrs[next] = x;
             }
         }
@@ -2117,22 +2336,22 @@ std::unordered_map<idx2, idx2> sw_align(
         sub_wave = s + 1 - sub;
         if (sub_wave >= 0) {
             for (idx2 x : waves[sub_wave]) {
-                if (x.mi == MAT_SUB && x.ci+1 < query_len && x.ri+1 < ref_len) {
-                    idx2 next(x.mi, x.ci+1, x.ri+1);
+                if (x.mi == MAT_SUB && x.qi+1 < query_len && x.ri+1 < ref_len) {
+                    idx2 next(x.mi, x.qi+1, x.ri+1);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
 
                         // continue extending while match
                         idx2 prev(next);
-                        next.ci++; next.ri++;
-                        while (next.ci < query_len && next.ri < ref_len &&
-                                query[next.ci] == ref[next.ri] &&
+                        next.qi++; next.ri++;
+                        while (next.qi < query_len && next.ri < ref_len &&
+                                query[next.qi] == ref[next.ri] &&
                                 !contains(done, next)) {
                             queue.push(next); done.insert(next); ptrs[next] = prev;
 
                             // update
                             prev = next;
-                            next.ci++; next.ri++;
+                            next.qi++; next.ri++;
                         }
                     }
                 }
@@ -2145,8 +2364,8 @@ std::unordered_map<idx2, idx2> sw_align(
             for(idx2 x : waves[open_wave]) {
 
                 // INS opening
-                if (x.mi == MAT_SUB && x.ci+1 < query_len) {
-                    idx2 next(MAT_INS, x.ci+1, x.ri);
+                if (x.mi == MAT_SUB && x.qi+1 < query_len) {
+                    idx2 next(MAT_INS, x.qi+1, x.ri);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
 
@@ -2158,15 +2377,15 @@ std::unordered_map<idx2, idx2> sw_align(
 
                             // continue extending while match
                             prev = next;
-                            next.ci++; next.ri++;
-                            while (next.ci < query_len && next.ri < ref_len &&
-                                    query[next.ci] == ref[next.ri] &&
+                            next.qi++; next.ri++;
+                            while (next.qi < query_len && next.ri < ref_len &&
+                                    query[next.qi] == ref[next.ri] &&
                                     !contains(done, next)) {
                                 queue.push(next); done.insert(next); ptrs[next] = prev;
 
                                 // update
                                 prev = next;
-                                next.ci++; next.ri++;
+                                next.qi++; next.ri++;
                             }
                         }
                     }
@@ -2175,7 +2394,7 @@ std::unordered_map<idx2, idx2> sw_align(
                 // DEL opening
                 if (x.mi == MAT_SUB && x.ri+1 < ref_len) {
                     // add to queue if in range and unvisited
-                    idx2 next(MAT_DEL, x.ci, x.ri+1);
+                    idx2 next(MAT_DEL, x.qi, x.ri+1);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
 
@@ -2187,15 +2406,15 @@ std::unordered_map<idx2, idx2> sw_align(
 
                             // continue extending while match
                             prev = next;
-                            next.ci++; next.ri++;
-                            while (next.ci < query_len && next.ri < ref_len &&
-                                    query[next.ci] == ref[next.ri] &&
+                            next.qi++; next.ri++;
+                            while (next.qi < query_len && next.ri < ref_len &&
+                                    query[next.qi] == ref[next.ri] &&
                                     !contains(done, next)) {
                                 queue.push(next); done.insert(next); ptrs[next] = prev;
 
                                 // update
                                 prev = next;
-                                next.ci++; next.ri++;
+                                next.qi++; next.ri++;
                             }
                         }
                     }
@@ -2209,9 +2428,9 @@ std::unordered_map<idx2, idx2> sw_align(
             for(idx2 x : waves[extend_wave]) {
 
                 // INS extending (only from MAT_INS)
-                if (x.mi == MAT_INS && x.ci+1 < query_len) {
+                if (x.mi == MAT_INS && x.qi+1 < query_len) {
                     // add to queue if in range and unvisited
-                    idx2 next(MAT_INS, x.ci+1, x.ri);
+                    idx2 next(MAT_INS, x.qi+1, x.ri);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
 
@@ -2223,15 +2442,15 @@ std::unordered_map<idx2, idx2> sw_align(
 
                             // continue extending while match
                             prev = next;
-                            next.ci++; next.ri++;
-                            while (next.ci < query_len && next.ri < ref_len &&
-                                    query[next.ci] == ref[next.ri] &&
+                            next.qi++; next.ri++;
+                            while (next.qi < query_len && next.ri < ref_len &&
+                                    query[next.qi] == ref[next.ri] &&
                                     !contains(done, next)) {
                                 queue.push(next); done.insert(next); ptrs[next] = prev;
 
                                 // update
                                 prev = next;
-                                next.ci++; next.ri++;
+                                next.qi++; next.ri++;
                             }
                         }
                     }
@@ -2240,7 +2459,7 @@ std::unordered_map<idx2, idx2> sw_align(
                 // DEL extending (only from MAT_DEL)
                 if (x.mi == MAT_DEL && x.ri+1 < ref_len) {
                     // add to queue if in range and unvisited
-                    idx2 next(MAT_DEL, x.ci, x.ri+1);
+                    idx2 next(MAT_DEL, x.qi, x.ri+1);
                     if (!contains(done, next)) {
                         queue.push(next); done.insert(next); ptrs[next] = x;
 
@@ -2252,15 +2471,15 @@ std::unordered_map<idx2, idx2> sw_align(
 
                             // continue extending while match
                             prev = next;
-                            next.ci++; next.ri++;
-                            while (next.ci < query_len && next.ri < ref_len &&
-                                    query[next.ci] == ref[next.ri] &&
+                            next.qi++; next.ri++;
+                            while (next.qi < query_len && next.ri < ref_len &&
+                                    query[next.qi] == ref[next.ri] &&
                                     !contains(done, next)) {
                                 queue.push(next); done.insert(next); ptrs[next] = prev;
 
                                 // update
                                 prev = next;
-                                next.ci++; next.ri++;
+                                next.qi++; next.ri++;
                             }
                         }
                     }
@@ -2282,7 +2501,7 @@ int count_dist(const std::vector<int> & cigar) {
     int dist = 0;
     while (cigar_ptr < int(cigar.size())) {
         switch (cigar[cigar_ptr]) {
-        case PTR_DIAG:
+        case PTR_MAT:
             cigar_ptr += 2;
             break;
         case PTR_SUB:
@@ -2307,32 +2526,29 @@ int count_dist(const std::vector<int> & cigar) {
 std::vector<int> sw_backtrack(
         const std::string & query,
         const std::string & ref,
-        const std::unordered_map<idx2, idx2> & ptrs) {
+        const std::unordered_map<idx2, idx2> & ptrs, 
+        bool print) {
 
     // initialize backtrack position and cigar string
     std::vector<int> cigar(query.size() + ref.size(), 0);
     idx2 pos(MAT_SUB, query.size()-1, ref.size()-1);
     int cigar_ptr = cigar.size()-1;
 
-    if (g.verbosity >= 2) {
-        printf("Backtrack:\n");
-    }
-    while (pos.ci >= 0 || pos.ri >= 0) {
-        if (g.verbosity >= 2) {
-            printf("(%c, %d, %d)\n",
-                    std::string("SID")[pos.mi], pos.ci, pos.ri);
-        }
+    if (print) printf("Backtrack:\n");
+    while (pos.qi >= 0 || pos.ri >= 0) {
+        if (print) printf("(%c, %d, %d)\n",
+                std::string("SID")[pos.mi], pos.qi, pos.ri);
         auto next_itr = ptrs.find(pos);
         if (next_itr == ptrs.end())
             ERROR("(%c, %d, %d) not found in ptrs during backtrack.",
-                    std::string("SID")[pos.mi], pos.ci, pos.ri);
+                    std::string("SID")[pos.mi], pos.qi, pos.ri);
         idx2 next = ptrs.find(pos)->second;
         if (next.mi == pos.mi) { // stay in same matrix
             switch (pos.mi) {
                 case MAT_SUB:
-                    if (query[pos.ci] == ref[pos.ri]) { // match
-                        cigar[cigar_ptr--] = PTR_DIAG;
-                        cigar[cigar_ptr--] = PTR_DIAG;
+                    if (query[pos.qi] == ref[pos.ri]) { // match
+                        cigar[cigar_ptr--] = PTR_MAT;
+                        cigar[cigar_ptr--] = PTR_MAT;
                     } else { // SUB
                         cigar[cigar_ptr--] = PTR_SUB;
                         cigar[cigar_ptr--] = PTR_SUB;

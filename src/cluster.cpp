@@ -386,7 +386,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                     if (left_compute) {
                         // calculate left reach
                         std::string query, ref;
-                        std::vector<int> query_ref_ptrs, ref_query_ptrs;
+                        std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
                         // just after last variant in previous cluster
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 < 0)
                             ERROR("left var_idx < 0");
@@ -414,9 +414,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // generate reversed pointers/strings
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
-                                vcf->ctg_variants[hap][ctg], 
                                 vcf->ctg_variants[hap][ctg],
-                                clust, 0, clust+1, 0, beg_pos, end_pos,
+                                clust, clust+1, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
                         reverse_ptrs_strs(query, ref, 
@@ -429,8 +428,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // calculate max reaching path to left
                         int reach = sw_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
-                                sub, open, extend,
-                                score, true, ref_section_start); // reverse
+                                sub, open, extend, score, 
+                                g.verbosity >= 2, true, ref_section_start); // reverse
                         l_reach = end_pos - reach;
                         if (g.verbosity >= 2)
                             printf("left reach: %d\n", reach);
@@ -441,11 +440,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                             printf("ref start:  %d\n", ref_section_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
-                                printf("%d ", query_ref_ptrs[i]); 
+                                printf("%d ", query_ref_ptrs[PTRS][i]); 
                             printf("\n");
                             printf("REF->QUERY: ");
                             for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
-                                printf("%d ", ref_query_ptrs[i]); 
+                                printf("%d ", ref_query_ptrs[PTRS][i]); 
                             printf("\n");
                         }
                         
@@ -460,7 +459,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
 
                         // calculate right reach
                         std::string query, ref;
-                        std::vector<int> query_ref_ptrs, ref_query_ptrs;
+                        std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
                         // right before current cluster
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust] < 0)
                             ERROR("right var_idx < 0");
@@ -481,8 +480,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
-                                vcf->ctg_variants[hap][ctg],
-                                clust, 0, clust+1, 0, beg_pos, end_pos,
+                                clust, clust+1, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
 
@@ -495,7 +493,8 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                         // calculate max reaching path to right
                         int reach = sw_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
-                                sub, open, extend, score, false, ref_section_start);
+                                sub, open, extend, score, g.verbosity >= 2, 
+                                false, ref_section_start);
                         r_reach = beg_pos + reach;
                         if (g.verbosity >= 2)
                             printf("right reach: %d\n", reach);
@@ -506,11 +505,11 @@ void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int exten
                             printf("ref_start:  %d\n", ref_section_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
-                                printf("%d ", query_ref_ptrs[i]); 
+                                printf("%d ", query_ref_ptrs[PTRS][i]); 
                             printf("\n");
                             printf("REF->QUERY: ");
                             for(size_t i = 0; i < ref_query_ptrs.size(); i++) 
-                                printf("%d ", ref_query_ptrs[i]); 
+                                printf("%d ", ref_query_ptrs[PTRS][i]); 
                             printf("\n");
                         }
                         

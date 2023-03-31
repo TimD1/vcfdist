@@ -8,17 +8,23 @@
 #include "edit.h"
 #include "defs.h"
 
+std::string GREEN(int i);
 std::string GREEN(char c);
 std::string GREEN(std::string str);
+std::string RED(int i);
 std::string RED(char c);
 std::string RED(std::string str);
 std::string BLUE(int i);
 std::string BLUE(char c);
 std::string BLUE(std::string str);
+std::string YELLOW(int i);
 std::string YELLOW(char c);
 std::string YELLOW(std::string str);
+std::string PURPLE(int i);
 std::string PURPLE(char c);
 std::string PURPLE(std::string str);
+
+void print_ref_ptrs(std::vector< std::vector<int> > ptrs);
 
 void print_ptrs(std::vector< std::vector<int> > ptrs, 
         std::string alt_str, std::string ref_str);

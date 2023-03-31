@@ -4,8 +4,8 @@
 void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
         const std::vector<int> & cig, int sc, int qual) {
    int cig_ptr = 0;
-   int type = PTR_DIAG;
-   int last_type = PTR_DIAG;
+   int type = PTR_MAT;
+   int last_type = PTR_MAT;
    int len = 0;
    int var_pos = pos;
 
@@ -16,7 +16,7 @@ void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
            
            // save last type
            switch (last_type) {
-               case PTR_DIAG: // do nothing
+               case PTR_MAT: // do nothing
                    break;
                case PTR_SUB:
                    add_edit(ctg, var_pos-1, hap, TYPE_SUB, 1, sc, qual);
@@ -31,7 +31,7 @@ void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
 
            // update pointers
            switch (type) {
-               case PTR_DIAG:
+               case PTR_MAT:
                    var_pos++;
                    cig_ptr += 2;
                    break;
@@ -53,7 +53,7 @@ void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
 
        } else { // type == last_type
            switch (type) {
-               case PTR_DIAG:
+               case PTR_MAT:
                    var_pos++;
                    cig_ptr += 2;
                    break;
