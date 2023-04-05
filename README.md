@@ -43,7 +43,7 @@ journal = {bioRxiv}
 * [Introduction](#introduction)
 * [Installation](#installation)
 * [Usage](#usage)
-* [Variant Stratification](#variant stratification)
+* [Variant Stratification](#variant-stratification)
 * [Acknowledgements](#acknowledgements)
 * [Limitations](#limitations)
 
