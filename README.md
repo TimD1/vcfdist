@@ -13,6 +13,7 @@ This results in more stable SNP and INDEL precision-recall curves than vcfeval, 
 
 This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement!
 
+
 ## Citation
 Please cite the following pre-print if you use vcfdist:
 
@@ -36,12 +37,16 @@ journal = {bioRxiv}
 </pre>
 </details>
 
+
 ## Contents
 
 * [Introduction](#introduction)
 * [Installation](#installation)
 * [Usage](#usage)
+* [Variant Stratification](#stratification)
 * [Acknowledgements](#acknowledgements)
+* [Limitations](#limitations)
+
 
 ## Installation
 
@@ -75,12 +80,50 @@ Here's an example usage of vcfdist:
     truth.vcf.gz \
     reference.fasta \
     -b analysis-regions.bed \
-    -p results/output-prefix
+    -p output-prefix/
 ```
 Please see additional options documented <a href="./src/README.md">here</a>, or run `./vcfdist --help`.
 
 The output TSV files are documented <a href="./docs/outputs.md">here</a>.
 
 
+## Variant Stratification
+
+We currently output an intermediate VCF in GA4GH compatible format, meaning the results can be stratified and analyzed by `hap.py`'s quantification helper script `qfy.py`.
+In order to use `qfy.py`, please install <a href="https://github.com/Illumina/hap.py">`hap.py`</a>.
+`tabix`, and `bgzip` should already be included as part of HTSlib.
+
+```bash
+> ./vcfdist \                                 # run vcfdist
+    query.vcf.gz \
+    truth.vcf.gz \
+    reference.fasta \
+    -b analysis-regions.bed \
+    -p output-prefix/
+> bgzip output-prefix/summary.vcf             # compress summary VCF
+> tabix -p vcf output-prefix/summary.vcf.gz   # index summary VCF
+> export HGREF=/path/to/reference.fasta       # set reference path
+> source /path/to/happy/venv2/bin/activate    # activate hap.py virtualenv
+> python /path/to/happy/install/bin/qfy.py \  # run quantification script
+    -t ga4gh \
+    --write-vcf \
+    --write-counts \
+    --stratification strat.tsv \
+    --roc QUAL \
+    --o results/qfy-output-prefix \
+    output-prefix/summary.vcf.gz
+```
+`strat.tsv` contains one stratification region per line. 
+Each line contains a region name and BED file name, separated by a tab (`\t`).
+GIAB stratification regions for GRCh38 can be found <a href="https://github.com/genome-in-a-bottle/genome-stratifications/tree/master/GRCh38">here</a>.
+
+
 ## Acknowledgements
 Datasets used in the evaluation of the accompanying paper are listed <a href="./data/README.md">here</a>.
+
+## Limitations
+The current version of vcfdist is not designed to support:
+- overlapping QUERY or TRUTH variants
+- unphased QUERY or TRUTH variants
+- haploid or polyploid chromosomes
+- structural variant evaluations
