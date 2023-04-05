@@ -131,6 +131,55 @@ void variantData::write_vcf(std::string out_vcf_fn) {
 }
 
 
+/*******************************************************************************/
+
+
+void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref, 
+        std::string ctg, int idx) {
+    char ref_base;
+    switch (this->types[idx]) {
+    case TYPE_SUB:
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:QQ:SC:SP", 
+                ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
+                this->alts[idx].data());
+        break;
+    case TYPE_INS:
+    case TYPE_DEL:
+        ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:QQ:SC:SP", ctg.data(), 
+                this->poss[idx], (ref_base + this->refs[idx]).data(), 
+                (ref_base + this->alts[idx]).data());
+        break;
+    default:
+        ERROR("print_variant not implemented for type %d", this->types[idx]);
+    }
+}
+
+
+void ctgVariants::print_var_empty(FILE* out_fp, bool query /* = false */) {
+    fprintf(out_fp, "\t.:.:.:.:.:.%s", query ? "\n" : "");
+}
+
+
+void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt, 
+        int sc_idx, bool swap, bool query /* = false */) {
+
+    std::string errtype;
+    switch (this->errtypes[idx]) {
+        case ERRTYPE_TP: errtype = "TP"; break;
+        case ERRTYPE_FP: errtype = "FP"; break;
+        case ERRTYPE_FN: errtype = "FN"; break;
+        case ERRTYPE_PP: errtype = "TP"; break; // for hap.py compatibility
+    }
+
+    fprintf(out_fp, "\t%s:%s:gm:%d:%d:%s%s", gt.data(), errtype.data(),
+            int(this->var_quals[idx]), sc_idx, query ? (swap ? "1" : "0") : "." , query ? "\n" : "");
+}
+
+
+/*******************************************************************************/
+
+
 void variantData::print_variant(FILE* out_fp, std::string ctg, int pos, int type,
         std::string ref, std::string alt, float qual, std::string gt) {
 

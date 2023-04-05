@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
     // save new VCF
     query_ptr->write_vcf(g.out_prefix + "query.vcf");
     truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+    phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
 
     return EXIT_SUCCESS;
 }

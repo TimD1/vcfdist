@@ -42,18 +42,22 @@ superclusterData::superclusterData(
     this->ref = ref_ptr;
 
     // create list of all contigs covered by truth/query
-    for (std::string ctg : query_ptr->contigs) {
+    for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
+        std::string ctg = query_ptr->contigs[i];
         if (std::find(this->contigs.begin(), this->contigs.end(), ctg) == 
                 this->contigs.end()) {
             this->contigs.push_back(ctg);
+            this->lengths.push_back(query_ptr->lengths[i]);
             this->ctg_superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }
     }
-    for (std::string ctg : truth_ptr->contigs) {
+    for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
+        std::string ctg = truth_ptr->contigs[i];
         if (std::find(this->contigs.begin(), this->contigs.end(), ctg) == 
                 this->contigs.end()) {
             this->contigs.push_back(ctg);
+            this->lengths.push_back(truth_ptr->lengths[i]);
             this->ctg_superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }

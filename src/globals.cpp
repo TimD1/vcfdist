@@ -444,10 +444,9 @@ void Globals::parse_args(int argc, char ** argv) {
     if (print_help) 
         this->print_usage();
     else {
-        std::string cmd = "";
         for (int i = 0; i < argc; i++)
-            cmd += " " + std::string(argv[i]);
-        if (g.verbosity >= 1) INFO("Command: '%s'", cmd.data()+1);
+            g.cmd += " " + std::string(argv[i]);
+        if (g.verbosity >= 1) INFO("Command: '%s'", g.cmd.data()+1);
     }
 }
 

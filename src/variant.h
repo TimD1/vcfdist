@@ -20,8 +20,12 @@ public:
     // helper functions
     void add_cluster(int g);
     void add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
-            std::string ref, std::string alt, uint8_t orig_gt,
-            float gq, float vq);
+            std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq);
+    void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
+            std::string ctg, int idx);
+    void print_var_empty(FILE* out_vcf, bool query = false);
+    void print_var_sample(FILE* out_vcf, int idx, std::string gt, 
+            int sc_idx, bool swap, bool query = false);
 
     // data (all of size n)
     std::vector<int> poss;          // variant start positions (0-based)
@@ -59,11 +63,8 @@ public:
         std::string ref, std::string alt, float qual, std::string gt);
     void set_header(const std::unique_ptr<variantData> & vcf);
     void add_variants( const std::vector<int> & cigar, 
-        int hap, int ref_pos,
-        const std::string & ctg, 
-        const std::string & query, 
-        const std::string & ref,
-        int qual);
+        int hap, int ref_pos, const std::string & ctg, 
+        const std::string & query, const std::string & ref, int qual);
 
     // data
     int callset;                     // 0=QUERY, 1=TRUTH

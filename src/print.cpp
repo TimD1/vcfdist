@@ -291,7 +291,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
         // add query
         auto & vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants;
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants;
         for (int h = 0; h < HAPS; h++) {
             for (int i = 0; i < vars[QUERY][h]->n; i++) {
                 float q = vars[QUERY][h]->callq[i];
@@ -611,11 +611,11 @@ void write_results(
     if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
-        ctgPhasings ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
-        std::shared_ptr<ctgSuperclusters> ctg_superclusters = ctg_phasings.ctg_superclusters;
-        for (int i = 0; i <= ctg_phasings.nswitches && ctg_phasings.nswitches > 0; i++) {
-            int beg_idx = ctg_phasings.phase_blocks[i];
-            int end_idx = ctg_phasings.phase_blocks[i+1]-1;
+        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
+        std::shared_ptr<ctgSuperclusters> ctg_superclusters = ctg_phasings->ctg_superclusters;
+        for (int i = 0; i <= ctg_phasings->nswitches && ctg_phasings->nswitches > 0; i++) {
+            int beg_idx = ctg_phasings->phase_blocks[i];
+            int end_idx = ctg_phasings->phase_blocks[i+1]-1;
             int beg = ctg_superclusters->begs[beg_idx];
             int end = ctg_superclusters->ends[end_idx];
             fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\n", 
@@ -631,13 +631,13 @@ void write_results(
     fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
             "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
     for (auto ctg_name : phasedata_ptr->contigs) {
-        auto ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
-        std::shared_ptr<ctgSuperclusters> ctg_supclusts = ctg_phasings.ctg_superclusters;
+        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
+        std::shared_ptr<ctgSuperclusters> ctg_supclusts = ctg_phasings->ctg_superclusters;
         int phase_block_idx = 0;
         for (int i = 0; i < ctg_supclusts->n; i++) {
 
             // we've entered the next phase block
-            if (i >= ctg_phasings.phase_blocks[phase_block_idx+1]) {
+            if (i >= ctg_phasings->phase_blocks[phase_block_idx+1]) {
                 phase_block_idx++;
             }
 
@@ -689,11 +689,11 @@ void write_results(
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> query1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[QUERY][HAP1];
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[QUERY][HAP1];
         std::shared_ptr<ctgVariants> query2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[QUERY][HAP2];
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[QUERY][HAP2];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters;
 
         int supercluster_idx = 0;
         int var1_idx = 0;
@@ -764,11 +764,11 @@ void write_results(
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> truth1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[TRUTH][HAP1];
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[TRUTH][HAP1];
         std::shared_ptr<ctgVariants> truth2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters->ctg_variants[TRUTH][HAP2];
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[TRUTH][HAP2];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
-            phasedata_ptr->ctg_phasings[ctg_name].ctg_superclusters;
+            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters;
 
         int var1_idx = 0;
         int var2_idx = 0;

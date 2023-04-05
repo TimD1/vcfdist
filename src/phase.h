@@ -24,9 +24,13 @@ public:
     phaseData(std::shared_ptr<superclusterData> clusterdata_ptr); 
 
     void phase();
+    void write_summary_vcf(std::string vcf_fn);
 
+    std::shared_ptr<fastaData> ref;
     std::vector<std::string> contigs;
-    std::unordered_map<std::string, ctgPhasings> ctg_phasings;
+    std::vector<int> lengths;
+    std::unordered_map<std::string, 
+        std::shared_ptr<ctgPhasings> > ctg_phasings;
 };
 
 #endif

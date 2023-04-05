@@ -20,6 +20,7 @@ public:
     bool bed_exists = false;
 
     std::string out_prefix;
+    std::string cmd;
 
     int cluster_min_gap = 50;
     int max_cluster_itrs = 4;
