@@ -2,6 +2,7 @@
 #define _DIST_H_
 
 #include <unordered_set>
+#include <unordered_map>
 
 #include "fasta.h"
 #include "variant.h"
@@ -117,6 +118,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & aln_ptrs,
+        std::vector< std::unordered_map<idx1, idx1> > & pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         );
 
@@ -153,6 +155,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector< std::unordered_map<idx1, idx1> > & pred_map,
         const std::vector<int> & pr_query_ref_end, bool print
         );
 

@@ -15,6 +15,10 @@ template <typename T>
 bool contains(const std::unordered_set<T> & wave, const T & idx) {
     return wave.find(idx) != wave.end();
 }
+template <typename T>
+bool contains(const std::unordered_map<T,T> & wave, const T & idx) {
+    return wave.find(idx) != wave.end();
+}
 
 variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
@@ -544,6 +548,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<int> > > & ptrs,
+        std::vector< std::unordered_map<idx1, idx1> > & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         ) {
     
@@ -578,6 +583,7 @@ void calc_prec_recall_aln(
                 std::vector<bool>(truth_lens[i], false)));
         done.push_back(std::vector< std::vector<bool> >(ref_len, 
                 std::vector<bool>(truth_lens[i], false)));
+        swap_pred_map.push_back(std::unordered_map<idx1,idx1>());
         
         // set first wavefront
         std::queue<idx1> queue; // still to be explored in this wave
@@ -628,6 +634,7 @@ void calc_prec_recall_aln(
                                     queue.push(z); curr_wave.insert(z);
                                 }
                                 ptrs[ri][z.qri][z.ti] |= PTR_SWP_MAT;
+                                swap_pred_map[i][z] = x;
                             }
                         }
                     }
@@ -656,6 +663,7 @@ void calc_prec_recall_aln(
                                     queue.push(z); curr_wave.insert(z);
                                 }
                                 ptrs[qi][z.qri][z.ti] |= PTR_SWP_MAT;
+                                swap_pred_map[i][z] = x;
                             }
                         }
                     }
@@ -806,6 +814,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector< std::unordered_map<idx1,idx1> > & swap_pred_map,
         const std::vector<int> & pr_query_ref_end, bool print
         ) {
 
@@ -903,12 +912,14 @@ void calc_prec_recall_path(
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
                     }
 
-                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
                             x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
-                            is_fp ? "Y" : "N");
+                            in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
+                            in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? GREEN("REF_SYNC").data() : RED("REF_SYNC").data(),
+                            is_fp ? GREEN("FP").data() : RED("FP").data());
+
                 }
 
 
@@ -919,10 +930,9 @@ void calc_prec_recall_path(
                             x.qri > 0 && x.ti > 0) {
 
                         // get next cell, add to path
-                        idx1 z = idx1(qi, ref_query_ptrs[i][PTRS][x.qri-1], x.ti-1);
-                        while (z.qri+1 < int(query_ref_ptrs[i][PTRS].size()) && 
-                                query_ref_ptrs[i][PTRS][z.qri] == 
-                                query_ref_ptrs[i][PTRS][z.qri+1]) z.qri++;
+                        if (!contains(swap_pred_map[i], x))
+                            ERROR("No swap predecessor, but PTR_SWP_MAT set.");
+                        idx1 z = swap_pred_map[i].at(x);
                         aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
 
                         // check if mvmt is in variant
@@ -957,12 +967,13 @@ void calc_prec_recall_path(
                             path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                         }
 
-                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
                                 z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
-                                in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N",
-                                is_fp ? "Y" : "N");
+                                in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
+                                in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? GREEN("REF_SYNC").data() : RED("REF_SYNC").data(),
+                                is_fp ? GREEN("FP").data() : RED("FP").data());
                     }
 
                 } else { // QUERY -> REF SWAP mvmt
@@ -972,10 +983,9 @@ void calc_prec_recall_path(
                             x.qri > 0 && x.ti > 0) {
 
                         // add to path
-                        idx1 z = idx1(ri, query_ref_ptrs[i][PTRS][x.qri-1], x.ti-1);
-                        while (z.qri+1 < int(ref_query_ptrs[i][PTRS].size()) && 
-                                ref_query_ptrs[i][PTRS][z.qri] == 
-                                ref_query_ptrs[i][PTRS][z.qri+1]) z.qri++;
+                        if (!contains(swap_pred_map[i], x))
+                            ERROR("No swap predecessor, but PTR_SWP_MAT set.");
+                        idx1 z = swap_pred_map[i].at(x);
                         aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
 
                         // check if mvmt is in variant
@@ -1006,11 +1016,12 @@ void calc_prec_recall_path(
                             path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                         }
 
-                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
-                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s\n",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
                                 z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
-                                in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? "Y" : "N");
+                                in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
+                                in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                                ref_loc_sync[i][z.hi == ri ? z.qri : query_ref_ptrs[i][PTRS][z.qri]] ? GREEN("REF_SYNC").data() : RED("REF_SYNC").data());
                     }
                 }
 
@@ -1065,12 +1076,13 @@ void calc_prec_recall_path(
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
                     }
 
-                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SUB",
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
-                            is_fp ? "Y" : "N");
+                            in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
+                            in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? GREEN("REF_SYNC").data() : RED("REF_SYNC").data(),
+                            is_fp ? GREEN("FP").data() : RED("FP").data());
                 }
 
                 // INS movement
@@ -1114,12 +1126,13 @@ void calc_prec_recall_path(
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
                     }
 
-                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:%s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "INS",
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N",
-                            is_fp ? "Y" : "N");
+                            in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
+                            in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? GREEN("REF_SYNC").data() : RED("REF_SYNC").data(),
+                            is_fp ? GREEN("FP").data() : RED("FP").data());
                 }
 
                 // DEL movement
@@ -1151,11 +1164,12 @@ void calc_prec_recall_path(
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
                     }
 
-                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) IN_QUERY_VAR:%s IN_TRUTH_VAR:%s REF_SYNC:%s FP:N\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "DEL",
+                    if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s\n",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
-                            in_query_var ? "Y" : "N", in_truth_var ? "Y" : "N",
-                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? "Y" : "N");
+                            in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
+                            in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                            ref_loc_sync[i][y.hi == ri ? y.qri : query_ref_ptrs[i][PTRS][y.qri]] ? GREEN("REF_SYNC").data() : RED("REF_SYNC").data());
                 }
 
             } // done adding to next wave
@@ -1814,12 +1828,14 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             // query1-truth2, query1-truth1, query2-truth1, query2-truth2
             std::vector<int> aln_score(4), aln_query_ref_end(4);
             std::vector< std::vector< std::vector<int> > > aln_ptrs;
+            std::vector< std::unordered_map<idx1, idx1> > swap_pred_map;
             calc_prec_recall_aln(
                     query1, query2, truth1, truth2, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_score, aln_ptrs, aln_query_ref_end, false
+                    aln_score, aln_ptrs, swap_pred_map,
+                    aln_query_ref_end, false
             );
 
             // store optimal phasing for each supercluster
@@ -1839,6 +1855,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs, 
                     truth1_ref_ptrs, truth2_ref_ptrs,
+                    swap_pred_map,
                     aln_query_ref_end, false);
 
             // calculate precision/recall from paths
