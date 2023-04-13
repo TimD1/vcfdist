@@ -215,31 +215,8 @@ void superclusterData::gap_supercluster() {
 
 /******************************************************************************/
 
-
-/* Should be called after clustering to set variant quality to cluster minimum.
- */
-void update_quals(std::unique_ptr<variantData> & vcf) {
-    for (std::string ctg : vcf->contigs) {
-        for (int h = 0; h < HAPS; h++) {
-            auto vars = vcf->ctg_variants[h][ctg];
-            for (int c = 0; c < int(vars->clusters.size()-1); c++) {
-                int minqual = g.max_qual;
-                for (int v = vars->clusters[c]; v < vars->clusters[c+1]; v++) {
-                    minqual = std::min(minqual, int(vars->var_quals[v]));
-                }
-                for (int v = vars->clusters[c]; v < vars->clusters[c+1]; v++) {
-                    vars->var_quals[v] = minqual;
-                }
-            }
-        }
-    }
-}
-
-
-/******************************************************************************/
-
-
-void cluster(std::unique_ptr<variantData> & vcf) {
+/* Cluster variants based on minimum gap length for independence */
+void gap_cluster(std::unique_ptr<variantData> & vcf) {
     /* Add single-VCF cluster indices to `variantData` */
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("Gap Clustering VCF '%s'", vcf->filename.data());
