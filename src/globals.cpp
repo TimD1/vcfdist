@@ -19,9 +19,14 @@ void Globals::parse_args(int argc, char ** argv) {
                     std::string(argv[i]) == "--help") {
                 i++;
                 print_help = true;
-            } else if (std::string(argv[i]) == "--version") {
+            } else if (std::string(argv[i]) == "-v" ||
+                    std::string(argv[i]) == "--version") {
                 i++;
                 this->print_version();
+            } else {
+                print_help = true;
+                WARN("Invalid usage.");
+                break;
             }
         }
 

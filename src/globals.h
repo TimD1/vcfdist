@@ -57,7 +57,7 @@ public:
     void print_usage() const; 
 
     // program data
-    const std::string VERSION = "1.2.1";
+    const std::string VERSION = "1.2.2";
     const std::string PROGRAM = "vcfdist";
 };
 
