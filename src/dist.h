@@ -139,8 +139,7 @@ void get_prec_recall_path_sync(
         );
 
 void calc_prec_recall_path(
-        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx,
-        const std::string & ctg, const std::string & ref,
+        const std::string & ref,
         const std::string & query1, const std::string & query2, 
         const std::string & truth1, const std::string & truth2, 
         std::vector< std::vector<idx1> > & path, 

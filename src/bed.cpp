@@ -86,18 +86,18 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
             this->regions[contig].stops.size()-1]) return BED_OUTSIDE;
 
     // get indices of variant within bed regions list
-    size_t start_idx = std::upper_bound(
+    int start_idx = std::upper_bound(
             this->regions[contig].starts.begin(),
             this->regions[contig].starts.end(),
             start) - this->regions[contig].starts.begin() - 1;
-    size_t stop_idx = std::lower_bound(
+    int stop_idx = std::lower_bound(
             this->regions[contig].stops.begin(),
             this->regions[contig].stops.end(),
             stop) - this->regions[contig].stops.begin();
 
     // variant must be partially in region, other index off end
     if (start_idx < 0) return BED_BORDER;
-    if (stop_idx >= this->regions[contig].stops.size()) return BED_BORDER;
+    if (stop_idx >= int(this->regions[contig].stops.size())) return BED_BORDER;
 
     // variant in middle
     if (stop_idx == start_idx)

@@ -50,8 +50,7 @@ void print_wfa_ptrs(
         std::vector<std::string> query,
         std::vector<std::string> truth,
         std::vector<int> s,
-        std::vector< std::vector< std::vector<int> > > offs, 
-        std::vector< std::vector< std::vector<int> > > ptrs) {
+        std::vector< std::vector< std::vector<int> > > offs) {
 
     printf("\n=======================================================================\n");
     for(int h = 0; h < 4; h++) { // 4 alignments

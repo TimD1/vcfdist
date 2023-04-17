@@ -798,8 +798,7 @@ int store_phase(
  * get_prec_recall_path_sync() to parse this path.
  */
 void calc_prec_recall_path(
-        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, 
-        const std::string & ctg, const std::string & ref,
+        const std::string & ref,
         const std::string & query1, const std::string & query2, 
         const std::string & truth1, const std::string & truth2, 
         std::vector< std::vector<idx1> > & path, 
@@ -1848,8 +1847,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             std::vector< std::vector<bool> > sync, edit;
             std::vector< std::vector< std::vector<int> > > path_ptrs, path_scores;
             calc_prec_recall_path(
-                    clusterdata_ptr, sc_idx, ctg, ref_q1,
-                    query1, query2, truth1, truth2,
+                    ref_q1, query1, query2, truth1, truth2,
                     path, sync, edit,
                     aln_ptrs, path_ptrs, path_scores,
                     query1_ref_ptrs, ref_query1_ptrs, 

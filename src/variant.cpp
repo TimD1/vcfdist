@@ -456,16 +456,16 @@ variantData::variantData(std::string vcf_fn,
         }
         if ( ngq == -3 ) {
             if (!gq_warn) {
-                WARN("No GQ tag in %s VCF at %s:%li",
-                        callset_strs[callset].data(), seq.data(), rec->pos);
+                WARN("No GQ tag in %s VCF at %s:%lld",
+                        callset_strs[callset].data(), seq.data(), (long long)rec->pos);
                 gq_warn = true; // only warn once
             }
             gq[0] = 0;
         }
         ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
         if (ngt < 0) {
-            ERROR("Failed to read %s GT at %s:%li\n", 
-                    callset_strs[callset].data(), seq.data(), rec->pos);
+            ERROR("Failed to read %s GT at %s:%lld\n", 
+                    callset_strs[callset].data(), seq.data(), (long long)rec->pos);
         }
 
         // parse genotype info

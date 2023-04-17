@@ -35,8 +35,7 @@ void print_wfa_ptrs(
         std::vector<std::string> query,
         std::vector<std::string> truth,
         std::vector<int> s,
-        std::vector< std::vector< std::vector<int> > > offs, 
-        std::vector< std::vector< std::vector<int> > > ptrs);
+        std::vector< std::vector< std::vector<int> > > offs);
 
 void write_results(std::unique_ptr<phaseData> & phasings, const editData & edits);
 
