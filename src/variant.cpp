@@ -319,7 +319,6 @@ variantData::variantData(std::string vcf_fn,
     int * gq    = (int*) malloc(sizeof(int));
     float * fgq = (float*) malloc(sizeof(float));
     bool int_qual = true;
-    int total_overlaps = 0;
 
     // genotype data for each call
     int ngt_arr   = 0;
@@ -328,7 +327,10 @@ variantData::variantData(std::string vcf_fn,
     int * gt      = NULL;
 
     /* int gq_missing_total = 0; */
+    int overlapping_var_total = 0;
     int unknown_allele_total = 0;
+    int small_var_total = 0;
+    int large_var_total = 0;
     
     // read header
     bcf1_t * rec  = NULL;
@@ -505,7 +507,7 @@ variantData::variantData(std::string vcf_fn,
             std::string ref = rec->d.allele[0];
             int alt_idx = bcf_gt_allele(gt[hap]);
             if (alt_idx < 0) {
-                if (g.verbosity > 1 || !unknown_allele_total)
+                if (g.verbosity > 1)
                     WARN("Unknown allele (.) in %s VCF at %s:%lld, marking 1",
                         callset_strs[callset].data(), seq.data(), (long long)rec->pos);
                 unknown_allele_total += 1;
@@ -555,17 +557,6 @@ variantData::variantData(std::string vcf_fn,
                 }
             }
 
-            // TODO: keep overlaps, test all non-overlapping subsets?
-            // skip overlapping variants
-            if (prev_end[hap] > pos) { // warn if overlap
-                if (g.verbosity >= 1) {
-                    WARN("%s VCF variant overlap at %s:%i, skipping", 
-                            callset_strs[callset].data(), seq.data(), pos);
-                }
-                total_overlaps++;
-                continue;
-            }
-
             // calculate reference length of variant
             int rlen = 0;
             switch (type) {
@@ -598,6 +589,35 @@ variantData::variantData(std::string vcf_fn,
                     break;
             }
 
+            // skip variants that are too small or large
+            if (int(ref.size()) > g.max_size || int(alt.size()) > g.max_size) {
+                if (g.verbosity > 1)
+                    WARN("Large variant of length %d in %s VCF at %s:%lld, skipping",
+                        int(std::max(ref.size(), alt.size())),
+                        callset_strs[callset].data(), seq.data(), (long long)rec->pos);
+                large_var_total++;
+                continue;
+            }
+            if (int(ref.size()) < g.min_size && int(alt.size()) < g.min_size) {
+                if (g.verbosity > 1)
+                    WARN("Small variant of length %d in %s VCF at %s:%lld, skipping",
+                        int(std::max(ref.size(), alt.size())),
+                        callset_strs[callset].data(), seq.data(), (long long)rec->pos);
+                small_var_total++;
+                continue;
+            }
+
+            // TODO: keep overlaps, test all non-overlapping subsets?
+            // skip overlapping variants
+            if (prev_end[hap] > pos) { // warn if overlap
+                if (g.verbosity > 1) {
+                    WARN("Overlap in %s VCF variants at %s:%i, skipping", 
+                            callset_strs[callset].data(), seq.data(), pos);
+                }
+                overlapping_var_total++;
+                continue;
+            }
+
             // add to haplotype-specific query info
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 this->ctg_variants[hap][seq]->add_var(pos, 0, // INS
@@ -623,9 +643,17 @@ variantData::variantData(std::string vcf_fn,
         WARN("%d total unknown alleles (.) found in %s VCF, all considered 1",
             unknown_allele_total, callset_strs[callset].data());
 
-    if (total_overlaps)
+    if (large_var_total)
+        WARN("%d total large %s VCF variant calls skipped, size > %d", 
+                large_var_total, callset_strs[callset].data(), g.max_size);
+
+    if (small_var_total)
+        WARN("%d total small %s VCF variant calls skipped, size < %d", 
+                small_var_total, callset_strs[callset].data(), g.min_size);
+
+    if (overlapping_var_total)
         WARN("%d total overlapping %s VCF variant calls skipped", 
-                total_overlaps, callset_strs[callset].data());
+                overlapping_var_total, callset_strs[callset].data());
 
     if (g.verbosity >= 1) {
         INFO("  Contigs:");

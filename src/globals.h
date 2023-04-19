@@ -24,9 +24,11 @@ public:
 
     int cluster_min_gap = 50;
     int max_cluster_itrs = 4;
-    int verbosity = 0;
+    int verbosity = 1;
     int min_qual = 0;
     int max_qual = 60;
+    int min_size = 1;
+    int max_size = 5000;
 
     bool exit = false;
     bool advanced = false;

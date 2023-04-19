@@ -94,11 +94,38 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("%s", e.what());
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-s" || 
+                std::string(argv[i]) == "--smallest-variant") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--smallest-variant' used without providing minimum variant size");
+            }
+            try {
+                this->min_size = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid minimum variant size provided");
+            }
+            if (g.min_size < 0) {
+                ERROR("Must provide non-negative minimum variant size");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-l" || 
+                std::string(argv[i]) == "--largest-variant") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--largest-variant' used without providing maximum variant size");
+            }
+            try {
+                this->max_size = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid maximum variant size provided");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-q" || 
                 std::string(argv[i]) == "--min-qual") {
             i++;
             if (i == argc) {
-                ERROR("Option '-q' used without providing minimum variant quality");
+                ERROR("Option '--min-qual' used without providing minimum variant quality");
             }
             try {
                 this->min_qual = std::stoi(argv[i++]);
@@ -113,22 +140,19 @@ void Globals::parse_args(int argc, char ** argv) {
                 std::string(argv[i]) == "--max-qual") {
             i++;
             if (i == argc) {
-                ERROR("Option '-m' used without providing maximum variant quality");
+                ERROR("Option '--max-qual' used without providing maximum variant quality");
             }
             try {
                 this->max_qual = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant quality provided");
             }
-            if (g.max_qual < g.min_qual) {
-                ERROR("Maximum variant quality must exceed minimum variant quality");
-            }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-v" || 
                 std::string(argv[i]) == "--verbosity") {
             i++;
             if (i == argc) {
-                ERROR("Option '-v' used without providing printing verbosity");
+                ERROR("Option '--verbosity' used without providing printing verbosity");
             }
             try {
                 this->verbosity = std::stoi(argv[i++]);
@@ -406,7 +430,7 @@ void Globals::parse_args(int argc, char ** argv) {
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-i" || 
-                std::string(argv[i]) == "--max-cluster-iterations") {
+                std::string(argv[i]) == "--max-iterations") {
             i++;
             if (i == argc) {
                 ERROR("Option '-i' used without providing max cluster iterations");
@@ -446,6 +470,15 @@ void Globals::parse_args(int argc, char ** argv) {
             ERROR("Unexpected option '%s'", argv[i]);
         }
     }
+
+    // final check, independent of order command-line params are set
+    if (g.max_size < g.min_size) {
+        ERROR("Maximum variant size must exceed smallest variant size");
+    }
+    if (g.max_qual < g.min_qual) {
+        ERROR("Maximum variant quality must exceed minimum variant quality");
+    }
+
     if (print_help) 
         this->print_usage();
     else {
@@ -467,43 +500,49 @@ void Globals::print_usage() const
     printf("Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
 
     printf("\nRequired:\n");
-    printf("  <FILENAME>\tquery.vcf\tphased VCF file containing variant calls to evaluate \n");
-    printf("  <FILENAME>\ttruth.vcf\tphased VCF file containing ground truth variant calls \n");
-    printf("  <FILENAME>\tref.fasta\tFASTA file containing draft reference sequence \n");
+    printf("  <STRING>\tquery.vcf\tphased VCF file containing variant calls to evaluate \n");
+    printf("  <STRING>\ttruth.vcf\tphased VCF file containing ground truth variant calls \n");
+    printf("  <STRING>\tref.fasta\tFASTA file containing draft reference sequence \n");
 
     printf("\nOptions:\n");
-    printf("  -b, --bed <FILENAME>\n");
+    printf("  -b, --bed <STRING>\n");
     printf("      BED file containing regions to evaluate\n\n");
 
-    printf("  -p, --prefix <FILENAME_PREFIX> [./]\n");
-    printf("      output filepath prefix (directories should contain trailing slashes)\n\n");
+    printf("  -p, --prefix <STRING> [./]\n");
+    printf("      prefix for output files (directory needs a trailing slash)\n\n");
 
-    printf("  -q, --min-qual <VALUE> [%d]\n", g.min_qual);
-    printf("      minimum variant quality to be considered (lower qualities ignored)\n\n");
-
-    printf("  -m, --max-qual <VALUE> [%d]\n", g.max_qual);
-    printf("      maximum variant quality (higher qualities kept, thresholded)\n\n");
-
-    printf("  -i, --max-cluster-iterations<VALUE> [%d]\n", g.max_cluster_itrs);
-    printf("      maximum iterations for growing clusters\n\n");
-
-    printf("  -g, --supercluster-gap <VALUE> [%d]\n", g.cluster_min_gap);
-    printf("      minimum base gap between independent superclusters\n\n");
-
-    printf("  -x, --mismatch-penalty <VALUE> [%d]\n", g.eval_sub);
-    printf("      integer Smith-Waterman mismatch (substitution) penalty\n\n");
-
-    printf("  -o, --gap-open-penalty <VALUE> [%d]\n", g.eval_open);
-    printf("      integer Smith-Waterman gap opening penalty\n\n");
-
-    printf("  -e, --gap-extend-penalty <VALUE> [%d]\n", g.eval_extend);
-    printf("      integer Smith-Waterman gap extension penalty\n\n");
-
-    printf("  -v, --verbosity <VALUE> [%d]\n", g.verbosity);
-    printf("      printing verbosity (0: default, 1: verbose, 2:debug)\n\n");
+    printf("  -v, --verbosity <INTEGER> [%d]\n", g.verbosity);
+    printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n\n");
 
     printf("  -r, --realign-only\n");
-    printf("      realign truth/query VCFs with Smith-Waterman parameters, then exit\n\n");
+    printf("      standardize truth and query variant representations, then exit\n\n");
+
+    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
+    printf("      Smith-Waterman mismatch (substitution) penalty\n\n");
+
+    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
+    printf("      Smith-Waterman gap opening penalty\n\n");
+
+    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
+    printf("      Smith-Waterman gap extension penalty\n\n");
+
+    printf("  -q, --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("      minimum variant quality, lower qualities ignored\n\n");
+
+    printf("  -m, --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("      maximum variant quality, higher qualities kept but thresholded\n\n");
+
+    printf("  -s, --smallest-variant <INTEGER> [%d]\n", g.min_size);
+    printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n\n");
+
+    printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
+    printf("      maximum variant size, larger variants ignored\n\n");
+
+    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
+    printf("      maximum iterations for expanding/merging clusters\n\n");
+
+    printf("  -g, --supercluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
+    printf("      minimum base gap between independent superclusters\n\n");
 
     printf("  -h, --help\n");
     printf("      show this help message\n\n");
@@ -518,39 +557,39 @@ void Globals::print_usage() const
     if (!this->advanced) return;
     printf("\nAdvanced Options: (not recommended, only for evaluation)\n");
     printf("  --keep-query\n");
-    printf("      do not realign query.vcf variants using Smith-Waterman\n\n");
+    printf("      do not realign query variants\n\n");
 
     printf("  --keep-truth\n");
-    printf("      do not realign truth.vcf variants using Smith-Waterman\n\n");
+    printf("      do not realign truth variants\n\n");
 
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
-    printf("  -qx, --query-mismatch-penalty <VALUE> [%d]\n", g.query_sub);
-    printf("      integer Smith-Waterman mismatch penalty for query variants\n\n");
+    printf("  -qx, --query-mismatch-penalty <INTEGER> [%d]\n", g.query_sub);
+    printf("      mismatch penalty (query variant realignment)\n\n");
 
-    printf("  -qo, --query-gap-open-penalty <VALUE> [%d]\n", g.query_open);
-    printf("      integer Smith-Waterman gap opening penalty for query variants\n\n");
+    printf("  -qo, --query-gap-open-penalty <INTEGER> [%d]\n", g.query_open);
+    printf("      gap opening penalty (query variant realignment)\n\n");
 
-    printf("  -qe, --query-gap-extend-penalty <VALUE> [%d]\n", g.query_extend);
-    printf("      integer Smith-Waterman gap extension penalty for query variants\n\n");
+    printf("  -qe, --query-gap-extend-penalty <INTEGER> [%d]\n", g.query_extend);
+    printf("      gap extension penalty (query variant realignment)\n\n");
 
-    printf("  -tx, --truth-mismatch-penalty <VALUE> [%d]\n", g.truth_sub);
-    printf("      integer Smith-Waterman mismatch penalty for truth variants\n\n");
+    printf("  -tx, --truth-mismatch-penalty <INTEGER> [%d]\n", g.truth_sub);
+    printf("      mismatch penalty (truth variant realignment)\n\n");
 
-    printf("  -to, --truth-gap-open-penalty <VALUE> [%d]\n", g.truth_open);
-    printf("      integer Smith-Waterman gap opening penalty for truth variants\n\n");
+    printf("  -to, --truth-gap-open-penalty <INTEGER> [%d]\n", g.truth_open);
+    printf("      gap opening penalty (truth variant realignment)\n\n");
 
-    printf("  -te, --truth-gap-extend-penalty <VALUE> [%d]\n", g.truth_extend);
-    printf("      integer Smith-Waterman gap extension penalty for truth variants\n\n");
+    printf("  -te, --truth-gap-extend-penalty <INTEGER> [%d]\n", g.truth_extend);
+    printf("      gap extension penalty (truth variant realignment)\n\n");
 
-    printf("  -ex, --eval-mismatch-penalty <VALUE> [%d]\n", g.eval_sub);
-    printf("      integer Smith-Waterman mismatch penalty for evaluating distance\n\n");
+    printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
+    printf("      mismatch penalty (distance evaluation)\n\n");
 
-    printf("  -eo, --eval-gap-open-penalty <VALUE> [%d]\n", g.eval_open);
-    printf("      integer Smith-Waterman gap opening penalty for evaluating distance\n\n");
+    printf("  -eo, --eval-gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
+    printf("      gap opening penalty (distance evaluation)\n\n");
 
-    printf("  -ee, --eval-gap-extend-penalty <VALUE> [%d]\n", g.eval_extend);
-    printf("      integer Smith-Waterman gap extension penalty for evaluating distance\n\n");
+    printf("  -ee, --eval-gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
+    printf("      gap extension penalty (distance evaluation)\n\n");
 
 }

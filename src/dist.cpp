@@ -1806,7 +1806,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            if (g.verbosity >= 2) {
+            if (false) {
                 printf("\n%s:%d\n", ctg.data(), sc->begs[sc_idx]);
                 printf("REF:       %s\n", ref_q1.data());
                 printf("QUERY1:    %s\n", query1.data());
@@ -1914,9 +1914,9 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
 
                     // align strings, backtrack, calculate distance
                     auto ptrs = sw_align(query, truth[hap], g.eval_sub, 
-                            g.eval_open, g.eval_extend, g.verbosity >= 2);
+                            g.eval_open, g.eval_extend, false);
                     std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs,
-                            g.verbosity >= 2);
+                            false);
                     int dist = count_dist(cigar);
 
                     // add distance for range of corresponding quals
@@ -1934,7 +1934,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             /////////////////////////////////////////////////////////////////////
             // DEBUG PRINTING                                                    
             /////////////////////////////////////////////////////////////////////
-            if (g.verbosity >= 2) {
+            if (false) {
                 // print cluster info
                 printf("\n\nSupercluster: %d\n", sc_idx);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -2209,7 +2209,7 @@ int sw_max_reach(const std::string & query, const std::string & ref,
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_fasta, 
-        int sub, int open, int extend, int callset, bool print) {
+        int sub, int open, int extend, int callset, bool print /* = false */) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("Realigning %s VCF '%s'", 
             callset_strs[callset].data(), vcf->filename.data());
