@@ -192,7 +192,7 @@ int sw_max_reach(
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref,
-        int sub, int open, int extend, bool print);
+        int sub, int open, int extend, int callset, bool print);
 
 std::unordered_map<idx2,idx2> sw_align(
         const std::string & query, 

@@ -6,7 +6,7 @@
 vcfdist is a distance-based small variant calling evaluator that:
 - standardizes query and truth VCF variants to a consistent representation
 - discovers long-range variant representation dependencies using a novel clustering algorithm
-- requires local phasing of both input VCFs and enforces correct local phasing of variants
+- **requires local phasing of both input VCFs** and enforces correct local phasing of variants
 - gives partial credit to variant calls which are mostly correct
 
 This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
@@ -63,10 +63,11 @@ vcfdist's only dependencies are GCC v8+ and HTSlib. Please note that on Mac, `g+
 If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable:
 
 ```bash
-> git clone https://github.com/timd1/vcfdist
+> git clone --branch v1.2.2 https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
-> ./vcfdist -h
+> ./vcfdist --version
+vcfdist v1.2.2
 ```
 
 

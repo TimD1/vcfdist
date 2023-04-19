@@ -257,9 +257,11 @@ void gap_cluster(std::unique_ptr<variantData> & vcf) {
 /* Add single-VCF cluster indices to `variantData`. This version assumes that
  * all variant calls are true positives (doesn't allow skipping)
  */
-void sw_cluster(std::unique_ptr<variantData> & vcf, int sub, int open, int extend) {
+void sw_cluster(std::unique_ptr<variantData> & vcf, 
+        int sub, int open, int extend, int callset) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("SW Clustering VCF '%s'", vcf->filename.data());
+    if (g.verbosity >= 1) INFO("SW Clustering %s VCF '%s'", 
+            callset_strs[callset].data(), vcf->filename.data());
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {

@@ -2209,9 +2209,10 @@ int sw_max_reach(const std::string & query, const std::string & ref,
 std::unique_ptr<variantData> sw_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_fasta, 
-        int sub, int open, int extend, bool print) {
+        int sub, int open, int extend, int callset, bool print) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Realigning VCF '%s'", vcf->filename.data());
+    if (g.verbosity >= 1) INFO("Realigning %s VCF '%s'", 
+            callset_strs[callset].data(), vcf->filename.data());
 
     // copy vcf header data over to results vcf
     std::unique_ptr<variantData> results(new variantData());

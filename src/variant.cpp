@@ -293,7 +293,8 @@ variantData::variantData(std::string vcf_fn,
     this->callset = callset;
 
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Parsing VCF '%s'", vcf_fn.data());
+    if (g.verbosity >= 1) INFO("Parsing %s VCF '%s'", 
+            callset_strs[callset].data(), vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
     // counters
@@ -322,10 +323,12 @@ variantData::variantData(std::string vcf_fn,
 
     // genotype data for each call
     int ngt_arr   = 0;
-    bool gq_warn  = false;
     int ngt       = 0;
     std::vector<int> ngts(gt_strs.size(), 0);
     int * gt      = NULL;
+
+    /* int gq_missing_total = 0; */
+    int unknown_allele_total = 0;
     
     // read header
     bcf1_t * rec  = NULL;
@@ -382,16 +385,17 @@ variantData::variantData(std::string vcf_fn,
         }
     }
     if (!pass_found)
-        ERROR("Failed to find PASS FILTER index in VCF");
+        ERROR("Failed to find PASS FILTER index in VCF '%s'", vcf_fn.data());
     if (bcf_hdr_nsamples(hdr) != 1) 
-        ERROR("Expected 1 sample, found %d", bcf_hdr_nsamples(hdr));
+        ERROR("Expected 1 sample but found %d in '%s'", bcf_hdr_nsamples(hdr),
+                vcf_fn.data());
     this->sample = hdr->samples[0];
 
     // report names of all the sequences in the VCF file
     const char **seqnames = NULL;
     seqnames = bcf_hdr_seqnames(hdr, &nseq);
     if (seqnames == NULL) {
-        ERROR("Failed to read VCF header");
+        ERROR("Failed to read '%s' VCF header", vcf_fn.data());
         goto error1;
     }
     for(int i = 0; i < nseq; i++) {
@@ -402,7 +406,7 @@ variantData::variantData(std::string vcf_fn,
     // struct for storing each record
     rec = bcf_init();
     if (rec == NULL) {
-        ERROR("Failed to read VCF records");
+        ERROR("Failed to read '%s' VCF records", vcf_fn.data());
         goto error2;
     }
     
@@ -414,7 +418,7 @@ variantData::variantData(std::string vcf_fn,
             // start new contig
             prev_rid = rec->rid;
             if (prev_rids.find(rec->rid) != prev_rids.end()) {
-                ERROR("Unsorted VCF, contig %s already parsed", seq.data());
+                ERROR("Unsorted VCF '%s', contig '%s' already parsed", vcf_fn.data(), seq.data());
             } else {
                 this->contigs.push_back(seq);
                 this->lengths.push_back(seqlens[rec->rid]);
@@ -455,16 +459,15 @@ variantData::variantData(std::string vcf_fn,
             gq[0] = int(fgq[0]);
         }
         if ( ngq == -3 ) {
-            if (!gq_warn) {
-                WARN("No GQ tag in %s VCF at %s:%lld",
-                        callset_strs[callset].data(), seq.data(), (long long)rec->pos);
-                gq_warn = true; // only warn once
-            }
+            /* if (g.verbosity > 1 || !gq_missing_total) */
+            /*     WARN("No GQ tag in %s VCF at %s:%lld", */
+            /*             callset_strs[callset].data(), seq.data(), (long long)rec->pos); */
+            /* gq_missing_total++; // only warn once */
             gq[0] = 0;
         }
         ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
         if (ngt < 0) {
-            ERROR("Failed to read %s GT at %s:%lld\n", 
+            ERROR("Failed to read %s GT at %s:%lld", 
                     callset_strs[callset].data(), seq.data(), (long long)rec->pos);
         }
 
@@ -501,7 +504,13 @@ variantData::variantData(std::string vcf_fn,
             // get ref and allele, skipping ref query
             std::string ref = rec->d.allele[0];
             int alt_idx = bcf_gt_allele(gt[hap]);
-            if (alt_idx < 0) alt_idx = hap; // set 0|1 if .|.
+            if (alt_idx < 0) {
+                if (g.verbosity > 1 || !unknown_allele_total)
+                    WARN("Unknown allele (.) in %s VCF at %s:%lld, marking 1",
+                        callset_strs[callset].data(), seq.data(), (long long)rec->pos);
+                unknown_allele_total += 1;
+                alt_idx = 1; // set 1|1 if .|., or 1|x if .|x
+            }
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
 
@@ -605,6 +614,14 @@ variantData::variantData(std::string vcf_fn,
             ntypes[hap][type]++;
         }
     }
+
+    /* if (gq_missing_total) */ 
+    /*     WARN("%d total missing GQ tags in %s VCF, all considered GQ=0", */
+    /*         gq_missing_total, callset_strs[callset].data()); */
+
+    if (unknown_allele_total) 
+        WARN("%d total unknown alleles (.) found in %s VCF, all considered 1",
+            unknown_allele_total, callset_strs[callset].data());
 
     if (total_overlaps)
         WARN("%d total overlapping %s VCF variant calls skipped", 
