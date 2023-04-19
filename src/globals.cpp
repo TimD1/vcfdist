@@ -127,8 +127,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum variant size provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-q" || 
-                std::string(argv[i]) == "--min-qual") {
+        } else if (std::string(argv[i]) == "--min-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '--min-qual' used without providing minimum variant quality");
@@ -142,8 +141,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative minimum variant quality");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-m" || 
-                std::string(argv[i]) == "--max-qual") {
+        } else if (std::string(argv[i]) == "--max-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '--max-qual' used without providing maximum variant quality");
@@ -460,11 +458,13 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.advanced = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--keep-truth") {
+        } else if (std::string(argv[i]) == "-t" ||
+                std::string(argv[i]) == "--keep-truth") {
             i++;
             g.keep_truth = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--keep-query") {
+        } else if (std::string(argv[i]) == "-q" ||
+                std::string(argv[i]) == "--keep-query") {
             i++;
             g.keep_query = true;
 /*******************************************************************************/
@@ -530,6 +530,12 @@ void Globals::print_usage() const
     printf("  -r, --realign-only\n");
     printf("      standardize truth and query variant representations, then exit\n\n");
 
+    printf("  -q, --keep-query\n");
+    printf("      do not realign query variants, keep original representation\n\n");
+
+    printf("  -t, --keep-truth\n");
+    printf("      do not realign truth variants, keep original representation\n\n");
+
     printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
     printf("      Smith-Waterman mismatch (substitution) penalty\n\n");
 
@@ -539,10 +545,10 @@ void Globals::print_usage() const
     printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
     printf("      Smith-Waterman gap extension penalty\n\n");
 
-    printf("  -q, --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("  --min-qual <INTEGER> [%d]\n", g.min_qual);
     printf("      minimum variant quality, lower qualities ignored\n\n");
 
-    printf("  -m, --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("  --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality, higher qualities kept but thresholded\n\n");
 
     printf("  -s, --smallest-variant <INTEGER> [%d]\n", g.min_size);
@@ -572,12 +578,6 @@ void Globals::print_usage() const
 
     if (!this->advanced) return;
     printf("\nAdvanced Options: (not recommended, only for evaluation)\n");
-    printf("  --keep-query\n");
-    printf("      do not realign query variants\n\n");
-
-    printf("  --keep-truth\n");
-    printf("      do not realign truth variants\n\n");
-
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
