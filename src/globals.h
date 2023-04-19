@@ -57,6 +57,7 @@ public:
     void parse_args(int argc, char ** argv);
     void print_version() const;
     void print_usage() const; 
+    void print_citation() const; 
 
     // program data
     const std::string VERSION = "1.2.2";

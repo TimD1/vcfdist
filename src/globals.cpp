@@ -6,6 +6,7 @@
 void Globals::parse_args(int argc, char ** argv) {
 
     /* if required arguments are not provided, you can only print help and exit */
+    bool print_cite = false;
     bool print_help = false;
     if (argc < 4) {
         int i = 1;
@@ -23,6 +24,10 @@ void Globals::parse_args(int argc, char ** argv) {
                     std::string(argv[i]) == "--version") {
                 i++;
                 this->print_version();
+            } else if (std::string(argv[i]) == "-c" || 
+                    std::string(argv[i]) == "--citation") {
+                i++;
+                print_cite = true;
             } else {
                 print_help = true;
                 WARN("Invalid usage.");
@@ -31,6 +36,7 @@ void Globals::parse_args(int argc, char ** argv) {
         }
 
         if (print_help || argc == 1) this->print_usage();
+        if (print_cite) this->print_citation();
         std::exit(0);
     }
 
@@ -466,6 +472,11 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.simple_cluster = true;
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-c" || 
+                std::string(argv[i]) == "--citation") {
+            i++;
+            print_cite = true;
+/*******************************************************************************/
         } else {
             ERROR("Unexpected option '%s'", argv[i]);
         }
@@ -481,6 +492,8 @@ void Globals::parse_args(int argc, char ** argv) {
 
     if (print_help) 
         this->print_usage();
+    else if (print_cite)
+        this->print_citation();
     else {
         for (int i = 0; i < argc; i++)
             g.cmd += " " + std::string(argv[i]);
@@ -550,8 +563,11 @@ void Globals::print_usage() const
     printf("  -a, --advanced\n");
     printf("      show advanced options\n\n");
 
-    printf("  --version\n");
-    printf("      show version number (%s v%s)\n\n", 
+    printf("  -c, --citation\n");
+    printf("      please cite vcfdist if used in your analyses\n\n");
+
+    printf("  -v, --version\n");
+    printf("      print %s version (v%s)\n\n", 
             this->PROGRAM.data(), this->VERSION.data());
 
     if (!this->advanced) return;
@@ -592,4 +608,22 @@ void Globals::print_usage() const
     printf("  -ee, --eval-gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
     printf("      gap extension penalty (distance evaluation)\n\n");
 
+}
+
+void Globals::print_citation() const
+{
+    printf("\nMLA Format:\n\n");
+    printf("  Dunn, Tim, and Satish Narayanasamy. \"vcfdist: Accurately benchmarking phased small variant calls in human genomes.\" bioRxiv (2023): 2023-03.\n");
+    printf("\nBibTeX Format:\n\n");
+    printf("  @article {dunn2023vcfdist,\n");
+    printf("    author = {Dunn, Tim and Narayanasamy, Satish},\n");
+    printf("    title = {vcfdist: Accurately benchmarking phased small variant calls in human genomes},\n");
+    printf("    elocation-id = {2023.03.10.532078},\n");
+    printf("    year = {2023},\n");
+    printf("    doi = {10.1101/2023.03.10.532078},\n");
+    printf("    publisher = {Cold Spring Harbor Laboratory},\n");
+    printf("    URL = {https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078},\n");
+    printf("    eprint = {https://biorxiv.org/content/early/2023/03/12/2023.03.10.532078.full.pdf},\n");
+    printf("    journal = {bioRxiv}\n");
+    printf("  }\n");
 }
