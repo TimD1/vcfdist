@@ -108,9 +108,8 @@ variantData edit_dist_realign(
                             alt_out_str += ref->fasta.at(ctg)[ref_pos];
                             ref_pos++;
                         } catch (const std::out_of_range & e) {
-                            ERROR("Contig '%s' not present in reference FASTA (edit_dist_realign)",
+                            ERROR("Contig '%s' not in reference FASTA (edit_dist_realign)",
                                     ctg.data());
-                            exit(1);
                         }
                     }
                 }
@@ -417,9 +416,7 @@ std::string generate_str(
                 str += ref->fasta.at(ctg).substr(ref_pos, ref_end-ref_pos);
                 ref_pos = ref_end;
             } catch (const std::out_of_range & e) {
-                ERROR("Contig %s not present in reference FASTA (generate_str)",
-                        ctg.data());
-                exit(1);
+                ERROR("Contig %s not in reference FASTA (generate_str)", ctg.data());
             }
         }
     }

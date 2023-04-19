@@ -191,10 +191,14 @@ void variantData::print_variant(FILE* out_fp, std::string ctg, int pos, int type
         break;
     case TYPE_INS:
     case TYPE_DEL:
-        ref_base = this->ref->fasta.at(ctg)[pos];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tGT\t%s\n", ctg.data(), 
-                pos+1, (ref_base + ref).data(), (ref_base + alt).data(), 
-                qual, gt.data());
+        try {
+            ref_base = this->ref->fasta.at(ctg)[pos];
+            fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tGT\t%s\n", ctg.data(), 
+                    pos+1, (ref_base + ref).data(), (ref_base + alt).data(), 
+                    qual, gt.data());
+        } catch (const std::out_of_range & e) {
+            ERROR("Contig '%s' not in reference FASTA (print_variant)", ctg.data());
+        }
         break;
     default:
         ERROR("print_variant not implemented for type %d", type);
@@ -401,8 +405,10 @@ variantData::variantData(std::string vcf_fn,
         goto error1;
     }
     for(int i = 0; i < nseq; i++) {
-        this->ctg_variants[HAP1][seqnames[i]] = std::shared_ptr<ctgVariants>(new ctgVariants());
-        this->ctg_variants[HAP2][seqnames[i]] = std::shared_ptr<ctgVariants>(new ctgVariants());
+        this->ctg_variants[HAP1][seqnames[i]] = 
+                std::shared_ptr<ctgVariants>(new ctgVariants());
+        this->ctg_variants[HAP2][seqnames[i]] = 
+                std::shared_ptr<ctgVariants>(new ctgVariants());
     }
 
     // struct for storing each record
@@ -701,7 +707,7 @@ variantData::variantData(std::string vcf_fn,
         }
         INFO(" ");
 
-        INFO("  VCF Overview:");
+        INFO("  %s VCF Overview:", callset_strs[callset].data());
         INFO("    VARIANTS  %d", n);
         INFO("    KEPT HAP1 %d", npass[HAP1]);
         INFO("    KEPT HAP2 %d", npass[HAP2]);

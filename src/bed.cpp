@@ -136,24 +136,11 @@ void check_contigs(
 
     if (g.bed_exists) { // use BED to determine contigs
 
-        // ensure all inputs contain required contigs
-        for (std::string ctg : g.bed.contigs) {
-            if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
-                ERROR("Contig '%s' found in BED but not reference FASTA.", ctg.data());
-            if (std::find(query_ptr->contigs.begin(), 
-                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
-                ERROR("Contig '%s' found in BED but not query VCF.", ctg.data());
-            if (std::find(truth_ptr->contigs.begin(), 
-                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end())
-                ERROR("Contig '%s' found in BED but not truth VCF.", ctg.data());
-        }
-
-        // remove all extraneous contigs
+        // remove all extraneous contigs not in BED
         std::vector<std::string>::iterator itr = query_ptr->contigs.begin();
         while (itr != query_ptr->contigs.end()) { // query
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
                         *itr) == g.bed.contigs.end()) {
-                /* WARN("Ignoring contig '%s' from query VCF", (*itr).data()); */
                 query_ptr->lengths.erase(query_ptr->lengths.begin() + 
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->ctg_variants[HAP1].erase(*itr);
@@ -165,7 +152,6 @@ void check_contigs(
         while (itr != truth_ptr->contigs.end()) { // truth
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
                         *itr) == g.bed.contigs.end()) {
-                /* WARN("Ignoring contig '%s' from truth VCF", (*itr).data()); */
                 truth_ptr->lengths.erase(truth_ptr->lengths.begin() + 
                         (itr - truth_ptr->contigs.begin()));
                 truth_ptr->ctg_variants[HAP1].erase(*itr);
@@ -177,20 +163,54 @@ void check_contigs(
         while (itr2 != ref_ptr->fasta.end()) { // fasta
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
                         itr2->first) == g.bed.contigs.end()) {
-                /* WARN("Ignoring contig '%s' from ref FASTA", itr2->first.data()); */
                 itr2 = ref_ptr->fasta.erase(itr2);
             } else itr2++;
         }
 
+        // warn if list of truth and query contigs are not the same
+        for (std::string ctg : query_ptr->contigs) {
+            if (std::find(truth_ptr->contigs.begin(), 
+                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end())
+                WARN("Contig '%s' found in query VCF but not truth VCF.", ctg.data());
+        }
+        for (std::string ctg : truth_ptr->contigs) {
+            if (std::find(query_ptr->contigs.begin(), 
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
+                WARN("Contig '%s' found in truth VCF but not query VCF.", ctg.data());
+        }
+
+        // ensure all inputs contain required contigs (even if empty)
+        for (std::string ctg : g.bed.contigs) {
+            if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
+                ERROR("Contig '%s' found in BED but not reference FASTA.", ctg.data());
+            if (std::find(query_ptr->contigs.begin(), 
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
+                INFO("Contig '%s' found in BED but not query VCF.", ctg.data());
+                query_ptr->ctg_variants[HAP1][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                query_ptr->ctg_variants[HAP2][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                query_ptr->contigs.push_back(ctg);
+                query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+            }
+            if (std::find(truth_ptr->contigs.begin(), 
+                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
+                INFO("Contig '%s' found in BED but not truth VCF.", ctg.data());
+                truth_ptr->ctg_variants[HAP1][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                truth_ptr->ctg_variants[HAP2][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                truth_ptr->contigs.push_back(ctg);
+                truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+            }
+        }
+
     } else { // use truth VCF to determine contigs
 
-        // ensure query/fasta contain all contigs
+        // ensure fasta contains all contigs
         for (std::string ctg : truth_ptr->contigs) {
             if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
                 ERROR("Contig '%s' found in truth VCF but not reference FASTA. Please provide BED file.", ctg.data());
-            if (std::find(query_ptr->contigs.begin(), 
-                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
-                ERROR("Contig '%s' found in truth VCF but not query VCF. Please provide BED file.", ctg.data());
         }
 
         // remove all extraneous contigs
@@ -210,9 +230,22 @@ void check_contigs(
         while (itr2 != ref_ptr->fasta.end()) { // fasta
             if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
                         itr2->first) == truth_ptr->contigs.end()) {
-                /* WARN("Ignoring contig '%s' from ref FASTA", itr2->first.data()); */
                 itr2 = ref_ptr->fasta.erase(itr2);
             } else itr2++;
+        }
+
+        // ensure all inputs contain required contigs (even if empty)
+        for (std::string ctg : truth_ptr->contigs) {
+            if (std::find(query_ptr->contigs.begin(), 
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
+                WARN("Contig '%s' found in truth VCF but not query VCF.", ctg.data());
+                query_ptr->ctg_variants[HAP1][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                query_ptr->ctg_variants[HAP2][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                query_ptr->contigs.push_back(ctg);
+                query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+            }
         }
     }
 }
