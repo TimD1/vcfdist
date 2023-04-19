@@ -191,58 +191,58 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative mismatch penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-qs" || 
-                std::string(argv[i]) == "--query-sub-penalty") {
+        } else if (std::string(argv[i]) == "-qx" || 
+                std::string(argv[i]) == "--query-mismatch-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-qs' used without providing substitution penalty");
+                ERROR("Option '-qx' used without providing mismatch penalty");
             } else if (this->query_penalties_set[PEN_SUB]) {
-                ERROR("Query substitution penalty already set, cannot use '-qs'");
+                ERROR("Query mismatch penalty already set, cannot use '-qx'");
             }
             try {
                 this->query_sub = std::stoi(argv[i++]);
                 this->query_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid query substitution penalty provided");
+                ERROR("Invalid query mismatch penalty provided");
             }
             if (this->query_sub < 0) {
-                ERROR("Must provide non-negative query substitution penalty");
+                ERROR("Must provide non-negative query mismatch penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ts" || 
-                std::string(argv[i]) == "--truth-sub-penalty") {
+        } else if (std::string(argv[i]) == "-tx" || 
+                std::string(argv[i]) == "--truth-mismatch-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-ts' used without providing substitution penalty");
+                ERROR("Option '-tx' used without providing mismatch penalty");
             } else if (this->truth_penalties_set[PEN_SUB]) {
-                ERROR("Truth substitution penalty already set, cannot use '-ts'");
+                ERROR("Truth mismatch penalty already set, cannot use '-tx'");
             }
             try {
                 this->truth_sub = std::stoi(argv[i++]);
                 this->truth_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid truth substitution penalty provided");
+                ERROR("Invalid truth mismatch penalty provided");
             }
             if (this->truth_sub < 0) {
-                ERROR("Must provide non-negative truth substitution penalty");
+                ERROR("Must provide non-negative truth mismatch penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-es" || 
-                std::string(argv[i]) == "--eval-sub-penalty") {
+        } else if (std::string(argv[i]) == "-ex" || 
+                std::string(argv[i]) == "--eval-mismatch-penalty") {
             i++;
             if (i == argc) {
-                ERROR("Option '-es' used without providing substitution penalty");
+                ERROR("Option '-ex' used without providing mismatch penalty");
             } else if (this->eval_penalties_set[PEN_SUB]) {
-                ERROR("Eval substitution penalty already set, cannot use '-es'");
+                ERROR("Evaluation mismatch penalty already set, cannot use '-ex'");
             }
             try {
                 this->eval_sub = std::stoi(argv[i++]);
                 this->eval_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid eval substitution penalty provided");
+                ERROR("Invalid evaluation mismatch penalty provided");
             }
             if (this->eval_sub < 0) {
-                ERROR("Must provide non-negative eval substitution penalty");
+                ERROR("Must provide non-negative evaluation mismatch penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-o" || 
@@ -491,7 +491,7 @@ void Globals::print_usage() const
     printf("      minimum base gap between independent superclusters\n\n");
 
     printf("  -x, --mismatch-penalty <VALUE> [%d]\n", g.eval_sub);
-    printf("      integer Smith-Waterman substitution penalty\n\n");
+    printf("      integer Smith-Waterman mismatch (substitution) penalty\n\n");
 
     printf("  -o, --gap-open-penalty <VALUE> [%d]\n", g.eval_open);
     printf("      integer Smith-Waterman gap opening penalty\n\n");
@@ -526,8 +526,8 @@ void Globals::print_usage() const
     printf("  --simple-cluster\n");
     printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
-    printf("  -qs, --query-sub-penalty <VALUE> [%d]\n", g.query_sub);
-    printf("      integer Smith-Waterman substitution penalty for query variants\n\n");
+    printf("  -qx, --query-mismatch-penalty <VALUE> [%d]\n", g.query_sub);
+    printf("      integer Smith-Waterman mismatch penalty for query variants\n\n");
 
     printf("  -qo, --query-gap-open-penalty <VALUE> [%d]\n", g.query_open);
     printf("      integer Smith-Waterman gap opening penalty for query variants\n\n");
@@ -535,8 +535,8 @@ void Globals::print_usage() const
     printf("  -qe, --query-gap-extend-penalty <VALUE> [%d]\n", g.query_extend);
     printf("      integer Smith-Waterman gap extension penalty for query variants\n\n");
 
-    printf("  -ts, --truth-sub-penalty <VALUE> [%d]\n", g.truth_sub);
-    printf("      integer Smith-Waterman substitution penalty for truth variants\n\n");
+    printf("  -tx, --truth-mismatch-penalty <VALUE> [%d]\n", g.truth_sub);
+    printf("      integer Smith-Waterman mismatch penalty for truth variants\n\n");
 
     printf("  -to, --truth-gap-open-penalty <VALUE> [%d]\n", g.truth_open);
     printf("      integer Smith-Waterman gap opening penalty for truth variants\n\n");
@@ -544,8 +544,8 @@ void Globals::print_usage() const
     printf("  -te, --truth-gap-extend-penalty <VALUE> [%d]\n", g.truth_extend);
     printf("      integer Smith-Waterman gap extension penalty for truth variants\n\n");
 
-    printf("  -es, --eval-sub-penalty <VALUE> [%d]\n", g.eval_sub);
-    printf("      integer Smith-Waterman substitution penalty for evaluating distance\n\n");
+    printf("  -ex, --eval-mismatch-penalty <VALUE> [%d]\n", g.eval_sub);
+    printf("      integer Smith-Waterman mismatch penalty for evaluating distance\n\n");
 
     printf("  -eo, --eval-gap-open-penalty <VALUE> [%d]\n", g.eval_open);
     printf("      integer Smith-Waterman gap opening penalty for evaluating distance\n\n");
