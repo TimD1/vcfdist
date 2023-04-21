@@ -19,7 +19,7 @@ Please cite the following pre-print if you use vcfdist:
 
 <details>
 <summary>
-<a href="https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078v2"><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
+<a href="https://www.biorxiv.org/content/10.1101/2023.03.10.532078v2"><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
 </summary>
 
 <pre>
@@ -30,8 +30,8 @@ Please cite the following pre-print if you use vcfdist:
     year = {2023},
     doi = {10.1101/2023.03.10.532078},
     publisher = {Cold Spring Harbor Laboratory},
-    URL = {https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078v2},
-    eprint = {https://biorxiv.org/content/early/2023/03/12/2023.03.10.532078.full.pdf},
+    URL = {https://www.biorxiv.org/content/10.1101/2023.03.10.532078v2},
+    eprint = {https://biorxiv.org/content/10.1101/2023.03.10.532078.full.pdf},
     journal = {bioRxiv}
 }
 </pre>
