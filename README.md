@@ -19,7 +19,7 @@ Please cite the following pre-print if you use vcfdist:
 
 <details>
 <summary>
-<a href="https://www.biorxiv.org/content/10.1101/2023.03.10.532078v2"><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
+<a href="https://www.biorxiv.org/content/10.1101/2023.03.10.532078v2" target="_blank"><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
 </summary>
 
 <pre>
@@ -125,5 +125,5 @@ Datasets used in the evaluation of the accompanying paper are listed <a href="./
 ## Limitations
 The current version of vcfdist is not designed to support:
 - overlapping or unphased variants
-- haploid or polyploid chromosomes
+- polyploid chromosomes
 - structural variant evaluations
