@@ -4,50 +4,64 @@
 Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]
 
 Required:
-    <FILENAME>query.vcf     phased VCF file containing variant calls to evaluate 
-    <FILENAME>truth.vcf     phased VCF file containing ground truth variant calls 
-    <FILENAME>ref.fasta     FASTA file containing draft reference sequence 
+  <STRING>  query.vcf   phased VCF file containing variant calls to evaluate 
+  <STRING>  truth.vcf   phased VCF file containing ground truth variant calls 
+  <STRING>  ref.fasta   FASTA file containing draft reference sequence 
 
 Options:
-    -b, --bed <FILENAME>
-        BED file containing regions to evaluate
+  -b, --bed <STRING>
+    BED file containing regions to evaluate
+  
+  -p, --prefix <STRING> [./]
+    prefix for output files (directory needs a trailing slash)
+  
+  -v, --verbosity <INTEGER> [1]
+    printing verbosity (0: succinct, 1: default, 2:verbose)
+  
+  -r, --realign-only
+    standardize truth and query variant representations, then exit
+  
+  -q, --keep-query
+    do not realign query variants, keep original representation
+  
+  -t, --keep-truth
+    do not realign truth variants, keep original representation
 
-    -p, --prefix <FILENAME_PREFIX> [./]
-        output filepath prefix (directories should contain trailing slashes)
+  -x, --mismatch-penalty <INTEGER> [3]
+    Smith-Waterman mismatch (substitution) penalty
 
-    -q, --min-qual <VALUE> [0]
-        minimum variant quality to be considered (lower qualities ignored)
+  -o, --gap-open-penalty <INTEGER> [2]
+    Smith-Waterman gap opening penalty
 
-    -m, --max-qual <VALUE> [60]
-        maximum variant quality (higher qualities kept, thresholded)
+  -e, --gap-extend-penalty <INTEGER> [1]
+    Smith-Waterman gap extension penalty
 
-    -i, --max-cluster-iterations<VALUE> [4]
-        maximum iterations for growing clusters
+  --min-qual <INTEGER> [0]
+    minimum variant quality, lower qualities ignored
 
-    -g, --supercluster-gap <VALUE> [50]
-        minimum base gap between independent superclusters
+  --max-qual <INTEGER> [60]
+    maximum variant quality, higher qualities kept but thresholded
 
-    -x, --mismatch-penalty <VALUE> [3]
-        integer Smith-Waterman substitution penalty
+  -s, --smallest-variant <INTEGER> [1]
+    minimum variant size, smaller variants ignored (SNPs are size 1)
 
-    -o, --gap-open-penalty <VALUE> [2]
-        integer Smith-Waterman gap opening penalty
+  -l, --largest-variant <INTEGER> [5000]
+    maximum variant size, larger variants ignored
 
-    -e, --gap-extend-penalty <VALUE> [1]
-        integer Smith-Waterman gap extension penalty
+  -i, --max-iterations <INTEGER> [4]
+    maximum iterations for expanding/merging clusters
 
-    -v, --verbosity <VALUE> [0]
-        printing verbosity (0: default, 1: verbose, 2:debug)
+  -g, --supercluster-gap <INTEGER> [50]
+    minimum base gap between independent superclusters
 
-    -r, --realign-only
-        realign truth/query VCFs with Smith-Waterman parameters, then exit
+  -h, --help
+    show this help message
 
-    -h, --help
-        show this help message
+  -a, --advanced
+    show advanced options
 
-    -a, --advanced
-        show advanced options
+  -c, --citation
+    please cite vcfdist if used in your analyses
 
-    --version
-        show version number (vcfdist v0.0.1)
-```
+  -v, --version
+    print vcfdist version (v1.2.2)
