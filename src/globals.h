@@ -60,7 +60,7 @@ public:
     void print_citation() const; 
 
     // program data
-    const std::string VERSION = "1.2.2";
+    const std::string VERSION = "1.2.3";
     const std::string PROGRAM = "vcfdist";
 };
 

@@ -63,11 +63,11 @@ vcfdist's only dependencies are GCC v8+ and HTSlib. Please note that on Mac, `g+
 If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable:
 
 ```bash
-> git clone --branch v1.2.2 https://github.com/timd1/vcfdist
+> git clone --branch v1.2.3 https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
 > ./vcfdist --version
-vcfdist v1.2.2
+vcfdist v1.2.3
 ```
 
 
