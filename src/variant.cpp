@@ -333,6 +333,7 @@ variantData::variantData(std::string vcf_fn,
     /* int gq_missing_total = 0; */
     int overlapping_var_total = 0;
     int unknown_allele_total = 0;
+    /* int unphased_gt_total = 0; */
     int small_var_total = 0;
     int large_var_total = 0;
     
@@ -386,22 +387,25 @@ variantData::variantData(std::string vcf_fn,
             if (length >= 0 && idx >= 0) {
                 seqlens[idx] = length;
             } else {
-                ERROR("VCF header contig line didn't have 'IDX' and 'length'");
+                ERROR("%s VCF header contig line didn't have 'IDX' and 'length'",
+                        callset_strs[callset].data());
             }
         }
     }
     if (!pass_found)
-        ERROR("Failed to find PASS FILTER index in VCF '%s'", vcf_fn.data());
+        ERROR("Failed to find PASS FILTER index in %s VCF '%s'",
+                callset_strs[callset].data(), vcf_fn.data());
     if (bcf_hdr_nsamples(hdr) != 1) 
-        ERROR("Expected 1 sample but found %d in '%s'", bcf_hdr_nsamples(hdr),
-                vcf_fn.data());
+        ERROR("Expected 1 sample but found %d in %s VCF '%s'", bcf_hdr_nsamples(hdr),
+                callset_strs[callset].data(), vcf_fn.data());
     this->sample = hdr->samples[0];
 
     // report names of all the sequences in the VCF file
     const char **seqnames = NULL;
     seqnames = bcf_hdr_seqnames(hdr, &nseq);
     if (seqnames == NULL) {
-        ERROR("Failed to read '%s' VCF header", vcf_fn.data());
+        ERROR("Failed to read %s VCF '%s' header", 
+                callset_strs[callset].data(), vcf_fn.data());
         goto error1;
     }
     for(int i = 0; i < nseq; i++) {
@@ -414,7 +418,8 @@ variantData::variantData(std::string vcf_fn,
     // struct for storing each record
     rec = bcf_init();
     if (rec == NULL) {
-        ERROR("Failed to read '%s' VCF records", vcf_fn.data());
+        ERROR("Failed to read %s VCF '%s' records", 
+                callset_strs[callset].data(), vcf_fn.data());
         goto error2;
     }
     
@@ -426,7 +431,8 @@ variantData::variantData(std::string vcf_fn,
             // start new contig
             prev_rid = rec->rid;
             if (prev_rids.find(rec->rid) != prev_rids.end()) {
-                ERROR("Unsorted VCF '%s', contig '%s' already parsed", vcf_fn.data(), seq.data());
+                ERROR("Unsorted %s VCF '%s', contig '%s' already parsed", 
+                        callset_strs[callset].data(), vcf_fn.data(), seq.data());
             } else {
                 this->contigs.push_back(seq);
                 this->lengths.push_back(seqlens[rec->rid]);
@@ -480,47 +486,79 @@ variantData::variantData(std::string vcf_fn,
         }
 
         // parse genotype info
-        // gt[i]  gt[i] >> 1  gt[i] << 1  GT MEANING
-        // 0      0           0           .  missing
-        // 2      1           4           0  reference
-        // 4      2           8           1  alternate1
-        // 6      3           12          2  alternate2
-        int orig_gt;
-        switch ( (gt[0] >> 1) + ((gt[1] >> 1) << 2) ) {
-            case 0:  orig_gt = GT_DOT_DOT;   break;
-            case 5:  orig_gt = GT_REF_REF;   break;
-            case 6:  orig_gt = GT_ALT1_REF;  break;
-            case 7:  orig_gt = GT_ALT2_REF;  break;
-            case 9:  orig_gt = GT_REF_ALT1;  break;
-            case 10: orig_gt = GT_ALT1_ALT1; break;
-            case 11: orig_gt = GT_ALT2_ALT1; break;
-            case 13: orig_gt = GT_REF_ALT2;  break;
-            case 14: orig_gt = GT_ALT1_ALT2; break;
-            case 15: orig_gt = GT_ALT2_ALT2; break;
-            default: orig_gt = GT_OTHER;     break; // 3|1 etc
+        int orig_gt = GT_REF_REF;
+        bool same = false;
+        if (ngt == 1) { //haploid
+
+            // set 1 if allele_idx > 0
+            orig_gt = bcf_gt_allele(gt[0]) ? GT_ALT1 : GT_REF;
+
+        } else if (ngt == 2) { // diploid
+
+            // missing, ignore
+            if (bcf_gt_is_missing(gt[0]) || bcf_gt_is_missing(gt[1])) {
+                orig_gt = GT_MISSING;
+
+            } else { // useful
+
+                // allow setting N/N to 1/1 later
+                if (bcf_gt_allele(gt[0]) == bcf_gt_allele(gt[1])) same = true;
+
+                if (bcf_gt_allele(gt[0]) == 0) { // REF
+                    switch (bcf_gt_allele(gt[1])) {
+                        case 0: orig_gt = GT_REF_REF; break;
+                        case 1: orig_gt = GT_REF_ALT1; break;
+                        default: orig_gt = GT_OTHER; break;
+                    }
+                } else if (bcf_gt_allele(gt[0]) == 1) { // ALT1
+                    switch (bcf_gt_allele(gt[1])) {
+                        case 0: orig_gt = GT_ALT1_REF; break;
+                        case 1: orig_gt = GT_ALT1_ALT1; break;
+                        case 2: orig_gt = GT_ALT1_ALT2; break;
+                        default: orig_gt = GT_OTHER; break;
+                    }
+                } else if (bcf_gt_allele(gt[0]) == 2) { // ALT2
+                    orig_gt = (bcf_gt_allele(gt[1]) == 1) ? GT_ALT2_ALT1 : GT_OTHER;
+                } else {
+                    orig_gt = GT_OTHER;
+                }
+            }
+
+        } else { // polyploid
+            ERROR("Expected haploid/diploid %s VCF, found variant with ploidy %d",
+                    callset_strs[callset].data(), ngt);
         }
         ngts[orig_gt]++;
 
         // parse variant type
-        for (int hap = 0; hap < HAPS; hap++) {
+        /* bool counted_unphased = false; */
+        for (int hap = 0; hap < ngt; hap++) { // allow single-allele chrX, chrY
 
-            // set simplified GT (0|1, 1|0, or 1|1), (0|0 skipped)
+            // set simplified GT (0|1, 1|0, or 1|1), (0|0 and .|. skipped later)
             int simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
-            if (orig_gt == GT_ALT1_ALT1 || orig_gt == GT_ALT2_ALT2) // 1|1 overwrite
-                simple_gt = GT_ALT1_ALT1;
+            if (same) simple_gt = GT_ALT1_ALT1; // overwrite 1|1 if both agree
 
             // get ref and allele, skipping ref query
             std::string ref = rec->d.allele[0];
             int alt_idx = bcf_gt_allele(gt[hap]);
             if (alt_idx < 0) {
                 if (g.verbosity > 1)
-                    WARN("Unknown allele (.) in %s VCF at %s:%lld, marking 1",
+                    WARN("Unknown allele (.) in %s VCF at %s:%lld, skipping",
                         callset_strs[callset].data(), seq.data(), (long long)rec->pos);
                 unknown_allele_total += 1;
-                alt_idx = 1; // set 1|1 if .|., or 1|x if .|x
+                continue;
             }
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
+
+            /* // count unphased variants (once per potentially diploid variant) */
+            /* if (!counted_unphased && !bcf_gt_is_phased(gt[hap])) { */
+            /*     if (g.verbosity > 1) */
+            /*         WARN("Unphased genotype in %s VCF at %s:%lld", */
+            /*             callset_strs[callset].data(), seq.data(), (long long)rec->pos); */
+            /*     unphased_gt_total += 1; */
+            /*     counted_unphased = true; */
+            /* } */
 
             // skip spanning deletion
             if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
@@ -646,8 +684,12 @@ variantData::variantData(std::string vcf_fn,
     /*         gq_missing_total, callset_strs[callset].data()); */
 
     if (unknown_allele_total) 
-        WARN("%d total unknown alleles (.) found in %s VCF, all considered 1",
+        WARN("%d total unknown alleles (.) found in %s VCF, skipped",
             unknown_allele_total, callset_strs[callset].data());
+
+    /* if (unphased_gt_total) */ 
+    /*     WARN("%d total unphased genotypes found in %s VCF", */
+    /*         unphased_gt_total, callset_strs[callset].data()); */
 
     if (large_var_total)
         WARN("%d total large %s VCF variant calls skipped, size > %d", 
@@ -670,7 +712,7 @@ variantData::variantData(std::string vcf_fn,
 
         INFO("  Genotypes:");
         for (size_t i = 0; i < gt_strs.size(); i++) {
-            INFO("    %s  %i", gt_strs[i].data(), ngts[i]);
+            INFO("    %3s  %i", gt_strs[i].data(), ngts[i]);
         }
         INFO(" ");
 

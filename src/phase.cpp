@@ -39,6 +39,7 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
         std::vector< std::vector<bool> > next = std::vector< std::vector<bool> >(
                 CALLSETS, std::vector<bool>(HAPS, false));
         int sc_idx = 0;
+        if (this->ctg_phasings[ctg]->phasings.size() == 0) continue;
         bool swap = this->ctg_phasings[ctg]->phasings[sc_idx];
         auto & vars = this->ctg_phasings[ctg]->ctg_superclusters->ctg_variants;
         while ( ptrs[QUERY][HAP1] < int(vars[QUERY][HAP1]->poss.size()) ||
@@ -204,7 +205,7 @@ phaseData::phaseData(std::shared_ptr<superclusterData> clusterdata_ptr)
         std::string ctg = clusterdata_ptr->contigs[i];
         this->contigs.push_back(ctg);
         this->lengths.push_back(clusterdata_ptr->lengths[i]);
-        ctg_phasings[ctg] = std::shared_ptr<ctgPhasings>(new ctgPhasings());
+        this->ctg_phasings[ctg] = std::shared_ptr<ctgPhasings>(new ctgPhasings());
     }
     this->ref = clusterdata_ptr->ref;
 

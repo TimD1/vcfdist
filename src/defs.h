@@ -33,17 +33,16 @@
 #define BED_BORDER  2
 #define BED_OFFCTG  3
 
-#define GT_DOT_DOT   0
-#define GT_REF_REF   1
-#define GT_REF_ALT1  2
-#define GT_REF_ALT2  3
+#define GT_REF       0
+#define GT_ALT1      1
+#define GT_REF_REF   2
+#define GT_REF_ALT1  3
 #define GT_ALT1_REF  4
 #define GT_ALT1_ALT1 5
 #define GT_ALT1_ALT2 6
-#define GT_ALT2_REF  7
-#define GT_ALT2_ALT1 8
-#define GT_ALT2_ALT2 9
-#define GT_OTHER     10
+#define GT_ALT2_ALT1 7
+#define GT_MISSING   8
+#define GT_OTHER     9
 
 #define ERRTYPE_TP 0 // true positive
 #define ERRTYPE_FP 1 // false positive
