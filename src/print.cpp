@@ -709,7 +709,7 @@ void write_results(
                 if (query1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
                 if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): query1")
-                if (query1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (query1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
@@ -732,7 +732,7 @@ void write_results(
                 if (query2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
                 if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): query2")
-                if (query2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (query2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
@@ -782,7 +782,7 @@ void write_results(
                 if (truth1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
                 if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): truth1")
-                if (truth1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (truth1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
@@ -806,7 +806,7 @@ void write_results(
                 if (truth2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
                 if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): truth2")
-                if (truth2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (truth2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
                         ctg_name.data(),
