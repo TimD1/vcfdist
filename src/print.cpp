@@ -131,8 +131,155 @@ void print_wfa_ptrs(
 /*******************************************************************************/
 
 
-void print_ptrs(std::vector< std::vector<int> > ptrs, 
-        std::string alt_str, std::string ref_str) 
+void print_ptrs(const std::unordered_map<idx1, int> & ptrs, int hi,
+        const std::string & alt_str, const std::string & ref_str) 
+{
+
+    // create array
+    int alt_len = alt_str.size();
+    int ref_len = ref_str.size();
+    std::vector< std::vector<char> > ptr_str;
+    for (int i = 0; i < alt_len*2; i++)
+        ptr_str.push_back(std::vector<char>(ref_len*2, ' '));
+
+    // set arrows
+    for (auto & itr : ptrs) {
+        idx1 x = itr.first;
+        if (x.hi != hi) continue; // only print this layer
+        int flags = itr.second;
+        int alt_idx = x.qri;
+        int ref_idx = x.ti;
+
+        // states
+        if (flags & PTR_SYNC)
+            ptr_str[alt_idx*2+1][ref_idx*2+1] = '#';
+        else if (flags & PTR_SWP_MAT)
+            ptr_str[alt_idx*2+1][ref_idx*2+1] = '+';
+        else
+            ptr_str[alt_idx*2+1][ref_idx*2+1] = '*';
+
+        // movements
+        if (flags & PTR_MAT)
+            ptr_str[alt_idx*2][ref_idx*2] = '\\';
+        if (flags & PTR_SUB)
+            ptr_str[alt_idx*2][ref_idx*2] = 'X';
+        if (flags & PTR_DEL)
+            ptr_str[alt_idx*2+1][ref_idx*2] = '-';
+        if (flags & PTR_INS)
+            ptr_str[alt_idx*2][ref_idx*2+1] = '|';
+    }
+
+    // print array
+    for (int i = -1; i < alt_len*2; i++) {
+        for (int j = -1; j < ref_len*2; j++) {
+            if (i < 0 && j < 0) {
+                printf("\n  ");
+            }
+            else if (i < 0) {
+                if (!(j%2)) printf("%c ", ref_str[j>>1]);
+            } else if (j < 0) {
+                if (!(i%2)) printf("%c ", alt_str[i>>1]);
+                else printf("  ");
+            } else {
+                idx1 x(hi, i>>1, j>>1);
+                switch(ptr_str[i][j]) {
+                    case '#':
+                    case '+':
+                    case '*':
+                        if (test(ptrs, x, PTR_LPATH)) {
+                            if (test(ptrs, x, PTR_RPATH)) { // both
+                                printf("%s", GREEN(ptr_str[i][j]).data());
+                            } else { // left
+                                printf("%s", YELLOW(ptr_str[i][j]).data());
+                            }
+                        } else if (test(ptrs, x, PTR_RPATH)) { // right
+                            printf("%s", BLUE(ptr_str[i][j]).data());
+                        } else { // none
+                            printf("%c", ptr_str[i][j]);
+                        }
+                        break;
+                    case 'X':
+                    case '\\':
+                        if (test(ptrs, x, PTR_LPATH) && 
+                                (i>>1) > 0 && (j>>1) > 0 &&
+                                test(ptrs, idx1(x.hi, x.qri-1, x.ti-1), PTR_LPATH)) {
+                            if (test(ptrs, x, PTR_RPATH) &&
+                                    test(ptrs, idx1(x.hi, x.qri-1, x.ti-1), PTR_RPATH)) { // both
+                                printf("%s", GREEN(ptr_str[i][j]).data());
+                            } else { // left
+                                printf("%s", YELLOW(ptr_str[i][j]).data());
+                            }
+                        } else if (test(ptrs, x, PTR_RPATH) &&
+                                (i>>1) > 0 && (j>>1) > 0 &&
+                                test(ptrs, idx1(x.hi, x.qri, x.ti), PTR_RPATH)) { // right
+                            printf("%s", BLUE(ptr_str[i][j]).data());
+                        } else { // none
+                            if (i>>1 == 0 && j>>1 == 0) {
+                                    if (test(ptrs, x, PTR_RPATH) &&
+                                        test(ptrs, x, PTR_LPATH))
+                                        printf("%s", GREEN(ptr_str[i][j]).data());
+                                    else if (test(ptrs, x, PTR_RPATH))
+                                        printf("%s", BLUE(ptr_str[i][j]).data());
+                                    else if (test(ptrs, x, PTR_LPATH))
+                                        printf("%s", YELLOW(ptr_str[i][j]).data());
+                                    else
+                                        printf("%c", ptr_str[i][j]);
+                            } else {
+                                printf("%c", ptr_str[i][j]);
+                            }
+                        }
+                        break;
+                    case '-':
+                        if (test(ptrs, x, PTR_LPATH) && 
+                                (j>>1) > 0 &&
+                                test(ptrs, idx1(x.hi, x.qri, x.ti-1), PTR_LPATH)) {
+                            if (test(ptrs, x, PTR_RPATH) &&
+                                    test(ptrs, idx1(x.hi, x.qri, x.ti-1), PTR_RPATH)) {
+                                printf("%s", GREEN('-').data());
+                            } else { // left
+                                printf("%s", YELLOW('-').data());
+                            }
+                        } else if (test(ptrs, x, PTR_RPATH) && 
+                                (j>>1) > 0 &&
+                                test(ptrs, idx1(x.hi, x.qri, x.ti-1), PTR_RPATH)) {
+                            printf("%s", BLUE('-').data());
+                        } else { // none
+                            printf("-");
+                        }
+                        break;
+                    case '|':
+                        if (test(ptrs, x, PTR_LPATH) && 
+                                (i>>1) > 0 &&
+                                test(ptrs, idx1(x.hi, x.qri-1, x.ti), PTR_LPATH)) {
+                            if (test(ptrs, x, PTR_RPATH) &&
+                                test(ptrs, idx1(x.hi, x.qri-1, x.ti), PTR_RPATH)) {
+                                printf("%s", GREEN('|').data());
+                            } else { // left
+                                printf("%s", YELLOW('|').data());
+                            }
+                        } else if (test(ptrs, x, PTR_RPATH) && 
+                                (i>>1) > 0 &&
+                                test(ptrs, idx1(x.hi, x.qri-1, x.ti), PTR_RPATH)) {
+                            printf("%s", BLUE('|').data());
+                        } else { // none
+                            printf("|");
+                        }
+                        break;
+                    case ' ':
+                            printf("%c", ptr_str[i][j]);
+                        break;
+                }
+            }
+        }
+        printf("\n");
+    }
+}
+
+
+/*******************************************************************************/
+
+void print_ptrs(const std::vector< std::vector<int> > & ptrs, 
+        const std::string & alt_str, const std::string & ref_str) 
 {
 
     // create array
