@@ -1461,24 +1461,9 @@ void calc_prec_recall(
 
                 // calculate old edit distance
                 int old_ed = 0;
-                for (int truth_var_idx = prev_truth_var_ptr; 
-                        truth_var_idx > truth_var_ptr; truth_var_idx--) {
-                    switch (truth_vars->types[truth_var_idx]) {
-                        case TYPE_SUB:
-                            old_ed += 1;
-                            break;
-                        case TYPE_INS:
-                            old_ed += truth_vars->alts[truth_var_idx].length();
-                            break;
-                        case TYPE_DEL:
-                            old_ed += truth_vars->refs[truth_var_idx].length();
-                            break;
-                        default:
-                            ERROR("Unexpected variant type (%d) in calc_prec_recall().",
-                                    truth_vars->types[truth_var_idx]);
-                            break;
-                    }
-                }
+                std::vector< std::vector<int> > offs, ptrs;
+                calc_edit_dist_aln(ref, truth[i], old_ed, offs, ptrs);
+
                 if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
                     ERROR("Old edit distance 0, variants exist.");
 
@@ -1598,8 +1583,7 @@ void calc_prec_recall(
 
 /******************************************************************************/
 
-
-void calc_edit_dist_aln(
+void calc_edit_dist_aln_all(
         const std::string & query1, const std::string & query2, 
         const std::string & truth1, const std::string & truth2,
         std::vector<int> & s, 
@@ -1607,48 +1591,62 @@ void calc_edit_dist_aln(
         std::vector< std::vector< std::vector<int> > > & ptrs
         ) {
 
-    // ALIGNMENT
+    // alignment
     std::vector<std::string> query {query1, query1, query2, query2};
     std::vector<std::string> truth {truth1, truth2, truth1, truth2};
-    std::vector<int> query_lens = 
-            {int(query1.size()), int(query1.size()), int(query2.size()), int(query2.size())};
-    std::vector<int> truth_lens = 
-            {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
+
+    // for each combination of query and truth
+    for(int i = 0; i < 4; i++) {
+        calc_edit_dist_aln(query[i], truth[i], s[i], offs[i], ptrs[i]);
+    }
+    return;
+}
+
+
+
+void calc_edit_dist_aln(
+        const std::string & query, const std::string & truth, int & s, 
+        std::vector< std::vector<int> > & offs,
+        std::vector< std::vector<int> > & ptrs
+        ) {
+
+    // alignment
+    int query_len = query.size();
+    int truth_len = truth.size();
 
     // for each combination of query and truth
     for(int i = 0; i < 4; i++) {
 
-        int mat_len = query_lens[i] + truth_lens[i] - 1;
-        offs[i].push_back(std::vector<int>(mat_len,-2));
-        offs[i][0][query_lens[i]-1] = -1;
-        ptrs[i].push_back(std::vector<int>(mat_len,PTR_NONE));
+        int mat_len = query_len + truth_len - 1;
+        offs.push_back(std::vector<int>(mat_len, -2));
+        offs[0][query_len-1] = -1;
+        ptrs.push_back(std::vector<int>(mat_len, PTR_NONE));
         bool done = false;
         while (true) {
 
             // EXTEND WAVEFRONT
             for (int d = 0; d < mat_len; d++) {
-                int off = offs[i][s[i]][d];
-                int diag = d + 1 - query_lens[i];
+                int off = offs[s][d];
+                int diag = d + 1 - query_len;
 
                 // don't allow starting from untouched cells
                 if (off == -2) continue;
 
                 // check that it's within matrix
                 if (diag + off + 1 < 0) continue;
-                if (off > query_lens[i] - 1) continue;
-                if (diag + off > truth_lens[i] - 1) continue;
+                if (off > query_len - 1) continue;
+                if (diag + off > truth_len - 1) continue;
 
                 // extend
-                while (off < query_lens[i] - 1 && 
-                       diag + off < truth_lens[i] - 1) {
-                    if (query[i][off+1] == truth[i][diag+off+1]) off++;
+                while (off < query_len - 1 && 
+                       diag + off < truth_len - 1) {
+                    if (query[off+1] == truth[diag+off+1]) off++;
                     else break;
                 }
-                offs[i][s[i]][d] = off;
+                offs[s][d] = off;
 
                 // finish if done
-                if (off == query_lens[i] - 1 && 
-                    off + diag == truth_lens[i] - 1)
+                if (off == query_len - 1 && off + diag == truth_len - 1)
                 { done = true; break; }
 
             }
@@ -1657,37 +1655,37 @@ void calc_edit_dist_aln(
 
             // NEXT WAVEFRONT
             // add wavefront, fill edge cells
-            offs[i].push_back(std::vector<int>(mat_len, -2));
+            offs.push_back(std::vector<int>(mat_len, -2));
             // bottom left cells
-            if (s[i]+1 == query_lens[i]-1)
-                offs[i][s[i]+1][0] = s[i]+1;
+            if (s+1 == query_len-1)
+                offs[s+1][0] = s+1;
             // top right cells
-            if (s[i]+1 == mat_len-1)
-                offs[i][s[i]+1][mat_len-1] = s[i]+1;
+            if (s+1 == mat_len-1)
+                offs[s+1][mat_len-1] = s+1;
 
-            ptrs[i].push_back(std::vector<int>(mat_len));
-            ptrs[i][s[i]+1][0] = PTR_INS;
-            ptrs[i][s[i]+1][s[i]+1] = PTR_DEL;
+            ptrs.push_back(std::vector<int>(mat_len));
+            ptrs[s+1][0] = PTR_INS;
+            ptrs[s+1][s+1] = PTR_DEL;
 
             // central cells
             for (int d = 1; d < mat_len-1; d++) {
-                int offleft = offs[i][s[i]][d-1];
-                int offtop  = (offs[i][s[i]][d+1] == -2) ? 
-                    -2 : offs[i][s[i]][d+1]+1;
-                int offdiag = (offs[i][s[i]][d] == -2) ? 
-                    -2 : offs[i][s[i]][d]+1;
+                int offleft = offs[s][d-1];
+                int offtop  = (offs[s][d+1] == -2) ? 
+                    -2 : offs[s][d+1]+1;
+                int offdiag = (offs[s][d] == -2) ? 
+                    -2 : offs[s][d]+1;
                 if (offdiag >= offtop && offdiag >= offleft) {
-                    offs[i][s[i]+1][d] = offdiag;
-                    ptrs[i][s[i]+1][d] = PTR_SUB;
+                    offs[s+1][d] = offdiag;
+                    ptrs[s+1][d] = PTR_SUB;
                 } else if (offleft >= offtop) {
-                    offs[i][s[i]+1][d] = offleft;
-                    ptrs[i][s[i]+1][d] = PTR_DEL;
+                    offs[s+1][d] = offleft;
+                    ptrs[s+1][d] = PTR_DEL;
                 } else {
-                    offs[i][s[i]+1][d] = offtop;
-                    ptrs[i][s[i]+1][d] = PTR_INS;
+                    offs[s+1][d] = offtop;
+                    ptrs[s+1][d] = PTR_INS;
                 }
             }
-            ++s[i];
+            ++s;
         }
     }
 }

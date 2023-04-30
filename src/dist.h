@@ -148,7 +148,7 @@ int calc_cig_sw_score(
         const std::vector<int> & cigar,
         int sub, int open, int extend);
 
-void calc_edit_dist_aln(
+void calc_edit_dist_aln_all(
         const std::string & query1, 
         const std::string & query2, 
         const std::string & truth1, 
@@ -157,5 +157,10 @@ void calc_edit_dist_aln(
         std::vector< std::vector< std::vector<int> > > & offs,
         std::vector< std::vector< std::vector<int> > > & ptrs
         );
+
+void calc_edit_dist_aln(
+        const std::string & query, const std::string & truth, int & s, 
+        std::vector< std::vector<int> > & offs,
+        std::vector< std::vector<int> > & ptrs);
 
 #endif
