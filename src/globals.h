@@ -5,6 +5,7 @@
 
 #include "bed.h"
 #include "defs.h"
+#include "timer.h"
 
 class Globals {
 public:
@@ -50,6 +51,8 @@ public:
     bool keep_query = false;
     bool simple_cluster = false;
 
+    std::vector<timer> timers;
+
     // constructors
     Globals() {;}
 
@@ -58,6 +61,7 @@ public:
     void print_version() const;
     void print_usage() const; 
     void print_citation() const; 
+    void init_timers(std::vector<std::string> timer_strs);
 
     // program data
     const std::string VERSION = "1.2.3";

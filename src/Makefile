@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++17 -O2
-OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o edit.o
+OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o edit.o timer.o
 TARGET = vcfdist
 LDLIBS = -lz -lhts -lstdc++fs
 
@@ -9,11 +9,14 @@ all: $(TARGET)
 $(TARGET): $(OBJS) main.cpp
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET) main.cpp $(LDLIBS)
 
-globals.o: globals.cpp globals.h bed.h print.h defs.h
+globals.o: globals.cpp globals.h bed.h print.h defs.h timer.h
 	$(CXX) -c $(CXXFLAGS) globals.cpp
 
 print.o: print.cpp print.h globals.h phase.h dist.h edit.h defs.h
 	$(CXX) -c $(CXXFLAGS) print.cpp
+
+timer.o: timer.cpp timer.h globals.h defs.h
+	$(CXX) -c $(CXXFLAGS) timer.cpp
 
 variant.o: variant.cpp variant.h print.h fasta.h defs.h globals.h
 	$(CXX) -c $(CXXFLAGS) variant.cpp

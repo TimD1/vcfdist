@@ -2,6 +2,7 @@
 
 #include "globals.h"
 #include "print.h"
+#include "timer.h"
 
 void Globals::parse_args(int argc, char ** argv) {
 
@@ -609,6 +610,15 @@ void Globals::print_usage() const
     printf("      gap extension penalty (distance evaluation)\n\n");
 
 }
+
+
+
+void Globals::init_timers(std::vector<std::string> timer_strs) {
+    for (std::string timer_name : timer_strs) {
+        g.timers.push_back( timer(timer_name) );
+    }
+}
+
 
 void Globals::print_citation() const
 {

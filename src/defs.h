@@ -5,6 +5,8 @@
 #include <unordered_set>
 #include <unordered_map>
 
+class timer;
+
 // misc
 #define FAIL 0
 #define PASS 1
@@ -54,6 +56,17 @@
 #define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
 #define ERRTYPE_UN 6 // unknown
 #define ERRTYPES   7
+
+// runtime timers
+#define TIME_READ     0
+#define TIME_CLUST    1
+#define TIME_REALN    2
+#define TIME_RECLUST  3
+#define TIME_SUPCLUST 4
+#define TIME_ALIGN    5
+#define TIME_PHASE    6
+#define TIME_WRITE    7
+#define TIME_TOTAL    8
 
 // alignment
 #define QUERY    0
