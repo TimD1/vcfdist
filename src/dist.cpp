@@ -1253,10 +1253,10 @@ void get_prec_recall_path_sync(
                 case PTR_SWP_MAT:
                 case PTR_SUB:
                     in_truth_var &= !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VAR_BEG);
-                    in_query_var &= !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG);
+                    if (in_query_var) in_query_var &= !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG);
                     break;
                 case PTR_INS: // just consumed query
-                    in_query_var &= !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG);
+                    if (in_query_var) in_query_var &= !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG);
                     break;
                 case PTR_DEL: // just consumed truth
                     in_truth_var &= !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VAR_BEG);
@@ -1268,7 +1268,7 @@ void get_prec_recall_path_sync(
             // SYNC POINTS
             bool prev_sync;
             // no info about movements from previous rows, default to false
-            if (prev_qri == 0 || query_ref_ptrs[i][PTRS][prev_qri] == 0) {
+            if (prev_qri == 0 || (prev_hi == qi && query_ref_ptrs[i][PTRS][prev_qri] == 0)) {
                 prev_sync = false;
             } else { // use ref_loc_sync info, enforce diag, not in variant
                 prev_sync = !in_truth_var && !in_query_var && 
@@ -1397,11 +1397,11 @@ void calc_prec_recall(
         int prev_ti = ti;
         int new_ed = 0;
         int query_var_ptr = query_end_idx-1;
-        int query_var_pos = query_vars->poss.size() ? 
+        int query_var_pos = query_vars->poss.size() && query_var_ptr >= 0 ? 
                 query_vars->poss[query_var_ptr] - beg : 0;
         int prev_query_var_ptr = query_var_ptr;
         int truth_var_ptr = truth_end_idx-1;
-        int truth_var_pos = truth_vars->poss.size() ? 
+        int truth_var_pos = truth_vars->poss.size() && truth_var_ptr >= 0 ? 
                 truth_vars->poss[truth_var_ptr] - beg : 0;
         int prev_truth_var_ptr = truth_var_ptr;
         int path_idx = path[i].size()-1;
@@ -1866,7 +1866,8 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                             prev_qual);
 
                     // align strings, backtrack, calculate distance
-                    auto ptrs = sw_align(query, truth[hap], g.eval_sub, 
+                    std::unordered_map<idx2, idx2> ptrs;
+                    sw_align(query, truth[hap], ptrs, g.eval_sub, 
                             g.eval_open, g.eval_extend, false);
                     std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs,
                             false);
@@ -2031,6 +2032,7 @@ int sw_max_reach(const std::string & query, const std::string & ref,
 
             // allow non-main-diagonal match
             bool main_diag = x.ri >= ref_section &&
+                    x.qi+1 < query_len && x.ri+1 < ref_len && // repeat bounds check
                     !(query_ref_ptrs[FLAGS][x.qi] & PTR_VARIANT) && // neither prev/curr are variants
                     !(ref_query_ptrs[FLAGS][x.ri] & PTR_VARIANT) &&
                     !(query_ref_ptrs[FLAGS][x.qi+1] & PTR_VARIANT) &&
@@ -2201,7 +2203,8 @@ std::unique_ptr<variantData> sw_realign(
                 // perform alignment
                 if (print) printf("REF:   %s\n", ref.data());
                 if (print) printf("QUERY: %s\n", query.data());
-                std::unordered_map<idx2, idx2> ptrs = sw_align(query, ref,
+                std::unordered_map<idx2, idx2> ptrs;
+                sw_align(query, ref, ptrs,
                         sub, open, extend, print);
                 
                 // backtrack
@@ -2245,12 +2248,10 @@ std::unique_ptr<variantData> sw_realign(
 /* Perform global Djikstra Smith-Waterman alignment of two strings. 
  * Results are stored in `ptrs`.
  * */
-std::unordered_map<idx2, idx2> sw_align(
-        const std::string & query, 
-        const std::string & ref, 
+void sw_align(const std::string & query, const std::string & ref, 
+        std::unordered_map<idx2, idx2> & ptrs,
         int sub, int open, int extend, bool print) { 
     
-    std::unordered_map<idx2, idx2> ptrs;
     ptrs[idx2(0,0,0)] = idx2(0,-1,-1);
     int ref_len = ref.size();
     int query_len = query.size();
@@ -2458,7 +2459,6 @@ std::unordered_map<idx2, idx2> sw_align(
 
         s++;
     } // end alignment
-    return ptrs;
 }
 
 

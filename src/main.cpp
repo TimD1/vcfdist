@@ -115,9 +115,9 @@ g.timers[TIME_WRITE].start();
     truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
     phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
 g.timers[TIME_WRITE].stop();
-g.timers[TIME_TOTAL].stop();
 
     // report timing results
+g.timers[TIME_TOTAL].stop();
     INFO(" ")
     INFO("TIMERS")
     for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }

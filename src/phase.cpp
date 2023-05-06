@@ -53,7 +53,7 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
                     poss[c][h] = ptrs[c][h] < int(vars[c][h]->poss.size()) ? 
                             vars[c][h]->poss[ptrs[c][h]] : 
                             std::numeric_limits<int>::max();
-                    if (int(vars[c][h]->poss.size()) && 
+                    if (ptrs[c][h] < int(vars[c][h]->types.size()) &&
                             (vars[c][h]->types[ptrs[c][h]] == TYPE_INS ||
                             vars[c][h]->types[ptrs[c][h]] == TYPE_DEL)) poss[c][h]--;
                 }

@@ -69,10 +69,10 @@ void variantData::write_vcf(std::string out_vcf_fn) {
                 this->ctg_variants[HAP2][ctg]->poss[ptrs[HAP2]] : std::numeric_limits<int>::max();
 
             // indels include previous base, adjust position
-            if (this->ctg_variants[HAP1][ctg]->types.size() && 
+            if (ptrs[HAP1] < this->ctg_variants[HAP1][ctg]->types.size() && 
                     (this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_INS || 
                     this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_DEL)) pos_hap1--;
-            if (this->ctg_variants[HAP2][ctg]->types.size() && 
+            if (ptrs[HAP2] < this->ctg_variants[HAP2][ctg]->types.size() && 
                     (this->ctg_variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_INS || 
                     this->ctg_variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_DEL)) pos_hap2--;
             int pos = std::min(pos_hap1, pos_hap2);

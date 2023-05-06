@@ -92,8 +92,10 @@ public:
 
 namespace std {
     template<> struct hash<idx2> {
-        std::uint64_t operator()(const idx2& other) const noexcept {
-            return uint64_t(other.mi)<<60 | uint64_t(other.qi) << 30 | uint64_t(other.ri);
+        std::uint64_t operator()(const idx2& x) const noexcept {
+            return (uint64_t(x.mi) *73856093 + 0x517cc1b727220a95) ^ 
+                   (uint64_t(x.qi)*19349669 + 0xd15f392b3d4704a2) ^ 
+                   (uint64_t(x.ri) *83492791);
         }
     };
 }
@@ -208,9 +210,10 @@ std::unique_ptr<variantData> sw_realign(
         std::shared_ptr<fastaData> ref,
         int sub, int open, int extend, int callset, bool print = false);
 
-std::unordered_map<idx2,idx2> sw_align(
+void sw_align(
         const std::string & query, 
         const std::string & truth,
+        std::unordered_map<idx2,idx2> & ptrs,
         int sub, int open, int extend, bool print);
 
 std::vector<int> sw_backtrack(
