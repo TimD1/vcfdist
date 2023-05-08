@@ -66,9 +66,11 @@ class idx2;
 #define TIME_RECLUST  3
 #define TIME_SUPCLUST 4
 #define TIME_ALIGN    5
-#define TIME_PHASE    6
-#define TIME_WRITE    7
-#define TIME_TOTAL    8
+#define TIME_PR       6
+#define TIME_SW       7
+#define TIME_PHASE    8
+#define TIME_WRITE    9
+#define TIME_TOTAL    10
 
 // alignment
 #define QUERY    0

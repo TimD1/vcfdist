@@ -94,7 +94,7 @@ namespace std {
     template<> struct hash<idx2> {
         std::uint64_t operator()(const idx2& x) const noexcept {
             return (uint64_t(x.mi) *73856093 + 0x517cc1b727220a95) ^ 
-                   (uint64_t(x.qi)*19349669 + 0xd15f392b3d4704a2) ^ 
+                   (uint64_t(x.qi) *19349669 + 0xd15f392b3d4704a2) ^ 
                    (uint64_t(x.ri) *83492791);
         }
     };

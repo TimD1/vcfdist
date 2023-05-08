@@ -14,8 +14,8 @@ void timer::stop() {
         ERROR("Cannot stop an already-stopped timer.");
     }
     auto stop_time = std::chrono::system_clock::now();
-    total_time += (std::chrono::duration_cast<std::chrono::milliseconds>(
-            stop_time-start_time).count()) / 1000.0;
+    total_time += std::chrono::duration_cast<std::chrono::milliseconds>(
+            stop_time-start_time).count();
     running = false;
 }
 
@@ -23,7 +23,7 @@ double timer::total() {
     if (running) {
         ERROR("Must stop timer before calculating total time.");
     }
-    return total_time; 
+    return total_time / 1000.0; 
 }
 
 void timer::print() {

@@ -1450,7 +1450,7 @@ void calc_prec_recall(
                 if (prev_ti == ti || !(truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VAR_BEG))
                     truth_ref_pos = truth_var_pos + 1;
             }
-            while (truth_ref_pos < truth_var_pos) { // passed REF variant
+            while (truth_ref_pos < truth_var_pos && truth_var_ptr >= truth_beg_idx) { // passed REF variant
                 truth_var_ptr--;
                 truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
                     truth_vars->poss[truth_var_ptr] - beg;
@@ -1711,6 +1711,8 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
 
         // iterate over superclusters
+        std::unordered_map<idx2, idx2> ptrs;
+        ptrs.reserve(100000);
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
             /////////////////////////////////////////////////////////////////////
@@ -1774,6 +1776,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
 
             // calculate four forward-pass alignment edit dists
             // query1-truth2, query1-truth1, query2-truth1, query2-truth2
+g.timers[TIME_PR].start();
             std::vector<int> aln_score(4), aln_query_ref_end(4);
             std::unordered_map<idx1, int> aln_ptrs;
             std::unordered_map<idx1, idx1> swap_pred_map;
@@ -1819,6 +1822,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     aln_query_ref_end, phase, 
                     false
             );
+g.timers[TIME_PR].stop();
 
 
             /////////////////////////////////////////////////////////////////////
@@ -1866,9 +1870,11 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                             prev_qual);
 
                     // align strings, backtrack, calculate distance
-                    std::unordered_map<idx2, idx2> ptrs;
+g.timers[TIME_SW].start();
+                    ptrs.clear();
                     sw_align(query, truth[hap], ptrs, g.eval_sub, 
                             g.eval_open, g.eval_extend, false);
+g.timers[TIME_SW].stop();
                     std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs,
                             false);
                     int dist = count_dist(cigar);

@@ -211,7 +211,7 @@ void print_ptrs(const std::unordered_map<idx1, int> & ptrs, int hi,
                             }
                         } else if (test(ptrs, x, PTR_RPATH) &&
                                 (i>>1) > 0 && (j>>1) > 0 &&
-                                test(ptrs, idx1(x.hi, x.qri, x.ti), PTR_RPATH)) { // right
+                                test(ptrs, idx1(x.hi, x.qri-1, x.ti-1), PTR_RPATH)) { // right
                             printf("%s", BLUE(ptr_str[i][j]).data());
                         } else { // none
                             if (i>>1 == 0 && j>>1 == 0) {

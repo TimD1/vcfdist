@@ -98,6 +98,9 @@ void superclusterData::gap_supercluster() {
     // iterate over each contig
     int total_superclusters = 0;
     int largest_supercluster = 0;
+    int total_vars = 0;
+    int most_vars = 0;
+    int total_bases = 0;
     for (std::string ctg : this->contigs) {
 
         // skip empty contigs
@@ -110,11 +113,11 @@ void superclusterData::gap_supercluster() {
 
         // for each cluster of variants (merge query and truth haps)
         auto vars = this->ctg_superclusters[ctg]->ctg_variants;
-        std::vector<int> brks = {0, 0, 0, 0};
+        std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
         while (true) {
 
             // init: empty supercluster
-            std::vector<int> next_brks = brks;
+            std::vector<int> next_brks = brks; // end of current supercluster
             std::vector<int> poss(4, std::numeric_limits<int>::max());
             for (int i = 0; i < CALLSETS*HAPS; i++) {
                 if (brks[i] < int(vars[i>>1][i&1]->clusters.size())-1) {
@@ -123,14 +126,13 @@ void superclusterData::gap_supercluster() {
                 }
             }
 
-            // initialize cluster merging with first to start
+            // get first cluster, end if all haps are off end
             int idx = std::distance(poss.begin(),
                     std::min_element(poss.begin(), poss.end()));
-
-            // end if all haps are off end
             if (poss[idx] == std::numeric_limits<int>::max()) break;
             next_brks[idx]++;
 
+            // initialize cluster merging with first to start
             int curr_end_pos = vars[idx>>1][idx&1]->poss[
                 vars[idx>>1][idx&1]->clusters[next_brks[idx]]-1] +
                 vars[idx>>1][idx&1]->rlens[
@@ -176,7 +178,16 @@ void superclusterData::gap_supercluster() {
                                 vars[i>>1][i&1]->clusters[next_brks[i]]-1] + 1);
                 }
             }
+
+            // update summary metrics
             largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
+            total_bases += end_pos-beg_pos;
+            int this_vars = 0;
+            for (int i = 0; i < CALLSETS*HAPS; i++) {
+                this_vars += next_brks[i] - brks[i];
+            }
+            most_vars = std::max(most_vars, this_vars);
+            total_vars += this_vars;
 
             // debug print
             if (false) {
@@ -208,8 +219,11 @@ void superclusterData::gap_supercluster() {
         total_superclusters += this->ctg_superclusters[ctg]->n;
     }
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("  Total superclusters:  %d", total_superclusters);
-    if (g.verbosity >= 1) INFO("  Largest supercluster: %d", largest_supercluster);
+    if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
+    if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);
+    if (g.verbosity >= 1) INFO("  Largest supercluster  (vars): %d", most_vars);
+    if (g.verbosity >= 1) INFO("  Average supercluster (bases): %d", total_bases / total_superclusters);
+    if (g.verbosity >= 1) INFO("  Average supercluster  (vars): %d", total_vars / total_superclusters);
 }
 
 
@@ -223,6 +237,8 @@ void gap_cluster(std::unique_ptr<variantData> & vcf, int callset) {
             callset_strs[callset].data(), vcf->filename.data());
 
     // cluster each contig
+    int largest_cluster_vars = 0;
+    int largest_cluster_bases = 0;
     for (std::string ctg : vcf->contigs) {
 
         // only print for non-empty contigs
@@ -234,21 +250,32 @@ void gap_cluster(std::unique_ptr<variantData> & vcf, int callset) {
             int nvar = vcf->ctg_variants[hap][ctg]->n;
             if (nvar && g.verbosity >= 1) INFO("    Haplotype %d", hap+1);
             int prev_end = -g.cluster_min_gap * 2;
+            int cluster_start = 0;
             int pos = 0;
             int end = 0;
             int var_idx = 0;
+            int prev_var_idx = 0;
             for (; var_idx < vcf->ctg_variants[hap][ctg]->n; var_idx++) {
                 pos = vcf->ctg_variants[hap][ctg]->poss[var_idx];
                 end = pos + vcf->ctg_variants[hap][ctg]->rlens[var_idx];
-                if (pos - prev_end > g.cluster_min_gap)
+                if (pos - prev_end > g.cluster_min_gap) {
+                    // update summary metrics
+                    largest_cluster_bases = std::max(largest_cluster_bases, prev_end-cluster_start);
+                    largest_cluster_vars = std::max(largest_cluster_vars, var_idx - prev_var_idx);
+                    prev_var_idx = var_idx;
+                    cluster_start = pos;
+                    // add cluster
                     vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
+                }
                 prev_end = std::max(prev_end, end);
             }
             vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
-            if (nvar && g.verbosity >= 1) INFO("      %d resulting clusters.", 
+            if (nvar && g.verbosity >= 1) INFO("      %d clusters", 
                     int(vcf->ctg_variants[hap][ctg]->clusters.size()-1));
         }
     }
+    if (g.verbosity >= 1) INFO("  Largest cluster (bases): %d", largest_cluster_bases);
+    if (g.verbosity >= 1) INFO("  Largest cluster  (vars): %d", largest_cluster_vars);
 }
 
 
@@ -367,33 +394,35 @@ void sw_cluster(std::unique_ptr<variantData> & vcf,
                     // upper bound on distance off main diagonal
                     int buffer = score/extend + 1;
 
-                    if (left_compute) {
-                        // calculate left reach
+                    if (left_compute) { // calculate left reach
                         std::string query, ref;
                         std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
-                        // just after last variant in previous cluster
+
+                        // error checking
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 < 0)
                             ERROR("left var_idx < 0");
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 >= nvar)
                             ERROR("left var_idx >= nvar");
-                        int beg_pos = std::max(0, 
-                            vcf->ctg_variants[hap][ctg]->poss[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
-                            vcf->ctg_variants[hap][ctg]->rlens[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] + 1
-                            - buffer);
-                        // just after last variant in this cluster
                         if (clust+1 >= vcf->ctg_variants[hap][ctg]->clusters.size())
                             ERROR("left next clust_idx >= nclust");
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1 < 0)
                             ERROR("left next var_idx < 0");
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1 >= nvar)
                             ERROR("left next var_idx >= nvar");
+
+                        // just after last variant in this cluster
                         int end_pos = 
                             vcf->ctg_variants[hap][ctg]->poss[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
                             vcf->ctg_variants[hap][ctg]->rlens[
                                 vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]+1;
+                        // just after last variant in previous cluster
+                        int beg_pos = std::max(0, 
+                            vcf->ctg_variants[hap][ctg]->poss[
+                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
+                            vcf->ctg_variants[hap][ctg]->rlens[
+                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] + 1
+                            - buffer);
 
                         // generate reversed pointers/strings
                         generate_ptrs_strs(query, ref,
@@ -438,28 +467,30 @@ void sw_cluster(std::unique_ptr<variantData> & vcf,
                     left_reach.push_back(l_reach);
 
                     // RIGHT REACH
-                    if (right_compute) {
-
-                        // calculate right reach
+                    if (right_compute) { // calculate right reach
                         std::string query, ref;
                         std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
-                        // right before current cluster
+
+                        // error checking
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust] < 0)
                             ERROR("right var_idx < 0");
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust] >= nvar)
                             ERROR("right var_idx >= nvar");
-                        int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust] ]-1;
-                        // right before next cluster
                         if (clust+1 >= vcf->ctg_variants[hap][ctg]->clusters.size())
                             ERROR("right next clust_idx >= nclust");
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust+1] < 0)
                             ERROR("right next var_idx < 0");
                         if (vcf->ctg_variants[hap][ctg]->clusters[clust+1] >= nvar)
                             ERROR("right next var_idx >= nvar");
+
+                        // right before current cluster
+                        int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
+                                    vcf->ctg_variants[hap][ctg]->clusters[clust] ]-1;
+                        // right before next cluster
                         int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
                                     vcf->ctg_variants[hap][ctg]->clusters[clust+1]]
                                     + buffer;
+
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
                                 vcf->ctg_variants[hap][ctg], 
