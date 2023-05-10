@@ -34,10 +34,11 @@ void print_ptrs(const std::unordered_map<idx1, int> & ptrs, int hi,
 void print_cigar(std::vector<int> cigar); 
 
 void print_wfa_ptrs(
-        std::vector<std::string> query,
-        std::vector<std::string> truth,
-        std::vector<int> s,
-        std::vector< std::vector< std::vector<int> > > offs);
+        const std::string & query,
+        const std::string & truth,
+        int s,
+        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<int> > > & offs);
 
 void write_results(std::unique_ptr<phaseData> & phasings, const editData & edits);
 

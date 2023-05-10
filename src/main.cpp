@@ -50,32 +50,34 @@ g.timers[TIME_WRITE].stop();
     // cluster, realign, and cluster query VCF
     if (!g.keep_query) {
 g.timers[TIME_CLUST].start();
-        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : sw_cluster(query_ptr, 
+        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : swg_cluster(query_ptr, 
                 g.query_sub, g.query_open, g.query_extend, QUERY); 
 g.timers[TIME_CLUST].stop();
 g.timers[TIME_REALN].start();
-        query_ptr = sw_realign(query_ptr, ref_ptr, 
+        query_ptr = swg_realign(query_ptr, ref_ptr, 
                 g.query_sub, g.query_open, g.query_extend, QUERY);
+        query_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
 g.timers[TIME_RECLUST].start();
-    g.simple_cluster ? gap_cluster(query_ptr, QUERY) : sw_cluster(query_ptr, 
+    g.simple_cluster ? gap_cluster(query_ptr, QUERY) : swg_cluster(query_ptr, 
             g.query_sub, g.query_open, g.query_extend, QUERY); 
 g.timers[TIME_RECLUST].stop();
 
     // cluster, realign, and cluster truth VCF
     if (!g.keep_truth) {
 g.timers[TIME_CLUST].start();
-        g.simple_cluster ?  gap_cluster(truth_ptr, TRUTH) : sw_cluster(truth_ptr, 
+        g.simple_cluster ?  gap_cluster(truth_ptr, TRUTH) : swg_cluster(truth_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
 g.timers[TIME_CLUST].stop();
 g.timers[TIME_REALN].start();
-        truth_ptr = sw_realign(truth_ptr, ref_ptr, 
+        truth_ptr = swg_realign(truth_ptr, ref_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend, TRUTH);
+        truth_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
 g.timers[TIME_RECLUST].start();
-    g.simple_cluster ? gap_cluster(truth_ptr, TRUTH) : sw_cluster(truth_ptr, 
+    g.simple_cluster ? gap_cluster(truth_ptr, TRUTH) : swg_cluster(truth_ptr, 
             g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
 g.timers[TIME_RECLUST].stop();
 
@@ -84,6 +86,7 @@ g.timers[TIME_WRITE].start();
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
 g.timers[TIME_WRITE].stop();
+g.timers[TIME_TOTAL].stop();
         INFO(" ")
         INFO("TIMERS")
         for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }

@@ -47,84 +47,98 @@ void print_ref_ptrs(std::vector< std::vector<int> > ptrs) {
 
 
 void print_wfa_ptrs(
-        std::vector<std::string> query,
-        std::vector<std::string> truth,
-        std::vector<int> s,
-        std::vector< std::vector< std::vector<int> > > offs) {
+        const std::string & query,
+        const std::string & truth,
+        int s,
+        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<int> > > & offs) {
 
-    printf("\n=======================================================================\n");
-    for(int h = 0; h < 4; h++) { // 4 alignments
-        printf("\n%s ALIGNMENT (distance %d)\n", 
-                aln_strs[h].data(), s[h]);
-        int query_lens = query[h].size();
-        int truth_lens = truth[h].size();
+    for (int m = 0; m < MATS; m++) {
+        int query_len = query.size();
+        int truth_len = truth.size();
 
         // create array
         std::vector< std::vector<char> > ptr_str;
-        for (int i = 0; i < query_lens; i++)
-            ptr_str.push_back(std::vector<char>(truth_lens, '.'));
+        for (int i = 0; i < query_len; i++)
+            ptr_str.push_back(std::vector<char>(truth_len, '.'));
 
         // modify array with pointers
-        int mat_len = query_lens + truth_lens - 1;
-        for (int si = 0; si <= s[h]; si++) {
+        int mat_len = query_len + truth_len - 1;
+        for (int si = s; si >= 0; si--) { // overwrite with lower scored ptrs
             for(int di = 0; di < mat_len; di++) {
-                int diag = di + 1 - query_lens;
-                int off = offs[h][si][di];
+                int diag = di + 1 - query_len;
+                int off = offs[m][si][di];
  
                 // check that indices are within bounds
                 int query_pos = off;
                 int truth_pos = diag + off;
                 if (query_pos < 0 || truth_pos < 0) continue;
-                if (query_pos > query_lens-1 || 
-                        truth_pos > truth_lens-1) continue;
- 
-                if (si == 0 && diag == 0) { // main diag, no prior edits
-                    while (query_pos >= 0)
-                        ptr_str[query_pos--][truth_pos--] = '\\';
-                } else if (query_pos == 0) { // left edge
-                    ptr_str[query_pos][truth_pos] = '-';
-                } else if (truth_pos == 0) { // top edge
-                    ptr_str[query_pos][truth_pos] = '|';
-                } else { // follow diagonal
- 
-                    int top_off = (di < mat_len-1) ? offs[h][si-1][di+1]+1 : -2;
-                    int left_off = (di > 0) ? offs[h][si-1][di-1] : -2;
-                    int diag_off = offs[h][si-1][di]+1;
-                    while (query_pos > 0 && truth_pos > 0 && 
-                            query_pos > top_off && 
-                            query_pos > left_off && 
-                            query_pos > diag_off) {
-                        ptr_str[query_pos--][truth_pos--] = '\\';
+                if (query_pos > query_len-1 || 
+                        truth_pos > truth_len-1) continue;
+
+                if (m == MAT_SUB) {
+                    switch (ptrs[m][si][di]) {
+                        case PTR_SUB:
+                            ptr_str[query_pos][truth_pos] = 'X';
+                            break;
+                        case PTR_INS:
+                            ptr_str[query_pos][truth_pos] = 'i';
+                            break;
+                        case PTR_DEL:
+                            ptr_str[query_pos][truth_pos] = 'd';
+                            break;
+                        case PTR_MAT:
+                            ptr_str[query_pos][truth_pos] = '\\';
+                            break;
                     }
-                    // check left/up
-                    if (query_pos == diag_off) {
-                        ptr_str[query_pos][truth_pos] = 'X';
-                    } else if (query_pos == top_off) {
-                        ptr_str[query_pos][truth_pos] = '|';
-                    } else if (query_pos == left_off) {
-                        ptr_str[query_pos][truth_pos] = '-';
+
+                } else if (m == MAT_INS) {
+                    switch (ptrs[m][si][di]) {
+                        case PTR_SUB:
+                            ptr_str[query_pos][truth_pos] = 's';
+                            break;
+                        case PTR_INS:
+                            ptr_str[query_pos][truth_pos] = '|';
+                            break;
+                        case PTR_DEL:
+                            ptr_str[query_pos][truth_pos] = '?';
+                            break;
+                    }
+
+                } else if (m == MAT_DEL) {
+                    switch (ptrs[m][si][di]) {
+                        case PTR_SUB:
+                            ptr_str[query_pos][truth_pos] = 's';
+                            break;
+                        case PTR_INS:
+                            ptr_str[query_pos][truth_pos] = '?';
+                            break;
+                        case PTR_DEL:
+                            ptr_str[query_pos][truth_pos] = '-';
+                            break;
                     }
                 }
             }
         }
   
         // print array
-        for (int i = -1; i < query_lens; i++) {
-            for (int j = -1; j < truth_lens; j++) {
+        printf("\n%s matrix:\n", type_strs[m+1].data());
+        for (int i = -1; i < query_len; i++) {
+            for (int j = -1; j < truth_len; j++) {
                 if (i < 0 && j < 0) {
                     printf("  ");
                 }
                 else if (i < 0) {
-                    printf("%c", truth[h][j]);
+                    printf("%c", truth[j]);
                 } else if (j < 0) {
-                    printf("\n%c ", query[h][i]);
+                    printf("\n%c ", query[i]);
                 } else {
                     printf("%c", ptr_str[i][j]);
                 }
             }
         }
         printf("\n");
-    } // 4 alignments
+    }
 }
            
 

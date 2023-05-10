@@ -195,7 +195,7 @@ void calc_prec_recall(
 
 /******************************************************************************/
 
-int sw_max_reach(
+int swg_max_reach(
         const std::string & query, 
         const std::string & ref, 
         const std::vector< std::vector<int> > & query_ref_ptrs, 
@@ -205,18 +205,32 @@ int sw_max_reach(
         bool reverse = false,
         int ref_section = -1);
 
-std::unique_ptr<variantData> sw_realign(
+std::unique_ptr<variantData> swg_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref,
         int sub, int open, int extend, int callset, bool print = false);
 
-void sw_align(
+void wf_swg_align(
+        const std::string & query, 
+        const std::string & truth,
+        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<int> > > & offs,
+        int & s, int sub, int open, int extend, bool print = false);
+
+std::vector<int> wf_swg_backtrack(
+        const std::string & query, 
+        const std::string & truth,
+        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<int> > > & offs,
+        int s, int sub, int open, int extend, bool print = false);
+
+void swg_align(
         const std::string & query, 
         const std::string & truth,
         std::unordered_map<idx2,idx2> & ptrs,
         int sub, int open, int extend, bool print);
 
-std::vector<int> sw_backtrack(
+std::vector<int> swg_backtrack(
         const std::string & query,
         const std::string & truth,
         const std::unordered_map<idx2, idx2> & ptrs, bool print);
@@ -232,12 +246,12 @@ variantData edit_dist_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref);
 
-int calc_vcf_sw_score(
+int calc_vcf_swg_score(
         std::shared_ptr<ctgVariants> vcf, 
         int clust_beg_idx, 
         int clust_end_idx,
         int sub, int open, int extend);
-int calc_cig_sw_score(
+int calc_cig_swg_score(
         const std::vector<int> & cigar,
         int sub, int open, int extend);
 

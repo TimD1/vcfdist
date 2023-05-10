@@ -40,7 +40,7 @@ public:
     std::vector<float> var_quals;   // variant quality (0-60)
     int n = 0;
 
-    // set during (sw_)cluster()
+    // set during (swg_)cluster()
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
 
     // set during prec_recall_aln()
@@ -65,6 +65,7 @@ public:
     void add_variants( const std::vector<int> & cigar, 
         int hap, int ref_pos, const std::string & ctg, 
         const std::string & query, const std::string & ref, int qual);
+    void left_shift();
 
     // data
     int callset;                     // 0=QUERY, 1=TRUTH

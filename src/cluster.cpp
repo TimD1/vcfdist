@@ -285,7 +285,7 @@ void gap_cluster(std::unique_ptr<variantData> & vcf, int callset) {
 /* Add single-VCF cluster indices to `variantData`. This version assumes that
  * all variant calls are true positives (doesn't allow skipping)
  */
-void sw_cluster(std::unique_ptr<variantData> & vcf, 
+void swg_cluster(std::unique_ptr<variantData> & vcf, 
         int sub, int open, int extend, int callset, bool print /* = false */) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("Smith-Waterman Clustering %s VCF '%s'", 
@@ -384,7 +384,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf,
 
                     int l_reach = 0, r_reach = 0, score = 0;
                     if (left_compute || right_compute) {
-                        score = calc_vcf_sw_score(
+                        score = calc_vcf_swg_score(
                                 vcf->ctg_variants[hap][ctg], clust, clust+1,
                                 sub, open, extend);
                         if (print) printf("orig score: %d\n", score);
@@ -439,7 +439,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf,
                                     vcf->ctg_variants[hap][ctg]->clusters[clust]];
 
                         // calculate max reaching path to left
-                        int reach = sw_max_reach(query, ref, 
+                        int reach = swg_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score, 
                                 print, true, ref_section_start); // reverse
@@ -505,7 +505,7 @@ void sw_cluster(std::unique_ptr<variantData> & vcf,
                                     vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] - beg_pos;
 
                         // calculate max reaching path to right
-                        int reach = sw_max_reach(query, ref, 
+                        int reach = swg_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score, print, 
                                 false, ref_section_start);

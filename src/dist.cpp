@@ -1614,82 +1614,223 @@ void calc_edit_dist_aln(
     int query_len = query.size();
     int truth_len = truth.size();
 
-    // for each combination of query and truth
-    for(int i = 0; i < 4; i++) {
+    int mat_len = query_len + truth_len - 1;
+    offs.push_back(std::vector<int>(mat_len, -2));
+    offs[0][query_len-1] = -1;
+    ptrs.push_back(std::vector<int>(mat_len, PTR_NONE));
+    bool done = false;
+    while (true) {
 
-        int mat_len = query_len + truth_len - 1;
-        offs.push_back(std::vector<int>(mat_len, -2));
-        offs[0][query_len-1] = -1;
-        ptrs.push_back(std::vector<int>(mat_len, PTR_NONE));
-        bool done = false;
-        while (true) {
+        // EXTEND WAVEFRONT
+        for (int d = 0; d < mat_len; d++) {
+            int off = offs[s][d];
+            int diag = d + 1 - query_len;
 
-            // EXTEND WAVEFRONT
-            for (int d = 0; d < mat_len; d++) {
-                int off = offs[s][d];
-                int diag = d + 1 - query_len;
+            // don't allow starting from untouched cells
+            if (off == -2) continue;
 
-                // don't allow starting from untouched cells
-                if (off == -2) continue;
+            // check that it's within matrix
+            if (diag + off + 1 < 0) continue;
+            if (off > query_len - 1) continue;
+            if (diag + off > truth_len - 1) continue;
 
-                // check that it's within matrix
-                if (diag + off + 1 < 0) continue;
-                if (off > query_len - 1) continue;
-                if (diag + off > truth_len - 1) continue;
-
-                // extend
-                while (off < query_len - 1 && 
-                       diag + off < truth_len - 1) {
-                    if (query[off+1] == truth[diag+off+1]) off++;
-                    else break;
-                }
-                offs[s][d] = off;
-
-                // finish if done
-                if (off == query_len - 1 && off + diag == truth_len - 1)
-                { done = true; break; }
-
+            // extend
+            while (off < query_len - 1 && 
+                   diag + off < truth_len - 1) {
+                if (query[off+1] == truth[diag+off+1]) off++;
+                else break;
             }
-            if (done) break;
+            offs[s][d] = off;
 
+            // finish if done
+            if (off == query_len - 1 && off + diag == truth_len - 1)
+            { done = true; break; }
 
-            // NEXT WAVEFRONT
-            // add wavefront, fill edge cells
-            offs.push_back(std::vector<int>(mat_len, -2));
-            // bottom left cells
-            if (s+1 == query_len-1)
-                offs[s+1][0] = s+1;
-            // top right cells
-            if (s+1 == mat_len-1)
-                offs[s+1][mat_len-1] = s+1;
-
-            ptrs.push_back(std::vector<int>(mat_len));
-            ptrs[s+1][0] = PTR_INS;
-            ptrs[s+1][s+1] = PTR_DEL;
-
-            // central cells
-            for (int d = 1; d < mat_len-1; d++) {
-                int offleft = offs[s][d-1];
-                int offtop  = (offs[s][d+1] == -2) ? 
-                    -2 : offs[s][d+1]+1;
-                int offdiag = (offs[s][d] == -2) ? 
-                    -2 : offs[s][d]+1;
-                if (offdiag >= offtop && offdiag >= offleft) {
-                    offs[s+1][d] = offdiag;
-                    ptrs[s+1][d] = PTR_SUB;
-                } else if (offleft >= offtop) {
-                    offs[s+1][d] = offleft;
-                    ptrs[s+1][d] = PTR_DEL;
-                } else {
-                    offs[s+1][d] = offtop;
-                    ptrs[s+1][d] = PTR_INS;
-                }
-            }
-            ++s;
         }
+        if (done) break;
+
+
+        // NEXT WAVEFRONT
+        // add wavefront, fill edge cells
+        offs.push_back(std::vector<int>(mat_len, -2));
+        // bottom left cells
+        if (s+1 == query_len-1)
+            offs[s+1][0] = s+1;
+        // top right cells
+        if (s+1 == mat_len-1)
+            offs[s+1][mat_len-1] = 0;
+
+        ptrs.push_back(std::vector<int>(mat_len));
+        ptrs[s+1][0] = PTR_INS;
+        ptrs[s+1][s+1] = PTR_DEL;
+
+        // central cells
+        for (int d = 1; d < mat_len-1; d++) {
+            int offleft = offs[s][d-1];
+            int offtop  = (offs[s][d+1] == -2) ? 
+                -2 : offs[s][d+1]+1;
+            int offdiag = (offs[s][d] == -2) ? 
+                -2 : offs[s][d]+1;
+            if (offdiag >= offtop && offdiag >= offleft) {
+                offs[s+1][d] = offdiag;
+                ptrs[s+1][d] = PTR_SUB;
+            } else if (offleft >= offtop) {
+                offs[s+1][d] = offleft;
+                ptrs[s+1][d] = PTR_DEL;
+            } else {
+                offs[s+1][d] = offtop;
+                ptrs[s+1][d] = PTR_INS;
+            }
+        }
+        ++s;
     }
 }
 
+/******************************************************************************/
+
+void wf_swg_align(
+        const std::string & query, const std::string & truth, 
+        std::vector< std::vector< std::vector<int> > > & ptrs,
+        std::vector< std::vector< std::vector<int> > > & offs,
+        int & s, int x, int o, int e, bool print
+        ) {
+
+    // init
+    int query_len = query.size();
+    int truth_len = truth.size();
+    int mat_len = query_len + truth_len - 1;
+    bool done = false;
+    for (int m = 0; m < MATS; m++) {
+        offs[m].push_back(std::vector<int>(mat_len, -2));
+        ptrs[m].push_back(std::vector<int>(mat_len, PTR_NONE));
+    }
+    s = 0;
+    offs[MAT_SUB][s][query_len-1] = -1; // main diag
+    ptrs[MAT_SUB][s][query_len-1] = PTR_MAT;
+
+    while (true) {
+
+        // EXTEND WAVEFRONT (leave INS, DEL)
+        for (int m = MAT_INS; m < MATS; m++) {
+            for (int d = 0; d < mat_len; d++) {
+                int off = offs[m][s][d];
+                int diag = d + 1 - query_len;
+
+                if (off >= 0 && off < query_len &&
+                        diag+off >= 0 && diag+off < truth_len &&
+                        offs[m][s][d] >= offs[MAT_SUB][s][d]) {
+                    offs[MAT_SUB][s][d] = offs[m][s][d];
+                    ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
+                    if(print) printf("(S, %d, %d) swap\n", offs[MAT_SUB][s][d], 
+                            offs[MAT_SUB][s][d]+d+1-query_len);
+
+                }
+            }
+        }
+
+        // EXTEND WAVEFRONT (diag, SUB only)
+        for (int d = 0; d < mat_len; d++) {
+            int off = offs[MAT_SUB][s][d];
+            int diag = d + 1 - query_len;
+
+            // extend
+            while ( off != -2 && diag + off >= -1 && 
+                    off < query_len - 1 && 
+                    diag + off < truth_len - 1) {
+                if (query[off+1] == truth[diag+off+1]) off++;
+                else break;
+            }
+            if (off > offs[MAT_SUB][s][d])
+                if(print) printf("(S, %d, %d) extend\n", off, off+diag);
+            offs[MAT_SUB][s][d] = off;
+
+            // finish if done
+            if (off == query_len - 1 && off + diag == truth_len - 1)
+            { done = true; break; }
+        }
+        if (done) break;
+
+        for (int mi = 0; mi < MATS; mi++) {
+            if(print) printf("\n%s matrix\n", type_strs[mi+1].data());
+            if(print) printf("offs %d:", s);
+            for (int di = 0; di < int(query.size() + truth.size()-1); di++) {
+                if(print) printf("\t%d", offs[mi][s][di]);
+            }
+            if(print) printf("\n");
+        }
+
+        // NEXT WAVEFRONT
+        s++;
+        if(print) printf("\nscore = %d\n", s);
+        for (int m = 0; m < MATS; m++) {
+            offs[m].push_back(std::vector<int>(mat_len, -2));
+            ptrs[m].push_back(std::vector<int>(mat_len, PTR_NONE));
+        }
+
+        for (int d = 0; d < mat_len; d++) {
+            int diag = d + 1 - query_len;
+
+            // sub (in SUB)
+            if (s-x >= 0 && offs[MAT_SUB][s-x][d] != -2 && 
+                            offs[MAT_SUB][s-x][d]+1 < query_len &&
+                     diag + offs[MAT_SUB][s-x][d]+1 < truth_len &&
+                            offs[MAT_SUB][s-x][d]+1 >= offs[MAT_SUB][s][d]) {
+                offs[MAT_SUB][s][d] = offs[MAT_SUB][s-x][d] + 1;
+                ptrs[MAT_SUB][s][d] |= PTR_SUB;
+                if(print) printf("(S, %d, %d) sub\n", offs[MAT_SUB][s][d], 
+                        offs[MAT_SUB][s][d]+diag);
+            }
+
+            // open gap (enter DEL)
+            if (s-(o+e) >= 0 && d > 0 && 
+                           offs[MAT_SUB][s-(o+e)][d-1] != -2 &&
+                    diag + offs[MAT_SUB][s-(o+e)][d-1] < truth_len &&
+                           offs[MAT_SUB][s-(o+e)][d-1] >= offs[MAT_DEL][s][d]) {
+                offs[MAT_DEL][s][d] = offs[MAT_SUB][s-(o+e)][d-1];
+                ptrs[MAT_DEL][s][d] |= PTR_SUB;
+                if(print) printf("(D, %d, %d) open\n", offs[MAT_DEL][s][d], 
+                        offs[MAT_DEL][s][d]+diag);
+            }
+
+            // open gap (enter INS)
+            if (s-(o+e) >= 0 && d < mat_len-1 && 
+                           offs[MAT_SUB][s-(o+e)][d+1] != -2 &&
+                           offs[MAT_SUB][s-(o+e)][d+1]+1 < query_len &&
+                    diag + offs[MAT_SUB][s-(o+e)][d+1]+1 < truth_len &&
+                    diag + offs[MAT_SUB][s-(o+e)][d+1]+1 >= 0 &&
+                           offs[MAT_SUB][s-(o+e)][d+1]+1 >= offs[MAT_INS][s][d]) {
+                offs[MAT_INS][s][d] = offs[MAT_SUB][s-(o+e)][d+1]+1;
+                ptrs[MAT_INS][s][d] |= PTR_SUB;
+                if(print) printf("(I, %d, %d) open\n", offs[MAT_INS][s][d], 
+                        offs[MAT_INS][s][d]+diag);
+            }
+
+            // extend gap (stay DEL)
+            if (s-e >= 0 && d > 0 && 
+                           offs[MAT_DEL][s-e][d-1] != -2 &&
+                    diag + offs[MAT_DEL][s-e][d-1] < truth_len &&
+                           offs[MAT_DEL][s-e][d-1] >= offs[MAT_DEL][s][d]) {
+                offs[MAT_DEL][s][d] = offs[MAT_DEL][s-e][d-1];
+                ptrs[MAT_DEL][s][d] |= PTR_DEL;
+                if(print) printf("(D, %d, %d) extend\n", offs[MAT_DEL][s][d], 
+                        offs[MAT_DEL][s][d]+diag);
+            }
+
+            // extend gap (stay INS)
+            if (s-e >= 0 && d < mat_len-1 && 
+                           offs[MAT_INS][s-e][d+1] != -2 &&
+                           offs[MAT_INS][s-e][d+1]+1 < query_len &&
+                    diag + offs[MAT_INS][s-e][d+1]+1 < truth_len &&
+                    diag + offs[MAT_INS][s-e][d+1]+1 >= 0 &&
+                           offs[MAT_INS][s-e][d+1]+1 >= offs[MAT_INS][s][d]) {
+                offs[MAT_INS][s][d] = offs[MAT_INS][s-e][d+1]+1;
+                ptrs[MAT_INS][s][d] |= PTR_INS;
+                if(print) printf("(I, %d, %d) extend\n", offs[MAT_INS][s][d], 
+                        offs[MAT_INS][s][d]+diag);
+            }
+        }
+    }
+}
 
 /******************************************************************************/
 
@@ -1711,8 +1852,6 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
 
         // iterate over superclusters
-        std::unordered_map<idx2, idx2> ptrs;
-        ptrs.reserve(100000);
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
             /////////////////////////////////////////////////////////////////////
@@ -1860,6 +1999,7 @@ g.timers[TIME_PR].stop();
                 // sweep through quality thresholds
                 int prev_qual = 0;
                 for (int qual : quals) {
+                    if(false) printf("qual: %d-%d\n", prev_qual, qual-1);
 
                     // generate query string (only applying variants with Q>=qual)
                     std::string query = generate_str(
@@ -1871,12 +2011,19 @@ g.timers[TIME_PR].stop();
 
                     // align strings, backtrack, calculate distance
 g.timers[TIME_SW].start();
-                    ptrs.clear();
-                    sw_align(query, truth[hap], ptrs, g.eval_sub, 
-                            g.eval_open, g.eval_extend, false);
+                    std::vector< std::vector< std::vector<int> > > ptrs(MATS);
+                    std::vector< std::vector< std::vector<int> > > offs(MATS);
+                    int s = 0;
+                    std::reverse(query.begin(), query.end());
+                    std::reverse(truth[hap].begin(), truth[hap].end());
+                    wf_swg_align(query, truth[hap], ptrs, offs,
+                            s, g.eval_sub, g.eval_open, g.eval_extend, false);
 g.timers[TIME_SW].stop();
-                    std::vector<int> cigar = sw_backtrack(query, truth[hap], ptrs,
-                            false);
+                    std::vector<int> cigar = wf_swg_backtrack(query, truth[hap], 
+                            ptrs, offs, s, g.eval_sub, g.eval_open, g.eval_extend, false);
+                    std::reverse(query.begin(), query.end());
+                    std::reverse(truth[hap].begin(), truth[hap].end());
+                    std::reverse(cigar.begin(), cigar.end());
                     int dist = count_dist(cigar);
 
                     // add distance for range of corresponding quals
@@ -1944,7 +2091,7 @@ g.timers[TIME_SW].stop();
 /* Calculate the combined Smith-Waterman score for all variants within 
  * one or several adjacent clusters.
  */
-int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars, 
+int calc_vcf_swg_score(std::shared_ptr<ctgVariants> vars, 
         int clust_beg_idx, int clust_end_idx, int sub, int open, int extend) {
     int score = 0;
     for (int var_idx = vars->clusters[clust_beg_idx]; 
@@ -1962,14 +2109,14 @@ int calc_vcf_sw_score(std::shared_ptr<ctgVariants> vars,
                 score += extend * vars->refs[var_idx].size();
                 break;
             default:
-                ERROR("Unexpected variant type in calc_vcf_sw_score()");
+                ERROR("Unexpected variant type in calc_vcf_swg_score()");
         }
     }
     return score;
 }
 
 
-int calc_cig_sw_score(const std::vector<int> & cigar, 
+int calc_cig_swg_score(const std::vector<int> & cigar, 
         int sub, int open, int extend) {
     int score = 0;
     int prev = PTR_MAT;
@@ -1993,7 +2140,7 @@ int calc_cig_sw_score(const std::vector<int> & cigar,
                 prev = PTR_DEL;
                 break;
             default:
-                ERROR("Unexpected variant type in calc_cig_sw_score()");
+                ERROR("Unexpected variant type in calc_cig_swg_score()");
         }
     }
     return score;
@@ -2008,7 +2155,7 @@ int calc_cig_sw_score(const std::vector<int> & cigar,
  * Strings are generated by applying variants to draft ref, and skipping 
  * variants is not allowed. Neither is a diagonal ref transition.
  */
-int sw_max_reach(const std::string & query, const std::string & ref, 
+int swg_max_reach(const std::string & query, const std::string & ref, 
         const std::vector< std::vector<int> > & query_ref_ptrs,
         const std::vector< std::vector<int> > & ref_query_ptrs,
         int sub, int open, int extend, int score, bool print,
@@ -2167,7 +2314,7 @@ int sw_max_reach(const std::string & query, const std::string & ref,
 /******************************************************************************/
 
 
-std::unique_ptr<variantData> sw_realign(
+std::unique_ptr<variantData> swg_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend, int callset, bool print /* = false */) {
@@ -2209,18 +2356,25 @@ std::unique_ptr<variantData> sw_realign(
                 // perform alignment
                 if (print) printf("REF:   %s\n", ref.data());
                 if (print) printf("QUERY: %s\n", query.data());
-                std::unordered_map<idx2, idx2> ptrs;
-                sw_align(query, ref, ptrs,
-                        sub, open, extend, print);
+                std::vector< std::vector< std::vector<int> > > ptrs(MATS);
+                std::vector< std::vector< std::vector<int> > > offs(MATS);
+                int s = 0;
+                std::reverse(query.begin(), query.end()); // for left-aligned INDELs
+                std::reverse(ref.begin(), ref.end());
+                wf_swg_align(query, ref, ptrs, offs, s, sub, open, extend, false);
                 
                 // backtrack
-                std::vector<int> cigar = sw_backtrack(query, ref, ptrs, print);
+                std::vector<int> cigar = wf_swg_backtrack(query, ref, ptrs, offs, 
+                        s, sub, open, extend, print);
+                std::reverse(query.begin(), query.end());
+                std::reverse(ref.begin(), ref.end());
+                std::reverse(cigar.begin(), cigar.end());
                 if (print) print_cigar(cigar);
 
                 // compare distances
                 if (print) {
-                    int new_score = calc_cig_sw_score(cigar, sub, open, extend);
-                    int old_score = calc_vcf_sw_score(vars, cluster, cluster+1, 
+                    int new_score = calc_cig_swg_score(cigar, sub, open, extend);
+                    int old_score = calc_vcf_swg_score(vars, cluster, cluster+1, 
                             sub, open, extend);
                     if (new_score < old_score) {
                         printf("\n\tCluster %d: %d variants (%d-%d)\n", 
@@ -2254,11 +2408,11 @@ std::unique_ptr<variantData> sw_realign(
 /* Perform global Djikstra Smith-Waterman alignment of two strings. 
  * Results are stored in `ptrs`.
  * */
-void sw_align(const std::string & query, const std::string & ref, 
+void swg_align(const std::string & query, const std::string & ref, 
         std::unordered_map<idx2, idx2> & ptrs,
         int sub, int open, int extend, bool print) { 
     
-    ptrs[idx2(0,0,0)] = idx2(0,-1,-1);
+    ptrs[idx2(MAT_SUB,0,0)] = idx2(MAT_SUB,-1,-1);
     int ref_len = ref.size();
     int query_len = query.size();
     int sub_wave = 0, open_wave = 0, extend_wave = 0;
@@ -2279,19 +2433,25 @@ void sw_align(const std::string & query, const std::string & ref,
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx2 x = queue.front(); queue.pop();
-            idx2 prev = ptrs.find(x)->second;
-            if (print) printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
+            waves[s].insert(x);
+            if (print) {
+                idx2 prev = ptrs.find(x)->second;
+                printf("  x = (%c, %d, %d) -> (%c, %d, %d)\n", 
                     std::string("SID")[x.mi], x.qi, x.ri,
                     std::string("SID")[prev.mi], prev.qi, prev.ri);
-            waves[s].insert(x);
+            }
 
             // allow match
-            if (x.mi == MAT_SUB &&
-                    x.qi+1 < query_len && x.ri+1 < ref_len &&
-                    query[x.qi+1] == ref[x.ri+1] && 
-                    !contains(done, {x.mi, x.qi+1, x.ri+1})) {
-                idx2 next(x.mi, x.qi+1, x.ri+1);
-                queue.push(next); done.insert(next); ptrs[next] = x;
+            if (x.mi == MAT_SUB) {
+                int i;
+                for (i = 1; x.qi+i < query_len && x.ri+i < ref_len && 
+                        query[x.qi+i] == ref[x.ri+i] &&
+                        !contains(done, {x.mi, x.qi+i, x.ri+i}); i++) {
+                    done.insert(idx2(x.mi, x.qi+i, x.ri+i)); 
+                    ptrs[idx2(x.mi, x.qi+i, x.ri+i)] = idx2(x.mi, x.qi+i-1, x.ri+i-1);
+                }
+                if (i > 1)
+                    queue.push(idx2(x.mi, x.qi+i-1, x.ri+i-1));
             }
 
             // allow exiting D/I state freely
@@ -2488,6 +2648,8 @@ int count_dist(const std::vector<int> & cigar) {
             dist++;
             cigar_ptr++;
             break;
+        default:
+            ERROR("Unexpected CIGAR in count_dist()");
         }
     }
     return dist;
@@ -2498,7 +2660,7 @@ int count_dist(const std::vector<int> & cigar) {
 
 
 /* After alignment, backtrack using pointers and save cigar. */
-std::vector<int> sw_backtrack(
+std::vector<int> swg_backtrack(
         const std::string & query,
         const std::string & ref,
         const std::unordered_map<idx2, idx2> & ptrs, 
@@ -2536,7 +2698,7 @@ std::vector<int> sw_backtrack(
                     cigar[cigar_ptr--] = PTR_DEL;
                     break;
                 default:
-                    ERROR("Unexpected MAT type in sw_backtrack()");
+                    ERROR("Unexpected MAT type in swg_backtrack()");
             }
         } else { // change matrices
             switch (pos.mi) {
@@ -2549,10 +2711,149 @@ std::vector<int> sw_backtrack(
                     cigar[cigar_ptr--] = PTR_DEL;
                     break;
                 default:
-                    ERROR("Unexpected MAT type in sw_backtrack()");
+                    ERROR("Unexpected MAT type in swg_backtrack()");
             }
         }
         pos = next;
+    }
+    return cigar;
+}
+
+
+/******************************************************************************/
+
+
+/* After alignment, backtrack using pointers and save cigar. */
+std::vector<int> wf_swg_backtrack(
+        const std::string & query,
+        const std::string & ref,
+        const std::vector< std::vector< std::vector<int> > > & ptrs, 
+        const std::vector< std::vector< std::vector<int> > > & offs, 
+        int s, int x, int o, int e,
+        bool print) {
+
+    /* if (print) print_wfa_ptrs(query, ref, s, ptrs, offs); */
+    /* for (int mi = 0; mi < MATS; mi++) { */
+    /*     if(print) printf("\n%s matrix\n", type_strs[mi+1].data()); */
+    /*     for (int si = 0; si <= s; si++) { */
+    /*         if(print) printf("%d:\n", si); */
+    /*         for (int di = 0; di < int(query.size() + ref.size()-1); di++) { */
+    /*             if(print) printf("\t%d", offs[mi][si][di]); */
+    /*         } */
+    /*         if(print) printf("\n"); */
+    /*     } */
+    /* } */
+
+    // initialize backtrack position and cigar string
+    std::vector<int> cigar(query.size() + ref.size(), 0);
+    int cigar_ptr = cigar.size()-1;
+    idx2 pos(MAT_SUB, query.size()-1, ref.size()-1);
+
+    if (print) printf("\nWF SWG Backtrack:\n");
+    while (pos.qi >= 0 || pos.ri >= 0) {
+
+        // debug print
+        if (s < 0) ERROR("Negative wf_swg_backtrack() score at (%c, %d, %d)",
+                std::string("SID")[pos.mi], pos.qi, pos.ri);
+
+        // init
+        int diag = pos.ri - pos.qi;
+        int d = query.size()-1 + diag;
+        
+        if (pos.mi == MAT_SUB) {
+            if (ptrs[MAT_SUB][s][d] & PTR_INS) { // end INS freely
+                int prev_off = offs[MAT_INS][s][d];
+                while (pos.qi > prev_off) { // match
+                    if (print) printf("(%c, %d, %d) match ins\n",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
+                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
+                    if (pos.qi < 0 || pos.ri < 0) ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                }
+                pos.mi = MAT_INS;
+            } else if (ptrs[MAT_SUB][s][d] & PTR_DEL) { // end DEL freely
+                int prev_off = offs[MAT_DEL][s][d];
+                while (pos.qi > prev_off) { // match
+                    if (print) printf("(%c, %d, %d) match del\n",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
+                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
+                    if (pos.qi < 0 || pos.ri < 0) ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                }
+                pos.mi = MAT_DEL;
+            } else if (ptrs[MAT_SUB][s][d] & PTR_SUB) { // sub
+                if (s-x < 0) ERROR("Unexpected PTR_SUB");
+                int prev_off = offs[MAT_SUB][s-x][d];
+                while (pos.qi > prev_off+1) { // match
+                    if (print) printf("(%c, %d, %d) match sub\n",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
+                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
+                    if (pos.qi < 0 || pos.ri < 0) ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                }
+                if (print) printf("(%c, %d, %d) sub\n",
+                        std::string("SID")[pos.mi], pos.qi, pos.ri);
+                pos.qi--; cigar[cigar_ptr--] = PTR_SUB;
+                pos.ri--; cigar[cigar_ptr--] = PTR_SUB;
+                s -= x;
+            } else if (ptrs[MAT_SUB][s][d] & PTR_MAT) { // only matches remain
+                while (pos.qi >= 0 && pos.ri >= 0) { // match
+                    if (print) printf("(%c, %d, %d) match mat\n",
+                            std::string("SID")[pos.mi], pos.qi, pos.ri);
+                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
+                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
+                }
+                if (pos.qi >= 0 || pos.ri >= 0)
+                    ERROR("PTR_MAT expected all matches, now at (%c, %d, %d)",
+                        std::string("SID")[pos.mi], pos.qi, pos.ri);
+            } else {
+                ERROR("Unexpected pointer '%d' in wf_swg_backtrack() at (%c, %d, %d)",
+                    ptrs[MAT_SUB][s][d], std::string("SID")[pos.mi], pos.qi, pos.ri);
+            }
+
+        } else if (pos.mi == MAT_INS) {
+            if (ptrs[MAT_INS][s][d] & PTR_INS) { // extend INS
+                if (print) printf("(%c, %d, %d) ext ins\n",
+                        std::string("SID")[pos.mi], pos.qi, pos.ri);
+                pos.qi--; cigar[cigar_ptr--] = PTR_INS;
+                s -= e;
+            } else if (ptrs[MAT_INS][s][d] & PTR_SUB) { // start INS
+                if (print) printf("(%c, %d, %d) start ins\n",
+                        std::string("SID")[pos.mi], pos.qi, pos.ri);
+                pos.qi--; cigar[cigar_ptr--] = PTR_INS;
+                pos.mi = MAT_SUB;
+                s -= o + e;
+            } else {
+                ERROR("Unexpected pointer '%d' in wf_swg_backtrack() at (%c, %d, %d)",
+                    ptrs[MAT_INS][s][d], std::string("SID")[pos.mi], pos.qi, pos.ri);
+            }
+
+        } else if (pos.mi == MAT_DEL) {
+            if (ptrs[MAT_DEL][s][d] & PTR_DEL) { // extend DEL
+                if (print) printf("(%c, %d, %d) ext del\n",
+                        std::string("SID")[pos.mi], pos.qi, pos.ri);
+                pos.ri--; cigar[cigar_ptr--] = PTR_DEL;
+                s -= e;
+            } else if (ptrs[MAT_DEL][s][d] & PTR_SUB) { // start DEL
+                if (print) printf("(%c, %d, %d) start del\n",
+                        std::string("SID")[pos.mi], pos.qi, pos.ri);
+                pos.ri--; cigar[cigar_ptr--] = PTR_DEL;
+                pos.mi = MAT_SUB;
+                s -= o + e;
+            } else {
+                ERROR("Unexpected pointer '%d' in wf_swg_backtrack() at (%c, %d, %d)",
+                    ptrs[MAT_DEL][s][d], std::string("SID")[pos.mi], pos.qi, pos.ri);
+            }
+
+        } else {
+            ERROR("Unexpected MAT type in wf_swg_backtrack()");
+        }
+        if (!(pos.qi == -1 && pos.ri == -1) && (pos.qi < 0 || pos.ri < 0)) 
+            ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
+                std::string("SID")[pos.mi], pos.qi, pos.ri);
     }
     return cigar;
 }

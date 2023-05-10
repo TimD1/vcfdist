@@ -38,6 +38,56 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
 
 /******************************************************************************/
 
+void variantData::left_shift() {
+
+    // shift variants as far left as possible after realignment
+    for (int hap = 0; hap < HAPS; hap++) {
+        for (std::string ctg : this->contigs) {
+            auto vars = this->ctg_variants[hap][ctg];
+            for (int i = 0; i < vars->n; i++) {
+
+                // shift INS
+                if (vars->types[i] == TYPE_INS) {
+                    bool match = true;
+                    while (match && vars->poss[i] > 0 && 
+                            (i==0 || vars->poss[i] > 
+                            vars->poss[i-1]+vars->rlens[i-1])) {
+                        int ins_size = vars->alts[i].size();
+                        char ref_base = this->ref->fasta.at(ctg)[vars->poss[i]-1];
+                        if (ref_base == vars->alts[i][ins_size-1]) {
+                            vars->alts[i] = ref_base + 
+                                    vars->alts[i].substr(0, ins_size-1);
+                            vars->poss[i]--;
+                        } else {
+                            match = false;
+                        }
+                    }
+                }
+
+                // shift DEL
+                if (vars->types[i] == TYPE_DEL) {
+                    bool match = true;
+                    while (match && vars->poss[i] > 0 && 
+                            (i==0 || vars->poss[i] > 
+                            vars->poss[i-1]+vars->rlens[i-1])) {
+                        int del_size = vars->refs[i].size();
+                        char ref_base = this->ref->fasta.at(ctg)[vars->poss[i]-1];
+                        if (ref_base == vars->refs[i][del_size-1]) {
+                            vars->refs[i] = ref_base + 
+                                    vars->refs[i].substr(0, del_size-1);
+                            vars->poss[i]--;
+                        } else {
+                            match = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/******************************************************************************/
+
 void variantData::write_vcf(std::string out_vcf_fn) {
 
     // VCF header
