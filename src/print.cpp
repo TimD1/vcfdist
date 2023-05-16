@@ -163,6 +163,10 @@ void print_ptrs(const std::unordered_map<idx1, int> & ptrs, int hi,
         int flags = itr.second;
         int alt_idx = x.qri;
         int ref_idx = x.ti;
+        if (alt_idx < 0 || ref_idx < 0)
+            ERROR("Print indices < 0");
+        if (alt_idx >= alt_len || ref_idx >= ref_len)
+            ERROR("Print indices exceed ref/alt len");
 
         // states
         if (flags & PTR_SYNC)

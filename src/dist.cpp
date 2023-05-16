@@ -33,321 +33,6 @@ bool test(const std::unordered_map<S,T> & ptrs, const S & idx, const T & flag) {
     return ptrs.find(idx) != ptrs.end() && ptrs.at(idx) & flag;
 }
 
-variantData edit_dist_realign(
-        std::unique_ptr<variantData> & vcf, 
-        std::shared_ptr<fastaData> ref) {
-
-    // copy vcf header data over to results vcf
-    variantData results;
-    results.sample = vcf->sample;
-    results.contigs = vcf->contigs;
-    results.lengths = vcf->lengths;
-    results.ref = vcf->ref;
-    for (auto ctg : results.contigs) 
-        for (int hap = 0; hap < 2; hap++) 
-            results.ctg_variants[hap][ctg] = std::shared_ptr<ctgVariants>(new ctgVariants());
-
-    // iterate over each haplotype
-    int old_subs = 0;
-    int old_inss = 0;
-    int old_dels = 0;
-    int old_edits = 0;
-    int new_subs = 0;
-    int new_inss = 0;
-    int new_dels = 0;
-    int new_edits = 0;
-    for (int h = 0; h < 2; h++) {
-
-        // iterate over each contig
-        for (auto itr = vcf->ctg_variants[h].begin(); 
-                itr != vcf->ctg_variants[h].end(); itr++) {
-            std::string ctg = itr->first;
-            std::shared_ptr<ctgVariants> vars = itr->second;
-            if (vars->poss.size() == 0) continue;
-
-            // iterate over each cluster of variants
-            for (size_t cluster = 0; cluster < vars->clusters.size()-1; cluster++) {
-                int beg_idx = vars->clusters[cluster];
-                int end_idx = vars->clusters[cluster+1];
-                int beg = vars->poss[beg_idx]-1;
-                int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1]+1;
-                int old_subs_cluster = 0;
-                int old_inss_cluster = 0;
-                int old_dels_cluster = 0;
-
-                // iterate over variants, summing edit distance
-                for (int var = beg_idx; var < end_idx; var++) {
-                    switch (vars->types[var]) {
-                        case TYPE_SUB: old_subs_cluster++; break;
-                        case TYPE_INS: old_inss_cluster += vars->alts[var].size(); break;
-                        case TYPE_DEL: old_dels_cluster += vars->refs[var].size(); break;
-                        default: ERROR("Unexpected variant type (%i)", vars->types[var]);
-                    }
-                }
-
-                // colored alignment
-                int var = beg_idx;
-                std::string ref_out_str = "";
-                std::string alt_out_str = "";
-                std::string alt_str = "";
-                for (int ref_pos = beg; ref_pos < end;) {
-                    if (ref_pos == vars->poss[var]) { // in variant
-                        switch (vars->types[var]) {
-                            case TYPE_INS:
-                                alt_str += vars->alts[var];
-                                alt_out_str += GREEN(vars->alts[var]);
-                                ref_out_str += std::string(vars->alts[var].size(), ' ');
-                                break;
-                            case TYPE_DEL:
-                                alt_out_str += std::string(vars->refs[var].size(), ' ');
-                                ref_out_str += RED(vars->refs[var]);
-                                ref_pos += vars->refs[var].size();
-                                break;
-                            case TYPE_SUB:
-                                alt_str += vars->alts[var];
-                                alt_out_str += " " + GREEN(vars->alts[var]);
-                                ref_out_str += RED(vars->refs[var]) + " ";
-                                ref_pos++;
-                                break;
-                            default: 
-                                ERROR("Unexpected variant type (%i)", vars->types[var]);
-                        }
-                        var++; // next variant
-                    }
-                    else { // match
-                        try {
-                            alt_str += ref->fasta.at(ctg)[ref_pos];
-                            ref_out_str += ref->fasta.at(ctg)[ref_pos];
-                            alt_out_str += ref->fasta.at(ctg)[ref_pos];
-                            ref_pos++;
-                        } catch (const std::out_of_range & e) {
-                            ERROR("Contig '%s' not in reference FASTA (edit_dist_realign)",
-                                    ctg.data());
-                        }
-                    }
-                }
-
-                // do alignment
-                std::string ref_str = ref->fasta.at(ctg).substr(beg, end-beg);
-                int ref_len = ref_str.size();
-                int alt_len = alt_str.size();
-                int curr_score = 0;
-                std::vector< std::vector<int> > ptrs(alt_len, std::vector<int>(ref_len));
-                std::vector< std::vector<bool> > done(alt_len, std::vector<bool>(ref_len));
-                std::queue<idx2> curr_q, next_q;
-
-                // init
-                ptrs[0][0] = PTR_MAT;
-                done[0][0] = true;
-
-                // set first diag (wavefront)
-                curr_q.push({0,0});
-                for(int n = 1; n < std::min(ref_len, alt_len); n++) {
-                    if (ref_str[n] == alt_str[n]) {
-                        curr_q.push({n,n});
-                        ptrs[n][n] = PTR_MAT;
-                        done[n][n] = true;
-                    } else  {
-                        break;
-                    }
-                }
-
-                // continue alignment waves until fully aligned
-                while (!done[alt_len-1][ref_len-1]) {
-
-                    // expand to next wavefront
-                    while (!curr_q.empty()) {
-
-                        // get current cell
-                        idx2 cell = curr_q.front(); curr_q.pop();
-                        int alt_idx = cell.qi;
-                        int ref_idx = cell.ri;
-
-                        // expand diagonal sub, then diagonally
-                        if (alt_idx+1 < alt_len && ref_idx+1 < ref_len &&
-                                !done[alt_idx+1][ref_idx+1]) {
-                            next_q.push({alt_idx+1, ref_idx+1});
-                            ptrs[alt_idx+1][ref_idx+1] |= PTR_SUB;
-                            int off = 1;
-                            while (alt_idx+1+off < alt_len && 
-                                    ref_idx+1+off < ref_len && 
-                                    !done[alt_idx+1+off][ref_idx+1+off] &&
-                                    alt_str[alt_idx+1+off] == ref_str[ref_idx+1+off]) {
-                                next_q.push({alt_idx+1+off, ref_idx+1+off});
-                                ptrs[alt_idx+1+off][ref_idx+1+off] |= PTR_MAT;
-                                off++;
-                            }
-                        }
-
-                        // expand down, then diagonally
-                        if (alt_idx+1 < alt_len && !done[alt_idx+1][ref_idx]) {
-                            next_q.push({alt_idx+1, ref_idx});
-                            ptrs[alt_idx+1][ref_idx] |= PTR_INS;
-                            int off = 1;
-                            while (alt_idx+1+off < alt_len && 
-                                    ref_idx+off < ref_len && 
-                                    !done[alt_idx+1+off][ref_idx+off] &&
-                                    alt_str[alt_idx+1+off] == ref_str[ref_idx+off]) {
-                                next_q.push({alt_idx+1+off, ref_idx+off});
-                                ptrs[alt_idx+1+off][ref_idx+off] |= PTR_MAT;
-                                off++;
-                            }
-                        }
-
-                        // expand right, then diagonally
-                        if (ref_idx+1 < ref_len && !done[alt_idx][ref_idx+1]) {
-                            next_q.push({alt_idx, ref_idx+1});
-                            ptrs[alt_idx][ref_idx+1] |= PTR_DEL;
-                            int off = 1;
-                            while (alt_idx+off < alt_len && 
-                                    ref_idx+1+off < ref_len && 
-                                    !done[alt_idx+off][ref_idx+1+off] &&
-                                    alt_str[alt_idx+off] == ref_str[ref_idx+1+off]) {
-                                next_q.push({alt_idx+off, ref_idx+1+off});
-                                ptrs[alt_idx+off][ref_idx+1+off] |= PTR_MAT;
-                                off++;
-                            }
-                        }
-                    }
-
-                    // current queue empty, transfer next over
-                    while (!next_q.empty()) {
-
-                        // get current cell
-                        idx2 cell = next_q.front(); next_q.pop();
-                        int alt_idx = cell.qi;
-                        int ref_idx = cell.ri;
-
-                        if (!done[alt_idx][ref_idx]) {
-                            // add to current wavefront, if new
-                            curr_q.push(cell);
-
-                            // mark cell as traversed
-                            done[alt_idx][ref_idx] = true;
-                        }
-                    }
-                    curr_score++;
-                }
-
-                // backtrack: count S/I/D, color path, set CIGAR
-                int alt_idx = alt_len-1;
-                int ref_idx = ref_len-1;
-                int new_subs_cluster = 0;
-                int new_inss_cluster = 0;
-                int new_dels_cluster = 0;
-                std::vector<int> cig(ref_len + alt_len);
-                int cig_ptr = cig.size()-1;
-                while (alt_idx >= 0 || ref_idx >= 0) {
-                    ptrs[alt_idx][ref_idx] |= PTR_LPATH; // color print path
-                    if (ptrs[alt_idx][ref_idx] & PTR_MAT) {
-                        ref_idx--; alt_idx--;
-                        cig[cig_ptr--] = PTR_MAT;
-                        cig[cig_ptr--] = PTR_MAT;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_SUB) {
-                        ref_idx--; alt_idx--; new_subs_cluster++;
-                        cig[cig_ptr--] = PTR_SUB;
-                        cig[cig_ptr--] = PTR_SUB;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_DEL) {
-                        ref_idx--; new_dels_cluster++;
-                        cig[cig_ptr--] = PTR_DEL;
-                    } else if (ptrs[alt_idx][ref_idx] & PTR_INS) {
-                        alt_idx--; new_inss_cluster++;
-                        cig[cig_ptr--] = PTR_INS;
-                    } else {
-                        ERROR("no pointer during backtrack at (%d,%d)", alt_idx, ref_idx);
-                    }
-                }
-
-                // update totals
-                int old_edits_cluster = old_subs_cluster + 
-                    old_inss_cluster + old_dels_cluster;
-                int new_edits_cluster = new_subs_cluster + 
-                    new_inss_cluster + new_dels_cluster;
-                old_subs += old_subs_cluster;
-                new_subs += new_subs_cluster;
-                old_inss += old_inss_cluster;
-                new_inss += new_inss_cluster;
-                old_dels += old_dels_cluster;
-                new_dels += new_dels_cluster;
-                old_edits += old_edits_cluster;
-                new_edits += new_edits_cluster;
-
-                // debug print alignment
-                if (g.verbosity > 1 && old_edits_cluster != new_edits_cluster) {
-                    printf("\n\nREF: %s\n", ref_out_str.data());
-                    printf("ALT: %s\n", alt_out_str.data());
-                    print_ptrs(ptrs, alt_str, ref_str);
-                    printf("OLD: SUBs=%d  INSs=%d  DELs=%d  Total=%d\n", old_subs_cluster, 
-                            old_inss_cluster, old_dels_cluster, old_edits_cluster);
-                    printf("NEW: SUBs=%d  INSs=%d  DELs=%d  Total=%d\n", new_subs_cluster, 
-                            new_inss_cluster, new_dels_cluster, new_edits_cluster);
-                }
-
-
-                // write new alignment to VCF
-                ref_idx = 0, alt_idx = 0;
-                for(size_t cig_idx = 0; cig_idx < cig.size();) {
-                    int indel_len = 0;
-                    switch (cig[cig_idx]) {
-
-                        case PTR_MAT: // no variant, update pointers
-                            cig_idx += 2;
-                            ref_idx++;
-                            alt_idx++;
-                            break;
-
-                        case PTR_SUB: // substitution
-                            cig_idx += 2;
-                            results.ctg_variants[h][ctg]->add_var(beg+ref_idx, 1, h, 
-                                    TYPE_SUB, BED_INSIDE, std::string(1,ref_str[ref_idx]), 
-                                    std::string(1,alt_str[alt_idx]), 
-                                    GT_REF_REF, g.max_qual, g.max_qual);
-                            ref_idx++;
-                            alt_idx++;
-                            break;
-
-                        case PTR_DEL: // deletion
-                            cig_idx++; indel_len++;
-
-                            // multi-base deletion
-                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_DEL) {
-                                cig_idx++; indel_len++;
-                            }
-                            results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
-                                    indel_len, h, TYPE_DEL, BED_INSIDE,
-                                    ref_str.substr(ref_idx, indel_len),
-                                    "", GT_REF_REF, g.max_qual, g.max_qual);
-                            ref_idx += indel_len;
-                            break;
-
-                        case PTR_INS: // insertion
-                            cig_idx++; indel_len++;
-
-                            // multi-base insertion
-                            while (cig_idx < cig.size() && cig[cig_idx] == PTR_INS) {
-                                cig_idx++; indel_len++;
-                            }
-                            results.ctg_variants[h][ctg]->add_var(beg+ref_idx,
-                                    0, h, TYPE_INS, BED_INSIDE, "", 
-                                    alt_str.substr(alt_idx, indel_len), 
-                                    GT_REF_REF, g.max_qual, g.max_qual);
-                            alt_idx += indel_len;
-                            break;
-                    }
-                }
-
-
-            } // cluster
-        } // contig
-    } // hap
-    if (g.verbosity >= 1) INFO("Edit distance reduced from %d to %d.", old_edits, new_edits);
-    if (g.verbosity >= 1) INFO("OLD: SUBs=%d  INSs=%d  DELs=%d  Total=%d", old_subs, old_inss, old_dels, old_edits);
-    if (g.verbosity >= 1) INFO("NEW: SUBs=%d  INSs=%d  DELs=%d  Total=%d", new_subs, new_inss, new_dels, new_edits);
-
-    return results;
-
-}
-
 
 /******************************************************************************/
 
@@ -558,7 +243,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::unordered_map<idx1, int> & ptrs,
-        std::unordered_map<idx1, idx1> & swap_pred_map,
+        std::vector< std::unordered_map<idx1, idx1> > & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         ) {
     
@@ -633,7 +318,7 @@ void calc_prec_recall_aln(
                                     queue.push(z); curr_wave.insert(z);
                                 }
                                 set(ptrs, z, PTR_SWP_MAT);
-                                swap_pred_map[z] = x;
+                                swap_pred_map[i][z] = x;
                             }
                         }
                     }
@@ -662,7 +347,7 @@ void calc_prec_recall_aln(
                                     queue.push(z); curr_wave.insert(z);
                                 }
                                 set(ptrs, z, PTR_SWP_MAT);
-                                swap_pred_map[z] = x;
+                                swap_pred_map[i][z] = x;
                             }
                         }
                     }
@@ -777,7 +462,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::unordered_map<idx1,idx1> & swap_pred_map,
+        const std::vector< std::unordered_map<idx1,idx1> > & swap_pred_map,
         const std::vector<int> & pr_query_ref_end, bool print
         ) {
 
@@ -881,9 +566,9 @@ void calc_prec_recall_path(
                             x.qri > 0 && x.ti > 0) {
 
                         // get next cell, add to path
-                        if (!contains(swap_pred_map, x))
+                        if (!contains(swap_pred_map[i], x))
                             ERROR("No swap predecessor, but PTR_SWP_MAT set.");
-                        idx1 z = swap_pred_map.at(x);
+                        idx1 z = swap_pred_map[i].at(x);
                         set(aln_ptrs, z, PATH);
 
                         // check if mvmt is in variant
@@ -932,9 +617,9 @@ void calc_prec_recall_path(
                             x.qri > 0 && x.ti > 0) {
 
                         // add to path
-                        if (!contains(swap_pred_map, x))
+                        if (!contains(swap_pred_map[i], x))
                             ERROR("No swap predecessor, but PTR_SWP_MAT set.");
-                        idx1 z = swap_pred_map.at(x);
+                        idx1 z = swap_pred_map[i].at(x);
                         set(aln_ptrs, z, PATH);
 
                         // check if mvmt is in variant
@@ -1191,9 +876,9 @@ void get_prec_recall_path_sync(
         int prev_hi, prev_qri, prev_ti = 0;
         int ptr_type = PTR_NONE;
 
-        int qri_size = (hi % 2 == QUERY) ? query_ref_ptrs[i][0].size() :
-                ref_query_ptrs[i][0].size();
-        int ti_size = truth_ref_ptrs[i][0].size();
+        int r_size = ref_query_ptrs[i][PTRS].size();
+        int q_size = query_ref_ptrs[i][PTRS].size();
+        int t_size = truth_ref_ptrs[i][PTRS].size();
 
         // first position is sync point
         path[i].push_back(idx1(hi, qri, ti));
@@ -1202,7 +887,7 @@ void get_prec_recall_path_sync(
         set(path_ptrs, idx1(hi, qri, ti), MAIN_PATH);
 
         // follow best-path pointers
-        while (qri < qri_size-1 || ti < ti_size-1) {
+        while ( (hi == ri && qri < r_size-1) || (hi == qi && qri < q_size-1) || ti < t_size-1) {
             prev_hi = hi; prev_qri = qri; prev_ti = ti;
             if (hi == qi && test(path_ptrs, idx1(hi, qri, ti), PTR_SWP_MAT)) { // prefer FPs
                 ptr_type = PTR_SWP_MAT;
@@ -1237,7 +922,7 @@ void get_prec_recall_path_sync(
                         path_ptrs[idx1(hi, qri, ti)], hi, qri, ti);
             }
 
-            if (qri >= qri_size || ti >= ti_size) break;
+            if ((hi == qi && qri >= q_size) || (hi == ri && qri >= r_size) || ti >= t_size) break;
 
             // add point to path
             path[i].push_back(idx1(hi, qri, ti));
@@ -1386,15 +1071,19 @@ void calc_prec_recall(
         if (print) print_ptrs(path_ptrs, ri, ref, truth[i]);
 
         // init
-        int ti_size = truth_ref_ptrs[i][0].size();
+        int ti_size = truth_ref_ptrs[i][PTRS].size();
         int hi = pr_query_ref_end[i];
-        int qri_size = (hi % 2 == QUERY) ? query_ref_ptrs[i][0].size() :
-                ref_query_ptrs[i][0].size();
+        int qri_size = (hi % 2 == QUERY) ? query_ref_ptrs[i][PTRS].size() :
+                ref_query_ptrs[i][PTRS].size();
         int prev_hi = hi;
         int qri = qri_size-1;
+        int sync_ref_idx = ref_query_ptrs[i][PTRS].size();
+        int prev_sync_ref_idx = sync_ref_idx;
         int prev_qri = qri;
         int ti = ti_size-1;
         int prev_ti = ti;
+        int sync_truth_idx = ti_size;
+        int prev_sync_truth_idx = ti_size;
         int new_ed = 0;
         int query_var_ptr = query_end_idx-1;
         int query_var_pos = query_vars->poss.size() && query_var_ptr >= 0 ? 
@@ -1405,6 +1094,11 @@ void calc_prec_recall(
                 truth_vars->poss[truth_var_ptr] - beg : 0;
         int prev_truth_var_ptr = truth_var_ptr;
         int path_idx = path[i].size()-1;
+
+        if (print) printf("%s Path:\n", aln_strs[i].data());
+        if (print) for (int p = path_idx; p >= 0; p--) {
+            printf("(%s,%d,%d)\n", path[i][p].hi % 2 ? "REF" : "QRY", path[i][p].qri, path[i][p].ti);
+        }
 
         if (print) printf("\n%s: %d\n", aln_strs[i].data(), beg);
         while (path_idx >= 0) {
@@ -1428,7 +1122,7 @@ void calc_prec_recall(
                 }
             }
             // mark FPs and record variants within sync group
-            while (query_ref_pos < query_var_pos) { // just passed variant(s)
+            while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // just passed variant(s)
                 if (prev_hi == ri) { // FP if when in variant was on REF
                     query_vars->errtypes[query_var_ptr] = ERRTYPE_FP;
                     query_vars->credit[query_var_ptr] = 0;
@@ -1461,8 +1155,24 @@ void calc_prec_recall(
 
                 // calculate old edit distance
                 int old_ed = 0;
+                sync_ref_idx = (hi == ri) ? qri+1 : query_ref_ptrs[i][PTRS][qri]+1;
+                sync_truth_idx = ti+1;
                 std::vector< std::vector<int> > offs, ptrs;
-                calc_edit_dist_aln(ref, truth[i], old_ed, offs, ptrs);
+                if (print) {
+                    printf("  ref: %2d %s\n", int(ref.size()), ref.data());
+                    printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data());
+                    printf("  ref[%2d:+%2d] =\n", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
+                    printf("%s\n", ref.substr(sync_ref_idx, 
+                                prev_sync_ref_idx - sync_ref_idx).data());
+                    printf("truth[%2d:+%2d] =\n", sync_truth_idx, prev_sync_truth_idx-sync_truth_idx);
+                    printf("%s\n", truth[i].substr(sync_truth_idx, 
+                                prev_sync_ref_idx - sync_ref_idx).data());
+                }
+                wf_ed(ref.substr(sync_ref_idx, 
+                            prev_sync_ref_idx - sync_ref_idx), 
+                        truth[i].substr(sync_truth_idx, 
+                            prev_sync_truth_idx - sync_truth_idx), 
+                        old_ed, offs, ptrs);
 
                 if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
                     ERROR("Old edit distance 0, variants exist.");
@@ -1549,6 +1259,8 @@ void calc_prec_recall(
 
                 prev_query_var_ptr = query_var_ptr;
                 prev_truth_var_ptr = truth_var_ptr;
+                prev_sync_ref_idx = sync_ref_idx;
+                prev_sync_truth_idx = sync_truth_idx;
                 new_ed = 0;
             }
 
@@ -1583,28 +1295,7 @@ void calc_prec_recall(
 
 /******************************************************************************/
 
-void calc_edit_dist_aln_all(
-        const std::string & query1, const std::string & query2, 
-        const std::string & truth1, const std::string & truth2,
-        std::vector<int> & s, 
-        std::vector< std::vector< std::vector<int> > > & offs,
-        std::vector< std::vector< std::vector<int> > > & ptrs
-        ) {
-
-    // alignment
-    std::vector<std::string> query {query1, query1, query2, query2};
-    std::vector<std::string> truth {truth1, truth2, truth1, truth2};
-
-    // for each combination of query and truth
-    for(int i = 0; i < 4; i++) {
-        calc_edit_dist_aln(query[i], truth[i], s[i], offs[i], ptrs[i]);
-    }
-    return;
-}
-
-
-
-void calc_edit_dist_aln(
+void wf_ed(
         const std::string & query, const std::string & truth, int & s, 
         std::vector< std::vector<int> > & offs,
         std::vector< std::vector<int> > & ptrs
@@ -1613,6 +1304,10 @@ void calc_edit_dist_aln(
     // alignment
     int query_len = query.size();
     int truth_len = truth.size();
+
+    // early exit if either string is empty
+    if (!query_len) { s = truth_len; return; }
+    if (!truth_len) { s = query_len; return; }
 
     int mat_len = query_len + truth_len - 1;
     offs.push_back(std::vector<int>(mat_len, -2));
@@ -1653,16 +1348,17 @@ void calc_edit_dist_aln(
         // NEXT WAVEFRONT
         // add wavefront, fill edge cells
         offs.push_back(std::vector<int>(mat_len, -2));
-        // bottom left cells
-        if (s+1 == query_len-1)
-            offs[s+1][0] = s+1;
-        // top right cells
-        if (s+1 == mat_len-1)
-            offs[s+1][mat_len-1] = 0;
-
         ptrs.push_back(std::vector<int>(mat_len));
-        ptrs[s+1][0] = PTR_INS;
-        ptrs[s+1][s+1] = PTR_DEL;
+        // left cells
+        if (query_len > 1 && s+1 == query_len-1) {
+            offs[s+1][0] = s+1;
+            ptrs[s+1][0] = PTR_INS;
+        }
+        // right cells
+        if (truth_len > 1 && s+1 == mat_len-1) {
+            offs[s+1][mat_len-1] = 0;
+            ptrs[s+1][mat_len-1] = PTR_DEL;
+        }
 
         // central cells
         for (int d = 1; d < mat_len-1; d++) {
@@ -1681,6 +1377,12 @@ void calc_edit_dist_aln(
                 offs[s+1][d] = offtop;
                 ptrs[s+1][d] = PTR_INS;
             }
+        }
+
+        // single cell
+        if (query_len == 1 && truth_len == 1) {
+            offs[s+1][0] = offs[s][0]+1;
+            ptrs[s+1][0] = PTR_SUB;
         }
         ++s;
     }
@@ -1918,7 +1620,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
 g.timers[TIME_PR].start();
             std::vector<int> aln_score(4), aln_query_ref_end(4);
             std::unordered_map<idx1, int> aln_ptrs;
-            std::unordered_map<idx1, idx1> swap_pred_map;
+            std::vector< std::unordered_map<idx1, idx1> > swap_pred_map(4);
             calc_prec_recall_aln(
                     query1, query2, truth1, truth2, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 

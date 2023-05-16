@@ -131,9 +131,29 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
-        std::unordered_map<idx1, int> & aln_ptrs, 
-        std::vector< std::unordered_map<idx1, idx1> > & pred_map,
+        std::unordered_map<idx1, int> & ptrs,
+        std::vector< std::unordered_map<idx1, idx1> > & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
+        );
+
+void calc_prec_recall_path(
+        const std::string & ref,
+        const std::string & query1, const std::string & query2, 
+        const std::string & truth1, const std::string & truth2, 
+        std::vector< std::vector<idx1> > & path, 
+        std::vector< std::vector<bool> > & sync, 
+        std::vector< std::vector<bool> > & edits, 
+        std::unordered_map<idx1, int> & aln_ptrs,
+        std::unordered_map<idx1, int> & path_ptrs,
+        std::unordered_map<idx1, int> & path_scores,
+        const std::vector< std::vector<int> > & query1_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query1_ptrs,
+        const std::vector< std::vector<int> > & query2_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_query2_ptrs,
+        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
+        const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector< std::unordered_map<idx1,idx1> > & swap_pred_map,
+        const std::vector<int> & pr_query_ref_end, bool print
         );
 
 void get_prec_recall_path_sync(
@@ -150,26 +170,6 @@ void get_prec_recall_path_sync(
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         const std::vector<int> & pr_query_ref_beg, bool print
-        );
-
-void calc_prec_recall_path(
-        const std::string & ref,
-        const std::string & query1, const std::string & query2, 
-        const std::string & truth1, const std::string & truth2, 
-        std::vector< std::vector<idx1> > & path, 
-        std::vector< std::vector<bool> > & sync, 
-        std::vector< std::vector<bool> > & edits, 
-        const std::unordered_map<idx1, int> & aln_ptrs, 
-        const std::unordered_map<idx1, int> & path_ptrs, 
-        const std::unordered_map<idx1, int> & path_scores, 
-        const std::vector< std::vector<int> > & query1_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query1_ptrs,
-        const std::vector< std::vector<int> > & query2_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query2_ptrs,
-        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
-        const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector< std::unordered_map<idx1, idx1> > & pred_map,
-        const std::vector<int> & pr_query_ref_end, bool print
         );
 
 void calc_prec_recall(
@@ -189,9 +189,10 @@ void calc_prec_recall(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_end, int phase,
+        const std::vector<int> & pr_query_ref_end, int phase, 
         bool print
         );
+
 
 /******************************************************************************/
 
@@ -235,6 +236,12 @@ std::vector<int> swg_backtrack(
         const std::string & truth,
         const std::unordered_map<idx2, idx2> & ptrs, bool print);
 
+void wf_ed(
+        const std::string & query, const std::string & truth, int & s, 
+        std::vector< std::vector<int> > & offs,
+        std::vector< std::vector<int> > & ptrs);
+
+
 int count_dist(const std::vector<int> & cigar);
 
 /******************************************************************************/
@@ -242,32 +249,14 @@ int count_dist(const std::vector<int> & cigar);
 editData alignment_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr);
 
-variantData edit_dist_realign(
-        std::unique_ptr<variantData> & vcf, 
-        std::shared_ptr<fastaData> ref);
-
 int calc_vcf_swg_score(
         std::shared_ptr<ctgVariants> vcf, 
         int clust_beg_idx, 
         int clust_end_idx,
         int sub, int open, int extend);
+
 int calc_cig_swg_score(
         const std::vector<int> & cigar,
         int sub, int open, int extend);
-
-void calc_edit_dist_aln_all(
-        const std::string & query1, 
-        const std::string & query2, 
-        const std::string & truth1, 
-        const std::string & truth2,
-        std::vector<int> & s, 
-        std::vector< std::vector< std::vector<int> > > & offs,
-        std::vector< std::vector< std::vector<int> > > & ptrs
-        );
-
-void calc_edit_dist_aln(
-        const std::string & query, const std::string & truth, int & s, 
-        std::vector< std::vector<int> > & offs,
-        std::vector< std::vector<int> > & ptrs);
 
 #endif
