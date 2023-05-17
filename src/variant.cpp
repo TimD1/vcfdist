@@ -189,14 +189,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:QQ:SC:SP", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:BC:QQ:SC:SP", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:QQ:SC:SP", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:BC:QQ:SC:SP", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -207,7 +207,7 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 
 
 void ctgVariants::print_var_empty(FILE* out_fp, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:.%s", query ? "\n" : "");
+    fprintf(out_fp, "\t.:.:.:.:.:.:.%s", query ? "\n" : "");
 }
 
 
@@ -219,11 +219,14 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
         case ERRTYPE_TP: errtype = "TP"; break;
         case ERRTYPE_FP: errtype = "FP"; break;
         case ERRTYPE_FN: errtype = "FN"; break;
-        case ERRTYPE_PP: errtype = "TP"; break; // for hap.py compatibility
+        case ERRTYPE_PP: // for hap.py compatibility
+             errtype = this->credit[idx] >= 0.5 ? "TP" : 
+                 (query ? "FP" : "FN"); break;
     }
 
-    fprintf(out_fp, "\t%s:%s:gm:%d:%d:%s%s", gt.data(), errtype.data(),
-            int(this->var_quals[idx]), sc_idx, query ? (swap ? "1" : "0") : "." , query ? "\n" : "");
+    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%s%s", gt.data(), errtype.data(), 
+            this->credit[idx], int(this->var_quals[idx]), sc_idx, query ? 
+            (swap ? "1" : "0") : "." , query ? "\n" : "");
 }
 
 

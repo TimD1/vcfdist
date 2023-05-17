@@ -23,7 +23,8 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=1,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN). PP labelled TP (hap.py compatibility)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=1,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN). PP conversion: TP if BC >= 0.5 else FP/FN (hap.py compatibility)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=1,Type=String,Description=\"Benchmark Credit for call on the interval [0,1].\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=BK,Number=1,Type=String,Description=\"BenchmarK category (for hap.py compatibility, always genotype match 'gm')\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality for ROC creation\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster index\">\n");
