@@ -1,4 +1,3 @@
-
 ### Usage
 ```
 Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]
@@ -11,16 +10,16 @@ Required:
 Options:
   -b, --bed <STRING>
     BED file containing regions to evaluate
-  
+      
   -p, --prefix <STRING> [./]
     prefix for output files (directory needs a trailing slash)
-  
+      
   -v, --verbosity <INTEGER> [1]
     printing verbosity (0: succinct, 1: default, 2:verbose)
-  
+      
   -r, --realign-only
     standardize truth and query variant representations, then exit
-  
+      
   -q, --keep-query
     do not realign query variants, keep original representation
   
