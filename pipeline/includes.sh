@@ -110,4 +110,4 @@ e=(
 # include orig rep for eval
 # reps=()
 reps=("O")
-# reps+=("${pts[@]}")
+reps+=("${pts[@]}")

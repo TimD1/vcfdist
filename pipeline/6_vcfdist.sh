@@ -31,7 +31,7 @@ done
 
 # standard reps
 $parallel -j1 --joblog 6_vcfdist.log \
-"$vcfdist  \
+"$timer -v -o vcfdist_{1}_{4}_{2}.log $vcfdist  \
     $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
     $data/{3}/$ref_id/{5} \
     $data/refs/$ref_name \

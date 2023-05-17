@@ -11,13 +11,12 @@ done
 
 # # rtgtools vcfeval timing evaluation
 # $parallel -j1 --joblog 5_vcfeval.log \
-#     "$timer -v -o 5_{4}_{2}.txt taskset 1 ~/software/rtg-tools-3.12.1/rtg vcfeval \
+#     "$timer -v -o 5_{4}_{2}.txt ~/software/rtg-tools-3.12.1/rtg RTG_MEM=8G vcfeval \
 #         -b $data/{3}/$ref_id/{5} \
 #         -c $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
 #         -t $data/refs/$ref_name.sdf \
 #         -e $data/{3}/$ref_id/{6} \
 #         --all-records \
-#         --threads=1 \
 #         -o $data/pfda-v2/{4}_vcfeval/{1}_HG002_{2}" ::: \
 #     ${sub_ids[@]} ::: ${reps[@]} ::: \
 #     ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
