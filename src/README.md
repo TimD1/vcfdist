@@ -63,4 +63,4 @@ Options:
     please cite vcfdist if used in your analyses
 
   -v, --version
-    print vcfdist version (v1.2.3)
+    print vcfdist version (v1.3.0)

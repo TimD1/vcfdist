@@ -62,11 +62,11 @@ vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib.
 If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable. It should compile in less than one minute.
 
 ```bash
-> git clone --branch v1.2.3 https://github.com/timd1/vcfdist
+> git clone --branch v1.3.0 https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
 > ./vcfdist --version
-vcfdist v1.2.3
+vcfdist v1.3.0
 ```
 
 
