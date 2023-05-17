@@ -1,14 +1,18 @@
 #!/bin/bash
 
+source ../pipeline/includes.sh
+
 # valgrind --leak-check=full \
 #     --show-leak-kinds=all \
 #     --track-origins=yes \
 #     --dsymutil=yes \
 #     --verbose \
 #     --log-file=valgrind.log \
-time ./vcfdist \
-    ../test/query.vcf.gz \
-    ../test/truth.vcf.gz \
+./vcfdist \
+    ../test/query20.vcf.gz \
+    ../test/truth20.vcf.gz \
     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../test/bench20.bed \
+    --simple-cluster \
+    -l 1000 \
     -p ../out/

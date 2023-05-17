@@ -1,0 +1,34 @@
+#!/bin/bash
+
+source ../pipeline/includes.sh
+
+# # Zook GIAB TR dataset (3.5 hours -> 6.5 hours)
+# $timer -v ./vcfdist \
+#     $data/zook/GRCh38_HG2-verrkoV1.1-V0.7_dipcall-z2k.vcf.gz \
+#     $data/giab-tr-v4.20/GIABTR.HG002.benchmark.vcf.gz \
+#     $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+#     -b $data/giab-tr-v4.20/GIABTR.HG002.benchmark.regions.bed \
+#     --simple-cluster \
+#     -t -q \
+#     -l 1000 \
+#     -p ../out/giabtr/keep-
+
+# # Zook GIAB TR dataset, chr20 only (15 min simple clust)
+# $timer -v ./vcfdist \
+#     $data/zook/GRCh38_HG2-verrkoV1.1-V0.7_dipcall-z2k.vcf.gz \
+#     $data/giab-tr-v4.20/GIABTR.HG002.benchmark.vcf.gz \
+#     $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+#     -b $data/giab-tr-v4.20/GIABTR.HG002.benchmark.chr20.bed \
+#     --simple-cluster \
+#     -t -q \
+#     -l 1000 \
+#     -p ../out/giabtr/chr20-keep-
+
+# Zook GIAB TR dataset, small only (10 min SW clust, 1 min simple clust)
+$timer -v ./vcfdist \
+    $data/zook/GRCh38_HG2-verrkoV1.1-V0.7_dipcall-z2k.vcf.gz \
+    $data/giab-tr-v4.20/GIABTR.HG002.benchmark.vcf.gz \
+    $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+    -b $data/giab-tr-v4.20/GIABTR.HG002.benchmark.small.bed \
+    -l 1000 \
+    -p ../out/giabtr/small-

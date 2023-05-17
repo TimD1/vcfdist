@@ -28,3 +28,5 @@ out/
 
 # test directory not ready yet
 test/
+issues/
+examples/

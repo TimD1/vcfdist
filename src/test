@@ -4,9 +4,18 @@ source ../pipeline/includes.sh
 
 sub_id="K4GT3"
 
+# NIST smallvar
 time ./vcfdist \
     $data/pfda-v2/phased_vcfs/GRCh38/${sub_id}_HG002_O.vcf.gz \
     $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz \
     $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b $data/nist-v4.2.1/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
     -p ../out/test_
+
+# # CMRG SV
+# $timer -v ./vcfdist \
+#     $data/pfda-v2/phased_vcfs/GRCh38/${sub_id}_HG002_O.vcf.gz \
+#     $data/cmrg-v1.00/GRCh38/HG002_GRCh38_CMRG_SV_v1.00.vcf.gz \
+#     $data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+#     -b $data/cmrg-v1.00/GRCh38/HG002_GRCh38_CMRG_SV_v1.00_chr5.bed \
+#     -p ../out/test_
