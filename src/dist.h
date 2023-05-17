@@ -206,7 +206,7 @@ int swg_max_reach(
         bool reverse = false,
         int ref_section = -1);
 
-std::unique_ptr<variantData> swg_realign(
+std::unique_ptr<variantData> wf_swg_realign(
         std::unique_ptr<variantData> & vcf, 
         std::shared_ptr<fastaData> ref,
         int sub, int open, int extend, int callset, bool print = false);
@@ -224,17 +224,6 @@ std::vector<int> wf_swg_backtrack(
         const std::vector< std::vector< std::vector<int> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs,
         int s, int sub, int open, int extend, bool print = false);
-
-void swg_align(
-        const std::string & query, 
-        const std::string & truth,
-        std::unordered_map<idx2,idx2> & ptrs,
-        int sub, int open, int extend, bool print);
-
-std::vector<int> swg_backtrack(
-        const std::string & query,
-        const std::string & truth,
-        const std::unordered_map<idx2, idx2> & ptrs, bool print);
 
 void wf_ed(
         const std::string & query, const std::string & truth, int & s, 
