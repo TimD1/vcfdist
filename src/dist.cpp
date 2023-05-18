@@ -79,9 +79,11 @@ void reverse_ptrs_strs(
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
         std::shared_ptr<ctgVariants> vars, const std::string & ctg,
-        int var_idx, int end_idx, int beg_pos, int end_pos, int min_qual=0) {
+        int var_idx, int end_idx, int beg_pos, int end_pos, 
+        int min_qual /* = 0 */) {
 
     std::string str = "";
+    while (vars->poss[var_idx] < beg_pos) var_idx++;
     for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
 
         // VARIANT
@@ -111,6 +113,8 @@ std::string generate_str(
                 // add entire ref seq up to next variant or region end
                 int ref_end = (var_idx < end_idx) ? 
                     std::min(end_pos, vars->poss[var_idx]) : end_pos;
+                if (ref_end < ref_pos)
+                    ERROR("ref_end < ref_pos");
                 str += ref->fasta.at(ctg).substr(ref_pos, ref_end-ref_pos);
                 ref_pos = ref_end;
             } catch (const std::out_of_range & e) {
@@ -1851,6 +1855,185 @@ int calc_cig_swg_score(const std::vector<int> & cigar,
 
 /******************************************************************************/
 
+int wf_swg_max_reach(
+        const std::string & query, const std::string & truth, 
+        int main_diag, int main_diag_start, int max_score, 
+        int x, int o, int e, bool print /* false */, bool reverse /* false */
+        ) {
+
+    // init
+    int query_len = query.size();
+    int truth_len = truth.size();
+    int mat_len = query_len + truth_len - 1;
+    int main_diag_off = main_diag_start - main_diag;
+    int s = 0;
+    std::vector< std::vector< std::vector<int> > > offs(MATS,
+            std::vector< std::vector<int>>(max_score+1,
+                std::vector<int>(mat_len, -2)));
+    std::vector< std::vector< std::vector<int> > > ptrs(MATS,
+            std::vector< std::vector<int>>(max_score+1,
+                std::vector<int>(mat_len, PTR_NONE)));
+    offs[MAT_SUB][s][query_len-1] = -1;
+    ptrs[MAT_SUB][s][query_len-1] = PTR_MAT;
+
+    while (true) {
+
+        // EXTEND WAVEFRONT (leave INS, DEL forwards)
+        if (!reverse) for (int m = MAT_INS; m < MATS; m++) {
+            for (int d = 0; d < mat_len; d++) {
+                int off = offs[m][s][d];
+                int diag = d + 1 - query_len;
+
+                if (off >= 0 && off < query_len &&
+                        diag+off >= 0 && diag+off < truth_len &&
+                        off >= offs[MAT_SUB][s][d]) {
+                    offs[MAT_SUB][s][d] = off;
+                    ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
+                    if(print) printf("(S, %d, %d) swap fwd\n", off, off+diag);
+
+                }
+            }
+        }
+
+        // EXTEND WAVEFRONT (diag, SUB only)
+        for (int d = 0; d < mat_len; d++) {
+            int off = offs[MAT_SUB][s][d];
+            int diag = d + 1 - query_len;
+
+            // extend
+            while ( (diag != main_diag || off+1 < main_diag_off) &&
+                        off != -2 && diag + off >= -1 && 
+                        off < query_len - 1 && 
+                        diag + off < truth_len - 1) {
+                if (query[off+1] == truth[diag+off+1]) off++;
+                else break;
+            }
+            if (off > offs[MAT_SUB][s][d])
+                if(print) printf("(S, %d, %d) extend\n", off, off+diag);
+            offs[MAT_SUB][s][d] = off;
+
+            // finish if we've reached the last column
+            if (off + diag == truth_len - 1) return truth_len-1;
+            if (off == query_len - 1 && off+diag >= 0 && off+diag < truth_len-1)  {
+                return -1;
+                ERROR("Reached end of query (len %d) before ref (len %d) in max_reach() at (%d, %d)",
+                        query_len, truth_len, off, diag+off);
+            }
+
+        }
+        if (s == max_score) break;
+
+        /* if (print) for (int mi = 0; mi < MATS; mi++) { */
+        /*     printf("\n%s matrix\n", type_strs[mi+1].data()); */
+        /*     printf("offs %d:", s); */
+        /*     for (int di = 0; di < int(query.size() + truth.size()-1); di++) { */
+        /*         printf("\t%d", offs[mi][s][di]); */
+        /*     } */
+        /*     printf("\n"); */
+        /* } */
+
+        // NEXT WAVEFRONT
+        s++;
+        if (print) printf("\nscore = %d\n", s);
+
+        for (int d = 0; d < mat_len; d++) {
+            int diag = d + 1 - query_len;
+
+            // sub (in SUB)
+            int p = s - x;
+            if (p >= 0 && offs[MAT_SUB][p][d] != -2 && 
+                            offs[MAT_SUB][p][d]+1 < query_len &&
+                     diag + offs[MAT_SUB][p][d]+1 < truth_len &&
+                            offs[MAT_SUB][p][d]+1 >= offs[MAT_SUB][s][d]) {
+                offs[MAT_SUB][s][d] = offs[MAT_SUB][p][d] + 1;
+                ptrs[MAT_SUB][s][d] |= PTR_SUB;
+                if(print) printf("(S, %d, %d) sub\n", offs[MAT_SUB][s][d], 
+                        offs[MAT_SUB][s][d]+diag);
+            }
+
+            // open gap (enter DEL, open fwd only)
+            p = reverse ? s - e : s - (o+e);
+            if (p >= 0 && d > 0 && 
+                           offs[MAT_SUB][p][d-1] != -2 &&
+                    diag + offs[MAT_SUB][p][d-1] < truth_len &&
+                           offs[MAT_SUB][p][d-1] >= offs[MAT_DEL][s][d]) {
+                offs[MAT_DEL][s][d] = offs[MAT_SUB][p][d-1];
+                ptrs[MAT_DEL][s][d] |= PTR_SUB;
+                if(print) printf("(D, %d, %d) open\n", offs[MAT_DEL][s][d], 
+                        offs[MAT_DEL][s][d]+diag);
+            }
+            // open gap (enter INS, open fwd only)
+            if (p >= 0 && d < mat_len-1 && 
+                           offs[MAT_SUB][p][d+1] != -2 &&
+                           offs[MAT_SUB][p][d+1]+1 < query_len &&
+                    diag + offs[MAT_SUB][p][d+1]+1 < truth_len &&
+                    diag + offs[MAT_SUB][p][d+1]+1 >= 0 &&
+                           offs[MAT_SUB][p][d+1]+1 >= offs[MAT_INS][s][d]) {
+                offs[MAT_INS][s][d] = offs[MAT_SUB][p][d+1]+1;
+                ptrs[MAT_INS][s][d] |= PTR_SUB;
+                if(print) printf("(I, %d, %d) open\n", offs[MAT_INS][s][d], 
+                        offs[MAT_INS][s][d]+diag);
+            }
+
+            // leave INDEL (open rev only)
+            p = s - o;
+            if (reverse && p >= 0) for (int m = MAT_INS; m < MATS; m++) {
+                for (int d = 0; d < mat_len; d++) {
+                    int off = offs[m][p][d];
+                    int diag = d + 1 - query_len;
+
+                    if (off >= 0 && off < query_len &&
+                            diag+off >= 0 && diag+off < truth_len &&
+                            off > offs[MAT_SUB][s][d]) {
+                        offs[MAT_SUB][s][d] = off;
+                        ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
+                        if(print) printf("(S, %d, %d) swap rev\n", off, diag+off);
+                    }
+                }
+            }
+
+            // extend gap (stay DEL)
+            p = s - e;
+            if (p >= 0 && d > 0 && 
+                           offs[MAT_DEL][p][d-1] != -2 &&
+                    diag + offs[MAT_DEL][p][d-1] < truth_len &&
+                           offs[MAT_DEL][p][d-1] >= offs[MAT_DEL][s][d]) {
+                offs[MAT_DEL][s][d] = offs[MAT_DEL][p][d-1];
+                ptrs[MAT_DEL][s][d] |= PTR_DEL;
+                if(print) printf("(D, %d, %d) extend\n", offs[MAT_DEL][s][d], 
+                        offs[MAT_DEL][s][d]+diag);
+            }
+            // extend gap (stay INS)
+            if (p >= 0 && d < mat_len-1 && 
+                           offs[MAT_INS][p][d+1] != -2 &&
+                           offs[MAT_INS][p][d+1]+1 < query_len &&
+                    diag + offs[MAT_INS][p][d+1]+1 < truth_len &&
+                    diag + offs[MAT_INS][p][d+1]+1 >= 0 &&
+                           offs[MAT_INS][p][d+1]+1 >= offs[MAT_INS][s][d]) {
+                offs[MAT_INS][s][d] = offs[MAT_INS][p][d+1]+1;
+                ptrs[MAT_INS][s][d] |= PTR_INS;
+                if(print) printf("(I, %d, %d) extend\n", offs[MAT_INS][s][d], 
+                        offs[MAT_INS][s][d]+diag);
+            }
+        }
+    } // end reach
+
+    // get max reach
+    int max_reach = 0;
+    for (s = std::max(0, max_score - std::max(x, o+e)); s <= max_score; s++) {
+        for (int m = 0; m < MATS; m++) {
+            for (int d = 0; d < mat_len; d++) {
+                int off = offs[m][s][d];
+                int diag = d + 1 - query_len;
+                if (off >= 0 && off < query_len &&
+                        diag+off >= 0 && diag+off < truth_len)
+                    max_reach = std::max(max_reach, diag + off);
+            }
+        }
+    }
+    return max_reach;
+}
+
 
 /* Perform Djikstra Smith-Waterman alignment of two strings, returning 
  * the farthest-reaching reference index of lesser or equal score to that provided.
@@ -1886,18 +2069,14 @@ int swg_max_reach(const std::string & query, const std::string & ref,
             waves[s].insert(x);
 
             // allow non-main-diagonal match
-            bool main_diag = x.ri >= ref_section &&
+            bool main_diag = x.ri+1 >= ref_section &&
                     x.qi+1 < query_len && x.ri+1 < ref_len && // repeat bounds check
-                    !(query_ref_ptrs[FLAGS][x.qi] & PTR_VARIANT) && // neither prev/curr are variants
-                    !(ref_query_ptrs[FLAGS][x.ri] & PTR_VARIANT) &&
                     !(query_ref_ptrs[FLAGS][x.qi+1] & PTR_VARIANT) &&
                     !(ref_query_ptrs[FLAGS][x.ri+1] & PTR_VARIANT) &&
-                    query_ref_ptrs[PTRS][x.qi] == x.ri && // point to one another (main diag)
-                    ref_query_ptrs[PTRS][x.ri] == x.qi &&
                     query_ref_ptrs[PTRS][x.qi+1] == x.ri+1 &&
                     ref_query_ptrs[PTRS][x.ri+1] == x.qi+1;
             if (x.qi+1 < query_len && x.ri+1 < ref_len && 
-                    !main_diag &&
+                    !main_diag && x.mi == MAT_SUB &&
                     query[x.qi+1] == ref[x.ri+1] && 
                     !contains(done, {x.mi, x.qi+1, x.ri+1})) {
                 idx2 next(x.mi, x.qi+1, x.ri+1);

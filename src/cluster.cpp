@@ -303,7 +303,8 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
         for (int hap = 0; hap < HAPS; hap++) {
 
             // init: each variant is its own cluster
-            int nvar = vcf->ctg_variants[hap][ctg]->n;
+            auto vars = vcf->ctg_variants[hap][ctg];
+            int nvar = vars->n;
             if (nvar) { 
                 if (g.verbosity >= 1) INFO("    Haplotype %d", hap+1); 
             }
@@ -334,7 +335,7 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
                         iter, int(prev_clusters.size()-1), active);
 
                 // save temp clustering (generate_ptrs_strs assumes clustered)
-                vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
+                vars->clusters = prev_clusters;
 
                 // update all cluster reaches
                 for (size_t clust = 0; clust < prev_clusters.size(); clust++) {
@@ -358,25 +359,21 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
 
                     // debug print
                     if (print && clust < prev_clusters.size()-1) {
-                        printf("\ncluster %d: vars %d-%d, pos %d-%d\n",
-                                int(clust), 
-                                vcf->ctg_variants[hap][ctg]->clusters[clust],
-                                vcf->ctg_variants[hap][ctg]->clusters[clust+1],
-                                vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust]],
-                                vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
-                                vcf->ctg_variants[hap][ctg]->rlens[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]);
-                        for (int var_idx = vcf->ctg_variants[hap][ctg]->clusters[clust]; 
-                                var_idx < vcf->ctg_variants[hap][ctg]->clusters[clust+1]; var_idx++) {
+                        printf("\n\ncluster %d: vars %d-%d, pos %d-%d\n",
+                                int(clust), vars->clusters[clust],
+                                vars->clusters[clust+1],
+                                vars->poss[vars->clusters[clust]],
+                                vars->poss[vars->clusters[clust+1]-1] +
+                                vars->rlens[vars->clusters[clust+1]-1]);
+                        for (int var_idx = vars->clusters[clust]; 
+                                var_idx < vars->clusters[clust+1]; var_idx++) {
                             printf("    %s %d %s %s var:%d\n",
                                     ctg.data(), 
-                                    vcf->ctg_variants[hap][ctg]->poss[var_idx],
-                                    vcf->ctg_variants[hap][ctg]->refs[var_idx].size() ? 
-                                        vcf->ctg_variants[hap][ctg]->refs[var_idx].data() : "_",
-                                    vcf->ctg_variants[hap][ctg]->alts[var_idx].size() ? 
-                                        vcf->ctg_variants[hap][ctg]->alts[var_idx].data() : "_",
+                                    vars->poss[var_idx],
+                                    vars->refs[var_idx].size() ? 
+                                        vars->refs[var_idx].data() : "_",
+                                    vars->alts[var_idx].size() ? 
+                                        vars->alts[var_idx].data() : "_",
                                     var_idx
                             );
                         }
@@ -385,9 +382,8 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
                     int l_reach = 0, r_reach = 0, score = 0;
                     if (left_compute || right_compute) {
                         score = calc_vcf_swg_score(
-                                vcf->ctg_variants[hap][ctg], clust, clust+1,
-                                sub, open, extend);
-                        if (print) printf("orig score: %d\n", score);
+                                vars, clust, clust+1, sub, open, extend);
+                        if (print) printf("    orig score: %d\n", score);
                     }
 
                     // LEFT REACH 
@@ -399,57 +395,75 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
                         std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
 
                         // error checking
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 < 0)
+                        if (vars->clusters[clust]-1 < 0)
                             ERROR("left var_idx < 0");
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust]-1 >= nvar)
+                        if (vars->clusters[clust]-1 >= nvar)
                             ERROR("left var_idx >= nvar");
-                        if (clust+1 >= vcf->ctg_variants[hap][ctg]->clusters.size())
+                        if (clust+1 >= vars->clusters.size())
                             ERROR("left next clust_idx >= nclust");
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1 < 0)
+                        if (vars->clusters[clust+1]-1 < 0)
                             ERROR("left next var_idx < 0");
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1 >= nvar)
+                        if (vars->clusters[clust+1]-1 >= nvar)
                             ERROR("left next var_idx >= nvar");
 
                         // just after last variant in this cluster
-                        int end_pos = 
-                            vcf->ctg_variants[hap][ctg]->poss[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] +
-                            vcf->ctg_variants[hap][ctg]->rlens[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]+1;
+                        int end_pos = vars->poss[vars->clusters[clust+1]-1] +
+                                vars->rlens[vars->clusters[clust+1]-1]+1;
                         // just after last variant in previous cluster
                         int beg_pos = std::max(0, 
-                            vcf->ctg_variants[hap][ctg]->poss[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] +
-                            vcf->ctg_variants[hap][ctg]->rlens[
-                                vcf->ctg_variants[hap][ctg]->clusters[clust]-1] + 1
-                            - buffer);
+                                vars->poss[vars->clusters[clust]-1] +
+                                vars->rlens[vars->clusters[clust]-1] + 1
+                                - buffer);
 
                         // generate reversed pointers/strings
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
-                                vcf->ctg_variants[hap][ctg],
-                                clust, clust+1, beg_pos, end_pos,
+                                vars, clust, clust+1, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
                         reverse_ptrs_strs(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs);
                         
                         // get reference end pos of last variant in this cluster
-                        int ref_section_start = end_pos - vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust]];
+                        int main_diag_start = end_pos - vars->poss[ 
+                                    vars->clusters[clust]];
+                        int main_diag = 0;
+                        for (int vi = vars->clusters[clust];
+                                vi < vars->clusters[clust+1]; vi++)
+                            main_diag += vars->refs[vi].size() - vars->alts[vi].size();
 
                         // calculate max reaching path to left
                         int reach = swg_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
                                 sub, open, extend, score, 
-                                print, true, ref_section_start); // reverse
+                                false /* print */, true /* reverse */, main_diag_start);
+                        if (print) printf("    left reach: %d\n", reach);
+
+                        int ref_len = score/extend + 3;
+                        int wf_reach = ref_len - 1;
+                        while (wf_reach == ref_len-1) {
+                            ref_len *= 2;
+                            beg_pos = end_pos - ref_len - score/extend-3;
+                            query = generate_str(vcf->ref, vars, ctg, 
+                                        vars->clusters[clust], 
+                                        vars->clusters[clust+1], 
+                                        beg_pos, end_pos);
+                            ref = vcf->ref->fasta.at(ctg).substr(end_pos-ref_len, ref_len);
+                            std::reverse(query.begin(), query.end());
+                            std::reverse(ref.begin(), ref.end());
+                            wf_reach = wf_swg_max_reach(query, ref,
+                                    main_diag, main_diag_start, score,
+                                    sub, open, extend, 
+                                    false /* print */, true /* reverse */);
+                        }
+                        if (print) printf(" left wf reach: %d\n", wf_reach);
                         l_reach = end_pos - reach;
-                        if (print) printf("left reach: %d\n", reach);
 
                         if (print) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
-                            printf("ref start:  %d\n", ref_section_start);
+                            printf(" main diag:  %d\n", main_diag);
+                            printf("diag start:  %d\n", main_diag_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
                                 printf("%d ", query_ref_ptrs[PTRS][i]); 
@@ -459,10 +473,12 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
                                 printf("%d ", ref_query_ptrs[PTRS][i]); 
                             printf("\n");
                         }
+                        if (reach > wf_reach)
+                            WARN("Left reaches differ at cluster %d.", int(clust));
                         
                     } else {
                         // past farthest right (unused)
-                        l_reach = vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10;
+                        l_reach = vars->poss[nvar-1] + 10;
                     }
                     left_reach.push_back(l_reach);
 
@@ -472,50 +488,69 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
                         std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
 
                         // error checking
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust] < 0)
+                        if (vars->clusters[clust] < 0)
                             ERROR("right var_idx < 0");
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust] >= nvar)
+                        if (vars->clusters[clust] >= nvar)
                             ERROR("right var_idx >= nvar");
-                        if (clust+1 >= vcf->ctg_variants[hap][ctg]->clusters.size())
+                        if (clust+1 >= vars->clusters.size())
                             ERROR("right next clust_idx >= nclust");
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1] < 0)
+                        if (vars->clusters[clust+1] < 0)
                             ERROR("right next var_idx < 0");
-                        if (vcf->ctg_variants[hap][ctg]->clusters[clust+1] >= nvar)
+                        if (vars->clusters[clust+1] >= nvar)
                             ERROR("right next var_idx >= nvar");
 
                         // right before current cluster
-                        int beg_pos = vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust] ]-1;
+                        int beg_pos = vars->poss[vars->clusters[clust] ]-1;
                         // right before next cluster
-                        int end_pos = vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]]
+                        int end_pos = vars->poss[vars->clusters[clust+1]]
                                     + buffer;
 
                         generate_ptrs_strs(query, ref,
                                 query_ref_ptrs, ref_query_ptrs, 
-                                vcf->ctg_variants[hap][ctg], 
-                                clust, clust+1, beg_pos, end_pos,
+                                vars, clust, clust+1, beg_pos, end_pos,
                                 vcf->ref, ctg 
                         );
 
                         // get reference end pos of last variant in this cluster
-                        int ref_section_start = vcf->ctg_variants[hap][ctg]->poss[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1]
-                                    + vcf->ctg_variants[hap][ctg]->rlens[ 
-                                    vcf->ctg_variants[hap][ctg]->clusters[clust+1]-1] - beg_pos;
+                        int main_diag_start = vars->poss[ 
+                                    vars->clusters[clust+1]-1]
+                                    + vars->rlens[vars->clusters[clust+1]-1] - beg_pos;
+                        int main_diag = 0;
+                        for (int vi = vars->clusters[clust];
+                                vi < vars->clusters[clust+1]; vi++)
+                            main_diag += vars->refs[vi].size() - vars->alts[vi].size();
+
 
                         // calculate max reaching path to right
                         int reach = swg_max_reach(query, ref, 
                                 query_ref_ptrs, ref_query_ptrs, 
-                                sub, open, extend, score, print, 
-                                false, ref_section_start);
+                                sub, open, extend, score, false /* print */, 
+                                false /* reverse */, main_diag_start);
+                        if (print) printf("   right reach: %d\n", reach);
+
+                        int ref_len = score/extend + 3;
+                        int wf_reach = ref_len - 1;
+                        while (wf_reach == ref_len-1) {
+                            ref_len *= 2;
+                            end_pos = beg_pos + ref_len + score/extend+3;
+                            query = generate_str(vcf->ref, vars, ctg, 
+                                        vars->clusters[clust], 
+                                        vars->clusters[clust+1], 
+                                        beg_pos, end_pos);
+                            ref = vcf->ref->fasta.at(ctg).substr(beg_pos, ref_len);
+                            wf_reach = wf_swg_max_reach(query, ref,
+                                    main_diag, main_diag_start, score,
+                                    sub, open, extend, 
+                                    false /* print */, false /* reverse */);
+                        }
+                        if (print) printf("right wf reach: %d\n", wf_reach);
                         r_reach = beg_pos + reach;
-                        if (print) printf("right reach: %d\n", reach);
 
                         if (print) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
-                            printf("ref_start:  %d\n", ref_section_start);
+                            printf(" main diag:  %d\n", main_diag);
+                            printf("diag start:  %d\n", main_diag_start);
                             printf("QUERY->REF: ");
                             for(size_t i = 0; i < query_ref_ptrs.size(); i++) 
                                 printf("%d ", query_ref_ptrs[PTRS][i]); 
@@ -525,13 +560,15 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
                                 printf("%d ", ref_query_ptrs[PTRS][i]); 
                             printf("\n");
                         }
+                        if (reach > wf_reach)
+                            WARN("Right reaches differ at cluster %d.", int(clust));
                         
                     } else { // non-adjacent, don't really compute
                         r_reach = -10; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
                     if (print) printf("span: %s - %s\n", 
-                                l_reach == vcf->ctg_variants[hap][ctg]->poss[nvar-1]+10 ? 
+                                l_reach == vars->poss[nvar-1]+10 ? 
                                     "X" : std::to_string(l_reach).data(), 
                                 r_reach == -10 ? "X" : std::to_string(r_reach).data());
                 }
@@ -562,7 +599,7 @@ void swg_cluster(std::unique_ptr<variantData> & vcf,
             }
 
             // save final clustering
-            vcf->ctg_variants[hap][ctg]->clusters = prev_clusters;
+            vars->clusters = prev_clusters;
 
             if (nvar && g.verbosity >= 1) INFO("      %d resulting clusters.", int(prev_clusters.size()-1));
         }

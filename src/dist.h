@@ -118,6 +118,11 @@ void reverse_ptrs_strs(
         std::vector< std::vector<int> > & ref_ptrs
         );
 
+std::string generate_str(
+        std::shared_ptr<fastaData> ref, 
+        std::shared_ptr<ctgVariants> vars, const std::string & ctg,
+        int var_idx, int end_idx, int beg_pos, int end_pos, int min_qual=0);
+
 /******************************************************************************/
 
 void calc_prec_recall_aln(
@@ -205,6 +210,12 @@ int swg_max_reach(
         int score, bool print,
         bool reverse = false,
         int ref_section = -1);
+
+int wf_swg_max_reach(
+        const std::string & query, const std::string & truth, 
+        int main_diag, int main_diag_start, int max_score, 
+        int x, int o, int e, bool print = false, bool reverse = false
+        );
 
 std::unique_ptr<variantData> wf_swg_realign(
         std::unique_ptr<variantData> & vcf, 

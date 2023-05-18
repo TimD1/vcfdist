@@ -13,6 +13,5 @@ source ../pipeline/includes.sh
     ../test/truth20.vcf.gz \
     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../test/bench20.bed \
-    --simple-cluster \
     -l 1000 \
     -p ../out/
