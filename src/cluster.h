@@ -54,6 +54,7 @@ public:
     // data
     std::vector<std::string> contigs;
     std::vector<int> lengths;
+    std::vector<int> ploidy;
     std::unordered_map<std::string, 
         std::shared_ptr<ctgSuperclusters> > ctg_superclusters;
     std::shared_ptr<fastaData> ref;

@@ -29,6 +29,7 @@ public:
     std::shared_ptr<fastaData> ref;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
+    std::vector<int> ploidy;
     std::unordered_map<std::string, 
         std::shared_ptr<ctgPhasings> > ctg_phasings;
 };
