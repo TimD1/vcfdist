@@ -20,7 +20,7 @@ std::vector<std::string> aln_strs = {"QUERY1-TRUTH1", "QUERY1-TRUTH2", "QUERY2-T
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
 std::vector<std::string> timer_strs = {"reading", "clustering", "realigning",
-    "reclustering", "superclustering", "aligning", "P/R", "S-W", "phasing", "writing", "total"};
+    "reclustering", "superclustering", "aligning", "P/R", "S-W", "phasing", "writing", "genstr", "substr", "reach", "reach init", "reach extend", "reach next", "reach max", "total"};
  
 int main(int argc, char **argv) {
 
@@ -50,40 +50,41 @@ g.timers[TIME_WRITE].stop();
     // cluster, realign, and cluster query VCF
     if (!g.keep_query) {
 g.timers[TIME_CLUST].start();
-        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : swg_cluster(query_ptr, 
+        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : wf_swg_cluster(query_ptr, 
                 g.query_sub, g.query_open, g.query_extend, QUERY); 
 g.timers[TIME_CLUST].stop();
 g.timers[TIME_REALN].start();
         query_ptr = wf_swg_realign(query_ptr, ref_ptr, 
                 g.query_sub, g.query_open, g.query_extend, QUERY);
-        query_ptr->left_shift();
+        /* query_ptr->left_shift(); */
 g.timers[TIME_REALN].stop();
     }
+    if (g.exit) {
+g.timers[TIME_WRITE].start();
+        query_ptr->write_vcf(g.out_prefix + "query.vcf");
+g.timers[TIME_WRITE].stop();
+    } else {
 g.timers[TIME_RECLUST].start();
-    g.simple_cluster ? gap_cluster(query_ptr, QUERY) : swg_cluster(query_ptr, 
-            g.query_sub, g.query_open, g.query_extend, QUERY); 
+        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : wf_swg_cluster(query_ptr, 
+                g.query_sub, g.query_open, g.query_extend, QUERY); 
 g.timers[TIME_RECLUST].stop();
+    }
 
     // cluster, realign, and cluster truth VCF
     if (!g.keep_truth) {
 g.timers[TIME_CLUST].start();
-        g.simple_cluster ?  gap_cluster(truth_ptr, TRUTH) : swg_cluster(truth_ptr, 
+        g.simple_cluster ?  gap_cluster(truth_ptr, TRUTH) : wf_swg_cluster(truth_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
 g.timers[TIME_CLUST].stop();
 g.timers[TIME_REALN].start();
         truth_ptr = wf_swg_realign(truth_ptr, ref_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend, TRUTH);
-        truth_ptr->left_shift();
+        /* truth_ptr->left_shift(); */
 g.timers[TIME_REALN].stop();
     }
-g.timers[TIME_RECLUST].start();
-    g.simple_cluster ? gap_cluster(truth_ptr, TRUTH) : swg_cluster(truth_ptr, 
-            g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
-g.timers[TIME_RECLUST].stop();
 
     if (g.exit) {
 g.timers[TIME_WRITE].start();
-        query_ptr->write_vcf(g.out_prefix + "query.vcf");
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
 g.timers[TIME_WRITE].stop();
 g.timers[TIME_TOTAL].stop();
@@ -91,6 +92,11 @@ g.timers[TIME_TOTAL].stop();
         INFO("TIMERS")
         for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }
         return EXIT_SUCCESS;
+    } else {
+g.timers[TIME_RECLUST].start();
+        g.simple_cluster ? gap_cluster(truth_ptr, TRUTH) : wf_swg_cluster(truth_ptr, 
+                g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
+g.timers[TIME_RECLUST].stop();
     }
 
     // calculate superclusters

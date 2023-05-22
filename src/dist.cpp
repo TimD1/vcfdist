@@ -79,9 +79,10 @@ void reverse_ptrs_strs(
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
         std::shared_ptr<ctgVariants> vars, const std::string & ctg,
-        int var_idx, int end_idx, int beg_pos, int end_pos, 
+        int beg_idx, int end_idx, int beg_pos, int end_pos, 
         int min_qual /* = 0 */) {
 
+    int var_idx = beg_idx;
     std::string str = "";
     while (vars->poss[var_idx] < beg_pos) var_idx++;
     for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
@@ -113,8 +114,15 @@ std::string generate_str(
                 // add entire ref seq up to next variant or region end
                 int ref_end = (var_idx < end_idx) ? 
                     std::min(end_pos, vars->poss[var_idx]) : end_pos;
-                if (ref_end < ref_pos)
-                    ERROR("ref_end < ref_pos");
+                if (ref_end < ref_pos) {
+                    printf("ref_pos:%d ref_end:%d beg_pos: %d end_pos: %d\n",
+                            ref_pos, ref_end, beg_pos, end_pos);
+                    for(int i = beg_idx; i < end_idx; i++) {
+                        printf("%s:%d %s -> %s\n", ctg.data(), vars->poss[i], 
+                                vars->refs[i].data(), vars->alts[i].data());
+                    }
+                    ERROR("No variant, but ref_end < ref_pos (generate_str)");
+                }
                 str += ref->fasta.at(ctg).substr(ref_pos, ref_end-ref_pos);
                 ref_pos = ref_end;
             } catch (const std::out_of_range & e) {
@@ -1165,12 +1173,12 @@ void calc_prec_recall(
                 if (print) {
                     printf("  ref: %2d %s\n", int(ref.size()), ref.data());
                     printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data());
-                    printf("  ref[%2d:+%2d] =\n", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
+                    printf("  ref[%2d:+%2d] = ", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
                     printf("%s\n", ref.substr(sync_ref_idx, 
                                 prev_sync_ref_idx - sync_ref_idx).data());
-                    printf("truth[%2d:+%2d] =\n", sync_truth_idx, prev_sync_truth_idx-sync_truth_idx);
+                    printf("truth[%2d:+%2d] = ", sync_truth_idx, prev_sync_truth_idx-sync_truth_idx);
                     printf("%s\n", truth[i].substr(sync_truth_idx, 
-                                prev_sync_ref_idx - sync_ref_idx).data());
+                                prev_sync_truth_idx - sync_truth_idx).data());
                 }
                 wf_ed(ref.substr(sync_ref_idx, 
                             prev_sync_ref_idx - sync_ref_idx), 
@@ -1179,7 +1187,8 @@ void calc_prec_recall(
                         old_ed, offs, ptrs);
 
                 if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
-                    ERROR("Old edit distance 0, variants exist.");
+                    ERROR("Old edit distance 0, TRUTH variants exist (%d-%d).", 
+                            truth_var_ptr+1, prev_truth_var_ptr+1);
 
                 // get min query var qual in sync section (for truth/query)
                 float callq = g.max_qual;
@@ -1561,6 +1570,38 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
 
             /////////////////////////////////////////////////////////////////////
+            // DEBUG PRINTING                                                    
+            /////////////////////////////////////////////////////////////////////
+            if (true) {
+                // print cluster info
+                printf("\n\nSupercluster: %d\n", sc_idx);
+                for (int i = 0; i < CALLSETS*HAPS; i++) {
+                    int callset = i >> 1;
+                    int hap = i % 2;
+                    int cluster_beg = sc->superclusters[callset][hap][sc_idx];
+                    int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
+                    printf("%s%d: %d clusters (%d-%d)\n", 
+                        callset_strs[callset].data(), hap+1,
+                        cluster_end-cluster_beg,
+                        cluster_beg, cluster_end);
+
+                    for (int j = cluster_beg; j < cluster_end; j++) {
+                        auto vars = sc->ctg_variants[callset][hap];
+                        int variant_beg = vars->clusters[j];
+                        int variant_end = vars->clusters[j+1];
+                        printf("\tCluster %d: %d variants (%d-%d)\n", j, 
+                            variant_end-variant_beg, variant_beg, variant_end);
+                        for (int k = variant_beg; k < variant_end; k++) {
+                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
+                            vars->refs[k].size() ?  vars->refs[k].data() : "_", 
+                            vars->alts[k].size() ?  vars->alts[k].data() : "_",
+                            vars->var_quals[k]);
+                        }
+                    }
+                }
+            }
+
+            /////////////////////////////////////////////////////////////////////
             // PRECISION-RECALL: allow skipping called variants                  
             /////////////////////////////////////////////////////////////////////
             
@@ -1655,9 +1696,7 @@ g.timers[TIME_PR].start();
 
             // calculate precision/recall from paths
             calc_prec_recall(
-                    clusterdata_ptr, sc_idx, 
-                    ctg, 
-                    ref_q1,
+                    clusterdata_ptr, sc_idx, ctg, ref_q1,
                     query1, query2, truth1, truth2,
                     path, sync, edit,
                     aln_ptrs, path_ptrs, 
@@ -1665,7 +1704,7 @@ g.timers[TIME_PR].start();
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
                     aln_query_ref_end, phase, 
-                    false
+                    true
             );
 g.timers[TIME_PR].stop();
 
@@ -1742,42 +1781,6 @@ g.timers[TIME_SW].stop();
                     prev_qual = qual;
                 }
             }
-
-
-            /////////////////////////////////////////////////////////////////////
-            // DEBUG PRINTING                                                    
-            /////////////////////////////////////////////////////////////////////
-            if (false) {
-                // print cluster info
-                printf("\n\nSupercluster: %d\n", sc_idx);
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    int callset = i >> 1;
-                    int hap = i % 2;
-                    int cluster_beg = sc->superclusters[callset][hap][sc_idx];
-                    int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
-                    printf("%s%d: %d clusters (%d-%d)\n", 
-                        callset_strs[callset].data(), hap+1,
-                        cluster_end-cluster_beg,
-                        cluster_beg, cluster_end);
-
-                    for (int j = cluster_beg; j < cluster_end; j++) {
-                        auto vars = sc->ctg_variants[callset][hap];
-                        int variant_beg = vars->clusters[j];
-                        int variant_end = vars->clusters[j+1];
-                        printf("\tCluster %d: %d variants (%d-%d)\n", j, 
-                            variant_end-variant_beg, variant_beg, variant_end);
-                        for (int k = variant_beg; k < variant_end; k++) {
-                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
-                            vars->refs[k].size() ?  vars->refs[k].data() : "_", 
-                            vars->alts[k].size() ?  vars->alts[k].data() : "_",
-                            vars->var_quals[k]);
-                        }
-                    }
-                }
-                printf("Edit Distance: %d\n", 
-                    *std::min_element(qual_dists.begin(), qual_dists.end()));
-
-            } // debug print
 
         } // each cluster
         if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
@@ -1862,6 +1865,7 @@ int wf_swg_max_reach(
         ) {
 
     // init
+g.timers[TIME_INIT].start();
     int query_len = query.size();
     int truth_len = truth.size();
     int mat_len = query_len + truth_len - 1;
@@ -1870,14 +1874,12 @@ int wf_swg_max_reach(
     std::vector< std::vector< std::vector<int> > > offs(MATS,
             std::vector< std::vector<int>>(max_score+1,
                 std::vector<int>(mat_len, -2)));
-    std::vector< std::vector< std::vector<int> > > ptrs(MATS,
-            std::vector< std::vector<int>>(max_score+1,
-                std::vector<int>(mat_len, PTR_NONE)));
     offs[MAT_SUB][s][query_len-1] = -1;
-    ptrs[MAT_SUB][s][query_len-1] = PTR_MAT;
+g.timers[TIME_INIT].stop();
 
     while (true) {
 
+g.timers[TIME_EXTEND].start();
         // EXTEND WAVEFRONT (leave INS, DEL forwards)
         if (!reverse) for (int m = MAT_INS; m < MATS; m++) {
             for (int d = 0; d < mat_len; d++) {
@@ -1888,7 +1890,6 @@ int wf_swg_max_reach(
                         diag+off >= 0 && diag+off < truth_len &&
                         off >= offs[MAT_SUB][s][d]) {
                     offs[MAT_SUB][s][d] = off;
-                    ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
                     if(print) printf("(S, %d, %d) swap fwd\n", off, off+diag);
 
                 }
@@ -1913,14 +1914,17 @@ int wf_swg_max_reach(
             offs[MAT_SUB][s][d] = off;
 
             // finish if we've reached the last column
-            if (off + diag == truth_len - 1) return truth_len-1;
+            if (off + diag == truth_len - 1) {
+g.timers[TIME_EXTEND].stop();
+                return truth_len-1;
+            }
             if (off == query_len - 1 && off+diag >= 0 && off+diag < truth_len-1)  {
-                return -1;
                 ERROR("Reached end of query (len %d) before ref (len %d) in max_reach() at (%d, %d)",
                         query_len, truth_len, off, diag+off);
             }
 
         }
+g.timers[TIME_EXTEND].stop();
         if (s == max_score) break;
 
         /* if (print) for (int mi = 0; mi < MATS; mi++) { */
@@ -1933,6 +1937,7 @@ int wf_swg_max_reach(
         /* } */
 
         // NEXT WAVEFRONT
+g.timers[TIME_NEXT].start();
         s++;
         if (print) printf("\nscore = %d\n", s);
 
@@ -1946,7 +1951,6 @@ int wf_swg_max_reach(
                      diag + offs[MAT_SUB][p][d]+1 < truth_len &&
                             offs[MAT_SUB][p][d]+1 >= offs[MAT_SUB][s][d]) {
                 offs[MAT_SUB][s][d] = offs[MAT_SUB][p][d] + 1;
-                ptrs[MAT_SUB][s][d] |= PTR_SUB;
                 if(print) printf("(S, %d, %d) sub\n", offs[MAT_SUB][s][d], 
                         offs[MAT_SUB][s][d]+diag);
             }
@@ -1958,7 +1962,6 @@ int wf_swg_max_reach(
                     diag + offs[MAT_SUB][p][d-1] < truth_len &&
                            offs[MAT_SUB][p][d-1] >= offs[MAT_DEL][s][d]) {
                 offs[MAT_DEL][s][d] = offs[MAT_SUB][p][d-1];
-                ptrs[MAT_DEL][s][d] |= PTR_SUB;
                 if(print) printf("(D, %d, %d) open\n", offs[MAT_DEL][s][d], 
                         offs[MAT_DEL][s][d]+diag);
             }
@@ -1970,24 +1973,22 @@ int wf_swg_max_reach(
                     diag + offs[MAT_SUB][p][d+1]+1 >= 0 &&
                            offs[MAT_SUB][p][d+1]+1 >= offs[MAT_INS][s][d]) {
                 offs[MAT_INS][s][d] = offs[MAT_SUB][p][d+1]+1;
-                ptrs[MAT_INS][s][d] |= PTR_SUB;
                 if(print) printf("(I, %d, %d) open\n", offs[MAT_INS][s][d], 
                         offs[MAT_INS][s][d]+diag);
             }
 
             // leave INDEL (open rev only)
             p = s - o;
-            if (reverse && p >= 0) for (int m = MAT_INS; m < MATS; m++) {
-                for (int d = 0; d < mat_len; d++) {
-                    int off = offs[m][p][d];
-                    int diag = d + 1 - query_len;
-
-                    if (off >= 0 && off < query_len &&
-                            diag+off >= 0 && diag+off < truth_len &&
-                            off > offs[MAT_SUB][s][d]) {
-                        offs[MAT_SUB][s][d] = off;
-                        ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
-                        if(print) printf("(S, %d, %d) swap rev\n", off, diag+off);
+            if (reverse && p >= 0) {
+                for (int m = MAT_INS; m < MATS; m++) {
+                    if (        offs[m][p][d] >= 0 && 
+                                offs[m][p][d] < query_len &&
+                         diag + offs[m][p][d] >= 0 && 
+                         diag + offs[m][p][d] < truth_len &&
+                                offs[m][p][d] > offs[MAT_SUB][s][d]) {
+                        offs[MAT_SUB][s][d] = offs[m][p][d];
+                        if(print) printf("(S, %d, %d) swap rev\n", 
+                                offs[m][p][d], diag+offs[m][p][d]);
                     }
                 }
             }
@@ -1999,7 +2000,6 @@ int wf_swg_max_reach(
                     diag + offs[MAT_DEL][p][d-1] < truth_len &&
                            offs[MAT_DEL][p][d-1] >= offs[MAT_DEL][s][d]) {
                 offs[MAT_DEL][s][d] = offs[MAT_DEL][p][d-1];
-                ptrs[MAT_DEL][s][d] |= PTR_DEL;
                 if(print) printf("(D, %d, %d) extend\n", offs[MAT_DEL][s][d], 
                         offs[MAT_DEL][s][d]+diag);
             }
@@ -2011,14 +2011,15 @@ int wf_swg_max_reach(
                     diag + offs[MAT_INS][p][d+1]+1 >= 0 &&
                            offs[MAT_INS][p][d+1]+1 >= offs[MAT_INS][s][d]) {
                 offs[MAT_INS][s][d] = offs[MAT_INS][p][d+1]+1;
-                ptrs[MAT_INS][s][d] |= PTR_INS;
                 if(print) printf("(I, %d, %d) extend\n", offs[MAT_INS][s][d], 
                         offs[MAT_INS][s][d]+diag);
             }
         }
+g.timers[TIME_NEXT].stop();
     } // end reach
 
     // get max reach
+g.timers[TIME_MAX].start();
     int max_reach = 0;
     for (s = std::max(0, max_score - std::max(x, o+e)); s <= max_score; s++) {
         for (int m = 0; m < MATS; m++) {
@@ -2031,6 +2032,7 @@ int wf_swg_max_reach(
             }
         }
     }
+g.timers[TIME_MAX].stop();
     return max_reach;
 }
 

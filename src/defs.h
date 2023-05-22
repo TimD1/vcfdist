@@ -70,7 +70,14 @@ class idx2;
 #define TIME_SW       7
 #define TIME_PHASE    8
 #define TIME_WRITE    9
-#define TIME_TOTAL    10
+#define TIME_GENSTR   10
+#define TIME_SUBSTR   11
+#define TIME_REACH    12
+#define TIME_INIT     13
+#define TIME_EXTEND   14
+#define TIME_NEXT     15
+#define TIME_MAX      16
+#define TIME_TOTAL    17
 
 // alignment
 #define QUERY    0

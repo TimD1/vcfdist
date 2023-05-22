@@ -62,7 +62,7 @@ public:
 
 // for single haplotype clustering (one VCF)
 void gap_cluster(std::unique_ptr<variantData> & vcf, int callset);
-void swg_cluster(std::unique_ptr<variantData> & vcf, 
+void wf_swg_cluster(std::unique_ptr<variantData> & vcf, 
         int sub, int open, int extend, int callset, bool print = false);
 
 #endif

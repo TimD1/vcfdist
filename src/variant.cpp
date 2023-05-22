@@ -50,8 +50,8 @@ void variantData::left_shift() {
                 if (vars->types[i] == TYPE_INS) {
                     bool match = true;
                     while (match && vars->poss[i] > 0 && 
-                            (i==0 || vars->poss[i] > 
-                            vars->poss[i-1]+vars->rlens[i-1])) {
+                            (i == 0 || vars->poss[i] > 
+                            vars->poss[i-1] + vars->rlens[i-1]+1)) {
                         int ins_size = vars->alts[i].size();
                         char ref_base = this->ref->fasta.at(ctg)[vars->poss[i]-1];
                         if (ref_base == vars->alts[i][ins_size-1]) {
@@ -68,8 +68,8 @@ void variantData::left_shift() {
                 if (vars->types[i] == TYPE_DEL) {
                     bool match = true;
                     while (match && vars->poss[i] > 0 && 
-                            (i==0 || vars->poss[i] > 
-                            vars->poss[i-1]+vars->rlens[i-1])) {
+                            (i == 0 || vars->poss[i] > 
+                            vars->poss[i-1] + vars->rlens[i-1]+1)) {
                         int del_size = vars->refs[i].size();
                         char ref_base = this->ref->fasta.at(ctg)[vars->poss[i]-1];
                         if (ref_base == vars->refs[i][del_size-1]) {
@@ -80,6 +80,31 @@ void variantData::left_shift() {
                             match = false;
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // for each variant
+    for (int hap = 0; hap < HAPS; hap++) {
+        for (std::string ctg : this->contigs) {
+            auto vars = this->ctg_variants[hap][ctg];
+            for (int i = 0; i < vars->n; i++) {
+
+                // if we consume a ref base, and there's another variant at the
+                // same position (which doesn't, by definition), move this var
+                // afterwards
+                if (vars->refs[i].size() && i+1 < vars->n && 
+                            vars->poss[i+1] == vars->poss[i]) {
+                    std::swap(vars->rlens[i], vars->rlens[i+1]);
+                    std::swap(vars->haps[i],  vars->haps[i+1]);
+                    std::swap(vars->types[i], vars->types[i+1]);
+                    std::swap(vars->locs[i],  vars->locs[i+1]);
+                    std::swap(vars->refs[i],  vars->refs[i+1]);
+                    std::swap(vars->alts[i],  vars->alts[i+1]);
+                    std::swap(vars->orig_gts[i],   vars->orig_gts[i+1]);
+                    std::swap(vars->gt_quals[i],   vars->gt_quals[i+1]);
+                    std::swap(vars->var_quals[i],  vars->var_quals[i+1]);
                 }
             }
         }
