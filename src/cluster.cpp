@@ -446,7 +446,7 @@ g.timers[TIME_REACH].stop();
                         if (print) printf(" left reach: %d\n", reach);
                         l_reach = end_pos - reach;
 
-                        if (print) {
+                        if (false) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
                             printf(" main diag:  %d\n", main_diag);
@@ -458,7 +458,7 @@ g.timers[TIME_REACH].stop();
                         if (clust < prev_clusters.size()-1)
                             l_reach = vars->poss[vars->clusters[clust]];
                         else
-                            l_reach = vars->poss[nvar-1] + 10;
+                            l_reach = vars->poss[nvar-1] + g.reach_min_gap*2;
                     }
                     left_reach.push_back(l_reach);
 
@@ -513,9 +513,9 @@ g.timers[TIME_REACH].start();
 g.timers[TIME_REACH].stop();
                         }
                         if (print) printf("   right reach: %d\n", reach);
-                        r_reach = beg_pos + reach;
+                        r_reach = beg_pos + reach + 1;
 
-                        if (print) {
+                        if (false) {
                             printf("REF:        %s\n", ref.data());
                             printf("QUERY:      %s\n", query.data());
                             printf(" main diag:  %d\n", main_diag);
@@ -527,26 +527,26 @@ g.timers[TIME_REACH].stop();
                             r_reach = vars->poss[vars->clusters[clust+1]-1] +
                                      vars->rlens[vars->clusters[clust+1]-1];
                         else
-                            r_reach = -10; // past farthest left (unused)
+                            r_reach = -g.reach_min_gap*2; // past farthest left (unused)
                     }
                     right_reach.push_back(r_reach);
                     if (print) printf("span: %s - %s\n", 
-                                l_reach == vars->poss[nvar-1]+10 ? 
+                                l_reach == vars->poss[nvar-1]+g.reach_min_gap*2 ? 
                                     "X" : std::to_string(l_reach).data(), 
-                                r_reach == -10 ? "X" : std::to_string(r_reach).data());
+                                r_reach == -g.reach_min_gap*2 ? "X" : std::to_string(r_reach).data());
                 }
 
                 // merge dependent clusters rightwards
                 std::vector<int> tmp_left_reach, tmp_right_reach;
-                tmp_right_reach.push_back(-10);
-                tmp_left_reach.push_back(vars->poss[nvar-1]+10);
+                tmp_right_reach.push_back(-g.reach_min_gap*2);
+                tmp_left_reach.push_back(vars->poss[nvar-1]+g.reach_min_gap*2);
                 int clust = 0;
                 while (clust < int(prev_clusters.size())) {
                     int clust_size = 1;
                     int max_right_reach = right_reach[clust];
                     int min_left_reach = left_reach[clust];
                     while (clust+clust_size < int(prev_clusters.size()) &&
-                            max_right_reach >= left_reach[clust+clust_size]) {
+                            max_right_reach + g.reach_min_gap >= left_reach[clust+clust_size]) {
                         // keep comparing against farthest-right seen so far
                         max_right_reach = std::max(max_right_reach,
                                 right_reach[clust+clust_size]);
@@ -580,7 +580,8 @@ g.timers[TIME_REACH].stop();
                     int clust_size = 1;
                     int min_left_reach = tmp_left_reach[clust];
                     while (clust - clust_size >= 0 &&
-                            min_left_reach <= tmp_right_reach[clust-clust_size]) {
+                            min_left_reach <= 
+                            tmp_right_reach[clust-clust_size] + g.reach_min_gap) {
                         min_left_reach = std::min(min_left_reach,
                                 tmp_left_reach[clust-clust_size]);
                         clust_size++;

@@ -1071,16 +1071,18 @@ void calc_prec_recall(
             clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0;
 
         // debug print
-        if (print) printf("\nAlignment %s, aln_ptrs\n", aln_strs[i].data());
-        if (print) printf("\nQUERY");
-        if (print) print_ptrs(aln_ptrs, qi, query[i], truth[i]);
-        if (print) printf("\nREF");
-        if (print) print_ptrs(aln_ptrs, ri, ref, truth[i]);
-        if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
-        if (print) printf("\nQUERY");
-        if (print) print_ptrs(path_ptrs, qi, query[i], truth[i]);
-        if (print) printf("\nREF");
-        if (print) print_ptrs(path_ptrs, ri, ref, truth[i]);
+        if (false) {
+            printf("\nAlignment %s, aln_ptrs\n", aln_strs[i].data());
+            printf("\nQUERY");
+            print_ptrs(aln_ptrs, qi, query[i], truth[i]);
+            printf("\nREF");
+            print_ptrs(aln_ptrs, ri, ref, truth[i]);
+            printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
+            printf("\nQUERY");
+            print_ptrs(path_ptrs, qi, query[i], truth[i]);
+            printf("\nREF");
+            print_ptrs(path_ptrs, ri, ref, truth[i]);
+        }
 
         // init
         int ti_size = truth_ref_ptrs[i][PTRS].size();
@@ -1107,9 +1109,11 @@ void calc_prec_recall(
         int prev_truth_var_ptr = truth_var_ptr;
         int path_idx = path[i].size()-1;
 
-        if (print) printf("%s Path:\n", aln_strs[i].data());
-        if (print) for (int p = path_idx; p >= 0; p--) {
-            printf("(%s,%d,%d)\n", path[i][p].hi % 2 ? "REF" : "QRY", path[i][p].qri, path[i][p].ti);
+        if (false) {
+            printf("%s Path:\n", aln_strs[i].data());
+            for (int p = path_idx; p >= 0; p--) {
+                printf("(%s,%d,%d)\n", path[i][p].hi % 2 ? "REF" : "QRY", path[i][p].qri, path[i][p].ti);
+            }
         }
 
         if (print) printf("\n%s: %d\n", aln_strs[i].data(), beg);
@@ -1187,7 +1191,7 @@ void calc_prec_recall(
                         old_ed, offs, ptrs);
 
                 if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
-                    ERROR("Old edit distance 0, TRUTH variants exist (%d-%d).", 
+                    WARN("Old edit distance 0, TRUTH variants exist (%d-%d).", 
                             truth_var_ptr+1, prev_truth_var_ptr+1);
 
                 // get min query var qual in sync section (for truth/query)
@@ -1572,7 +1576,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             /////////////////////////////////////////////////////////////////////
             // DEBUG PRINTING                                                    
             /////////////////////////////////////////////////////////////////////
-            if (true) {
+            if (false) {
                 // print cluster info
                 printf("\n\nSupercluster: %d\n", sc_idx);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -1704,7 +1708,7 @@ g.timers[TIME_PR].start();
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
                     aln_query_ref_end, phase, 
-                    true
+                    false
             );
 g.timers[TIME_PR].stop();
 
@@ -2248,7 +2252,7 @@ std::unique_ptr<variantData> wf_swg_realign(
                 
                 // backtrack
                 std::vector<int> cigar = wf_swg_backtrack(query, ref, ptrs, offs, 
-                        s, sub, open, extend, print);
+                        s, sub, open, extend, false);
                 std::reverse(query.begin(), query.end());
                 std::reverse(ref.begin(), ref.end());
                 std::reverse(cigar.begin(), cigar.end());

@@ -451,11 +451,11 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
 
     // calculate summary statistics
-    for (auto ctg_name : phasedata_ptr->contigs) {
+    for (auto ctg : phasedata_ptr->contigs) {
 
         // add query
         auto & vars = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants;
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants;
         for (int h = 0; h < HAPS; h++) {
             for (int i = 0; i < vars[QUERY][h]->n; i++) {
                 float q = vars[QUERY][h]->callq[i];
@@ -470,7 +470,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                             vars[QUERY][h]->types[i]);
                 }
                 if (vars[QUERY][h]->errtypes[i] == ERRTYPE_UN) {
-                    WARN("Unknown error type at hap %d variant %d", h+1, i);
+                    WARN("Unknown error type at QUERY %s:%d", ctg.data(), vars[QUERY][h]->poss[i]);
                     continue;
                 }
                 for (int qual = g.min_qual; qual <= q; qual++) {
@@ -495,6 +495,10 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                 } else {
                     ERROR("Unexpected variant type (%d) in write_precision_recall()", 
                             vars[TRUTH][h]->types[i]);
+                }
+                if (vars[QUERY][h]->errtypes[i] == ERRTYPE_UN) {
+                    WARN("Unknown error type at TRUTH %s:%d", ctg.data(), vars[TRUTH][h]->poss[i]);
+                    continue;
                 }
                 for (int qual = g.min_qual; qual <= q; qual++) {
                     truth_counts[t][ vars[TRUTH][h]->errtypes[i] ][qual-g.min_qual]++;
@@ -774,8 +778,8 @@ void write_results(
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
     if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
     fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\n");
-    for (auto ctg_name : phasedata_ptr->contigs) {
-        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
+    for (auto ctg : phasedata_ptr->contigs) {
+        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_superclusters = ctg_phasings->ctg_superclusters;
         for (int i = 0; i <= ctg_phasings->nswitches && ctg_phasings->nswitches > 0; i++) {
             int beg_idx = ctg_phasings->phase_blocks[i];
@@ -783,7 +787,7 @@ void write_results(
             int beg = ctg_superclusters->begs[beg_idx];
             int end = ctg_superclusters->ends[end_idx];
             fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\n", 
-                    ctg_name.data(), beg, end, end-beg, end_idx-beg_idx+1);
+                    ctg.data(), beg, end, end-beg, end_idx-beg_idx+1);
         }
     }
     fclose(out_phasings);
@@ -794,8 +798,8 @@ void write_results(
     if (g.verbosity >= 1) INFO("  Printing superclustering results to '%s'", out_clusterings_fn.data());
     fprintf(out_clusterings, "CONTIG\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
             "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
-    for (auto ctg_name : phasedata_ptr->contigs) {
-        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg_name];
+    for (auto ctg : phasedata_ptr->contigs) {
+        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = ctg_phasings->ctg_superclusters;
         int phase_block_idx = 0;
         for (int i = 0; i < ctg_supclusts->n; i++) {
@@ -829,7 +833,7 @@ void write_results(
 
             // print data
             fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
-                ctg_name.data(), 
+                ctg.data(), 
                 ctg_supclusts->begs[i],
                 ctg_supclusts->ends[i],
                 ctg_supclusts->ends[i] - ctg_supclusts->begs[i],
@@ -849,15 +853,15 @@ void write_results(
     FILE* out_query = fopen(out_query_fn.data(), "w");
     fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
             "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
-    for (auto ctg_name : phasedata_ptr->contigs) {
+    for (auto ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> query1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[QUERY][HAP1];
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[QUERY][HAP1];
         std::shared_ptr<ctgVariants> query2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[QUERY][HAP2];
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[QUERY][HAP2];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters;
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters;
 
         int supercluster_idx = 0;
         int var1_idx = 0;
@@ -877,7 +881,7 @@ void write_results(
                 while (query1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
-                        ctg_name.data(),
+                        ctg.data(),
                         query1_vars->poss[var1_idx],
                         query1_vars->haps[var1_idx],
                         query1_vars->refs[var1_idx].data(),
@@ -900,7 +904,7 @@ void write_results(
                 while (query2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
-                        ctg_name.data(),
+                        ctg.data(),
                         query2_vars->poss[var2_idx],
                         query2_vars->haps[var2_idx],
                         query2_vars->refs[var2_idx].data(),
@@ -924,15 +928,15 @@ void write_results(
     if (g.verbosity >= 1) INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
     fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
-    for (auto ctg_name : phasedata_ptr->contigs) {
+    for (auto ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgVariants> truth1_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[TRUTH][HAP1];
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[TRUTH][HAP1];
         std::shared_ptr<ctgVariants> truth2_vars = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters->ctg_variants[TRUTH][HAP2];
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[TRUTH][HAP2];
         std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
-            phasedata_ptr->ctg_phasings[ctg_name]->ctg_superclusters;
+            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters;
 
         int var1_idx = 0;
         int var2_idx = 0;
@@ -950,7 +954,7 @@ void write_results(
                 while (truth1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
-                        ctg_name.data(),
+                        ctg.data(),
                         truth1_vars->poss[var1_idx],
                         truth1_vars->haps[var1_idx],
                         truth1_vars->refs[var1_idx].data(),
@@ -974,7 +978,7 @@ void write_results(
                 while (truth2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
                 fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
-                        ctg_name.data(),
+                        ctg.data(),
                         truth2_vars->poss[var2_idx],
                         truth2_vars->haps[var2_idx],
                         truth2_vars->refs[var2_idx].data(),

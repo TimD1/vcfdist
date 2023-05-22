@@ -56,7 +56,7 @@ g.timers[TIME_CLUST].stop();
 g.timers[TIME_REALN].start();
         query_ptr = wf_swg_realign(query_ptr, ref_ptr, 
                 g.query_sub, g.query_open, g.query_extend, QUERY);
-        /* query_ptr->left_shift(); */
+        query_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
     if (g.exit) {
@@ -79,7 +79,7 @@ g.timers[TIME_CLUST].stop();
 g.timers[TIME_REALN].start();
         truth_ptr = wf_swg_realign(truth_ptr, ref_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend, TRUTH);
-        /* truth_ptr->left_shift(); */
+        truth_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
 
