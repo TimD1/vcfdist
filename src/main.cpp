@@ -20,7 +20,7 @@ std::vector<std::string> aln_strs = {"QUERY1-TRUTH1", "QUERY1-TRUTH2", "QUERY2-T
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
 std::vector<std::string> timer_strs = {"reading", "clustering", "realigning",
-    "reclustering", "superclustering", "aligning", "P/R", "S-W", "phasing", "writing", "genstr", "substr", "reach", "reach init", "reach extend", "reach next", "reach max", "total"};
+    "reclustering", "superclustering", "aligning", "P/R", "S-W", "phasing", "writing", "genstr", "substr", "reach", "reach init", "reach extend", "reach next", "reach max", "buffer init", "buffer clear", "total"};
  
 int main(int argc, char **argv) {
 

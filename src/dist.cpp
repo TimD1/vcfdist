@@ -1864,6 +1864,7 @@ int calc_cig_swg_score(const std::vector<int> & cigar,
 
 int wf_swg_max_reach(
         const std::string & query, const std::string & truth, 
+        std::vector<int> & offs,
         int main_diag, int main_diag_start, int max_score, 
         int x, int o, int e, bool print /* false */, bool reverse /* false */
         ) {
@@ -1875,7 +1876,6 @@ g.timers[TIME_INIT].start();
     int mat_len = query_len + truth_len - 1;
     int main_diag_off = main_diag_start - main_diag;
     int s = 0;
-    std::vector<int> offs(MATS*(max_score+1)*mat_len, -2);
     int y = mat_len;
     int z = y * (max_score+1);
     offs[MAT_SUB*z + s*y + query_len-1] = -1;

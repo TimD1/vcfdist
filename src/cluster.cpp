@@ -291,6 +291,9 @@ void wf_swg_cluster(std::unique_ptr<variantData> & vcf,
     if (g.verbosity >= 1) INFO("Smith-Waterman Clustering %s VCF '%s'", 
             callset_strs[callset].data(), vcf->filename.data());
 
+    // allocate this memory once, use on each cluster
+    std::vector<int> offs_buffer(MATS * g.max_size*g.max_size, -2);
+
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
 
@@ -437,13 +440,26 @@ g.timers[TIME_SUBSTR].start();
                             std::reverse(ref.begin(), ref.end());
 g.timers[TIME_SUBSTR].stop();
 g.timers[TIME_REACH].start();
-                            reach = wf_swg_max_reach(query, ref,
+g.timers[TIME_BUFF_INIT].start();
+                            // manage buffer for storing offsets
+                            size_t offs_size = MATS * (score+1) * 
+                                (query.size() + ref.size() - 1);
+                            if (offs_size > offs_buffer.size())
+                                offs_buffer = std::vector<int>(offs_size, -2);
+g.timers[TIME_BUFF_INIT].stop();
+                            // calculate reach
+                            reach = wf_swg_max_reach(query, ref, offs_buffer,
                                     main_diag, main_diag_start, score,
                                     sub, open, extend, 
-                                    false /* print */, true /* reverse */);
+                                    false /* print */, true  /* reverse */);
+                            // reset buffer
+g.timers[TIME_BUFF_CLEAR].start();
+                            for (size_t i = 0; i < offs_size; i++)
+                                offs_buffer[i] = -2;
+g.timers[TIME_BUFF_CLEAR].stop();
 g.timers[TIME_REACH].stop();
                         }
-                        if (print) printf(" left reach: %d\n", reach);
+                        if (print) printf("    left reach: %d\n", reach);
                         l_reach = end_pos - reach;
 
                         if (false) {
@@ -506,10 +522,19 @@ g.timers[TIME_SUBSTR].start();
                             ref = vcf->ref->fasta.at(ctg).substr(beg_pos, ref_len);
 g.timers[TIME_SUBSTR].stop();
 g.timers[TIME_REACH].start();
-                            reach = wf_swg_max_reach(query, ref,
+                            // manage buffer for storing offsets
+                            size_t offs_size = MATS * (score+1) * 
+                                (query.size() + ref.size() - 1);
+                            if (offs_size > offs_buffer.size())
+                                offs_buffer = std::vector<int>(offs_size, -2);
+                            // calculate reach
+                            reach = wf_swg_max_reach(query, ref, offs_buffer,
                                     main_diag, main_diag_start, score,
                                     sub, open, extend, 
                                     false /* print */, false /* reverse */);
+                            // reset buffer
+                            for (size_t i = 0; i < offs_size; i++)
+                                offs_buffer[i] = -2;
 g.timers[TIME_REACH].stop();
                         }
                         if (print) printf("   right reach: %d\n", reach);

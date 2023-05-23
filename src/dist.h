@@ -213,6 +213,7 @@ int swg_max_reach(
 
 int wf_swg_max_reach(
         const std::string & query, const std::string & truth, 
+        std::vector<int> & offs,
         int main_diag, int main_diag_start, int max_score, 
         int x, int o, int e, bool print = false, bool reverse = false
         );

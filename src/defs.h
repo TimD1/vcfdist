@@ -77,7 +77,9 @@ class idx2;
 #define TIME_EXTEND   14
 #define TIME_NEXT     15
 #define TIME_MAX      16
-#define TIME_TOTAL    17
+#define TIME_BUFF_INIT      17
+#define TIME_BUFF_CLEAR      18
+#define TIME_TOTAL    19
 
 // alignment
 #define QUERY    0
