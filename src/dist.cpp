@@ -12,11 +12,11 @@
 #include "cluster.h"
 
 template <typename T>
-bool contains(const std::unordered_set<T> & wave, const T & idx) {
+inline bool contains(const std::unordered_set<T> & wave, const T & idx) {
     return wave.find(idx) != wave.end();
 }
 template <typename T, typename U>
-bool contains(const std::unordered_map<T,U> & wave, const T & idx) {
+inline bool contains(const std::unordered_map<T,U> & wave, const T & idx) {
     return wave.find(idx) != wave.end();
 }
 
@@ -240,7 +240,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
-        std::vector< std::vector< std::vector<int> > > & ptrs,
+        std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         std::unordered_map<idx1, idx1> & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         ) {
@@ -270,10 +270,11 @@ g.timers[TIME_PR_INIT].stop();
         int ri = 2*i + REF;   // ref index   (ptrs)
 
         // init full pointer/done matrices
-        ptrs.push_back(std::vector< std::vector<int> >(query_lens[i],
-                    std::vector<int>(truth_lens[i], PTR_NONE)));
-        ptrs.push_back(std::vector< std::vector<int> >(ref_len,
-                    std::vector<int>(truth_lens[i], PTR_NONE)));
+g.timers[TIME_PR_INIT].start();
+        ptrs.push_back(std::vector< std::vector<uint8_t> >(query_lens[i],
+                    std::vector<uint8_t>(truth_lens[i], PTR_NONE)));
+        ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_len,
+                    std::vector<uint8_t>(truth_lens[i], PTR_NONE)));
         done.push_back(std::vector< std::vector<bool> >(query_lens[i],
                     std::vector<bool>(truth_lens[i], false)));
         done.push_back(std::vector< std::vector<bool> >(ref_len,
@@ -293,6 +294,7 @@ g.timers[TIME_PR_INIT].stop();
         std::unordered_set<idx1> prev_wave; // everything explored prev wave
         /* if (print) printf("\nFWD %s aln: (%d|%d, %d|%d, %d)\n", aln_strs[i].data(), */ 
         /*         qi, ri, query_lens[i], ref_len, truth_lens[i]); */
+g.timers[TIME_PR_INIT].stop();
         while (true) {
             /* if (print) printf("  s = %d\n", s[i]); */
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
@@ -467,8 +469,8 @@ void calc_prec_recall_path(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector< std::vector<int> > > & aln_ptrs,
-        std::vector< std::vector< std::vector<int> > > & path_ptrs,
+        std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs,
+        std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs,
         std::vector< std::vector< std::vector<int> > > & path_scores,
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
@@ -502,10 +504,10 @@ void calc_prec_recall_path(
         sync.push_back(std::vector<bool>());
         edits.push_back(std::vector<bool>());
         ref_loc_sync.push_back(std::vector<bool>(ref_query_ptrs[i][0].size(), true));
-        path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[qi].size(), 
-                    std::vector<int>(aln_ptrs[qi][0].size(), PTR_NONE)));
-        path_ptrs.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
-                    std::vector<int>(aln_ptrs[ri][0].size(), PTR_NONE)));
+        path_ptrs.push_back(std::vector< std::vector<uint8_t> >(aln_ptrs[qi].size(), 
+                    std::vector<uint8_t>(aln_ptrs[qi][0].size(), PTR_NONE)));
+        path_ptrs.push_back(std::vector< std::vector<uint8_t> >(aln_ptrs[ri].size(), 
+                    std::vector<uint8_t>(aln_ptrs[ri][0].size(), PTR_NONE)));
         path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[qi].size(), 
                     std::vector<int>(aln_ptrs[qi][0].size(), -1)));
         path_scores.push_back(std::vector< std::vector<int> >(aln_ptrs[ri].size(), 
@@ -855,8 +857,8 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
-        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
         const std::vector< std::vector<bool> > & ref_loc_sync, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
@@ -1401,7 +1403,7 @@ void wf_ed(
 
 void wf_swg_align(
         const std::string & query, const std::string & truth, 
-        std::vector< std::vector< std::vector<int> > > & ptrs,
+        std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         std::vector< std::vector< std::vector<int> > > & offs,
         int & s, int x, int o, int e, bool print
         ) {
@@ -1413,7 +1415,7 @@ void wf_swg_align(
     bool done = false;
     for (int m = 0; m < MATS; m++) {
         offs[m].push_back(std::vector<int>(mat_len, -2));
-        ptrs[m].push_back(std::vector<int>(mat_len, PTR_NONE));
+        ptrs[m].push_back(std::vector<uint8_t>(mat_len, PTR_NONE));
     }
     s = 0;
     offs[MAT_SUB][s][query_len-1] = -1; // main diag
@@ -1475,7 +1477,7 @@ void wf_swg_align(
         if(print) printf("\nscore = %d\n", s);
         for (int m = 0; m < MATS; m++) {
             offs[m].push_back(std::vector<int>(mat_len, -2));
-            ptrs[m].push_back(std::vector<int>(mat_len, PTR_NONE));
+            ptrs[m].push_back(std::vector<uint8_t>(mat_len, PTR_NONE));
         }
 
         for (int d = 0; d < mat_len; d++) {
@@ -1663,7 +1665,7 @@ g.timers[TIME_PR_GENPTR].stop();
             // query1-truth2, query1-truth1, query2-truth1, query2-truth2
 g.timers[TIME_PR_ALN].start();
             std::vector<int> aln_score(4), aln_query_ref_end(4);
-            std::vector< std::vector< std::vector<int> > > aln_ptrs;
+            std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
             std::unordered_map<idx1, idx1> swap_pred_map;
             calc_prec_recall_aln(
                     query1, query2, truth1, truth2, ref_q1,
@@ -1684,7 +1686,8 @@ g.timers[TIME_PR_ALN].stop();
 g.timers[TIME_PR_PATH].start();
             std::vector< std::vector<idx1> > path;
             std::vector< std::vector<bool> > sync, edit;
-            std::vector< std::vector< std::vector<int> > > path_ptrs, path_scores;
+            std::vector< std::vector< std::vector<uint8_t> > > path_ptrs;
+            std::vector< std::vector< std::vector<int> > > path_scores;
             calc_prec_recall_path(
                     ref_q1, query1, query2, truth1, truth2,
                     path, sync, edit,
@@ -1760,7 +1763,7 @@ g.timers[TIME_SW].start();
 
                     // align strings, backtrack, calculate distance
 g.timers[TIME_SW_ALN].start();
-                    std::vector< std::vector< std::vector<int> > > ptrs(MATS);
+                    std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
                     std::vector< std::vector< std::vector<int> > > offs(MATS);
                     int s = 0;
                     std::reverse(query.begin(), query.end());
@@ -2244,7 +2247,7 @@ std::unique_ptr<variantData> wf_swg_realign(
                 // perform alignment
                 if (print) printf("REF:   %s\n", ref.data());
                 if (print) printf("QUERY: %s\n", query.data());
-                std::vector< std::vector< std::vector<int> > > ptrs(MATS);
+                std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
                 std::vector< std::vector< std::vector<int> > > offs(MATS);
                 int s = 0;
                 std::reverse(query.begin(), query.end()); // for left-aligned INDELs
@@ -2325,7 +2328,7 @@ int count_dist(const std::vector<int> & cigar) {
 std::vector<int> wf_swg_backtrack(
         const std::string & query,
         const std::string & ref,
-        const std::vector< std::vector< std::vector<int> > > & ptrs, 
+        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs, 
         const std::vector< std::vector< std::vector<int> > > & offs, 
         int s, int x, int o, int e,
         bool print) {

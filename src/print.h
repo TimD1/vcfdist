@@ -25,10 +25,7 @@ std::string PURPLE(char c);
 std::string PURPLE(std::string str);
 
 void print_ref_ptrs(std::vector< std::vector<int> > ptrs);
-
-void print_ptrs(const std::vector< std::vector<int> > & ptrs, 
-        const std::string & alt_str, const std::string & ref_str);
-void print_ptrs(const std::unordered_map<idx1, int> & ptrs, int hi,
+void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs, 
         const std::string & alt_str, const std::string & ref_str);
 
 void print_cigar(std::vector<int> cigar); 
@@ -37,7 +34,7 @@ void print_wfa_ptrs(
         const std::string & query,
         const std::string & truth,
         int s,
-        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs);
 
 void write_results(std::unique_ptr<phaseData> & phasings, const editData & edits);

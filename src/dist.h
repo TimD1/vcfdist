@@ -130,7 +130,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
-        std::vector< std::vector< std::vector<int> > > & ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & ptrs, 
         std::unordered_map<idx1, idx1> & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         );
@@ -142,8 +142,8 @@ void calc_prec_recall_path(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
-        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
         std::vector< std::vector< std::vector<int> > > & path_scores, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
@@ -158,8 +158,8 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
-        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
         const std::vector< std::vector<bool> > & ref_loc_sync, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
@@ -217,14 +217,14 @@ std::unique_ptr<variantData> wf_swg_realign(
 void wf_swg_align(
         const std::string & query, 
         const std::string & truth,
-        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs,
         int & s, int sub, int open, int extend, bool print = false);
 
 std::vector<int> wf_swg_backtrack(
         const std::string & query, 
         const std::string & truth,
-        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs,
         int s, int sub, int open, int extend, bool print = false);
 

@@ -50,7 +50,7 @@ void print_wfa_ptrs(
         const std::string & query,
         const std::string & truth,
         int s,
-        const std::vector< std::vector< std::vector<int> > > & ptrs,
+        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs) {
 
     for (int m = 0; m < MATS; m++) {
@@ -143,7 +143,7 @@ void print_wfa_ptrs(
            
 /*******************************************************************************/
 
-void print_ptrs(const std::vector< std::vector<int> > & ptrs, 
+void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs, 
         const std::string & alt_str, const std::string & ref_str) 
 {
 

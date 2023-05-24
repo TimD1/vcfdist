@@ -104,20 +104,17 @@ class idx2;
 #define PEN_OPEN   1
 #define PEN_EXTEND 2
 
-#define PTR_NONE  0  // backtracking pointer flags
-#define PTR_INS   1
-#define PTR_DEL   2
-#define PTR_MAT   4
-#define PTR_SUB   8
-#define PTR_SWP_MAT   16
-#define PTR_SWP_SUB   32  // not used atm
-#define PTR_SWP_INS   64  // not used atm
-#define PTR_SWP_DEL   128 // not used atm
-#define PTR_LPATH 256
-#define PATH      256
-#define PTR_RPATH 512
-#define MAIN_PATH 768
-#define PTR_SYNC  1024
+#define PTR_NONE    0  // backtracking pointer flags
+#define PTR_INS     1
+#define PTR_DEL     2
+#define PTR_MAT     4
+#define PTR_SUB     8
+#define PTR_SWP_MAT 16
+#define PTR_LPATH   32
+#define PATH        32
+#define PTR_RPATH   64
+#define MAIN_PATH   96
+#define PTR_SYNC    128
 
 // 2 x N pointer array stores REF <-> QUERY/TRUTH
 #define PTRS 0 // dimension for pointer position
