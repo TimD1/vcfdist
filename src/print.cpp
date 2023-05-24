@@ -496,7 +496,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                     ERROR("Unexpected variant type (%d) in write_precision_recall()", 
                             vars[TRUTH][h]->types[i]);
                 }
-                if (vars[QUERY][h]->errtypes[i] == ERRTYPE_UN) {
+                if (vars[TRUTH][h]->errtypes[i] == ERRTYPE_UN) {
                     WARN("Unknown error type at TRUTH %s:%d", ctg.data(), vars[TRUTH][h]->poss[i]);
                     continue;
                 }

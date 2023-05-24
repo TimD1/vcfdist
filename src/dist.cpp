@@ -84,7 +84,7 @@ std::string generate_str(
 
     int var_idx = beg_idx;
     std::string str = "";
-    while (vars->poss[var_idx] < beg_pos) var_idx++;
+    while (var_idx < vars->n && vars->poss[var_idx] < beg_pos) var_idx++;
     for (int ref_pos = beg_pos; ref_pos < end_pos; ) {
 
         // VARIANT
