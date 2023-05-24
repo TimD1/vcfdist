@@ -222,8 +222,8 @@ void superclusterData::gap_supercluster() {
     if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
     if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);
     if (g.verbosity >= 1) INFO("  Largest supercluster  (vars): %d", most_vars);
-    if (g.verbosity >= 1) INFO("  Average supercluster (bases): %d", total_bases / total_superclusters);
-    if (g.verbosity >= 1) INFO("  Average supercluster  (vars): %d", total_vars / total_superclusters);
+    if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster (bases): %d", total_bases / total_superclusters);
+    if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster  (vars): %d", total_vars / total_superclusters);
 }
 
 
