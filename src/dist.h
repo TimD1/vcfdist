@@ -137,7 +137,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::unordered_map<idx1, int> & ptrs,
-        std::vector< std::unordered_map<idx1, idx1> > & swap_pred_map,
+        std::unordered_map<idx1, idx1> & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         );
 
@@ -157,7 +157,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector< std::unordered_map<idx1,idx1> > & swap_pred_map,
+        const std::unordered_map<idx1,idx1> & swap_pred_map,
         const std::vector<int> & pr_query_ref_end, bool print
         );
 

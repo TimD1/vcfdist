@@ -3,7 +3,7 @@
 
 void timer::start() {
     if (running) {
-        ERROR("Cannot start an already-running timer.");
+        ERROR("Cannot start an already-running timer (%s).", name.data());
     }
     start_time = std::chrono::system_clock::now();
     running = true;
@@ -11,7 +11,7 @@ void timer::start() {
 
 void timer::stop() {
     if (!running) {
-        ERROR("Cannot stop an already-stopped timer.");
+        ERROR("Cannot stop an already-stopped timer (%s).", name.data());
     }
     auto stop_time = std::chrono::system_clock::now();
     total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -21,11 +21,18 @@ void timer::stop() {
 
 double timer::total() { 
     if (running) {
-        ERROR("Must stop timer before calculating total time.");
+        ERROR("Must stop timer before calculating total time (%s).", name.data());
     }
     return total_time / 1000000000.0; 
 }
 
-void timer::print() {
-    INFO("%15s timer: %8.3fs", name.data(), total());
+void timer::print(int depth) {
+    if (depth == 0)
+        INFO("%15s timer: %8.3fs", name.data(), total());
+    if (depth == 1 && g.verbosity >= 1)
+        INFO("%20s timer: %8.3fs", name.data(), total());
+    if (depth == 2 && g.verbosity >= 1)
+        INFO("%25s timer: %8.3fs", name.data(), total());
+    if (depth == 3 && g.verbosity >= 1)
+        INFO("%30s timer: %8.3fs", name.data(), total());
 }

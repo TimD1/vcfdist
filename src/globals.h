@@ -53,6 +53,8 @@ public:
     bool simple_cluster = false;
 
     std::vector<timer> timers;
+    std::vector<int> timer_depths = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 1, 1, 0, 0, 0,
+        1, 2, 2, 3, 3, 3, 2, 2, 1, 2, 0, 0, 0};
 
     // constructors
     Globals() {;}

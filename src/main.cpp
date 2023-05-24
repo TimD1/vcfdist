@@ -19,8 +19,11 @@ std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CT
 std::vector<std::string> aln_strs = {"QUERY1-TRUTH1", "QUERY1-TRUTH2", "QUERY2-TRUTH1", "QUERY2-TRUTH2"};
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
-std::vector<std::string> timer_strs = {"reading", "clustering", "realigning",
-    "reclustering", "superclustering", "aligning", "P/R", "S-W", "phasing", "writing", "genstr", "substr", "reach", "reach init", "reach extend", "reach next", "reach max", "buffer init", "buffer clear", "total"};
+std::vector<std::string> timer_strs = {"reading", "clustering", "reclustering", 
+    "genstr", "substr", "reach", "init", "extend", "next", "max", 
+    "buffer init", "buffer clear", "realigning", "superclustering", "aligning", 
+    "P/R", "genptr", "aln", "init", "extend", "next", "path", "stats", 
+    "S-W", "aln", "phasing", "writing", "total"};
  
 int main(int argc, char **argv) {
 
@@ -90,7 +93,7 @@ g.timers[TIME_WRITE].stop();
 g.timers[TIME_TOTAL].stop();
         INFO(" ")
         INFO("TIMERS")
-        for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }
+        for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(g.timer_depths[i]); }
         return EXIT_SUCCESS;
     } else {
 g.timers[TIME_RECLUST].start();
@@ -129,6 +132,6 @@ g.timers[TIME_WRITE].stop();
 g.timers[TIME_TOTAL].stop();
     INFO(" ")
     INFO("TIMERS")
-    for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }
+    for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(g.timer_depths[i]); }
     return EXIT_SUCCESS;
 }

@@ -301,6 +301,8 @@ void wf_swg_cluster(std::unique_ptr<variantData> & vcf,
         if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n) {
             if (g.verbosity >= 1) INFO("  Contig '%s'", ctg.data());
         } else { continue; }
+        int len = vcf->lengths[ std::find(vcf->contigs.begin(), 
+                vcf->contigs.end(), ctg) - vcf->contigs.begin() ];
 
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
@@ -428,36 +430,36 @@ void wf_swg_cluster(std::unique_ptr<variantData> & vcf,
                         while (reach == ref_len-1) {
                             ref_len *= 2;
                             int beg_pos = end_pos - std::max(0, main_diag) - ref_len - score/extend-3;
-g.timers[TIME_GENSTR].start();
+g.timers[TIME_CL_GENSTR].start();
                             query = generate_str(vcf->ref, vars, ctg, 
                                         vars->clusters[clust], 
                                         vars->clusters[clust+1], 
                                         beg_pos, end_pos);
-g.timers[TIME_GENSTR].stop();
-g.timers[TIME_SUBSTR].start();
+g.timers[TIME_CL_GENSTR].stop();
+g.timers[TIME_CL_SUBSTR].start();
                             ref = vcf->ref->fasta.at(ctg).substr(end_pos-ref_len, ref_len);
                             std::reverse(query.begin(), query.end());
                             std::reverse(ref.begin(), ref.end());
-g.timers[TIME_SUBSTR].stop();
-g.timers[TIME_REACH].start();
-g.timers[TIME_BUFF_INIT].start();
+g.timers[TIME_CL_SUBSTR].stop();
+g.timers[TIME_CL_REACH].start();
+g.timers[TIME_CL_BUFF_INIT].start();
                             // manage buffer for storing offsets
                             size_t offs_size = MATS * (score+1) * 
                                 (query.size() + ref.size() - 1);
                             if (offs_size > offs_buffer.size())
                                 offs_buffer = std::vector<int>(offs_size, -2);
-g.timers[TIME_BUFF_INIT].stop();
+g.timers[TIME_CL_BUFF_INIT].stop();
                             // calculate reach
                             reach = wf_swg_max_reach(query, ref, offs_buffer,
                                     main_diag, main_diag_start, score,
                                     sub, open, extend, 
                                     false /* print */, true  /* reverse */);
                             // reset buffer
-g.timers[TIME_BUFF_CLEAR].start();
+g.timers[TIME_CL_BUFF_CLEAR].start();
                             for (size_t i = 0; i < offs_size; i++)
                                 offs_buffer[i] = -2;
-g.timers[TIME_BUFF_CLEAR].stop();
-g.timers[TIME_REACH].stop();
+g.timers[TIME_CL_BUFF_CLEAR].stop();
+g.timers[TIME_CL_REACH].stop();
                         }
                         if (print) printf("    left reach: %d\n", reach);
                         l_reach = end_pos - reach;
@@ -474,7 +476,7 @@ g.timers[TIME_REACH].stop();
                         if (clust < prev_clusters.size()-1)
                             l_reach = vars->poss[vars->clusters[clust]];
                         else
-                            l_reach = vars->poss[nvar-1] + g.reach_min_gap*2;
+                            l_reach = len + g.reach_min_gap*2;
                     }
                     left_reach.push_back(l_reach);
 
@@ -512,16 +514,16 @@ g.timers[TIME_REACH].stop();
                         while (reach == ref_len-1) {
                             ref_len *= 2;
                             int end_pos = beg_pos + std::max(0, main_diag) + ref_len + score/extend+3;
-g.timers[TIME_GENSTR].start();
+g.timers[TIME_CL_GENSTR].start();
                             query = generate_str(vcf->ref, vars, ctg, 
                                         vars->clusters[clust], 
                                         vars->clusters[clust+1], 
                                         beg_pos, end_pos);
-g.timers[TIME_GENSTR].stop();
-g.timers[TIME_SUBSTR].start();
+g.timers[TIME_CL_GENSTR].stop();
+g.timers[TIME_CL_SUBSTR].start();
                             ref = vcf->ref->fasta.at(ctg).substr(beg_pos, ref_len);
-g.timers[TIME_SUBSTR].stop();
-g.timers[TIME_REACH].start();
+g.timers[TIME_CL_SUBSTR].stop();
+g.timers[TIME_CL_REACH].start();
                             // manage buffer for storing offsets
                             size_t offs_size = MATS * (score+1) * 
                                 (query.size() + ref.size() - 1);
@@ -535,7 +537,7 @@ g.timers[TIME_REACH].start();
                             // reset buffer
                             for (size_t i = 0; i < offs_size; i++)
                                 offs_buffer[i] = -2;
-g.timers[TIME_REACH].stop();
+g.timers[TIME_CL_REACH].stop();
                         }
                         if (print) printf("   right reach: %d\n", reach);
                         r_reach = beg_pos + reach + 1;
@@ -556,7 +558,7 @@ g.timers[TIME_REACH].stop();
                     }
                     right_reach.push_back(r_reach);
                     if (print) printf("span: %s - %s\n", 
-                                l_reach == vars->poss[nvar-1]+g.reach_min_gap*2 ? 
+                                l_reach == len+g.reach_min_gap*2 ? 
                                     "X" : std::to_string(l_reach).data(), 
                                 r_reach == -g.reach_min_gap*2 ? "X" : std::to_string(r_reach).data());
                 }
@@ -564,7 +566,7 @@ g.timers[TIME_REACH].stop();
                 // merge dependent clusters rightwards
                 std::vector<int> tmp_left_reach, tmp_right_reach;
                 tmp_right_reach.push_back(-g.reach_min_gap*2);
-                tmp_left_reach.push_back(vars->poss[nvar-1]+g.reach_min_gap*2);
+                tmp_left_reach.push_back(len+g.reach_min_gap*2);
                 int clust = 0;
                 while (clust < int(prev_clusters.size())) {
                     int clust_size = 1;
