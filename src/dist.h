@@ -55,12 +55,6 @@ bool contains(const std::unordered_set<T> & wave, const T & idx);
 template <typename T, typename U>
 bool contains(const std::unordered_map<T,U> & wave, const T & idx);
 
-template <typename S, typename T>
-void set(std::unordered_map<S,T> & ptrs, const S & idx, const T & flag);
-
-template <typename S, typename T>
-bool test(const std::unordered_map<S,T> & ptrs, const S & idx, const T & flag);
-
 class idx2 {
 public:
     int mi;  // matrix idx2
@@ -136,7 +130,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
-        std::unordered_map<idx1, int> & ptrs,
+        std::vector< std::vector< std::vector<int> > > & ptrs, 
         std::unordered_map<idx1, idx1> & swap_pred_map,
         std::vector<int> & pr_query_ref_end, bool print
         );
@@ -148,10 +142,9 @@ void calc_prec_recall_path(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::unordered_map<idx1, int> & aln_ptrs,
-        std::unordered_map<idx1, int> & path_ptrs,
-        std::unordered_map<idx1, int> & path_scores,
-        const std::vector< std::vector<int> > & query1_ref_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & path_scores, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query2_ptrs,
@@ -165,8 +158,8 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<idx1> > & path, 
         std::vector< std::vector<bool> > & sync, 
         std::vector< std::vector<bool> > & edits, 
-        std::unordered_map<idx1, int> & aln_ptrs, 
-        std::unordered_map<idx1, int> & path_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & aln_ptrs, 
+        std::vector< std::vector< std::vector<int> > > & path_ptrs, 
         const std::vector< std::vector<bool> > & ref_loc_sync, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
@@ -186,8 +179,6 @@ void calc_prec_recall(
         const std::vector< std::vector<idx1> > & path,
         const std::vector< std::vector<bool> > & sync,
         const std::vector< std::vector<bool> > & edits,
-        const std::unordered_map<idx1, int> & aln_ptrs, 
-        const std::unordered_map<idx1, int> & path_ptrs, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
