@@ -292,7 +292,7 @@ void wf_swg_cluster(std::unique_ptr<variantData> & vcf,
             callset_strs[callset].data(), vcf->filename.data());
 
     // allocate this memory once, use on each cluster
-    std::vector<int> offs_buffer(MATS * g.max_size*g.max_size, -2);
+    std::vector<int> offs_buffer(MATS * g.max_size*2 * std::max(sub, open+extend), -2);
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
@@ -444,10 +444,10 @@ g.timers[TIME_CL_SUBSTR].stop();
 g.timers[TIME_CL_REACH].start();
 g.timers[TIME_CL_BUFF_INIT].start();
                             // manage buffer for storing offsets
-                            size_t offs_size = MATS * (score+1) * 
+                            size_t offs_size = MATS * (std::max(open+extend, sub)+1) * 
                                 (query.size() + ref.size() - 1);
                             if (offs_size > offs_buffer.size())
-                                offs_buffer = std::vector<int>(offs_size, -2);
+                                offs_buffer.resize(offs_size, -2);
 g.timers[TIME_CL_BUFF_INIT].stop();
                             // calculate reach
                             reach = wf_swg_max_reach(query, ref, offs_buffer,
@@ -525,10 +525,10 @@ g.timers[TIME_CL_SUBSTR].start();
 g.timers[TIME_CL_SUBSTR].stop();
 g.timers[TIME_CL_REACH].start();
                             // manage buffer for storing offsets
-                            size_t offs_size = MATS * (score+1) * 
+                            size_t offs_size = MATS * (std::max(sub, open+extend)+1) * 
                                 (query.size() + ref.size() - 1);
                             if (offs_size > offs_buffer.size())
-                                offs_buffer = std::vector<int>(offs_size, -2);
+                                offs_buffer.resize(offs_size, -2);
                             // calculate reach
                             reach = wf_swg_max_reach(query, ref, offs_buffer,
                                     main_diag, main_diag_start, score,
