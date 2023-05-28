@@ -144,14 +144,14 @@ void calc_prec_recall_path(
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
-        std::vector< std::vector< std::vector<int> > > & path_scores, 
+        std::vector< std::vector< std::vector<int16_t> > > & path_scores, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         const std::unordered_map<idx1,idx1> & swap_pred_map,
-        const std::vector<int> & pr_query_ref_end, bool print
+        const std::vector<int> & pr_query_ref_end, int phase, bool print
         );
 
 void get_prec_recall_path_sync(
@@ -167,7 +167,7 @@ void get_prec_recall_path_sync(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_beg, bool print
+        const std::vector<int> & pr_query_ref_beg, int phase, bool print
         );
 
 void calc_prec_recall(
