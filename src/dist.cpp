@@ -246,7 +246,6 @@ void calc_prec_recall_aln(
         ) {
     
     // set loop variables
-g.timers[TIME_PR_INIT].start();
     int ref_len = ref.size();
     std::vector<std::string> query {query1, query1, query2, query2};
     std::vector<std::string> truth {truth1, truth2, truth1, truth2};
@@ -262,7 +261,6 @@ g.timers[TIME_PR_INIT].start();
             {int(truth1.size()), int(truth2.size()), int(truth1.size()), int(truth2.size())};
 
     std::vector< std::vector< std::vector<bool> > > done;
-g.timers[TIME_PR_INIT].stop();
 
     // for each combination of query and truth
     for (int i = 0; i < 4; i++) {
@@ -270,7 +268,6 @@ g.timers[TIME_PR_INIT].stop();
         int ri = 2*i + REF;   // ref index   (ptrs)
 
         // init full pointer/done matrices
-g.timers[TIME_PR_INIT].start();
         ptrs.push_back(std::vector< std::vector<uint8_t> >(query_lens[i],
                     std::vector<uint8_t>(truth_lens[i], PTR_NONE)));
         ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_len,
@@ -294,13 +291,11 @@ g.timers[TIME_PR_INIT].start();
         std::unordered_set<idx1> prev_wave; // everything explored prev wave
         /* if (print) printf("\nFWD %s aln: (%d|%d, %d|%d, %d)\n", aln_strs[i].data(), */ 
         /*         qi, ri, query_lens[i], ref_len, truth_lens[i]); */
-g.timers[TIME_PR_INIT].stop();
         while (true) {
             /* if (print) printf("  s = %d\n", s[i]); */
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
             // EXTEND WAVEFRONT (stay at same score)
-g.timers[TIME_PR_EXTEND].start();
             while (!queue.empty()) {
                 idx1 x = queue.front(); queue.pop();
                 /* if (print) printf("    x = (%s, %d, %d)\n", */ 
@@ -366,7 +361,6 @@ g.timers[TIME_PR_EXTEND].start();
                     }
                 }
             }
-g.timers[TIME_PR_EXTEND].stop();
 
             // mark all cells visited this wave as done
             for (auto x : curr_wave) { done[x.hi][x.qri][x.ti] = true; }
@@ -378,7 +372,6 @@ g.timers[TIME_PR_EXTEND].stop();
 
 
             // NEXT WAVEFRONT (increase score by one)
-g.timers[TIME_PR_NEXT].start();
             for (auto x : prev_wave) {
                 int qr_len = (x.hi == qi) ? query_lens[i] : ref_len;
                 if (x.qri+1 < qr_len) { // INS
@@ -411,7 +404,6 @@ g.timers[TIME_PR_NEXT].start();
             }
             prev_wave.clear();
             s[i]++;
-g.timers[TIME_PR_NEXT].stop();
         } // while loop (this alignment)
 
         if (print) printf("\nAlignment %s, aln_ptrs\n", aln_strs[i].data());
@@ -1646,10 +1638,8 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             /////////////////////////////////////////////////////////////////////
             // PRECISION-RECALL: allow skipping called variants                  
             /////////////////////////////////////////////////////////////////////
-g.timers[TIME_PR].start();
             
             // set pointers between each hap (query1/2, truth1/2) and reference
-g.timers[TIME_PR_GENPTR].start();
             std::string query1 = "", ref_q1 = ""; 
             std::vector< std::vector<int> > query1_ref_ptrs, ref_query1_ptrs;
             generate_ptrs_strs(
@@ -1686,7 +1676,6 @@ g.timers[TIME_PR_GENPTR].start();
                     sc->superclusters[TRUTH][HAP2][sc_idx+1],
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
-g.timers[TIME_PR_GENPTR].stop();
 
             if (false) {
                 printf("\n%s:%d\n", ctg.data(), sc->begs[sc_idx]);
@@ -1707,7 +1696,6 @@ g.timers[TIME_PR_GENPTR].stop();
 
             // calculate four forward-pass alignment edit dists
             // query1-truth2, query1-truth1, query2-truth1, query2-truth2
-g.timers[TIME_PR_ALN].start();
             std::vector<int> aln_score(HAPS*CALLSETS);
             std::vector<int> aln_query_ref_end(HAPS*CALLSETS);
             std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
@@ -1720,7 +1708,6 @@ g.timers[TIME_PR_ALN].start();
                     aln_score, aln_ptrs, swap_pred_map,
                     aln_query_ref_end, false
             );
-g.timers[TIME_PR_ALN].stop();
 
             // store optimal phasing for each supercluster
             // ORIG: query1-truth1 and query2-truth2
@@ -1728,7 +1715,6 @@ g.timers[TIME_PR_ALN].stop();
             int phase = store_phase(clusterdata_ptr, ctg, aln_score);
 
             // calculate paths from alignment
-g.timers[TIME_PR_PATH].start();
             std::vector< std::vector<idx1> > path(HAPS);
             std::vector< std::vector<bool> > sync(HAPS);
             std::vector< std::vector<bool> > edit(HAPS);
@@ -1742,10 +1728,8 @@ g.timers[TIME_PR_PATH].start();
                     query2_ref_ptrs, ref_query2_ptrs, 
                     truth1_ref_ptrs, truth2_ref_ptrs,
                     swap_pred_map, aln_query_ref_end, phase, false);
-g.timers[TIME_PR_PATH].stop();
 
             // calculate precision/recall from paths
-g.timers[TIME_PR_STAT].start();
             calc_prec_recall(
                     clusterdata_ptr, sc_idx, ctg, ref_q1,
                     query1, query2, truth1, truth2,
@@ -1756,15 +1740,12 @@ g.timers[TIME_PR_STAT].start();
                     aln_query_ref_end, phase, 
                     false
             );
-g.timers[TIME_PR_STAT].stop();
-g.timers[TIME_PR].stop();
 
 
             /////////////////////////////////////////////////////////////////////
             // SMITH-WATERMAN DISTANCE: don't allow skipping called variants     
             /////////////////////////////////////////////////////////////////////
             
-g.timers[TIME_SW].start();
             // keep or swap truth haps based on previously decided phasing
             std::vector<std::string> truth(2);
             if (phase == PHASE_SWAP) {
@@ -1807,7 +1788,6 @@ g.timers[TIME_SW].start();
                             prev_qual);
 
                     // align strings, backtrack, calculate distance
-g.timers[TIME_SW_ALN].start();
                     std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
                     std::vector< std::vector< std::vector<int> > > offs(MATS);
                     int s = 0;
@@ -1815,7 +1795,6 @@ g.timers[TIME_SW_ALN].start();
                     std::reverse(truth[hap].begin(), truth[hap].end());
                     wf_swg_align(query, truth[hap], ptrs, offs,
                             s, g.eval_sub, g.eval_open, g.eval_extend, false);
-g.timers[TIME_SW_ALN].stop();
                     std::vector<int> cigar = wf_swg_backtrack(query, truth[hap], 
                             ptrs, offs, s, g.eval_sub, g.eval_open, g.eval_extend, false);
                     std::reverse(query.begin(), query.end());
@@ -1833,7 +1812,6 @@ g.timers[TIME_SW_ALN].stop();
                     prev_qual = qual;
                 }
             }
-g.timers[TIME_SW].stop();
 
         } // each cluster
         if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
@@ -1919,7 +1897,6 @@ int wf_swg_max_reach(
         ) {
 
     // init
-g.timers[TIME_CL_INIT].start();
     int query_len = query.size();
     int truth_len = truth.size();
     int mat_len = query_len + truth_len - 1;
@@ -1930,11 +1907,9 @@ g.timers[TIME_CL_INIT].start();
     int y = mat_len;
     int z = y * scores;
     offs[MAT_SUB*z + s2*y + query_len-1] = -1;
-g.timers[TIME_CL_INIT].stop();
 
     while (true) {
 
-g.timers[TIME_CL_EXTEND].start();
         // EXTEND WAVEFRONT (leave INS, DEL forwards)
         if (!reverse) for (int m = MAT_INS; m < MATS; m++) {
             for (int d = 0; d < mat_len; d++) {
@@ -1970,7 +1945,6 @@ g.timers[TIME_CL_EXTEND].start();
 
             // finish if we've reached the last column
             if (off + diag == truth_len - 1) {
-g.timers[TIME_CL_EXTEND].stop();
                 return truth_len-1;
             }
             if (off == query_len - 1 && off+diag >= 0 && off+diag < truth_len-1)  {
@@ -1979,7 +1953,6 @@ g.timers[TIME_CL_EXTEND].stop();
             }
 
         }
-g.timers[TIME_CL_EXTEND].stop();
         if (s == max_score) break;
 
         /* if (print) for (int mi = 0; mi < MATS; mi++) { */
@@ -1992,7 +1965,6 @@ g.timers[TIME_CL_EXTEND].stop();
         /* } */
 
         // NEXT WAVEFRONT
-g.timers[TIME_CL_NEXT].start();
         s++; s2++;
         if (s2 == scores) s2 = 0;
         // init new row to all invalid
@@ -2085,11 +2057,9 @@ g.timers[TIME_CL_NEXT].start();
                         offs[MAT_INS*z + s2*y + d]+diag);
             }
         }
-g.timers[TIME_CL_NEXT].stop();
     } // end reach
 
     // get max reach
-g.timers[TIME_CL_MAX].start();
     int max_reach = 0;
     for (int s2 = 0; s2 < scores; s2++) {
         for (int m = 0; m < MATS; m++) {
@@ -2102,7 +2072,6 @@ g.timers[TIME_CL_MAX].start();
             }
         }
     }
-g.timers[TIME_CL_MAX].stop();
     return max_reach;
 }
 

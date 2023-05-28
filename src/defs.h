@@ -60,34 +60,15 @@ class idx2;
 #define ERRTYPES   7
 
 // runtime timers
-#define TIME_READ            0
-#define TIME_CLUST           1
-#define TIME_RECLUST         2
-  #define TIME_CL_GENSTR     3
-  #define TIME_CL_SUBSTR     4
-  #define TIME_CL_REACH      5
-  #define TIME_CL_INIT       6
-  #define TIME_CL_EXTEND     7
-  #define TIME_CL_NEXT       8
-  #define TIME_CL_MAX        9
-  #define TIME_CL_BUFF_INIT  10
-  #define TIME_CL_BUFF_CLEAR 11
-#define TIME_REALN           12
-#define TIME_SUPCLUST        13
-#define TIME_ALIGN           14
-  #define TIME_PR            15
-    #define TIME_PR_GENPTR   16
-    #define TIME_PR_ALN      17
-    #define TIME_PR_INIT     18
-    #define TIME_PR_EXTEND   19
-    #define TIME_PR_NEXT     20
-    #define TIME_PR_PATH     21
-    #define TIME_PR_STAT     22
-  #define TIME_SW            23
-    #define TIME_SW_ALN      24
-#define TIME_PHASE           25
-#define TIME_WRITE           26
-#define TIME_TOTAL           27
+#define TIME_READ     0
+#define TIME_CLUST    1
+#define TIME_RECLUST  2
+#define TIME_REALN    3
+#define TIME_SUPCLUST 4
+#define TIME_ALIGN    5
+#define TIME_PHASE    6
+#define TIME_WRITE    7
+#define TIME_TOTAL    8
 
 // alignment
 #define QUERY    0

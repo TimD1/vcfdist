@@ -15,7 +15,7 @@ public:
     void start();
     void stop();
     double total();
-    void print(int depth);
+    void print();
 
 private:
     std::string name = "default";

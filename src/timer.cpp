@@ -26,13 +26,6 @@ double timer::total() {
     return total_time / 1000000000.0; 
 }
 
-void timer::print(int depth) {
-    if (depth == 0)
-        INFO("%15s timer: %8.3fs", name.data(), total());
-    if (depth == 1 && g.verbosity >= 1)
-        INFO("%20s timer: %8.3fs", name.data(), total());
-    if (depth == 2 && g.verbosity >= 1)
-        INFO("%25s timer: %8.3fs", name.data(), total());
-    if (depth == 3 && g.verbosity >= 1)
-        INFO("%30s timer: %8.3fs", name.data(), total());
+void timer::print() {
+    INFO("%15s timer: %8.3fs", name.data(), total());
 }

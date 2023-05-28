@@ -430,36 +430,26 @@ void wf_swg_cluster(std::unique_ptr<variantData> & vcf,
                         while (reach == ref_len-1) {
                             ref_len *= 2;
                             int beg_pos = end_pos - std::max(0, main_diag) - ref_len - score/extend-3;
-g.timers[TIME_CL_GENSTR].start();
                             query = generate_str(vcf->ref, vars, ctg, 
                                         vars->clusters[clust], 
                                         vars->clusters[clust+1], 
                                         beg_pos, end_pos);
-g.timers[TIME_CL_GENSTR].stop();
-g.timers[TIME_CL_SUBSTR].start();
                             ref = vcf->ref->fasta.at(ctg).substr(end_pos-ref_len, ref_len);
                             std::reverse(query.begin(), query.end());
                             std::reverse(ref.begin(), ref.end());
-g.timers[TIME_CL_SUBSTR].stop();
-g.timers[TIME_CL_REACH].start();
-g.timers[TIME_CL_BUFF_INIT].start();
                             // manage buffer for storing offsets
                             size_t offs_size = MATS * (std::max(open+extend, sub)+1) * 
                                 (query.size() + ref.size() - 1);
                             if (offs_size > offs_buffer.size())
                                 offs_buffer.resize(offs_size, -2);
-g.timers[TIME_CL_BUFF_INIT].stop();
                             // calculate reach
                             reach = wf_swg_max_reach(query, ref, offs_buffer,
                                     main_diag, main_diag_start, score,
                                     sub, open, extend, 
                                     false /* print */, true  /* reverse */);
                             // reset buffer
-g.timers[TIME_CL_BUFF_CLEAR].start();
                             for (size_t i = 0; i < offs_size; i++)
                                 offs_buffer[i] = -2;
-g.timers[TIME_CL_BUFF_CLEAR].stop();
-g.timers[TIME_CL_REACH].stop();
                         }
                         if (print) printf("    left reach: %d\n", reach);
                         l_reach = end_pos - reach;
@@ -514,16 +504,11 @@ g.timers[TIME_CL_REACH].stop();
                         while (reach == ref_len-1) {
                             ref_len *= 2;
                             int end_pos = beg_pos + std::max(0, main_diag) + ref_len + score/extend+3;
-g.timers[TIME_CL_GENSTR].start();
                             query = generate_str(vcf->ref, vars, ctg, 
                                         vars->clusters[clust], 
                                         vars->clusters[clust+1], 
                                         beg_pos, end_pos);
-g.timers[TIME_CL_GENSTR].stop();
-g.timers[TIME_CL_SUBSTR].start();
                             ref = vcf->ref->fasta.at(ctg).substr(beg_pos, ref_len);
-g.timers[TIME_CL_SUBSTR].stop();
-g.timers[TIME_CL_REACH].start();
                             // manage buffer for storing offsets
                             size_t offs_size = MATS * (std::max(sub, open+extend)+1) * 
                                 (query.size() + ref.size() - 1);
@@ -537,7 +522,6 @@ g.timers[TIME_CL_REACH].start();
                             // reset buffer
                             for (size_t i = 0; i < offs_size; i++)
                                 offs_buffer[i] = -2;
-g.timers[TIME_CL_REACH].stop();
                         }
                         if (print) printf("   right reach: %d\n", reach);
                         r_reach = beg_pos + reach + 1;
