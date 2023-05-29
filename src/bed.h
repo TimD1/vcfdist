@@ -38,8 +38,8 @@ public:
 };
 
 void check_contigs(
-        std::unique_ptr<variantData> & query_ptr,
-        std::unique_ptr<variantData> & truth_ptr,
+        std::shared_ptr<variantData> query_ptr,
+        std::shared_ptr<variantData> truth_ptr,
         std::shared_ptr<fastaData> ref_ptr);
 
 #endif

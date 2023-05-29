@@ -1,3 +1,5 @@
+#include <thread>
+
 #include "variant.h"
 #include "print.h"
 #include "globals.h"
@@ -34,9 +36,9 @@ g.timers[TIME_READ].start();
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
     // parse query and truth VCFs
-    std::unique_ptr<variantData> query_ptr(
+    std::shared_ptr<variantData> query_ptr(
             new variantData(g.query_vcf_fn, ref_ptr, QUERY));
-    std::unique_ptr<variantData> truth_ptr(
+    std::shared_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr, TRUTH));
 g.timers[TIME_READ].stop();
 g.timers[TIME_WRITE].start();
@@ -50,32 +52,63 @@ g.timers[TIME_WRITE].stop();
     // cluster, realign, and cluster query VCF
     if (!g.keep_query) {
 g.timers[TIME_CLUST].start();
-        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : wf_swg_cluster(query_ptr, 
-                g.query_sub, g.query_open, g.query_extend, QUERY); 
+        if (g.simple_cluster) {
+            gap_cluster(query_ptr, QUERY);
+        } else {
+            std::vector<std::thread> threads;
+            for (int t = 0; t < int(query_ptr->contigs.size()); t++)
+                threads.push_back(std::thread( wf_swg_cluster, 
+                            query_ptr.get(), query_ptr->contigs[t], g.query_sub, 
+                            g.query_open, g.query_extend, QUERY)); 
+            for (auto & t : threads)
+                t.join();
+        }
 g.timers[TIME_CLUST].stop();
+
 g.timers[TIME_REALN].start();
         query_ptr = wf_swg_realign(query_ptr, ref_ptr, 
                 g.query_sub, g.query_open, g.query_extend, QUERY);
         query_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
-    if (g.exit) {
+
+    if (g.exit) { // realign only, exit early
 g.timers[TIME_WRITE].start();
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
 g.timers[TIME_WRITE].stop();
-    } else {
+
+    } else { // re-cluster based on new alignments
 g.timers[TIME_RECLUST].start();
-        g.simple_cluster ? gap_cluster(query_ptr, QUERY) : wf_swg_cluster(query_ptr, 
-                g.query_sub, g.query_open, g.query_extend, QUERY); 
+        if (g.simple_cluster) {
+            gap_cluster(query_ptr, QUERY);
+        } else {
+            std::vector<std::thread> threads;
+            for (int t = 0; t < int(query_ptr->contigs.size()); t++)
+                threads.push_back(std::thread( wf_swg_cluster, 
+                            query_ptr.get(), query_ptr->contigs[t], g.query_sub, 
+                            g.query_open, g.query_extend, QUERY)); 
+            for (auto & t : threads)
+                t.join();
+        }
 g.timers[TIME_RECLUST].stop();
     }
 
     // cluster, realign, and cluster truth VCF
     if (!g.keep_truth) {
 g.timers[TIME_CLUST].start();
-        g.simple_cluster ?  gap_cluster(truth_ptr, TRUTH) : wf_swg_cluster(truth_ptr, 
-                g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
+        if (g.simple_cluster) {
+            gap_cluster(truth_ptr, TRUTH);
+        } else {
+            std::vector<std::thread> threads;
+            for (int t = 0; t < int(truth_ptr->contigs.size()); t++)
+                threads.push_back(std::thread( wf_swg_cluster, 
+                            truth_ptr.get(), truth_ptr->contigs[t], g.truth_sub, 
+                            g.truth_open, g.truth_extend, QUERY)); 
+            for (auto & t : threads)
+                t.join();
+        }
 g.timers[TIME_CLUST].stop();
+
 g.timers[TIME_REALN].start();
         truth_ptr = wf_swg_realign(truth_ptr, ref_ptr, 
                 g.truth_sub, g.truth_open, g.truth_extend, TRUTH);
@@ -83,7 +116,7 @@ g.timers[TIME_REALN].start();
 g.timers[TIME_REALN].stop();
     }
 
-    if (g.exit) {
+    if (g.exit) { // realign only, exit early
 g.timers[TIME_WRITE].start();
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
 g.timers[TIME_WRITE].stop();
@@ -92,10 +125,21 @@ g.timers[TIME_TOTAL].stop();
         INFO("TIMERS")
         for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }
         return EXIT_SUCCESS;
+
     } else {
+
 g.timers[TIME_RECLUST].start();
-        g.simple_cluster ? gap_cluster(truth_ptr, TRUTH) : wf_swg_cluster(truth_ptr, 
-                g.truth_sub, g.truth_open, g.truth_extend, TRUTH); 
+        if (g.simple_cluster) {
+            gap_cluster(truth_ptr, TRUTH); 
+        } else {
+            std::vector<std::thread> threads;
+            for (int t = 0; t < int(truth_ptr->contigs.size()); t++)
+                threads.push_back(std::thread( wf_swg_cluster, 
+                            truth_ptr.get(), truth_ptr->contigs[t], g.truth_sub, 
+                            g.truth_open, g.truth_extend, QUERY)); 
+            for (auto & t : threads)
+                t.join();
+        }
 g.timers[TIME_RECLUST].stop();
     }
 

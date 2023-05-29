@@ -209,8 +209,8 @@ int wf_swg_max_reach(
         int x, int o, int e, bool print = false, bool reverse = false
         );
 
-std::unique_ptr<variantData> wf_swg_realign(
-        std::unique_ptr<variantData> & vcf, 
+std::shared_ptr<variantData> wf_swg_realign(
+        std::shared_ptr<variantData> vcf, 
         std::shared_ptr<fastaData> ref,
         int sub, int open, int extend, int callset, bool print = false);
 

@@ -45,8 +45,8 @@ public:
 class superclusterData {
 public:
     superclusterData(
-            std::unique_ptr<variantData> & query_ptr,
-            std::unique_ptr<variantData> & truth_ptr,
+            std::shared_ptr<variantData> query_ptr,
+            std::shared_ptr<variantData> truth_ptr,
             std::shared_ptr<fastaData> ref_ptr);
 
     void gap_supercluster();
@@ -61,8 +61,8 @@ public:
 
 
 // for single haplotype clustering (one VCF)
-void gap_cluster(std::unique_ptr<variantData> & vcf, int callset);
-void wf_swg_cluster(std::unique_ptr<variantData> & vcf, 
-        int sub, int open, int extend, int callset, bool print = false);
+void gap_cluster(std::shared_ptr<variantData> vcf, int callset);
+void wf_swg_cluster(variantData * vcf, std::string ctg,
+        int sub, int open, int extend, int callset);
 
 #endif

@@ -2236,8 +2236,8 @@ int swg_max_reach(const std::string & query, const std::string & ref,
 /******************************************************************************/
 
 
-std::unique_ptr<variantData> wf_swg_realign(
-        std::unique_ptr<variantData> & vcf, 
+std::shared_ptr<variantData> wf_swg_realign(
+        std::shared_ptr<variantData> vcf, 
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend, int callset, bool print /* = false */) {
     if (g.verbosity >= 1) INFO(" ");
@@ -2245,7 +2245,7 @@ std::unique_ptr<variantData> wf_swg_realign(
             callset_strs[callset].data(), vcf->filename.data());
 
     // copy vcf header data over to results vcf
-    std::unique_ptr<variantData> results(new variantData());
+    std::shared_ptr<variantData> results(new variantData());
     results->set_header(vcf);
 
     // iterate over each contig haplotype

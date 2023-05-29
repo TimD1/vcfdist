@@ -283,7 +283,7 @@ void variantData::print_variant(FILE* out_fp, std::string ctg, int pos, int type
     }
 }
 
-void variantData::set_header(const std::unique_ptr<variantData> & vcf) {
+void variantData::set_header(const std::shared_ptr<variantData> vcf) {
     this->filename = vcf->filename;
     this->sample = vcf->sample;
     this->contigs = vcf->contigs;
