@@ -55,11 +55,14 @@ g.timers[TIME_CLUST].start();
         if (g.simple_cluster) {
             gap_cluster(query_ptr, QUERY);
         } else {
+            if (g.verbosity >= 1) INFO(" ");
+            if (g.verbosity >= 1) INFO("Smith-Waterman Clustering %s VCF '%s'", 
+                    callset_strs[QUERY].data(), query_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < int(query_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            query_ptr.get(), query_ptr->contigs[t], g.query_sub, 
-                            g.query_open, g.query_extend, QUERY)); 
+                            query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
+                            g.query_sub, g.query_open, g.query_extend)); 
             for (auto & t : threads)
                 t.join();
         }
@@ -82,11 +85,14 @@ g.timers[TIME_RECLUST].start();
         if (g.simple_cluster) {
             gap_cluster(query_ptr, QUERY);
         } else {
+            if (g.verbosity >= 1) INFO(" ");
+            if (g.verbosity >= 1) INFO("Smith-Waterman Re-Clustering %s VCF '%s'", 
+                    callset_strs[QUERY].data(), query_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < int(query_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            query_ptr.get(), query_ptr->contigs[t], g.query_sub, 
-                            g.query_open, g.query_extend, QUERY)); 
+                            query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
+                            g.query_sub, g.query_open, g.query_extend)); 
             for (auto & t : threads)
                 t.join();
         }
@@ -99,11 +105,14 @@ g.timers[TIME_CLUST].start();
         if (g.simple_cluster) {
             gap_cluster(truth_ptr, TRUTH);
         } else {
+            if (g.verbosity >= 1) INFO(" ");
+            if (g.verbosity >= 1) INFO("Smith-Waterman Clustering %s VCF '%s'", 
+                    callset_strs[TRUTH].data(), truth_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < int(truth_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            truth_ptr.get(), truth_ptr->contigs[t], g.truth_sub, 
-                            g.truth_open, g.truth_extend, QUERY)); 
+                            truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
+                            g.truth_sub, g.truth_open, g.truth_extend)); 
             for (auto & t : threads)
                 t.join();
         }
@@ -132,11 +141,14 @@ g.timers[TIME_RECLUST].start();
         if (g.simple_cluster) {
             gap_cluster(truth_ptr, TRUTH); 
         } else {
+            if (g.verbosity >= 1) INFO(" ");
+            if (g.verbosity >= 1) INFO("Smith-Waterman Re-Clustering %s VCF '%s'", 
+                    callset_strs[TRUTH].data(), truth_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < int(truth_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            truth_ptr.get(), truth_ptr->contigs[t], g.truth_sub, 
-                            g.truth_open, g.truth_extend, QUERY)); 
+                            truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
+                            g.truth_sub, g.truth_open, g.truth_extend)); 
             for (auto & t : threads)
                 t.join();
         }
