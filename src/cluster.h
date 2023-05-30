@@ -19,8 +19,8 @@ public:
     void add_supercluster(
            std::vector<int> brks,
            int beg, int end);
-    void add_phasing(
-           int phase, 
+    void set_phase(
+           int sc_idx, int phase, 
            int orig_phase_dist, 
            int swap_phase_dist);
 
@@ -29,7 +29,7 @@ public:
     std::vector< std::vector< std::shared_ptr<ctgVariants> > > ctg_variants;
 
     // cluster indices of superclusters
-    // superclusters[truth/query][hap] -> supercluster index
+    // superclusters[truth/query][hap] -> cluster index
     std::vector< std::vector< std::vector<int> > > superclusters;
 
     int n = 0; // number of superclusters

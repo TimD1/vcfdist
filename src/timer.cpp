@@ -27,5 +27,5 @@ double timer::total() {
 }
 
 void timer::print() {
-    INFO("%15s timer: %8.3fs", name.data(), total());
+    INFO("%16s timer: %8.3fs", name.data(), total());
 }

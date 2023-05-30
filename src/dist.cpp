@@ -428,7 +428,7 @@ void calc_prec_recall_aln(
 
 int store_phase( 
         std::shared_ptr<superclusterData> clusterdata_ptr, 
-        const std::string & ctg,
+        const std::string & ctg, int sc_idx,
         const std::vector<int> & s
         ) {
 
@@ -440,7 +440,7 @@ int store_phase(
     if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
 
     // save alignment information
-    clusterdata_ptr->ctg_superclusters[ctg]->add_phasing(
+    clusterdata_ptr->ctg_superclusters[ctg]->set_phase(sc_idx,
             phase, orig_phase_dist, swap_phase_dist);
     return phase;
 }
@@ -1583,17 +1583,12 @@ void wf_swg_align(
 
 /******************************************************************************/
 
-
-editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
+void precision_recall_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Calculating precision/recall and distance metrics");
+    if (g.verbosity >= 1) INFO("Calculating precision and recall");
 
-    // +2 since it's inclusive, but then also needs to include one quality higher
-    // which doesn't contain any variants (to get draft reference edit dist)
-    std::vector<int> all_qual_dists(g.max_qual+2, 0);
-    editData edits;
     for (std::string ctg : clusterdata_ptr->contigs) {
-        std::vector<int> ctg_qual_dists(g.max_qual+2,0);
+
         if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
             INFO("  Contig '%s'", ctg.data())
 
@@ -1712,7 +1707,7 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             // store optimal phasing for each supercluster
             // ORIG: query1-truth1 and query2-truth2
             // SWAP: query1-truth2 and query2-truth1
-            int phase = store_phase(clusterdata_ptr, ctg, aln_score);
+            int phase = store_phase(clusterdata_ptr, ctg, sc_idx, aln_score);
 
             // calculate paths from alignment
             std::vector< std::vector<idx1> > path(HAPS);
@@ -1741,6 +1736,86 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     false
             );
 
+        } // each cluster
+    } // each contig
+}
+
+editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("Calculating edit distance metrics");
+
+    // +2 since it's inclusive, but then also needs to include one quality higher
+    // which doesn't contain any variants (to get draft reference edit dist)
+    std::vector<int> all_qual_dists(g.max_qual+2, 0);
+    editData edits;
+    for (std::string ctg : clusterdata_ptr->contigs) {
+        std::vector<int> ctg_qual_dists(g.max_qual+2,0);
+        if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
+            INFO("  Contig '%s'", ctg.data())
+
+        // set superclusters pointer
+        std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
+
+        // iterate over superclusters
+        for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
+
+            /////////////////////////////////////////////////////////////////////
+            // DEBUG PRINTING                                                    
+            /////////////////////////////////////////////////////////////////////
+            if (false) {
+                // print cluster info
+                printf("\n\nSupercluster: %d\n", sc_idx);
+                for (int i = 0; i < CALLSETS*HAPS; i++) {
+                    int callset = i >> 1;
+                    int hap = i % 2;
+                    int cluster_beg = sc->superclusters[callset][hap][sc_idx];
+                    int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
+                    printf("%s%d: %d clusters (%d-%d)\n", 
+                        callset_strs[callset].data(), hap+1,
+                        cluster_end-cluster_beg,
+                        cluster_beg, cluster_end);
+
+                    for (int j = cluster_beg; j < cluster_end; j++) {
+                        auto vars = sc->ctg_variants[callset][hap];
+                        int variant_beg = vars->clusters[j];
+                        int variant_end = vars->clusters[j+1];
+                        printf("\tCluster %d: %d variants (%d-%d)\n", j, 
+                            variant_end-variant_beg, variant_beg, variant_end);
+                        for (int k = variant_beg; k < variant_end; k++) {
+                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
+                            vars->refs[k].size() ?  vars->refs[k].data() : "_", 
+                            vars->alts[k].size() ?  vars->alts[k].data() : "_",
+                            vars->var_quals[k]);
+                        }
+                    }
+                }
+            }
+
+            /////////////////////////////////////////////////////////////////////
+            // PRECISION-RECALL: allow skipping called variants                  
+            /////////////////////////////////////////////////////////////////////
+            
+            // set pointers between truth1/2 and reference
+            std::string truth1 = "", ref_t1 = ""; 
+            std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
+            generate_ptrs_strs(
+                    truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
+                    sc->ctg_variants[TRUTH][HAP1],
+                    sc->superclusters[TRUTH][HAP1][sc_idx],
+                    sc->superclusters[TRUTH][HAP1][sc_idx+1],
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
+            std::string truth2 = "", ref_t2 = ""; 
+            std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
+            generate_ptrs_strs(
+                    truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
+                    sc->ctg_variants[TRUTH][HAP2],
+                    sc->superclusters[TRUTH][HAP2][sc_idx],
+                    sc->superclusters[TRUTH][HAP2][sc_idx+1],
+                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
+            );
+
+            int phase = sc->phase[sc_idx];
 
             /////////////////////////////////////////////////////////////////////
             // SMITH-WATERMAN DISTANCE: don't allow skipping called variants     
@@ -1748,7 +1823,10 @@ editData alignment_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             
             // keep or swap truth haps based on previously decided phasing
             std::vector<std::string> truth(2);
-            if (phase == PHASE_SWAP) {
+            if (phase < 0) {
+                ERROR("Phase never set for supercluster %d on contig '%s'",
+                        sc_idx, ctg.data());
+            } else if (phase == PHASE_SWAP) {
                 truth[HAP1] = truth2; truth[HAP2] = truth1;
             } else {
                 truth[HAP1] = truth1; truth[HAP2] = truth2;

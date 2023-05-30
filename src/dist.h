@@ -238,8 +238,8 @@ int count_dist(const std::vector<int> & cigar);
 
 /******************************************************************************/
 
-editData alignment_wrapper(
-        std::shared_ptr<superclusterData> clusterdata_ptr);
+editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr);
+void precision_recall_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr);
 
 int calc_vcf_swg_score(
         std::shared_ptr<ctgVariants> vcf, 

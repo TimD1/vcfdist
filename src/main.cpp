@@ -21,8 +21,8 @@ std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CT
 std::vector<std::string> aln_strs = {"QUERY1-TRUTH1", "QUERY1-TRUTH2", "QUERY2-TRUTH1", "QUERY2-TRUTH2"};
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
-std::vector<std::string> timer_strs = {"reading", "clustering", "reclustering", 
-    "realigning", "superclustering", "aligning", "phasing", "writing", "total"};
+std::vector<std::string> timer_strs = {"reading", "clustering", "realigning", 
+    "reclustering", "superclustering", "precision/recall", "edit distance", "phasing", "writing", "total"};
  
 int main(int argc, char **argv) {
 
@@ -149,10 +149,15 @@ g.timers[TIME_SUPCLUST].start();
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
 g.timers[TIME_SUPCLUST].stop();
 
-    // calculate precision/recall, edit distance, and local phasing
-g.timers[TIME_ALIGN].start();
-    editData edits = alignment_wrapper(clusterdata_ptr);
-g.timers[TIME_ALIGN].stop();
+    // calculate precision/recall and local phasing
+g.timers[TIME_PR_ALN].start();
+    precision_recall_wrapper(clusterdata_ptr);
+g.timers[TIME_PR_ALN].stop();
+
+    // calculate edit distance
+g.timers[TIME_EDITS].start();
+    editData edits = edits_wrapper(clusterdata_ptr);
+g.timers[TIME_EDITS].stop();
 
     // calculate global phasings
 g.timers[TIME_PHASE].start();

@@ -19,16 +19,19 @@ void ctgSuperclusters::add_supercluster(
         this->superclusters[i>>1][i&1].push_back(brks[i]);
     this->begs.push_back(beg);
     this->ends.push_back(end);
+    this->phase.push_back(PHASE_NONE);
+    this->orig_phase_dist.push_back(-1);
+    this->swap_phase_dist.push_back(-1);
     this->n++;
 }
 
-void ctgSuperclusters::add_phasing(
-           int phase, 
+void ctgSuperclusters::set_phase(
+           int sc_idx, int phase, 
            int orig_phase_dist, 
            int swap_phase_dist) {
-    this->phase.push_back(phase);
-    this->orig_phase_dist.push_back(orig_phase_dist);
-    this->swap_phase_dist.push_back(swap_phase_dist);
+    this->phase[sc_idx] = phase;
+    this->orig_phase_dist[sc_idx] = orig_phase_dist;
+    this->swap_phase_dist[sc_idx] = swap_phase_dist;
 }
 
 /******************************************************************************/
