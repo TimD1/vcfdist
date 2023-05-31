@@ -1,4 +1,5 @@
 # vcfdist: benchmarking phased small variant calls
+![build](https://github.com/github/timd1/vcfdist/workflows/build.yml/badge.svg)
 
 ## Overview
 
