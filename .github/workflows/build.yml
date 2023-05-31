@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: install htslib
+    - name: install htslib and make vcfdist
       run: |
        wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
        tar -xvf htslib-1.17.tar.bz2
@@ -22,8 +22,6 @@ jobs:
        make
        make install
        export LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH
-    - name: make vcfdist
-      run: |
-       cd src
+       cd ../src
        make
        ./vcfdist -v
