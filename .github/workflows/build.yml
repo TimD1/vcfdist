@@ -23,4 +23,7 @@ jobs:
        make install
        export LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH
     - name: make vcfdist
-      run: cd ../src && make
+      run: |
+       cd src
+       make
+       ./vcfdist -v
