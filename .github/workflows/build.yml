@@ -18,9 +18,9 @@ jobs:
        wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
        tar -xvf htslib-1.17.tar.bz2
        cd htslib-1.17
-       ./configure --prefix=/usr/local
+       ./configure --prefix=`pwd`
        make
        make install
-       export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+       export LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH
     - name: make vcfdist
       run: cd ../src && make
