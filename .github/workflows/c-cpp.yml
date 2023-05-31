@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: install htslib
-    - run: |
+      run: |
        wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
        tar -xvf htslib-1.17.tar.bz2
        cd htslib-1.17
