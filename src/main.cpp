@@ -161,9 +161,12 @@ g.timers[TIME_SUPCLUST].start();
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
 g.timers[TIME_SUPCLUST].stop();
 
+    // calculate supercluster sizes
+    auto sc_groups = sort_superclusters(clusterdata_ptr);
+
     // calculate precision/recall and local phasing
 g.timers[TIME_PR_ALN].start();
-    precision_recall_wrapper(clusterdata_ptr);
+    precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
 g.timers[TIME_PR_ALN].stop();
 
     // calculate edit distance

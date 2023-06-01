@@ -16,6 +16,9 @@ class idx2;
 #define FALSE 0
 #define TRUE  1
 
+#define CTG_IDX 0
+#define SC_IDX  1
+
 // variant
 #define TYPE_REF 0
 #define TYPE_ALL 0

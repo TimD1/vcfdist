@@ -9,32 +9,44 @@
 
 class Globals {
 public:
-    // command-line data, set using parse_args()
+    // input files
     std::string ref_fasta_fn;
     FILE* ref_fasta_fp;
-
     std::string query_vcf_fn;
     std::string truth_vcf_fn;
-
     std::string bed_fn;
     bedData bed;
     bool bed_exists = false;
 
-    std::string out_prefix;
-    std::string cmd;
-
-    int cluster_min_gap = 50;
-    int reach_min_gap = 10;
-    int max_cluster_itrs = 4;
-    int verbosity = 1;
+    // variant params
     int min_qual = 0;
     int max_qual = 60;
     int min_size = 1;
     int max_size = 5000;
 
+    // clustering params
+    bool keep_truth = false;
+    bool keep_query = false;
+    bool simple_cluster = false;
+    int cluster_min_gap = 50;
+    int reach_min_gap = 10;
+    int max_cluster_itrs = 4;
+
+    // memory params
+    int max_threads = 32;
+    float max_ram = 32; // GB
+    int thread_nsteps = 6;
+    std::vector<int> thread_steps = {32, 16, 8, 4, 2, 1};
+    std::vector<float> ram_steps = {1, 2, 4, 8, 16, 32};
+
+    // high-level options
     bool exit = false;
     bool advanced = false;
+    int verbosity = 1;
+    std::string out_prefix;
+    std::string cmd;
 
+    // alignment parameters
     int query_sub = 5;
     int query_open = 6;
     int query_extend = 2;
@@ -47,10 +59,6 @@ public:
     std::vector<bool> query_penalties_set = {false, false, false};
     std::vector<bool> truth_penalties_set = {false, false, false};
     std::vector<bool> eval_penalties_set  = {false, false, false};
-    
-    bool keep_truth = false;
-    bool keep_query = false;
-    bool simple_cluster = false;
 
     std::vector<timer> timers;
 

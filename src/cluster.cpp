@@ -36,6 +36,92 @@ void ctgSuperclusters::set_phase(
 
 /******************************************************************************/
 
+std::vector< std::vector< std::vector<int> > > 
+sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
+
+    if (g.verbosity >= 1 ) {
+        INFO(" ");
+        INFO("Sorting Superclusters");
+    }
+    std::vector< std::vector< std::vector<int> > > sc_groups(g.thread_nsteps,
+            std::vector< std::vector<int> >(2));
+
+    for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
+        std::string ctg = sc_data->contigs[ctg_idx];
+        auto ctg_scs = sc_data->ctg_superclusters[ctg];
+        for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
+            int max_query_len = 0;
+            // get max query length
+            for (int hap = 0; hap < HAPS; hap++) {
+                // get range of included variants
+                /* printf("QUERY hap=%d\n", hap); */
+                auto vars = ctg_scs->ctg_variants[QUERY][hap];
+                if (vars->clusters.size() == 0) continue;
+                auto scs = ctg_scs->superclusters[QUERY][hap];
+                /* printf("nscs=%d, sc_size=%d, sc_idx=%d\n", ctg_scs->n, int(scs.size()), sc_idx); */
+                /* printf("clust_beg=%d, clust_end=%d, clust_size=%d\n", scs[sc_idx], scs[sc_idx+1], int(vars->clusters.size())); */
+                int var_beg = vars->clusters[scs[sc_idx]];
+                int var_end = vars->clusters[scs[sc_idx+1]];
+                /* printf("var_beg=%d, var_end=%d, nvar=%d, var_size=%d\n", var_beg, var_end, vars->n, int(vars->poss.size())); */
+                // calculate query len after applying variants
+                int query_len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
+                for (int var = var_beg; var < var_end; var++) {
+                    query_len += (vars->alts[var].size() - vars->refs[var].size());
+                }
+                max_query_len = std::max(max_query_len, query_len);
+            }
+            
+            // get max truth length
+            int max_truth_len = 0;
+            for (int hap = 0; hap < HAPS; hap++) {
+                // get range of included variants
+                auto vars = ctg_scs->ctg_variants[TRUTH][hap];
+                if (vars->clusters.size() == 0) continue;
+                auto scs = ctg_scs->superclusters[TRUTH][hap];
+                int var_beg = vars->clusters[scs[sc_idx]];
+                int var_end = vars->clusters[scs[sc_idx+1]];
+                // calculate truth len after applying variants
+                int truth_len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
+                for (int var = var_beg; var < var_end; var++) {
+                    truth_len += (vars->alts[var].size() - vars->refs[var].size());
+                }
+                max_truth_len = std::max(max_truth_len, truth_len);
+            }
+
+            // calculate memory usage
+            // 10 comes from:
+            // (4) aln_ptrs    = 1 byte * 2 haps * 2 phasings
+            // (2) path_ptrs   = 1 byte * 2 haps
+            // (4) path_scores = 2 byte * 2 haps
+            size_t mem = size_t(max_query_len) * size_t(max_truth_len) * 10;
+            float mem_gb = mem / (1000 * 1000 * 1000);
+            if (mem_gb > g.max_ram)
+                ERROR("Max (%.2fGB) RAM exceeded (%.2fGB req) for supercluster %s:%d-%d", 
+                        g.max_ram, mem_gb, ctg.data(), ctg_scs->begs[sc_idx], ctg_scs->ends[sc_idx]);
+            
+            // place into correct group
+            for (int i = 0; i < g.thread_nsteps; i++) {
+                if (mem_gb < g.ram_steps[i]) {
+                    sc_groups[i][CTG_IDX].push_back(ctg_idx);
+                    sc_groups[i][SC_IDX].push_back(sc_idx);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (g.verbosity >= 1 ) 
+    for (int i = 0; i < g.thread_nsteps; i++) {
+        INFO("  %8d superclusters using %6.2f to %6.2f GB RAM each; %3d threads",
+                int(sc_groups[i][CTG_IDX].size()),
+                i == 0 ? 0 : g.ram_steps[i-1], g.ram_steps[i], g.thread_steps[i]);
+    }
+
+    return sc_groups;
+}
+
+/******************************************************************************/
+
 superclusterData::superclusterData(
         std::shared_ptr<variantData> query_ptr,
         std::shared_ptr<variantData> truth_ptr,

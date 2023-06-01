@@ -64,5 +64,7 @@ public:
 void gap_cluster(std::shared_ptr<variantData> vcf, int callset);
 void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         int sub, int open, int extend);
+std::vector< std::vector< std::vector<int> > > 
+        sort_superclusters(std::shared_ptr<superclusterData>);
 
 #endif

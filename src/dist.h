@@ -171,7 +171,7 @@ void get_prec_recall_path_sync(
         );
 
 void calc_prec_recall(
-        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, 
+        superclusterData * clusterdata_ptr, int sc_idx, 
         const std::string & ctg, 
         const std::string & ref,
         const std::string & query1, const std::string & query2, 
@@ -239,7 +239,12 @@ int count_dist(const std::vector<int> & cigar);
 /******************************************************************************/
 
 editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr);
-void precision_recall_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr);
+void precision_recall_threads_wrapper(
+        std::shared_ptr<superclusterData> clusterdata_ptr,
+        std::vector< std::vector< std::vector<int> > > sc_groups);
+void precision_recall_wrapper(superclusterData * clusterdata_ptr,
+        const std::vector< std::vector< std::vector<int> > > & sc_groups,
+        int thread_step, int start, int stop);
 
 int calc_vcf_swg_score(
         std::shared_ptr<ctgVariants> vcf, 

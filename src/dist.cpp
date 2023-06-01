@@ -5,6 +5,7 @@
 #include <chrono>
 #include <utility>
 #include <queue>
+#include <thread>
 
 #include "dist.h"
 #include "edit.h"
@@ -427,7 +428,7 @@ void calc_prec_recall_aln(
 
 
 int store_phase( 
-        std::shared_ptr<superclusterData> clusterdata_ptr, 
+        superclusterData * clusterdata_ptr, 
         const std::string & ctg, int sc_idx,
         const std::vector<int> & s
         ) {
@@ -482,7 +483,7 @@ void calc_prec_recall_path(
             ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs };
     std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { 
             truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs };
-    std::vector<int> pr_query_ref_beg(4);
+    std::vector<int> pr_query_ref_beg(2);
     std::vector< std::vector<bool> > ref_loc_sync;
     std::vector< std::vector< std::vector<bool> > > done;
 
@@ -512,9 +513,9 @@ void calc_prec_recall_path(
                     std::vector<uint8_t>(aln_ptrs[qi][0].size(), PTR_NONE)));
         path_ptrs.push_back(std::vector< std::vector<uint8_t> >(aln_ptrs[ri].size(), 
                     std::vector<uint8_t>(aln_ptrs[ri][0].size(), PTR_NONE)));
-        path_scores.push_back(std::vector< std::vector<int16_t> >(aln_ptrs[qi].size(), 
+        path_scores.push_back(std::vector< std::vector<int16_t> >(aln_ptrs[qi].size(),
                     std::vector<int16_t>(aln_ptrs[qi][0].size(), -1)));
-        path_scores.push_back(std::vector< std::vector<int16_t> >(aln_ptrs[ri].size(), 
+        path_scores.push_back(std::vector< std::vector<int16_t> >(aln_ptrs[ri].size(),
                     std::vector<int16_t>(aln_ptrs[ri][0].size(), -1)));
         done.push_back(std::vector< std::vector<bool> >(aln_ptrs[qi].size(), 
                     std::vector<bool>(aln_ptrs[qi][0].size(), false)));
@@ -553,9 +554,11 @@ void calc_prec_recall_path(
                     // check if mvmt is in variant
                     bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
                     in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
-                    bool in_query_var = (x.hi == ri) ? false : 
-                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+                    bool in_query_var = false;
+                    if (x.hi == qi) {
+                        in_query_var = query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+                    }
 
                     // if off-diagonal or in truth var, this ref loc isn't a sync point
                     if (y.hi == ri && (
@@ -563,7 +566,7 @@ void calc_prec_recall_path(
                         ref_loc_sync[j][y.qri] = false;
                     if (y.hi == qi && !in_query_var && ( in_truth_var || 
                             query_ref_ptrs[i][PTRS][y.qri] != truth_ref_ptrs[i][PTRS][y.ti]))
-                        ref_loc_sync[j][ query_ref_ptrs[i][PTRS][y.qri] ] = false;
+                        ref_loc_sync[j][query_ref_ptrs[i][PTRS][y.qri]] = false;
 
                     // check for fp
                     bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
@@ -636,7 +639,7 @@ void calc_prec_recall_path(
                         }
 
                         if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
-                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
                                 z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
                                 in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                                 in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
@@ -683,7 +686,7 @@ void calc_prec_recall_path(
                         }
 
                         if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s\n",
-                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                                x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
                                 z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
                                 in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                                 in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
@@ -715,9 +718,11 @@ void calc_prec_recall_path(
                     // check if mvmt is in variant
                     bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
                     in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
-                    bool in_query_var = (x.hi == ri) ? false : 
-                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+                    bool in_query_var = false;
+                    if (x.hi == qi) {
+                        in_query_var = query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+                    }
 
                     // if off-diagonal or in truth var, this ref loc isn't a sync point
                     if (y.hi == ri && (
@@ -745,7 +750,7 @@ void calc_prec_recall_path(
                     }
 
                     if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SUB",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                             in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
@@ -763,9 +768,11 @@ void calc_prec_recall_path(
 
                     // check if mvmt is in variant
                     bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
-                    bool in_query_var = (x.hi == ri) ? false : 
-                        query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                    in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+                    bool in_query_var = false;
+                    if (x.hi == qi) {
+                        in_query_var = query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
+                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
+                    }
 
                     // if off-diagonal or in truth var, this ref loc isn't a sync point
                     if (y.hi == ri && (
@@ -793,7 +800,7 @@ void calc_prec_recall_path(
                     }
 
                     if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s %s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "INS",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                             in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
@@ -829,7 +836,7 @@ void calc_prec_recall_path(
                     }
 
                     if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s\n",
-                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "MAT",
+                            x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "DEL",
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                             in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
@@ -842,9 +849,9 @@ void calc_prec_recall_path(
 
         // set pointers
         if (aln_ptrs[ri][0][0] & PATH)
-            pr_query_ref_beg[i] = ri;
+            pr_query_ref_beg[j] = ri;
         else
-            pr_query_ref_beg[i] = qi;
+            pr_query_ref_beg[j] = qi;
 
         // debug print
         if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
@@ -853,12 +860,15 @@ void calc_prec_recall_path(
         if (print) printf("\nREF");
         if (print) print_ptrs(path_ptrs[rj], ref, truth[i]);
 
-    } // 4 alignments
+    } // 2 alignments
 
     // get path and sync points
-    get_prec_recall_path_sync(path, sync, edits, aln_ptrs, path_ptrs, ref_loc_sync,
-            query1_ref_ptrs, ref_query1_ptrs, query2_ref_ptrs, ref_query2_ptrs,
-            truth1_ref_ptrs, truth2_ref_ptrs, pr_query_ref_beg, phase, print
+    get_prec_recall_path_sync(path, sync, edits, 
+            aln_ptrs, path_ptrs, ref_loc_sync,
+            query1_ref_ptrs, ref_query1_ptrs, 
+            query2_ref_ptrs, ref_query2_ptrs,
+            truth1_ref_ptrs, truth2_ref_ptrs, 
+            pr_query_ref_beg, phase, print
     );
 
 }
@@ -924,7 +934,7 @@ void get_prec_recall_path_sync(
         if (print) printf("\n");
 
         // path start
-        int hi = pr_query_ref_beg[i];
+        int hi = pr_query_ref_beg[j];
         int hj = (hi == ri) ? rj : qj;
         int qri = 0;
         int ti = 0;
@@ -1050,7 +1060,7 @@ void get_prec_recall_path_sync(
 
 
 void calc_prec_recall(
-        std::shared_ptr<superclusterData> clusterdata_ptr, int sc_idx, 
+        superclusterData * clusterdata_ptr, int sc_idx, 
         const std::string & ctg, 
         const std::string & ref,
         const std::string & query1, const std::string & query2, 
@@ -1583,162 +1593,172 @@ void wf_swg_align(
 
 /******************************************************************************/
 
-void precision_recall_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
+void precision_recall_threads_wrapper(
+        std::shared_ptr<superclusterData> clusterdata_ptr,
+        std::vector< std::vector< std::vector<int> > > sc_groups) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("Calculating precision and recall");
 
-    for (std::string ctg : clusterdata_ptr->contigs) {
+    for (int thread_step = 0; thread_step < g.thread_nsteps; thread_step++) {
+        std::vector<std::thread> threads;
+        int nthreads = g.thread_steps[thread_step];
+        int nscs = sc_groups[thread_step][0].size();
+        int start = 0;
+        for (int t = 0; t < nthreads; t++) {
+            int size = nscs / nthreads;
+            if (nscs % nthreads) { size++; nscs--; }
+            threads.push_back(std::thread(precision_recall_wrapper,
+                        clusterdata_ptr.get(), std::cref(sc_groups),
+                        thread_step, start, start+size));
+            /* precision_recall_wrapper( clusterdata_ptr.get(), sc_groups, */
+            /*             thread_step, start, start+size); */
+            start += size;
+        }
+        for (auto & t : threads)
+            t.join();
+    }
+}
 
-        if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
-            INFO("  Contig '%s'", ctg.data())
+/******************************************************************************/
+
+void precision_recall_wrapper(
+        superclusterData* clusterdata_ptr,
+        const std::vector< std::vector< std::vector<int> > > & sc_groups,
+        int thread_step, int start, int stop) {
+
+    if (stop == start) return;
+
+    for (int idx = start; idx < stop; idx++) {
+        std::string ctg = clusterdata_ptr->contigs[
+            sc_groups[thread_step][CTG_IDX][idx]];
+        int sc_idx = sc_groups[thread_step][SC_IDX][idx];
 
         // set superclusters pointer
-        std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
+        std::shared_ptr<ctgSuperclusters> sc = 
+                clusterdata_ptr->ctg_superclusters[ctg];
 
-        // iterate over superclusters
-        for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
+        /////////////////////////////////////////////////////////////////////
+        // DEBUG PRINTING                                                    
+        /////////////////////////////////////////////////////////////////////
+        if (false) {
+            // print cluster info
+            printf("\n\nSupercluster: %d\n", sc_idx);
+            for (int i = 0; i < CALLSETS*HAPS; i++) {
+                int callset = i >> 1;
+                int hap = i % 2;
+                int cluster_beg = sc->superclusters[callset][hap][sc_idx];
+                int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
+                printf("%s%d: %d clusters (%d-%d)\n", 
+                    callset_strs[callset].data(), hap+1,
+                    cluster_end-cluster_beg,
+                    cluster_beg, cluster_end);
 
-            /////////////////////////////////////////////////////////////////////
-            // DEBUG PRINTING                                                    
-            /////////////////////////////////////////////////////////////////////
-            if (false) {
-                // print cluster info
-                printf("\n\nSupercluster: %d\n", sc_idx);
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    int callset = i >> 1;
-                    int hap = i % 2;
-                    int cluster_beg = sc->superclusters[callset][hap][sc_idx];
-                    int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
-                    printf("%s%d: %d clusters (%d-%d)\n", 
-                        callset_strs[callset].data(), hap+1,
-                        cluster_end-cluster_beg,
-                        cluster_beg, cluster_end);
-
-                    for (int j = cluster_beg; j < cluster_end; j++) {
-                        auto vars = sc->ctg_variants[callset][hap];
-                        int variant_beg = vars->clusters[j];
-                        int variant_end = vars->clusters[j+1];
-                        printf("\tCluster %d: %d variants (%d-%d)\n", j, 
-                            variant_end-variant_beg, variant_beg, variant_end);
-                        for (int k = variant_beg; k < variant_end; k++) {
-                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
-                            vars->refs[k].size() ?  vars->refs[k].data() : "_", 
-                            vars->alts[k].size() ?  vars->alts[k].data() : "_",
-                            vars->var_quals[k]);
-                        }
+                for (int j = cluster_beg; j < cluster_end; j++) {
+                    auto vars = sc->ctg_variants[callset][hap];
+                    int variant_beg = vars->clusters[j];
+                    int variant_end = vars->clusters[j+1];
+                    printf("\tCluster %d: %d variants (%d-%d)\n", j, 
+                        variant_end-variant_beg, variant_beg, variant_end);
+                    for (int k = variant_beg; k < variant_end; k++) {
+                        printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
+                        vars->refs[k].size() ?  vars->refs[k].data() : "_", 
+                        vars->alts[k].size() ?  vars->alts[k].data() : "_",
+                        vars->var_quals[k]);
                     }
                 }
             }
+        }
 
-            /////////////////////////////////////////////////////////////////////
-            // PRECISION-RECALL: allow skipping called variants                  
-            /////////////////////////////////////////////////////////////////////
-            
-            // set pointers between each hap (query1/2, truth1/2) and reference
-            std::string query1 = "", ref_q1 = ""; 
-            std::vector< std::vector<int> > query1_ref_ptrs, ref_query1_ptrs;
-            generate_ptrs_strs(
-                    query1, ref_q1, query1_ref_ptrs, ref_query1_ptrs, 
-                    sc->ctg_variants[QUERY][HAP1], 
-                    sc->superclusters[QUERY][HAP1][sc_idx],
-                    sc->superclusters[QUERY][HAP1][sc_idx+1],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-            std::string query2 = "", ref_q2 = ""; 
-            std::vector< std::vector<int> > query2_ref_ptrs, ref_query2_ptrs;
-            generate_ptrs_strs(
-                    query2, ref_q2, query2_ref_ptrs, ref_query2_ptrs, 
-                    sc->ctg_variants[QUERY][HAP2],
-                    sc->superclusters[QUERY][HAP2][sc_idx],
-                    sc->superclusters[QUERY][HAP2][sc_idx+1],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-            std::string truth1 = "", ref_t1 = ""; 
-            std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
-            generate_ptrs_strs(
-                    truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
-                    sc->ctg_variants[TRUTH][HAP1],
-                    sc->superclusters[TRUTH][HAP1][sc_idx],
-                    sc->superclusters[TRUTH][HAP1][sc_idx+1],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-            std::string truth2 = "", ref_t2 = ""; 
-            std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
-            generate_ptrs_strs(
-                    truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
-                    sc->ctg_variants[TRUTH][HAP2],
-                    sc->superclusters[TRUTH][HAP2][sc_idx],
-                    sc->superclusters[TRUTH][HAP2][sc_idx+1],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
+        /////////////////////////////////////////////////////////////////////
+        // PRECISION-RECALL: allow skipping called variants                  
+        /////////////////////////////////////////////////////////////////////
+        
+        // set pointers between each hap (query1/2, truth1/2) and reference
+        std::string query1 = "", ref_q1 = ""; 
+        std::vector< std::vector<int> > query1_ref_ptrs, ref_query1_ptrs;
+        generate_ptrs_strs(
+                query1, ref_q1, query1_ref_ptrs, ref_query1_ptrs, 
+                sc->ctg_variants[QUERY][HAP1], 
+                sc->superclusters[QUERY][HAP1][sc_idx],
+                sc->superclusters[QUERY][HAP1][sc_idx+1],
+                sc->begs[sc_idx], sc->ends[sc_idx], 
+                clusterdata_ptr->ref, ctg);
 
-            if (false) {
-                printf("\n%s:%d\n", ctg.data(), sc->begs[sc_idx]);
-                printf("REF:       %s\n", ref_q1.data());
-                printf("QUERY1:    %s\n", query1.data());
-                printf("QUERY2:    %s\n", query2.data());
-                printf("TRUTH1:    %s\n", truth1.data());
-                printf("TRUTH2:    %s\n", truth2.data());
-                printf("Q1->REF PTRS: "); print_ref_ptrs(query1_ref_ptrs);
-                printf("REF->Q1 PTRS: "); print_ref_ptrs(ref_query1_ptrs);
-                printf("Q2->REF PTRS: "); print_ref_ptrs(query2_ref_ptrs);
-                printf("REF->Q2 PTRS: "); print_ref_ptrs(ref_query2_ptrs);
-                printf("T1->REF PTRS: "); print_ref_ptrs(truth1_ref_ptrs);
-                printf("REF->T1 PTRS: "); print_ref_ptrs(ref_truth1_ptrs);
-                printf("T2->REF PTRS: "); print_ref_ptrs(truth2_ref_ptrs);
-                printf("REF->T2 PTRS: "); print_ref_ptrs(ref_truth2_ptrs);
-            }
+        std::string query2 = "", ref_q2 = ""; 
+        std::vector< std::vector<int> > query2_ref_ptrs, ref_query2_ptrs;
+        generate_ptrs_strs(
+                query2, ref_q2, query2_ref_ptrs, ref_query2_ptrs, 
+                sc->ctg_variants[QUERY][HAP2],
+                sc->superclusters[QUERY][HAP2][sc_idx],
+                sc->superclusters[QUERY][HAP2][sc_idx+1],
+                sc->begs[sc_idx], sc->ends[sc_idx], 
+                clusterdata_ptr->ref, ctg);
 
-            // calculate four forward-pass alignment edit dists
-            // query1-truth2, query1-truth1, query2-truth1, query2-truth2
-            std::vector<int> aln_score(HAPS*CALLSETS);
-            std::vector<int> aln_query_ref_end(HAPS*CALLSETS);
-            std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
-            std::unordered_map<idx1, idx1> swap_pred_map;
-            calc_prec_recall_aln(
-                    query1, query2, truth1, truth2, ref_q1,
-                    query1_ref_ptrs, ref_query1_ptrs, 
-                    query2_ref_ptrs, ref_query2_ptrs,
-                    truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_score, aln_ptrs, swap_pred_map,
-                    aln_query_ref_end, false
-            );
+        std::string truth1 = "", ref_t1 = ""; 
+        std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
+        generate_ptrs_strs(
+                truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
+                sc->ctg_variants[TRUTH][HAP1],
+                sc->superclusters[TRUTH][HAP1][sc_idx],
+                sc->superclusters[TRUTH][HAP1][sc_idx+1],
+                sc->begs[sc_idx], sc->ends[sc_idx], 
+                clusterdata_ptr->ref, ctg);
 
-            // store optimal phasing for each supercluster
-            // ORIG: query1-truth1 and query2-truth2
-            // SWAP: query1-truth2 and query2-truth1
-            int phase = store_phase(clusterdata_ptr, ctg, sc_idx, aln_score);
+        std::string truth2 = "", ref_t2 = ""; 
+        std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
+        generate_ptrs_strs(
+                truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
+                sc->ctg_variants[TRUTH][HAP2],
+                sc->superclusters[TRUTH][HAP2][sc_idx],
+                sc->superclusters[TRUTH][HAP2][sc_idx+1],
+                sc->begs[sc_idx], sc->ends[sc_idx], 
+                clusterdata_ptr->ref, ctg);
 
-            // calculate paths from alignment
-            std::vector< std::vector<idx1> > path(HAPS);
-            std::vector< std::vector<bool> > sync(HAPS);
-            std::vector< std::vector<bool> > edit(HAPS);
-            std::vector< std::vector< std::vector<uint8_t> > > path_ptrs;
-            std::vector< std::vector< std::vector<int16_t> > > path_scores;
-            calc_prec_recall_path(
-                    ref_q1, query1, query2, truth1, truth2,
-                    path, sync, edit,
-                    aln_ptrs, path_ptrs, path_scores,
-                    query1_ref_ptrs, ref_query1_ptrs, 
-                    query2_ref_ptrs, ref_query2_ptrs, 
-                    truth1_ref_ptrs, truth2_ref_ptrs,
-                    swap_pred_map, aln_query_ref_end, phase, false);
+        // calculate four forward-pass alignment edit dists
+        // query1-truth2, query1-truth1, query2-truth1, query2-truth2
+        std::vector<int> aln_score(HAPS*CALLSETS);
+        std::vector<int> aln_query_ref_end(HAPS*CALLSETS);
+        std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
+        std::unordered_map<idx1, idx1> swap_pred_map;
+        calc_prec_recall_aln(
+                query1, query2, truth1, truth2, ref_q1,
+                query1_ref_ptrs, ref_query1_ptrs, 
+                query2_ref_ptrs, ref_query2_ptrs,
+                truth1_ref_ptrs, truth2_ref_ptrs,
+                aln_score, aln_ptrs, swap_pred_map,
+                aln_query_ref_end, false);
 
-            // calculate precision/recall from paths
-            calc_prec_recall(
-                    clusterdata_ptr, sc_idx, ctg, ref_q1,
-                    query1, query2, truth1, truth2,
-                    path, sync, edit,
-                    query1_ref_ptrs, ref_query1_ptrs, 
-                    query2_ref_ptrs, ref_query2_ptrs,
-                    truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_query_ref_end, phase, 
-                    false
-            );
+        // store optimal phasing for each supercluster
+        // ORIG: query1-truth1 and query2-truth2
+        // SWAP: query1-truth2 and query2-truth1
+        int phase = store_phase(clusterdata_ptr, ctg, sc_idx, aln_score);
 
-        } // each cluster
-    } // each contig
+        // calculate paths from alignment
+        std::vector< std::vector<idx1> > path(HAPS);
+        std::vector< std::vector<bool> > sync(HAPS);
+        std::vector< std::vector<bool> > edit(HAPS);
+        std::vector< std::vector< std::vector<uint8_t> > > path_ptrs;
+        std::vector< std::vector< std::vector<int16_t> > > path_scores;
+        calc_prec_recall_path(
+                ref_q1, query1, query2, truth1, truth2,
+                path, sync, edit, aln_ptrs, path_ptrs, path_scores,
+                query1_ref_ptrs, ref_query1_ptrs, 
+                query2_ref_ptrs, ref_query2_ptrs, 
+                truth1_ref_ptrs, truth2_ref_ptrs,
+                swap_pred_map, aln_query_ref_end, phase, false);
+
+        // calculate precision/recall from paths
+        calc_prec_recall(
+                clusterdata_ptr, sc_idx, ctg, ref_q1, query1, query2, 
+                truth1, truth2, path, sync, edit,
+                query1_ref_ptrs, ref_query1_ptrs, 
+                query2_ref_ptrs, ref_query2_ptrs,
+                truth1_ref_ptrs, truth2_ref_ptrs,
+                aln_query_ref_end, phase, false);
+    }
 }
+
+/******************************************************************************/
 
 editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
@@ -2333,7 +2353,6 @@ std::shared_ptr<variantData> wf_swg_realign(
             std::string ctg = itr->first;
             std::shared_ptr<ctgVariants> vars = itr->second;
             if (vars->poss.size() == 0) continue;
-            if (g.verbosity >= 1) INFO("  Haplotype %d Contig %s", hap+1, ctg.data());
 
             // realign each cluster of variants
             for (int cluster = 0; cluster < int(vars->clusters.size()-1); cluster++) {
