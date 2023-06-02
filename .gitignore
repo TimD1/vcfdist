@@ -19,6 +19,7 @@ lv89
 
 # ignore analysis
 analysis/*/
+analysis/*.png
 
 # ignore input
 data/*/*
