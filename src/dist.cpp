@@ -1599,23 +1599,63 @@ void precision_recall_threads_wrapper(
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("Calculating precision and recall");
 
-    for (int thread_step = 0; thread_step < g.thread_nsteps; thread_step++) {
-        std::vector<std::thread> threads;
+    int thread_step = g.thread_nsteps-1;
+    int start = 0;
+    while (thread_step >= 0) {
+
+        // init
         int nthreads = g.thread_steps[thread_step];
-        int nscs = sc_groups[thread_step][0].size();
-        int start = 0;
-        for (int t = 0; t < nthreads; t++) {
-            int size = nscs / nthreads;
-            if (nscs % nthreads) { size++; nscs--; }
-            threads.push_back(std::thread(precision_recall_wrapper,
-                        clusterdata_ptr.get(), std::cref(sc_groups),
-                        thread_step, start, start+size));
-            /* precision_recall_wrapper( clusterdata_ptr.get(), sc_groups, */
-            /*             thread_step, start, start+size); */
-            start += size;
+        int nscs = sc_groups[thread_step][SC_IDX].size() - start;
+        std::vector<std::thread> threads;
+
+        // all threads can solve at least one problem at this level
+        if (nscs >= nthreads) {
+            printf("distributing %d subproblems to %d threads\n",
+                    nscs - (nscs % nthreads), nthreads);
+
+            // distribute many subproblems evenly among threads
+            for (int t = 0; t < nthreads; t++) {
+                int size = nscs / nthreads;
+                threads.push_back(std::thread(precision_recall_wrapper,
+                            clusterdata_ptr.get(), std::cref(sc_groups),
+                            thread_step, start, start+size));
+                start += size;
+            }
+            for (auto & t : threads)
+                t.join();
+
+            // we fully finished all problems at this size
+            if (nscs % nthreads == 0) {
+                thread_step--;
+                start = 0;
+            }
+
+        } else { // not enough work for all threads at this level
+
+            // each thread solves one problem, 
+            // at multiple levels until RAM limit reached
+            float total_ram = 0;
+            while (total_ram < g.max_ram && thread_step >= 0) {
+                while (sc_groups[thread_step][SC_IDX].size() == 0) {
+                    thread_step--;
+                }
+                if (thread_step < 0) break;
+                printf("sc %d: %.2fGB, ", start, g.ram_steps[thread_step]);
+                threads.push_back(std::thread(precision_recall_wrapper,
+                            clusterdata_ptr.get(), std::cref(sc_groups),
+                            thread_step, start, start+1));
+                start++;
+                total_ram += g.ram_steps[thread_step];
+                if (start >= int(sc_groups[thread_step][SC_IDX].size())) {
+                    start = 0;
+                    thread_step--;
+                }
+            }
+            printf("\n");
+
+            for (auto & t : threads)
+                t.join();
         }
-        for (auto & t : threads)
-            t.join();
     }
 }
 
