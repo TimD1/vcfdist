@@ -33,11 +33,11 @@ public:
     int max_cluster_itrs = 4;
 
     // memory params
-    int max_threads = 32;
+    int max_threads = 64;
     float max_ram = 32; // GB
-    int thread_nsteps = 6;
-    std::vector<int> thread_steps = {32, 16, 8, 4, 2, 1};
-    std::vector<float> ram_steps = {1, 2, 4, 8, 16, 32};
+    int thread_nsteps;
+    std::vector<int> thread_steps;
+    std::vector<float> ram_steps;
 
     // high-level options
     bool exit = false;

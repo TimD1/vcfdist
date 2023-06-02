@@ -462,6 +462,34 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max cluster iterations must be positive");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "--max-threads") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--max-threads' used without providing max threads");
+            }
+            try {
+                this->max_threads = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid max threads provided");
+            }
+            if (this->max_threads < 1) {
+                ERROR("Max threads must be positive");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "--max-ram") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--max-ram' used without providing max RAM");
+            }
+            try {
+                this->max_ram = std::stof(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid max RAM provided");
+            }
+            if (this->max_ram < 0) {
+                ERROR("Max RAM must be positive");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-r" || 
                 std::string(argv[i]) == "--realign-only") {
             i++;
@@ -505,6 +533,16 @@ void Globals::parse_args(int argc, char ** argv) {
     }
     if (g.max_qual < g.min_qual) {
         ERROR("Maximum variant quality must exceed minimum variant quality");
+    }
+
+    // calculate thread/RAM steps
+    thread_nsteps = 0;
+    int threads = this->max_threads;
+    while (threads > 0) {
+        thread_steps.push_back(threads);
+        ram_steps.push_back(this->max_ram / threads);
+        thread_nsteps++;
+        threads /= 2;
     }
 
     if (print_help) 
@@ -574,6 +612,14 @@ void Globals::print_usage() const
 
     printf("  -g, --supercluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
     printf("      minimum base gap between independent superclusters\n\n");
+
+    printf("  --max-threads <INTEGER> [%d]\n", g.max_threads);
+    printf("      maximum threads to use for precision/recall alignment\n");
+    printf("      (haps*contigs used for wavefront clustering)\n\n");
+
+    printf("  --max-ram <FLOAT> [%.3fGB]\n", g.max_ram);
+    printf("      maximum RAM to use for precision/recall alignment\n");
+    printf("      (work in-progress, more may be used in other steps)\n\n");
 
     printf("  -h, --help\n");
     printf("      show this help message\n\n");

@@ -106,13 +106,6 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
         }
     }
 
-    if (g.verbosity >= 1 ) 
-    for (int i = 0; i < g.thread_nsteps; i++) {
-        INFO("  Superclusters using %6.2f to %6.2f GB RAM each (%3d threads): %8d",
-                i == 0 ? 0 : g.ram_steps[i-1], g.ram_steps[i], g.thread_steps[i],
-                int(sc_groups[i][CTG_IDX].size()));
-    }
-
     return sc_groups;
 }
 
