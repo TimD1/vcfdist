@@ -375,8 +375,9 @@ variantData::variantData(std::string vcf_fn,
     this->callset = callset;
 
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Parsing %s VCF '%s'", 
-            callset_strs[callset].data(), vcf_fn.data());
+    if (g.verbosity >= 1) INFO("%s[%s0/8] Parsing %s VCF%s '%s'", COLOR_PURPLE,
+            callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
+            COLOR_WHITE, vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
     // counters
@@ -784,7 +785,9 @@ variantData::variantData(std::string vcf_fn,
     if (g.verbosity >= 1) {
         INFO("  Contigs:");
         for (size_t i = 0; i < this->contigs.size(); i++) {
-            INFO("    [%2lu] %s", i, this->contigs[i].data());
+            INFO("    [%2lu] %s: %d | %d variants", i, this->contigs[i].data(),
+                    this->ctg_variants[HAP1][this->contigs[i]]->n, 
+                    this->ctg_variants[HAP2][this->contigs[i]]->n);
         }
         INFO(" ");
 
@@ -794,43 +797,37 @@ variantData::variantData(std::string vcf_fn,
         }
         INFO(" ");
 
-        INFO("  Variant exceeds Min Qual (%d):", g.min_qual);
+        INFO("  Variant exceeds min qual (%d):", g.min_qual);
         INFO("    FAIL  %d", pass_min_qual[FAIL]);
         INFO("    PASS  %d", pass_min_qual[PASS]);
         INFO(" ");
 
-        INFO("  Variants in BED Regions:");
+        INFO("  Variants in BED regions:");
         for (size_t i = 0; i < region_strs.size(); i++) {
-            INFO("  %s  %i", region_strs[i].data(), nregions[i]);
+            INFO("    %s  %i", region_strs[i].data(), nregions[i]);
         }
         INFO(" ");
 
-        INFO("  Variant Types:");
-        for (int h = 0; h < HAPS; h++) {
-            INFO("    Haplotype %i", h+1);
-            for (size_t i = 0; i < type_strs.size(); i++) {
-                INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
-            }
-        }
-        INFO(" ");
-
-        INFO("  Contigs:");
-        for (std::string ctg : this->contigs) {
+        INFO("  Variant types:");
+        if (g.verbosity >= 2) { // show each hap separately
             for (int h = 0; h < HAPS; h++) {
-                if (this->ctg_variants[h][ctg]->poss.size() > 0) {
-                    INFO("      '%s' hap %i: %lu variants", 
-                        ctg.data(),
-                        h+1,
-                        this->ctg_variants[h][ctg]->poss.size());
+                INFO("    Haplotype %i", h+1);
+                for (size_t i = 0; i < type_strs.size(); i++) {
+                    INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
                 }
             }
+            INFO(" ");
+        } else { // summarize
+            for (size_t i = 0; i < type_strs.size(); i++) {
+                INFO("    %s  %i", type_strs[i].data(), 
+                        ntypes[HAP1][i] + ntypes[HAP2][i]);
+            }
         }
         INFO(" ");
 
-        INFO("  %s VCF Overview:", callset_strs[callset].data());
-        INFO("    VARIANTS  %d", n);
-        INFO("    KEPT HAP1 %d", npass[HAP1]);
-        INFO("    KEPT HAP2 %d", npass[HAP2]);
+        INFO("  %s VCF overview:", callset_strs[callset].data());
+        INFO("    TOTAL %d", n);
+        INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
         INFO(" ");
     }
 

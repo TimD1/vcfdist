@@ -26,6 +26,6 @@ double timer::total() {
     return total_time / 1000000000.0; 
 }
 
-void timer::print() {
-    INFO("%16s timer: %8.3fs", name.data(), total());
+void timer::print(int i) {
+    INFO("  [%d] %-16s: %8.3fs", i, name.data(), total());
 }

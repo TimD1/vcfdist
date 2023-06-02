@@ -41,6 +41,31 @@ void Globals::parse_args(int argc, char ** argv) {
         std::exit(0);
     }
 
+    // parse verbosity first
+    for (int i = 0; i+1 < argc; i++) {
+        if (std::string(argv[i]) == "-v" || 
+                std::string(argv[i]) == "--verbosity") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--verbosity' used without providing printing verbosity");
+            }
+            try {
+                this->verbosity = std::stoi(argv[i]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid printing verbosity provided");
+            }
+            if (this->verbosity < 0 || this->verbosity > 2) {
+                ERROR("Printing verbosity %d not a valid option (0,1,2)", 
+                        this->verbosity);
+            }
+            break;
+        }
+    }
+
+    for (int i = 0; i < argc; i++)
+        g.cmd += " " + std::string(argv[i]);
+    if (g.verbosity >= 1) INFO("Command: '%s'", g.cmd.data()+1);
+
     if (argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-') {
         WARN("Optional arguments should be provided AFTER mandatory arguments, cannot use STDIN");
         this->print_usage();
@@ -65,7 +90,11 @@ void Globals::parse_args(int argc, char ** argv) {
 
     // load reference FASTA
     this->ref_fasta_fn = std::string(argv[3]);
-    if (g.verbosity >= 1) INFO("Loading reference FASTA '%s'", ref_fasta_fn.data());
+    if (g.verbosity >= 1) {
+        INFO(" ");
+        INFO("%s[0/8] Loading reference FASTA%s '%s'", COLOR_PURPLE,
+                COLOR_WHITE, ref_fasta_fn.data());
+    }
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
         ERROR("Failed to open reference FASTA file '%s'", ref_fasta_fn.data());
@@ -151,22 +180,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 this->max_qual = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant quality provided");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-v" || 
-                std::string(argv[i]) == "--verbosity") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--verbosity' used without providing printing verbosity");
-            }
-            try {
-                this->verbosity = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid printing verbosity provided");
-            }
-            if (this->verbosity < 0 || this->verbosity > 2) {
-                ERROR("Printing verbosity %d not a valid option (0,1,2)", 
-                        this->verbosity);
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-h" || 
@@ -478,6 +491,9 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             print_cite = true;
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-v" ||
+                std::string(argv[i]) == "--verbosity") {
+            i += 2; // already handled
         } else {
             ERROR("Unexpected option '%s'", argv[i]);
         }
@@ -495,11 +511,6 @@ void Globals::parse_args(int argc, char ** argv) {
         this->print_usage();
     else if (print_cite)
         this->print_citation();
-    else {
-        for (int i = 0; i < argc; i++)
-            g.cmd += " " + std::string(argv[i]);
-        if (g.verbosity >= 1) INFO("Command: '%s'", g.cmd.data()+1);
-    }
 }
 
 /* --------------------------------------------------------------------------- */

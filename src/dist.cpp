@@ -1597,7 +1597,8 @@ void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Calculating precision and recall");
+    if (g.verbosity >= 1) INFO("%s[5/8] Calculating precision and recall%s",
+            COLOR_PURPLE, COLOR_WHITE);
 
     int thread_step = g.thread_nsteps-1;
     int start = 0;
@@ -1610,8 +1611,6 @@ void precision_recall_threads_wrapper(
 
         // all threads can solve at least one problem at this level
         if (nscs >= nthreads) {
-            printf("distributing %d subproblems to %d threads\n",
-                    nscs - (nscs % nthreads), nthreads);
 
             // distribute many subproblems evenly among threads
             for (int t = 0; t < nthreads; t++) {
@@ -1640,7 +1639,6 @@ void precision_recall_threads_wrapper(
                     thread_step--;
                 }
                 if (thread_step < 0) break;
-                printf("sc %d: %.2fGB, ", start, g.ram_steps[thread_step]);
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
                             thread_step, start, start+1));
@@ -1651,7 +1649,6 @@ void precision_recall_threads_wrapper(
                     thread_step--;
                 }
             }
-            printf("\n");
 
             for (auto & t : threads)
                 t.join();
@@ -1802,7 +1799,8 @@ void precision_recall_wrapper(
 
 editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Calculating edit distance metrics");
+    if (g.verbosity >= 1) INFO("%s[6/8] Calculating edit distance metrics%s",
+            COLOR_PURPLE, COLOR_WHITE);
 
     // +2 since it's inclusive, but then also needs to include one quality higher
     // which doesn't contain any variants (to get draft reference edit dist)
@@ -1810,8 +1808,6 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     editData edits;
     for (std::string ctg : clusterdata_ptr->contigs) {
         std::vector<int> ctg_qual_dists(g.max_qual+2,0);
-        if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
-            INFO("  Contig '%s'", ctg.data())
 
         // set superclusters pointer
         std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
@@ -1952,11 +1948,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             }
 
         } // each cluster
-        if (clusterdata_ptr->ctg_superclusters[ctg]->n && g.verbosity >= 1)
-            INFO("    %d edits", 
-                *std::min_element(ctg_qual_dists.begin(), ctg_qual_dists.end()));
     } // each contig
-    if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Total edit distance: %d", 
                 *std::min_element(all_qual_dists.begin(), all_qual_dists.end()));
     return edits;
@@ -2379,8 +2371,9 @@ std::shared_ptr<variantData> wf_swg_realign(
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend, int callset, bool print /* = false */) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Realigning %s VCF '%s'", 
-            callset_strs[callset].data(), vcf->filename.data());
+    if (g.verbosity >= 1) INFO("%s[%s2/8] Realigning %s VCF%s '%s'", COLOR_PURPLE,
+            callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
+            COLOR_WHITE, vcf->filename.data());
 
     // copy vcf header data over to results vcf
     std::shared_ptr<variantData> results(new variantData());

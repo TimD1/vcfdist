@@ -132,7 +132,7 @@ void check_contigs(
         std::shared_ptr<variantData> query_ptr,
         std::shared_ptr<variantData> truth_ptr,
         std::shared_ptr<fastaData> ref_ptr) {
-    if (g.verbosity >= 1) INFO("Checking contigs");
+    if (g.verbosity >= 1) INFO("  Checking contigs:");
 
     if (g.bed_exists) { // use BED to determine contigs
 
@@ -146,6 +146,8 @@ void check_contigs(
                 query_ptr->ctg_variants[HAP1].erase(*itr);
                 query_ptr->ctg_variants[HAP2].erase(*itr);
                 itr = query_ptr->contigs.erase(itr);
+                if (g.verbosity >= 2) 
+                    WARN("Ignoring %s from QUERY VCF, not in BED file.", (*itr).data());
             } else itr++;
         }
         itr = truth_ptr->contigs.begin();
@@ -157,6 +159,8 @@ void check_contigs(
                 truth_ptr->ctg_variants[HAP1].erase(*itr);
                 truth_ptr->ctg_variants[HAP2].erase(*itr);
                 itr = truth_ptr->contigs.erase(itr);
+                if (g.verbosity >= 2) 
+                    WARN("Ignoring %s from TRUTH VCF, not in BED file.", (*itr).data());
             } else itr++;
         }
         auto itr2 = ref_ptr->fasta.begin();
@@ -248,4 +252,5 @@ void check_contigs(
             }
         }
     }
+    if (g.verbosity >= 1) INFO("    All contig checks passed!");
 }

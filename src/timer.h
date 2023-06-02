@@ -15,7 +15,7 @@ public:
     void start();
     void stop();
     double total();
-    void print();
+    void print(int i);
 
 private:
     std::string name = "default";

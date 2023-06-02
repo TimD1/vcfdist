@@ -19,6 +19,10 @@ class idx2;
 #define CTG_IDX 0
 #define SC_IDX  1
 
+#define COLOR_BLUE "\033[34m"
+#define COLOR_WHITE "\033[0m"
+#define COLOR_PURPLE "\033[35m"
+
 // variant
 #define TYPE_REF 0
 #define TYPE_ALL 0

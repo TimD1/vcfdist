@@ -426,11 +426,12 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
     FILE* out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
     fprintf(out_pr_summ, "VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
     INFO(" ");
-    INFO("PRECISION-RECALL SUMMARY");
+    INFO("%sPRECISION-RECALL SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         INFO(" ");
-        INFO("TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE");
+        INFO("%sTYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
+                COLOR_BLUE, COLOR_WHITE);
 
         for (int qual : quals) {
             // redo calculations for these two
@@ -460,7 +461,8 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
             float f1_score = 2*precision*recall / (precision + recall);
 
             // print summary
-            INFO("%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f",
+            INFO("%s%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
+                COLOR_BLUE,
                 vartype_strs[type].data(),
                 qual,
                 int(truth_counts[type][ERRTYPE_TP][qidx]),
@@ -470,7 +472,8 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                 precision,
                 recall, 
                 f1_score,
-                qscore(1-f1_score)
+                qscore(1-f1_score),
+                COLOR_WHITE
             );
             fprintf(out_pr_summ,
                "%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
@@ -547,7 +550,7 @@ void write_distance(const editData & edits) {
     if (g.verbosity >= 1) INFO("  Printing distance summary to '%s'", dist_summ_fn.data());
     fprintf(dists_summ, "VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
     INFO(" ");
-    INFO("ALIGNMENT DISTANCE SUMMARY");
+    INFO("%sALIGNMENT DISTANCE SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
     for (int type = 0; type < TYPES; type++) {
 
         // skip INS/DEL individually unless higher print verbosity
@@ -556,9 +559,11 @@ void write_distance(const editData & edits) {
 
         INFO(" ");
         if (type == TYPE_ALL) {
-            INFO("TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE");
+            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE%s",
+                    COLOR_BLUE, COLOR_WHITE);
         } else {
-            INFO("TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE");
+            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE%s",
+                    COLOR_BLUE, COLOR_WHITE);
         }
         std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
         for (auto q : quals) {
@@ -579,11 +584,11 @@ void write_distance(const editData & edits) {
             fprintf(dists_summ, "%s\t%d\t%d\t%d\t%f\t%f\t%f\n", type_strs2[type].data(),
                     q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
             if (type == TYPE_ALL) {
-                INFO("%s\tQ >= %d\t\t%-16d%-16d%f\t%f\t%f", type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
+                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
+                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore, COLOR_WHITE);
             } else {
-                INFO("%s\tQ >= %d\t\t%-16d%-16d%f\t%f", type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore);
+                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
+                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, COLOR_WHITE);
             }
         }
     }
@@ -599,7 +604,7 @@ void write_results(
         std::unique_ptr<phaseData> & phasedata_ptr, 
         const editData & edits) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Writing results");
+    if (g.verbosity >= 1) INFO("%s[8/8] Writing results%s", COLOR_PURPLE, COLOR_WHITE);
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);

@@ -56,8 +56,9 @@ g.timers[TIME_CLUST].start();
             gap_cluster(query_ptr, QUERY);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("Smith-Waterman Clustering %s VCF '%s'", 
-                    callset_strs[QUERY].data(), query_ptr->filename.data());
+            if (g.verbosity >= 1) INFO("%s[Q1/8] Wavefront clustering %s VCF%s '%s'", 
+                    COLOR_PURPLE, callset_strs[QUERY].data(), 
+                    COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
@@ -86,8 +87,9 @@ g.timers[TIME_RECLUST].start();
             gap_cluster(query_ptr, QUERY);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("Smith-Waterman Re-Clustering %s VCF '%s'", 
-                    callset_strs[QUERY].data(), query_ptr->filename.data());
+            if (g.verbosity >= 1) INFO("%s[Q3/8] Wavefront reclustering %s VCF%s '%s'", 
+                    COLOR_PURPLE, callset_strs[QUERY].data(), 
+                    COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
@@ -106,8 +108,9 @@ g.timers[TIME_CLUST].start();
             gap_cluster(truth_ptr, TRUTH);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("Smith-Waterman Clustering %s VCF '%s'", 
-                    callset_strs[TRUTH].data(), truth_ptr->filename.data());
+            if (g.verbosity >= 1) INFO("%s[T1/8] Wavefront clustering %s VCF%s '%s'", 
+                    COLOR_PURPLE, callset_strs[TRUTH].data(), 
+                    COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
@@ -130,9 +133,11 @@ g.timers[TIME_WRITE].start();
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
 g.timers[TIME_WRITE].stop();
 g.timers[TIME_TOTAL].stop();
-        INFO(" ")
-        INFO("TIMERS")
-        for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }
+        if (g.verbosity >= 1) {
+            INFO(" ")
+            INFO("Timers:")
+            for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(i); }
+        }
         return EXIT_SUCCESS;
 
     } else {
@@ -142,8 +147,9 @@ g.timers[TIME_RECLUST].start();
             gap_cluster(truth_ptr, TRUTH); 
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("Smith-Waterman Re-Clustering %s VCF '%s'", 
-                    callset_strs[TRUTH].data(), truth_ptr->filename.data());
+            if (g.verbosity >= 1) INFO("%s[T3/8] Wavefront reclustering %s VCF%s '%s'", 
+                    COLOR_PURPLE, callset_strs[TRUTH].data(), 
+                    COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++)
                 threads.push_back(std::thread( wf_swg_cluster, 
@@ -191,8 +197,10 @@ g.timers[TIME_WRITE].stop();
 
     // report timing results
 g.timers[TIME_TOTAL].stop();
-    INFO(" ")
-    INFO("TIMERS")
-    for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(); }
+    if (g.verbosity >= 1) {
+        INFO(" ")
+        INFO("Timers:")
+        for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(i); }
+    }
     return EXIT_SUCCESS;
 }

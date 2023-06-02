@@ -39,10 +39,6 @@ void ctgSuperclusters::set_phase(
 std::vector< std::vector< std::vector<int> > > 
 sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
-    if (g.verbosity >= 1 ) {
-        INFO(" ");
-        INFO("Sorting Superclusters");
-    }
     std::vector< std::vector< std::vector<int> > > sc_groups(g.thread_nsteps,
             std::vector< std::vector<int> >(2));
 
@@ -112,9 +108,9 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
     if (g.verbosity >= 1 ) 
     for (int i = 0; i < g.thread_nsteps; i++) {
-        INFO("  %8d superclusters using %6.2f to %6.2f GB RAM each; %3d threads",
-                int(sc_groups[i][CTG_IDX].size()),
-                i == 0 ? 0 : g.ram_steps[i-1], g.ram_steps[i], g.thread_steps[i]);
+        INFO("  Superclusters using %6.2f to %6.2f GB RAM each (%3d threads): %8d",
+                i == 0 ? 0 : g.ram_steps[i-1], g.ram_steps[i], g.thread_steps[i],
+                int(sc_groups[i][CTG_IDX].size()));
     }
 
     return sc_groups;
@@ -182,7 +178,8 @@ superclusterData::superclusterData(
 
 void superclusterData::gap_supercluster() {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Superclustering truth and call variants across haplotypes");
+    if (g.verbosity >= 1) INFO("%s[4/8] Superclustering TRUTH and QUERY variants%s",
+            COLOR_PURPLE, COLOR_WHITE);
 
     // iterate over each contig
     int total_superclusters = 0;
@@ -196,9 +193,7 @@ void superclusterData::gap_supercluster() {
         int nvars = 0;
         for (int i = 0; i < CALLSETS*HAPS; i++)
             nvars += this->ctg_superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
-        if (nvars > 0) { 
-            if (g.verbosity >= 1) INFO("  Contig '%s': %d variants", ctg.data(), nvars); 
-        } else { continue; }
+        if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
         auto vars = this->ctg_superclusters[ctg]->ctg_variants;
@@ -303,16 +298,14 @@ void superclusterData::gap_supercluster() {
             std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
         this->ctg_superclusters[ctg]->n--;
 
-        if (this->ctg_superclusters[ctg]->n && g.verbosity >= 1)
-            INFO("    %d superclusters", this->ctg_superclusters[ctg]->n);
         total_superclusters += this->ctg_superclusters[ctg]->n;
     }
-    if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
     if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);
     if (g.verbosity >= 1) INFO("  Largest supercluster  (vars): %d", most_vars);
     if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster (bases): %d", total_bases / total_superclusters);
     if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster  (vars): %d", total_vars / total_superclusters);
+    if (g.verbosity >= 1) INFO(" ");
 }
 
 
@@ -322,22 +315,17 @@ void superclusterData::gap_supercluster() {
 void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
     /* Add single-VCF cluster indices to `variantData` */
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("Gap Clustering %s VCF '%s'", 
-            callset_strs[callset].data(), vcf->filename.data());
+    if (g.verbosity >= 1) INFO("%sGap clustering %s VCF%s '%s'", 
+            COLOR_PURPLE, callset_strs[callset].data(), 
+            COLOR_WHITE, vcf->filename.data());
 
     // cluster each contig
     int largest_cluster_vars = 0;
     int largest_cluster_bases = 0;
     for (std::string ctg : vcf->contigs) {
 
-        // only print for non-empty contigs
-        if (vcf->ctg_variants[0][ctg]->n + vcf->ctg_variants[1][ctg]->n)
-            if (g.verbosity >= 1) INFO("  Contig '%s'", ctg.data());
-
         // cluster per-haplotype variants: vcf->ctg_variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
-            int nvar = vcf->ctg_variants[hap][ctg]->n;
-            if (nvar && g.verbosity >= 1) INFO("    Haplotype %d", hap+1);
             int prev_end = -g.cluster_min_gap * 2;
             int cluster_start = 0;
             int pos = 0;
@@ -359,8 +347,6 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
                 prev_end = std::max(prev_end, end);
             }
             vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
-            if (nvar && g.verbosity >= 1) INFO("      %d clusters", 
-                    int(vcf->ctg_variants[hap][ctg]->clusters.size()-1));
         }
     }
     if (g.verbosity >= 1) INFO("  Largest cluster (bases): %d", largest_cluster_bases);
