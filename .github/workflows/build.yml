@@ -1,0 +1,33 @@
+name: build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: install htslib
+      run: |
+       wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
+       tar -xvf htslib-1.17.tar.bz2
+       cd htslib-1.17
+       ./configure --prefix=`pwd`
+       make
+       make install
+       echo LIBRARY_PATH=`pwd`:$LIBRARY_PATH >> $GITHUB_ENV
+       echo LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - name: make vcfdist
+      run: |
+       cp -r htslib-1.17/htslib src
+       echo $LIBRARY_PATH
+       echo $LD_LIBRARY_PATH
+       cd src
+       make
+       ./vcfdist -v
