@@ -132,7 +132,8 @@ void calc_prec_recall_aln(
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<uint8_t> > > & ptrs, 
         std::unordered_map<idx1, idx1> & swap_pred_map,
-        std::vector<int> & pr_query_ref_end, bool print
+        std::vector<int> & pr_query_ref_end, 
+        int aln_start, int aln_stop, bool print
         );
 
 void calc_prec_recall_path(
@@ -244,7 +245,7 @@ void precision_recall_threads_wrapper(
         std::vector< std::vector< std::vector<int> > > sc_groups);
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
-        int thread_step, int start, int stop);
+        int thread_step, int start, int stop, bool thread4);
 
 int calc_vcf_swg_score(
         std::shared_ptr<ctgVariants> vcf, 

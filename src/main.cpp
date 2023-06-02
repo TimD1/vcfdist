@@ -56,7 +56,7 @@ g.timers[TIME_CLUST].start();
             gap_cluster(query_ptr, QUERY);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[Q1/8] Wavefront clustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[Q 1/8] Wavefront clustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -87,7 +87,7 @@ g.timers[TIME_RECLUST].start();
             gap_cluster(query_ptr, QUERY);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[Q3/8] Wavefront reclustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[Q 3/8] Wavefront reclustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -108,7 +108,7 @@ g.timers[TIME_CLUST].start();
             gap_cluster(truth_ptr, TRUTH);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[T1/8] Wavefront clustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[T 1/8] Wavefront clustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -147,7 +147,7 @@ g.timers[TIME_RECLUST].start();
             gap_cluster(truth_ptr, TRUTH); 
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[T3/8] Wavefront reclustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[T 3/8] Wavefront reclustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;

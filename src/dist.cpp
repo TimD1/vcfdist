@@ -243,7 +243,8 @@ void calc_prec_recall_aln(
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         std::unordered_map<idx1, idx1> & swap_pred_map,
-        std::vector<int> & pr_query_ref_end, bool print
+        std::vector<int> & pr_query_ref_end, 
+        int aln_start, int aln_stop, bool print
         ) {
     
     // set loop variables
@@ -264,7 +265,7 @@ void calc_prec_recall_aln(
     std::vector< std::vector< std::vector<bool> > > done;
 
     // for each combination of query and truth
-    for (int i = 0; i < 4; i++) {
+    for (int i = aln_start; i < aln_stop; i++) {
         int qi = 2*i + QUERY; // query index (ptrs)
         int ri = 2*i + REF;   // ref index   (ptrs)
 
@@ -1613,11 +1614,12 @@ void precision_recall_threads_wrapper(
         if (nscs >= nthreads) {
 
             // distribute many subproblems evenly among threads
+            bool thread4 = thread_step >= 2; // max_threads/4+
             for (int t = 0; t < nthreads; t++) {
                 int size = nscs / nthreads;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+size));
+                            thread_step, start, start+size, thread4));
                 start += size;
             }
             for (auto & t : threads)
@@ -1638,10 +1640,11 @@ void precision_recall_threads_wrapper(
                 while (sc_groups[thread_step][SC_IDX].size() == 0) {
                     thread_step--;
                 }
+                bool thread4 = thread_step >= 2; // max_threads/4+
                 if (thread_step < 0) break;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+1));
+                            thread_step, start, start+1, thread4));
                 start++;
                 total_ram += g.ram_steps[thread_step];
                 if (start >= int(sc_groups[thread_step][SC_IDX].size())) {
@@ -1661,7 +1664,7 @@ void precision_recall_threads_wrapper(
 void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
-        int thread_step, int start, int stop) {
+        int thread_step, int start, int stop, bool thread4) {
 
     if (stop == start) return;
 
@@ -1757,13 +1760,32 @@ void precision_recall_wrapper(
         std::vector<int> aln_query_ref_end(HAPS*CALLSETS);
         std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
         std::unordered_map<idx1, idx1> swap_pred_map;
-        calc_prec_recall_aln(
-                query1, query2, truth1, truth2, ref_q1,
-                query1_ref_ptrs, ref_query1_ptrs, 
-                query2_ref_ptrs, ref_query2_ptrs,
-                truth1_ref_ptrs, truth2_ref_ptrs,
-                aln_score, aln_ptrs, swap_pred_map,
-                aln_query_ref_end, false);
+        // if memory-limited and each subproblem is large, 
+        // spawn a new thread for each of the 4 alignments
+        if (thread4) {
+            std::vector<std::thread> threads;
+            for (int t = 0; t < CALLSETS*HAPS; t++) {
+                threads.push_back(std::thread( calc_prec_recall_aln,
+                    std::cref(query1), std::cref(query2), 
+                    std::cref(truth1), std::cref(truth2), std::cref(ref_q1),
+                    std::cref(query1_ref_ptrs), std::cref(ref_query1_ptrs), 
+                    std::cref(query2_ref_ptrs), std::cref(ref_query2_ptrs),
+                    std::cref(truth1_ref_ptrs), std::cref(truth2_ref_ptrs),
+                    std::ref(aln_score), std::ref(aln_ptrs), 
+                    std::ref(swap_pred_map), std::ref(aln_query_ref_end), 
+                    t, t+1, false));
+            }
+            for (auto & t : threads)
+                t.join();
+        } else { // calculate 4 alignments in this thread
+            calc_prec_recall_aln(
+                    query1, query2, truth1, truth2, ref_q1,
+                    query1_ref_ptrs, ref_query1_ptrs, 
+                    query2_ref_ptrs, ref_query2_ptrs,
+                    truth1_ref_ptrs, truth2_ref_ptrs,
+                    aln_score, aln_ptrs, swap_pred_map,
+                    aln_query_ref_end, 0, CALLSETS*HAPS, false);
+        }
 
         // store optimal phasing for each supercluster
         // ORIG: query1-truth1 and query2-truth2
@@ -2371,7 +2393,7 @@ std::shared_ptr<variantData> wf_swg_realign(
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend, int callset, bool print /* = false */) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%s2/8] Realigning %s VCF%s '%s'", COLOR_PURPLE,
+    if (g.verbosity >= 1) INFO("%s[%s 2/8] Realigning %s VCF%s '%s'", COLOR_PURPLE,
             callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
             COLOR_WHITE, vcf->filename.data());
 

@@ -375,7 +375,7 @@ variantData::variantData(std::string vcf_fn,
     this->callset = callset;
 
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%s0/8] Parsing %s VCF%s '%s'", COLOR_PURPLE,
+    if (g.verbosity >= 1) INFO("%s[%s 0/8] Parsing %s VCF%s '%s'", COLOR_PURPLE,
             callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
             COLOR_WHITE, vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
