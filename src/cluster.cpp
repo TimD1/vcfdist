@@ -90,10 +90,14 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             // (2) path_ptrs   = 1 byte * 2 haps
             // (4) path_scores = 2 byte * 2 haps
             size_t mem = size_t(max_query_len) * size_t(max_truth_len) * 10;
-            float mem_gb = mem / (1000 * 1000 * 1000);
-            if (mem_gb > g.max_ram)
-                ERROR("Max (%.2fGB) RAM exceeded (%.2fGB req) for supercluster %s:%d-%d", 
+            double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
+            if (mem_gb > g.max_ram) {
+                WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %s:%d-%d, running anyways", 
                         g.max_ram, mem_gb, ctg.data(), ctg_scs->begs[sc_idx], ctg_scs->ends[sc_idx]);
+                sc_groups[g.thread_nsteps-1][CTG_IDX].push_back(ctg_idx);
+                sc_groups[g.thread_nsteps-1][SC_IDX].push_back(sc_idx);
+                continue;
+            }
             
             // place into correct group
             for (int i = 0; i < g.thread_nsteps; i++) {
@@ -300,7 +304,6 @@ void superclusterData::gap_supercluster() {
     if (g.verbosity >= 1) INFO("  Largest supercluster  (vars): %d", most_vars);
     if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster (bases): %d", total_bases / total_superclusters);
     if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster  (vars): %d", total_vars / total_superclusters);
-    if (g.verbosity >= 1) INFO(" ");
 }
 
 

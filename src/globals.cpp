@@ -482,7 +482,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Option '--max-ram' used without providing max RAM");
             }
             try {
-                this->max_ram = std::stof(argv[i++]);
+                this->max_ram = std::stod(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid max RAM provided");
             }

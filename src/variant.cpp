@@ -418,6 +418,7 @@ variantData::variantData(std::string vcf_fn,
     /* int unphased_gt_total = 0; */
     int small_var_total = 0;
     int large_var_total = 0;
+    int wrong_ploidy_total = 0;
     
     // read header
     bcf1_t * rec  = NULL;
@@ -578,11 +579,14 @@ variantData::variantData(std::string vcf_fn,
         // update ploidy info
         int ctg_idx = std::find(contigs.begin(), contigs.end(), ctg) - contigs.begin();
         if (ploidy[ctg_idx] != 0) { // already set, enforce it doesn't change
-            if (std::abs(ngt) != ploidy[ctg_idx])
-                ERROR("Expected ploidy %d for all variants on contig '%s',"
-                      " found ploidy %d at %s:%lld in %s VCF.", ploidy[ctg_idx],
-                    ctg.data(), std::abs(ngt), ctg.data(), (long long)rec->pos,
-                    callset_strs[callset].data());
+            if (std::abs(ngt) != ploidy[ctg_idx] && ctg[ctg.size()-1] != 'X') {
+                if (g.verbosity > 1)
+                    WARN("Expected ploidy %d for all variants on contig '%s',"
+                          " found ploidy %d at %s:%lld in %s VCF.", ploidy[ctg_idx],
+                        ctg.data(), std::abs(ngt), ctg.data(), (long long)rec->pos,
+                        callset_strs[callset].data());
+                wrong_ploidy_total += 1;
+            }
         } else { // set ploidy for this contig
             ploidy[ctg_idx] = std::abs(ngt);
         }
@@ -791,6 +795,10 @@ variantData::variantData(std::string vcf_fn,
         WARN("%d total unknown alleles (.) found in %s VCF, skipped",
             unknown_allele_total, callset_strs[callset].data());
 
+    if (wrong_ploidy_total) 
+        WARN("%d total variants with incorrect ploidy found in %s VCF, kept",
+            wrong_ploidy_total, callset_strs[callset].data());
+
     /* if (unphased_gt_total) */ 
     /*     WARN("%d total unphased genotypes found in %s VCF", */
     /*         unphased_gt_total, callset_strs[callset].data()); */
@@ -853,7 +861,6 @@ variantData::variantData(std::string vcf_fn,
         INFO("  %s VCF overview:", callset_strs[callset].data());
         INFO("    TOTAL %d", n);
         INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
-        INFO(" ");
     }
 
     free(gq);

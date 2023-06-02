@@ -242,7 +242,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        std::unordered_map<idx1, idx1> & swap_pred_map,
+        std::vector< std::shared_ptr< std::unordered_map<idx1, idx1> > > & swap_pred_maps,
         std::vector<int> & pr_query_ref_end, 
         int aln_start, int aln_stop, bool print
         ) {
@@ -268,12 +268,10 @@ void calc_prec_recall_aln(
     for (int i = aln_start; i < aln_stop; i++) {
         int qi = 2*i + QUERY; // query index (ptrs)
         int ri = 2*i + REF;   // ref index   (ptrs)
+        int dqi = 2*(i-aln_start) + QUERY;
+        int dri = 2*(i-aln_start) + REF;
 
         // init full pointer/done matrices
-        ptrs.push_back(std::vector< std::vector<uint8_t> >(query_lens[i],
-                    std::vector<uint8_t>(truth_lens[i], PTR_NONE)));
-        ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_len,
-                    std::vector<uint8_t>(truth_lens[i], PTR_NONE)));
         done.push_back(std::vector< std::vector<bool> >(query_lens[i],
                     std::vector<bool>(truth_lens[i], false)));
         done.push_back(std::vector< std::vector<bool> >(ref_len,
@@ -283,10 +281,10 @@ void calc_prec_recall_aln(
         std::queue<idx1> queue; // still to be explored in this wave
         queue.push({qi, 0, 0});
         ptrs[qi][0][0] |= PTR_MAT;
-        done[qi][0][0] = true;
+        done[dqi][0][0] = true;
         queue.push({ri, 0, 0});
         ptrs[ri][0][0] |= PTR_MAT;
-        done[ri][0][0] = true;
+        done[dqi][0][0] = true;
 
         // continue looping until full alignment found
         std::unordered_set<idx1> curr_wave; // everything explored this wave
@@ -294,7 +292,7 @@ void calc_prec_recall_aln(
         /* if (print) printf("\nFWD %s aln: (%d|%d, %d|%d, %d)\n", aln_strs[i].data(), */ 
         /*         qi, ri, query_lens[i], ref_len, truth_lens[i]); */
         while (true) {
-            /* if (print) printf("  s = %d\n", s[i]); */
+            if (print) printf("  s = %d\n", s[i]);
             if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
             // EXTEND WAVEFRONT (stay at same score)
@@ -308,7 +306,7 @@ void calc_prec_recall_aln(
                     idx1 y(qi, x.qri+1, x.ti+1);
                     if (y.qri < query_lens[i] && y.ti < truth_lens[i] &&
                             query[i][y.qri] == truth[i][y.ti]) {
-                        if (!done[y.hi][y.qri][y.ti]) {
+                        if (!done[dqi][y.qri][y.ti]) {
                             if (!contains(curr_wave, y)) {
                                 queue.push(y); curr_wave.insert(y);
                             }
@@ -323,12 +321,12 @@ void calc_prec_recall_aln(
                             truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_END)) {
                         if (z.qri < ref_len && z.ti < truth_lens[i] &&
                                 ref[z.qri] == truth[i][z.ti]) {
-                            if (!done[z.hi][z.qri][z.ti]) {
+                            if (!done[dri][z.qri][z.ti]) {
                                 if (!contains(curr_wave, z)) {
                                     queue.push(z); curr_wave.insert(z);
                                 }
                                 ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
-                                swap_pred_map[z] = x;
+                                (*swap_pred_maps[i])[z] = x;
                             }
                         }
                     }
@@ -337,7 +335,7 @@ void calc_prec_recall_aln(
                     idx1 y(ri, x.qri+1, x.ti+1);
                     if (y.qri < ref_len && y.ti < truth_lens[i] &&
                             ref[y.qri] == truth[i][y.ti]) {
-                        if (!done[y.hi][y.qri][y.ti]) {
+                        if (!done[dri][y.qri][y.ti]) {
                             if (!contains(curr_wave, y)) {
                                 queue.push(y); curr_wave.insert(y);
                             }
@@ -352,12 +350,12 @@ void calc_prec_recall_aln(
                             truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_END)) {
                         if (z.qri < query_lens[i] && z.ti < truth_lens[i] &&
                                 query[i][z.qri] == truth[i][z.ti]) {
-                            if (!done[z.hi][z.qri][z.ti]) {
+                            if (!done[dqi][z.qri][z.ti]) {
                                 if (!contains(curr_wave, z)) {
                                     queue.push(z); curr_wave.insert(z);
                                 }
                                 ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
-                                swap_pred_map[z] = x;
+                                (*swap_pred_maps[i])[z] = x;
                             }
                         }
                     }
@@ -365,12 +363,14 @@ void calc_prec_recall_aln(
             }
 
             // mark all cells visited this wave as done
-            for (auto x : curr_wave) { done[x.hi][x.qri][x.ti] = true; }
+            for (auto x : curr_wave) { 
+                done[x.hi == ri ? dri : dqi][x.qri][x.ti] = true; 
+            }
             curr_wave.clear();
 
             // exit if we're done aligning
-            if (done[qi][query_lens[i]-1][truth_lens[i]-1] ||
-                done[ri][ref_len-1][truth_lens[i]-1]) break;
+            if (done[dqi][query_lens[i]-1][truth_lens[i]-1] ||
+                done[dri][ref_len-1][truth_lens[i]-1]) break;
 
 
             // NEXT WAVEFRONT (increase score by one)
@@ -378,29 +378,29 @@ void calc_prec_recall_aln(
                 int qr_len = (x.hi == qi) ? query_lens[i] : ref_len;
                 if (x.qri+1 < qr_len) { // INS
                     idx1 y(x.hi, x.qri+1, x.ti);
-                    if (!done[y.hi][y.qri][y.ti] && !contains(curr_wave, y)) {
+                    if (!done[y.hi == ri ? dri : dqi][y.qri][y.ti] && !contains(curr_wave, y)) {
                         queue.push(y);
                         curr_wave.insert(y);
                     }
-                    if (!done[y.hi][y.qri][y.ti])
+                    if (!done[y.hi == ri ? dri : dqi][y.qri][y.ti])
                         ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
                 }
                 if (x.ti+1 < truth_lens[i]) { // DEL
                     idx1 y(x.hi, x.qri, x.ti+1);
-                    if (!done[y.hi][y.qri][y.ti] && !contains(curr_wave, y)) {
+                    if (!done[y.hi == ri ? dri : dqi][y.qri][y.ti] && !contains(curr_wave, y)) {
                         queue.push(y);
                         curr_wave.insert(y);
                     }
-                    if (!done[y.hi][y.qri][y.ti])
+                    if (!done[y.hi == ri ? dri : dqi][y.qri][y.ti])
                         ptrs[y.hi][y.qri][y.ti] |= PTR_DEL;
                 }
                 if (x.qri+1 < qr_len && x.ti+1 < truth_lens[i]) { // SUB
                     idx1 y(x.hi, x.qri+1, x.ti+1);
-                    if (!done[y.hi][y.qri][y.ti] && !contains(curr_wave, y)) {
+                    if (!done[y.hi == ri ? dri : dqi][y.qri][y.ti] && !contains(curr_wave, y)) {
                         queue.push(y);
                         curr_wave.insert(y);
                     }
-                    if (!done[y.hi][y.qri][y.ti])
+                    if (!done[y.hi == ri ? dri : dqi][y.qri][y.ti])
                         ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
                 }
             }
@@ -415,9 +415,9 @@ void calc_prec_recall_aln(
         if (print) print_ptrs(ptrs[ri], ref, truth[i]);
 
         // save where to start backtrack (prefer ref: omit vars which don't reduce ED)
-        if (done[ri][ref_len-1][truth_lens[i]-1]) {
+        if (done[dri][ref_len-1][truth_lens[i]-1]) {
             pr_query_ref_end[i] = ri;
-        } else if (done[qi][query_lens[i]-1][truth_lens[i]-1]) {
+        } else if (done[dqi][query_lens[i]-1][truth_lens[i]-1]) {
             pr_query_ref_end[i] = qi;
         } else { ERROR("Alignment not finished in 'prec_recall_aln()'."); }
 
@@ -472,7 +472,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::unordered_map<idx1,idx1> & swap_pred_map,
+        const std::vector< std::shared_ptr< std::unordered_map<idx1,idx1> > > & swap_pred_maps,
         const std::vector<int> & pr_query_ref_end, int phase, bool print
         ) {
 
@@ -604,9 +604,9 @@ void calc_prec_recall_path(
                             x.qri > 0 && x.ti > 0) {
 
                         // get next cell, add to path
-                        if (!contains(swap_pred_map, x))
+                        if (!contains((*swap_pred_maps[i]), x))
                             ERROR("No swap predecessor, but PTR_SWP_MAT set.");
-                        idx1 z = swap_pred_map.at(x);
+                        idx1 z = (*swap_pred_maps[i]).at(x);
                         aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
                         int z_hj = (z.hi == ri) ? rj : qj;
 
@@ -655,9 +655,9 @@ void calc_prec_recall_path(
                             x.qri > 0 && x.ti > 0) {
 
                         // add to path
-                        if (!contains(swap_pred_map, x))
+                        if (!contains((*swap_pred_maps[i]), x))
                             ERROR("No swap predecessor, but PTR_SWP_MAT set.");
-                        idx1 z = swap_pred_map.at(x);
+                        idx1 z = (*swap_pred_maps[i]).at(x);
                         aln_ptrs[z.hi][z.qri][z.ti] |= PATH;
                         int z_hj = (z.hi == ri) ? rj : qj;
 
@@ -1603,7 +1603,7 @@ void precision_recall_threads_wrapper(
 
     if (g.verbosity >= 1 ) 
     for (int i = 0; i < g.thread_nsteps; i++) {
-        INFO("  Superclusters using %6.2f to %6.2f GB RAM each (%3d threads): %8d",
+        INFO("  Superclusters using %7.3f to %7.3f GB RAM each (%3d threads): %8d",
                 i == 0 ? 0 : g.ram_steps[i-1], g.ram_steps[i], g.thread_steps[i],
                 int(sc_groups[i][CTG_IDX].size()));
     }
@@ -1766,12 +1766,31 @@ void precision_recall_wrapper(
         std::vector<int> aln_score(HAPS*CALLSETS);
         std::vector<int> aln_query_ref_end(HAPS*CALLSETS);
         std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
-        std::unordered_map<idx1, idx1> swap_pred_map;
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query1.size(), // Q1T1
+                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q1.size(),
+                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query1.size(), // Q1T2
+                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q1.size(),
+                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query2.size(), // Q2T1
+                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q2.size(),
+                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query2.size(), // Q2T2
+                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
+        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q2.size(),
+                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
+        std::vector< std::shared_ptr< std::unordered_map<idx1, idx1> > > swap_pred_maps; 
+        for (int i = 0; i < CALLSETS*HAPS; i++)
+            swap_pred_maps.push_back(std::shared_ptr< std::unordered_map<idx1, idx1> >(new std::unordered_map<idx1, idx1>()));
+
         // if memory-limited and each subproblem is large, 
         // spawn a new thread for each of the 4 alignments
         if (thread4) {
             std::vector<std::thread> threads;
-            for (int t = 0; t < CALLSETS*HAPS; t++) {
+            for (int ti = 0; ti < CALLSETS*HAPS; ti++) {
                 threads.push_back(std::thread( calc_prec_recall_aln,
                     std::cref(query1), std::cref(query2), 
                     std::cref(truth1), std::cref(truth2), std::cref(ref_q1),
@@ -1779,8 +1798,8 @@ void precision_recall_wrapper(
                     std::cref(query2_ref_ptrs), std::cref(ref_query2_ptrs),
                     std::cref(truth1_ref_ptrs), std::cref(truth2_ref_ptrs),
                     std::ref(aln_score), std::ref(aln_ptrs), 
-                    std::ref(swap_pred_map), std::ref(aln_query_ref_end), 
-                    t, t+1, false));
+                    std::ref(swap_pred_maps), std::ref(aln_query_ref_end), 
+                    ti, ti+1, false));
             }
             for (auto & t : threads)
                 t.join();
@@ -1790,7 +1809,7 @@ void precision_recall_wrapper(
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_score, aln_ptrs, swap_pred_map,
+                    aln_score, aln_ptrs, swap_pred_maps,
                     aln_query_ref_end, 0, CALLSETS*HAPS, false);
         }
 
@@ -1811,7 +1830,7 @@ void precision_recall_wrapper(
                 query1_ref_ptrs, ref_query1_ptrs, 
                 query2_ref_ptrs, ref_query2_ptrs, 
                 truth1_ref_ptrs, truth2_ref_ptrs,
-                swap_pred_map, aln_query_ref_end, phase, false);
+                swap_pred_maps, aln_query_ref_end, phase, false);
 
         // calculate precision/recall from paths
         calc_prec_recall(

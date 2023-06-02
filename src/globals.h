@@ -34,7 +34,7 @@ public:
 
     // memory params
     int max_threads = 64;
-    float max_ram = 32; // GB
+    double max_ram = 32; // GB
     int thread_nsteps;
     std::vector<int> thread_steps;
     std::vector<float> ram_steps;

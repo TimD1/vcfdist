@@ -131,7 +131,7 @@ void calc_prec_recall_aln(
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
         std::vector<int> & s, 
         std::vector< std::vector< std::vector<uint8_t> > > & ptrs, 
-        std::unordered_map<idx1, idx1> & swap_pred_map,
+        std::vector< std::shared_ptr< std::unordered_map<idx1,idx1> > > & swap_pred_maps,
         std::vector<int> & pr_query_ref_end, 
         int aln_start, int aln_stop, bool print
         );
@@ -151,7 +151,7 @@ void calc_prec_recall_path(
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::unordered_map<idx1,idx1> & swap_pred_map,
+        const std::vector< std::shared_ptr< std::unordered_map<idx1,idx1> > > & swap_pred_maps,
         const std::vector<int> & pr_query_ref_end, int phase, bool print
         );
 
