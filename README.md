@@ -1,4 +1,6 @@
 # vcfdist: benchmarking phased small variant calls
+![build](https://github.com/timd1/vcfdist/actions/workflows/build.yml/badge.svg)
+<!-- ![Github All Releases](https://img.shields.io/github/downloads/timd1/vcfdist/total.svg) -->
 
 ## Overview
 
@@ -13,10 +15,11 @@
 
 ## Introduction
 vcfdist is a distance-based small variant calling evaluator that:
-- standardizes query and truth VCF variants to a consistent representation
-- discovers long-range variant representation dependencies using a novel clustering algorithm
-- **requires local phasing of both input VCFs** and enforces correct local phasing of variants
 - gives partial credit to variant calls which are mostly correct
+- standardizes query and truth VCF variants to a consistent representation
+- **requires local phasing of both input VCFs** and enforces correct local phasing of variants
+- discovers long-range variant representation dependencies using a novel clustering algorithm
+- works on monoploid and diploid VCF contigs
 
 This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
 
@@ -62,11 +65,11 @@ vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib.
 If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable. It should compile in less than one minute.
 
 ```bash
-> git clone --branch v1.3.0 https://github.com/timd1/vcfdist
+> git clone --branch v1.3.1 https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
 > ./vcfdist --version
-vcfdist v1.3.0
+vcfdist v1.3.1
 ```
 
 

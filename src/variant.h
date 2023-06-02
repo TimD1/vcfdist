@@ -73,6 +73,7 @@ public:
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
+    std::vector<int> ploidy;
     std::vector< // ctg_variants[hap][ctg] -> variants
         std::unordered_map<
             std::string, 

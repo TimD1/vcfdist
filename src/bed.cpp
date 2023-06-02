@@ -252,5 +252,20 @@ void check_contigs(
             }
         }
     }
+
+    // verify ploidy matches for all truth/query contigs
+    for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
+        std::string ctg = truth_ptr->contigs[i];
+        int query_ctg_idx = std::find(query_ptr->contigs.begin(), 
+                query_ptr->contigs.end(), ctg) - query_ptr->contigs.begin();
+        int truth_ctg_idx = i;
+        if (truth_ptr->ploidy[truth_ctg_idx] != query_ptr->ploidy[query_ctg_idx]) {
+            ERROR("%s contig '%s' has ploidy %d and %s contig '%s' has ploidy %d",
+                    callset_strs[TRUTH].data(), ctg.data(), truth_ptr->ploidy[truth_ctg_idx],
+                    callset_strs[QUERY].data(), ctg.data(), query_ptr->ploidy[query_ctg_idx]);
+        }
+    }
+
     if (g.verbosity >= 1) INFO("    All contig checks passed!");
+
 }

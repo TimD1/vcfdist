@@ -18,8 +18,8 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
             local_time.tm_mon + 1, local_time.tm_mday);
     fprintf(out_vcf, "##CL=%s\n", g.cmd.data()+1);
     for (size_t i = 0; i < this->contigs.size(); i++) {
-        fprintf(out_vcf, "##contig=<ID=%s,length=%d>\n", 
-                this->contigs[i].data(), this->lengths[i]);
+        fprintf(out_vcf, "##contig=<ID=%s,length=%d,ploidy=%d>\n", 
+                this->contigs[i].data(), this->lengths[i], this->ploidy[i]);
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
@@ -40,6 +40,7 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
         std::vector< std::vector<bool> > next = std::vector< std::vector<bool> >(
                 CALLSETS, std::vector<bool>(HAPS, false));
         int sc_idx = 0;
+        int p = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg)-contigs.begin()];
         if (this->ctg_phasings[ctg]->phasings.size() == 0) continue;
         bool swap = this->ctg_phasings[ctg]->phasings[sc_idx];
         auto & vars = this->ctg_phasings[ctg]->ctg_superclusters->ctg_variants;
@@ -137,26 +138,26 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
                 } else { // just query 1
                     if (pair[HAP1]) { // query matches truth
                         vars[QUERY][HAP1]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP1]);
-                        vars[TRUTH][HAP1^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1^swap], (HAP1^swap)?"1|0":"0|1", sc_idx, swap);
-                        vars[QUERY][HAP1]->print_var_sample(out_vcf, ptrs[QUERY][HAP1], "1|0", sc_idx, swap, true);
+                        vars[TRUTH][HAP1^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1^swap], p == 1 ? "1" : (HAP1^swap)?"1|0":"0|1", sc_idx, swap);
+                        vars[QUERY][HAP1]->print_var_sample(out_vcf, ptrs[QUERY][HAP1], p == 1 ? "1" : "1|0", sc_idx, swap, true);
                         ptrs[QUERY][HAP1]++; ptrs[TRUTH][HAP1^swap]++;
                     } else { // just query
                         vars[QUERY][HAP1]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP1]);
                         vars[TRUTH][HAP1^swap]->print_var_empty(out_vcf);
-                        vars[QUERY][HAP1]->print_var_sample(out_vcf, ptrs[QUERY][HAP1], "1|0", sc_idx, swap, true);
+                        vars[QUERY][HAP1]->print_var_sample(out_vcf, ptrs[QUERY][HAP1], p == 1 ? "1" : "1|0", sc_idx, swap, true);
                         ptrs[QUERY][HAP1]++;
                     }
                 }
             } else if (next[QUERY][HAP2]) { // just query 2
                 if (pair[HAP2]) { // query matches truth
                     vars[QUERY][HAP2]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP2]);
-                    vars[TRUTH][HAP2^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2^swap], (HAP2^swap)?"1|0":"0|1", sc_idx, swap);
-                    vars[QUERY][HAP2]->print_var_sample(out_vcf, ptrs[QUERY][HAP2], "0|1", sc_idx, swap, true);
+                    vars[TRUTH][HAP2^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2^swap], p == 1 ? "1" : (HAP2^swap)?"1|0":"0|1", sc_idx, swap);
+                    vars[QUERY][HAP2]->print_var_sample(out_vcf, ptrs[QUERY][HAP2], p == 1 ? "1" : "0|1", sc_idx, swap, true);
                     ptrs[QUERY][HAP2]++; ptrs[TRUTH][HAP2^swap]++;
                 } else { // just query
                     vars[QUERY][HAP2]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP2]);
                     vars[TRUTH][HAP2^swap]->print_var_empty(out_vcf);
-                    vars[QUERY][HAP2]->print_var_sample(out_vcf, ptrs[QUERY][HAP2], "0|1", sc_idx, swap, true);
+                    vars[QUERY][HAP2]->print_var_sample(out_vcf, ptrs[QUERY][HAP2], p == 1 ? "1" : "0|1", sc_idx, swap, true);
                     ptrs[QUERY][HAP2]++;
                 }
             } else { // no query variants, just truth
@@ -177,12 +178,12 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
                 } else { // one truth variant
                     if (next[TRUTH][HAP1]) {
                         vars[TRUTH][HAP1]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP1]);
-                        vars[TRUTH][HAP1]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1], swap?"0|1":"1|0", sc_idx, swap);
+                        vars[TRUTH][HAP1]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1], p == 1 ? "1" : swap?"0|1":"1|0", sc_idx, swap);
                         vars[QUERY][HAP1]->print_var_empty(out_vcf, true);
                         ptrs[TRUTH][HAP1]++;
                     } else if (next[TRUTH][HAP2]) {
                         vars[TRUTH][HAP2]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP2]);
-                        vars[TRUTH][HAP2]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2], swap?"1|0":"0|1", sc_idx, swap);
+                        vars[TRUTH][HAP2]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2], p == 1 ? "1" : swap?"1|0":"0|1", sc_idx, swap);
                         vars[QUERY][HAP2]->print_var_empty(out_vcf, true);
                         ptrs[TRUTH][HAP2]++;
                     } else {
@@ -206,6 +207,7 @@ phaseData::phaseData(std::shared_ptr<superclusterData> clusterdata_ptr)
         std::string ctg = clusterdata_ptr->contigs[i];
         this->contigs.push_back(ctg);
         this->lengths.push_back(clusterdata_ptr->lengths[i]);
+        this->ploidy.push_back(clusterdata_ptr->ploidy[i]);
         this->ctg_phasings[ctg] = std::shared_ptr<ctgPhasings>(new ctgPhasings());
     }
     this->ref = clusterdata_ptr->ref;
