@@ -1,0 +1,29 @@
+
+PRECISION-RECALL SUMMARY
+  
+ TYPE   MIN_QUAL        TRUTH_TP        QUERY_TP        TRUTH_FN        QUERY_FP        PREC            RECALL          F1_SCORE        F1_QSCORE
+ SNP    Q >= 0          8220            8220            5               6               0.999149        0.999271        0.999210        31.023401
+ SNP    Q >= 0          8220            8220            5               6               0.999149        0.999271        0.999210        31.023401
+  
+ TYPE   MIN_QUAL        TRUTH_TP        QUERY_TP        TRUTH_FN        QUERY_FP        PREC            RECALL          F1_SCORE        F1_QSCORE
+ INDEL  Q >= 0          932             932             3               3               0.996793        0.996261        0.996527        24.592749
+ INDEL  Q >= 0          932             932             3               3               0.996793        0.996261        0.996527        24.592749
+  
+  
+ ALIGNMENT DISTANCE SUMMARY
+  
+ TYPE   MIN_QUAL        EDIT_DIST       DISTINCT_EDITS  ED_QSCORE       DE_QSCORE       ALN_QSCORE
+ ALL    Q >= 0          26              16              26.565773       27.579651       27.154125
+ ALL    Q >= 0          26              16              26.565773       27.579651       27.154125
+ ALL    Q >= 61         11791           9164            0.000000        0.000000        0.000000
+  
+ TYPE   MIN_QUAL        EDIT_DIST       DISTINCT_EDITS  ED_QSCORE       DE_QSCORE
+ SNP    Q >= 0          10              10              29.130186       29.130186
+ SNP    Q >= 0          10              10              29.130186       29.130186
+ SNP    Q >= 61         8185            8185            0.000000        0.000000
+  
+ TYPE   MIN_QUAL        EDIT_DIST       DISTINCT_EDITS  ED_QSCORE       DE_QSCORE
+ INDEL  Q >= 0          16              6               23.529057       22.126314
+ INDEL  Q >= 0          16              6               23.529057       22.126314
+ INDEL  Q >= 61         3606            979             0.000000        0.000000
+  

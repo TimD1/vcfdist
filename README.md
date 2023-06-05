@@ -1,4 +1,4 @@
-# vcfdist: benchmarking phased small variant calls
+# vcfdist: benchmarking phased variant calls
 ![build](https://github.com/timd1/vcfdist/actions/workflows/build.yml/badge.svg)
 <!-- ![Github All Releases](https://img.shields.io/github/downloads/timd1/vcfdist/total.svg) -->
 
@@ -14,14 +14,15 @@
 
 
 ## Introduction
-vcfdist is a distance-based small variant calling evaluator that:
-- gives partial credit to variant calls which are mostly correct
-- standardizes query and truth VCF variants to a consistent representation
-- **requires local phasing of both input VCFs** and enforces correct local phasing of variants
-- discovers long-range variant representation dependencies using a novel clustering algorithm
-- works on monoploid and diploid VCF contigs
+vcfdist is a distance-based **variant calling evaluation tool** that:
+- simultaneously evaluates **SNPS, small INDELs, complex, tandem repeat, and structural variants**
+- gives **partial credit** to variant calls which are mostly correct
+- **standardizes** query and truth VCF **variants** to a consistent representation
+- **requires local phasing** of both input VCFs and enforces correct local phasing of variants
+- **discovers** long-range variant **representation dependencies** using a novel clustering algorithm
+- works on **monoploid and diploid** VCF contigs
 
-This results in more stable SNP and INDEL precision-recall curves than vcfeval, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
+This results in more stable SNP and INDEL precision-recall curves than previous work, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
 
 This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement!
 
@@ -65,61 +66,31 @@ vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib.
 If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable. It should compile in less than one minute.
 
 ```bash
-> git clone --branch v1.3.1 https://github.com/timd1/vcfdist
+> git clone https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
 > ./vcfdist --version
-vcfdist v1.3.1
+vcfdist v2.0.0
 ```
 
 
 ## Usage
 
-The `demo` directory contains all input files required to run `vcfdist`. This demonstration operates on the first 5 million bases on `chr1`, and should run in about 3 seconds.
+The <a href="./demo">`demo`</a> directory contains a <a href="./demo/demo.sh">demo script</a> (shown below) and all required inputs. It operates on the first 5 million bases on `chr1`, and should run in about 3 seconds.
 ```bash
-./vcfdist \
-    ../demo/query.vcf \
-    ../demo/nist-v4.2.1_chr1_5Mb.vcf.gz \
-    ../demo/GRCh38_chr1_5Mb.fa \
-    -b ../demo/nist-v4.2.1_chr1_5Mb.bed \
-    -p ../demo/results/ \
+../src/vcfdist \
+    query.vcf \
+    nist-v4.2.1_chr1_5Mb.vcf.gz \
+    GRCh38_chr1_5Mb.fa \
+    -b nist-v4.2.1_chr1_5Mb.bed \
+    -p results/ \
     -v 0
 ```
 
-You can expect to see the following output:
-
-```
-PRECISION-RECALL SUMMARY
- 
-TYPE   MIN_QUAL        TRUTH_TP        QUERY_TP        TRUTH_FN        QUERY_FP        PREC            RECALL          F1_SCORE        F1_QSCORE
-SNP    Q >= 0          8220            8220            5               6               0.999149        0.999271        0.999210        31.023401
-SNP    Q >= 0          8220            8220            5               6               0.999149        0.999271        0.999210        31.023401
- 
-TYPE   MIN_QUAL        TRUTH_TP        QUERY_TP        TRUTH_FN        QUERY_FP        PREC            RECALL          F1_SCORE        F1_QSCORE
-INDEL  Q >= 0          932             932             3               3               0.996793        0.996261        0.996527        24.592749
-INDEL  Q >= 0          932             932             3               3               0.996793        0.996261        0.996527        24.592749
- 
- 
-ALIGNMENT DISTANCE SUMMARY
- 
-TYPE   MIN_QUAL        EDIT_DIST       DISTINCT_EDITS  ED_QSCORE       DE_QSCORE       ALN_QSCORE
-ALL    Q >= 0          26              16              26.566509       27.579178       27.154125
-ALL    Q >= 0          26              16              26.566509       27.579178       27.154125
-ALL    Q >= 61         11793           9163            0.000000        0.000000        0.000000
- 
-TYPE   MIN_QUAL        EDIT_DIST       DISTINCT_EDITS  ED_QSCORE       DE_QSCORE
-SNP    Q >= 0          10              10              29.151360       29.151360
-SNP    Q >= 0          10              10              29.151360       29.151360
-SNP    Q >= 61         8225            8225            0.000000        0.000000
- 
-TYPE   MIN_QUAL        EDIT_DIST       DISTINCT_EDITS  ED_QSCORE       DE_QSCORE
-INDEL  Q >= 0          16              6               23.483049       21.940516
-INDEL  Q >= 0          16              6               23.483049       21.940516
-INDEL  Q >= 61         3568            938             0.000000        0.000000
-```
+You can expect to see <a href="./demo/output.txt">this output</a>.
 
 To include more details on intermediate results, run it again at higher verbosity by removing the `-v 0` flag.
-Please note that your results may not be identical to the example shown, since vcfdist is under active development and handling of certain edge cases may differ between versions.
+Please note that your results may not be identical, since vcfdist is under active development and handling of edge-cases may differ between versions.
 
 Please see additional options documented <a href="./src/README.md">here</a>, or run `./vcfdist --help`.
 
@@ -152,8 +123,7 @@ In order to use `qfy.py` please install <a href="https://github.com/Illumina/hap
     --o results/qfy-output-prefix \
     output-prefix/summary.vcf.gz
 ```
-Ensure that `strat.tsv` contains one stratification region per line. 
-Each line must contain a region name and BED file name, separated by a tab (`\t`).
+Ensure that `strat.tsv` contains one stratification region per line; each line consists of a region name and BED file name separated by a tab.
 GIAB stratification regions for GRCh38 can be found <a href="https://github.com/genome-in-a-bottle/genome-stratifications/tree/master/GRCh38">here</a>.
 
 
