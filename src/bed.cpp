@@ -261,7 +261,7 @@ void check_contigs(
                 query_ptr->contigs.end(), ctg) - query_ptr->contigs.begin();
         int truth_ctg_idx = i;
         if (truth_ptr->ploidy[truth_ctg_idx] != query_ptr->ploidy[query_ctg_idx]) {
-            ERROR("%s contig '%s' has ploidy %d and %s contig '%s' has ploidy %d",
+            WARN("%s contig '%s' has ploidy %d and %s contig '%s' has ploidy %d",
                     callset_strs[TRUTH].data(), ctg.data(), truth_ptr->ploidy[truth_ctg_idx],
                     callset_strs[QUERY].data(), ctg.data(), query_ptr->ploidy[query_ctg_idx]);
         }

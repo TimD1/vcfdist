@@ -89,7 +89,8 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             // (4) aln_ptrs    = 1 byte * 2 haps * 2 phasings
             // (2) path_ptrs   = 1 byte * 2 haps
             // (4) path_scores = 2 byte * 2 haps
-            size_t mem = size_t(max_query_len) * size_t(max_truth_len) * 10;
+            // 2 is a fudge factor that I'm adding for now
+            size_t mem = size_t(max_query_len) * size_t(max_truth_len) * 10 * 2;
             double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
             if (mem_gb > g.max_ram) {
                 WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %s:%d-%d, running anyways", 

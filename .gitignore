@@ -13,10 +13,6 @@
 *.gprof
 src/vcfdist
 
-# ignore related projects
-wfa
-lv89
-
 # ignore analysis
 analysis/*/
 analysis/*.png
@@ -27,7 +23,6 @@ data/*/*
 # ignore output
 out/
 
-# test directory not ready yet
+# don't track test cases
 test/
 issues/
-examples/
