@@ -615,13 +615,13 @@ void write_results(
     // print edit information
     std::string edit_fn = g.out_prefix + "edits.tsv";
     FILE* out_edits = fopen(edit_fn.data(), "w");
-    fprintf(out_edits, "CONTIG\tSTART\tHAP\tTYPE\tSIZE\tSUPERCLUSTER\tQUAL\n");
+    fprintf(out_edits, "CONTIG\tSTART\tHAP\tTYPE\tSIZE\tSUPERCLUSTER\tMIN_QUAL\tMAX_QUAL\n");
     if (g.verbosity >= 1) INFO("  Printing edit results to '%s'", edit_fn.data());
     for (int i = 0; i < edits.n; i++) {
-        fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\n", 
+        fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\t%d\n", 
                 edits.ctgs[i].data(), edits.poss[i], edits.haps[i],
                 type_strs[edits.types[i]].data(), edits.lens[i],
-                edits.superclusters[i], edits.quals[i]);
+                edits.superclusters[i], edits.min_quals[i], edits.max_quals[i]);
     }
     fclose(out_edits);
 

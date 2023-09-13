@@ -17,9 +17,9 @@ public:
 
     // helper functions
     void add_edits(const std::string & ctg, int pos, uint8_t hap, 
-            const std::vector<int> & cig, int sc, int qual);
+            const std::vector<int> & cig, int sc, int min_qual, int max_qual);
     void add_edit(const std::string & ctg, int pos, uint8_t hap, 
-            uint8_t type, int len, int sc, int qual);
+            uint8_t type, int len, int sc, int min_qual, int max_qual);
 
     int get_ed(int qual, int type=TYPE_ALL) const; // edit distance
     int get_de(int qual, int type=TYPE_ALL) const; // distinct edits
@@ -32,7 +32,8 @@ public:
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
     std::vector<int> lens;          // variant lengths
     std::vector<int> superclusters; // variant superclusters
-    std::vector<int> quals;         // variant qualities
+    std::vector<int> min_quals;     // variant quality start range (inclusive)
+    std::vector<int> max_quals;     // variant quality end range (exclusive)
     int n = 0;
 };
 

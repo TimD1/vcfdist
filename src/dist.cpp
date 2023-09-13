@@ -1989,8 +1989,8 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                         all_qual_dists[q] += dist;
                         ctg_qual_dists[q] += dist;
                         qual_dists[q] += dist;
-                        edits.add_edits(ctg, sc->begs[sc_idx], hap, cigar, sc_idx, q);
                     }
+                    edits.add_edits(ctg, sc->begs[sc_idx], hap, cigar, sc_idx, prev_qual, qual);
                     prev_qual = qual;
                 }
             }

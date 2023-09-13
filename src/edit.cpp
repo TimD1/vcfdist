@@ -2,7 +2,7 @@
 #include "globals.h"
 
 void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
-        const std::vector<int> & cig, int sc, int qual) {
+        const std::vector<int> & cig, int sc, int minq, int maxq) {
    int cig_ptr = 0;
    int type = PTR_MAT;
    int last_type = PTR_MAT;
@@ -19,13 +19,13 @@ void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
                case PTR_MAT: // do nothing
                    break;
                case PTR_SUB:
-                   add_edit(ctg, var_pos-1, hap, TYPE_SUB, 1, sc, qual);
+                   add_edit(ctg, var_pos-1, hap, TYPE_SUB, 1, sc, minq, maxq);
                    break;
                case PTR_INS:
-                   add_edit(ctg, var_pos, hap, TYPE_INS, len, sc, qual);
+                   add_edit(ctg, var_pos, hap, TYPE_INS, len, sc, minq, maxq);
                    break;
                case PTR_DEL:
-                   add_edit(ctg, var_pos-len, hap, TYPE_DEL, len, sc, qual);
+                   add_edit(ctg, var_pos-len, hap, TYPE_DEL, len, sc, minq, maxq);
                    break;
            }
 
@@ -58,7 +58,7 @@ void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
                    cig_ptr += 2;
                    break;
                case PTR_SUB:
-                   add_edit(ctg, var_pos-1, hap, TYPE_SUB, 1, sc, qual);
+                   add_edit(ctg, var_pos-1, hap, TYPE_SUB, 1, sc, minq, maxq);
                    var_pos++;
                    cig_ptr += 2;
                    break;
@@ -77,14 +77,15 @@ void editData::add_edits(const std::string & ctg, int pos, uint8_t hap,
 }
 
 void editData::add_edit(const std::string & ctg, int pos, uint8_t hap,
-        uint8_t type, int len, int sc, int qual) {
+        uint8_t type, int len, int sc, int min_qual, int max_qual) {
     this->ctgs.push_back(ctg);
     this->poss.push_back(pos);
     this->lens.push_back(len);
     this->haps.push_back(hap);
     this->types.push_back(type);
     this->superclusters.push_back(sc);
-    this->quals.push_back(qual);
+    this->min_quals.push_back(min_qual);
+    this->max_quals.push_back(max_qual);
     this->n++;
 }
 
@@ -105,7 +106,8 @@ float qscore(double p_error) {
 int editData::get_ed(int qual, int type) const {
     int edit_dist = 0;
     for (int i = 0; i < this->n; i++) {
-        if (this->quals[i] == qual && is_type(this->types[i], type)) {
+        if (qual >= this->min_quals[i] && qual < this->max_quals[i] && 
+                is_type(this->types[i], type)) {
             edit_dist += this->lens[i];
         }
     }
@@ -115,7 +117,8 @@ int editData::get_ed(int qual, int type) const {
 int editData::get_de(int qual, int type) const {
     int distinct_edits = 0;
     for (int i = 0; i < this->n; i++) {
-        if (this->quals[i] == qual && is_type(this->types[i], type)) {
+        if (qual >= this->min_quals[i] && qual < this->max_quals[i] &&
+                is_type(this->types[i], type)) {
             distinct_edits++;
         }
     }
@@ -125,7 +128,7 @@ int editData::get_de(int qual, int type) const {
 int editData::get_score(int qual) const {
     int score = 0;
     for (int i = 0; i < n; i++) {
-        if (this->quals[i] == qual) {
+        if (qual >= this->min_quals[i] && qual < this->max_quals[i]) {
             switch (this->types[i]) {
                 case TYPE_SUB:
                     score += g.eval_sub;

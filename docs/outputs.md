@@ -6,43 +6,51 @@ Please see the detailed field descriptions at the bottom of this page.
 High-level precision/recall overview of SNP/INDEL performance. For each category (SNP/INDEL), there is one line for performance at the chosen minimum quality score, and one line for the quality score threshold that results in the best performance.
 
 | VAR_TYPE | MIN_QUAL | TRUTH_TP | QUERY_TP | TRUTH_FN | QUERY_FP | PREC | RECALL | F1_SCORE | F1_QSCORE |
+|-|-|-|-|-|-|-|-|-|-|
 
 #### precision-recall.tsv
 For each category (SNP/INDEL), there is one line reporting the precison/recall performance at each possible quality score.
 
 | VAR_TYPE | MIN_QUAL | PREC | RECALL | F1_SCORE | TRUTH_TOTAL | TRUTH_TP | TRUTH_PP | TRUTH_FN | QUERY_TOTAL | QUERY_TP | QUERY_PP | QUERY_FP |
+|-|-|-|-|-|-|-|-|-|-|-|-|-|
 
 ### Alignment Distance Summary Metrics
 #### distance-summary.tsv
 High-level alignment distance overview of SNP/INDEL performance. For each category (SNP/INDEL/ALL), there is one line for performance at the minimum, best, and maximum quality score threshold.
 
 | VAR_TYPE | MIN_QUAL | EDIT_DIST | DISTINCT_EDITS | ED_QSCORE | DE_QSCORE | ALN_QSCORE |
+|-|-|-|-|-|-|-|
 
 #### distance.tsv
 There is one line reporting the alignment distance performance at each possible quality score.
 
 | MIN_QUAL | SUB_DE | INS_DE | DEL_DE | SUB_ED | INS_ED | DEL_ED | DISTINCT_EDITS | EDIT_DIST | ALN_SCORE | ALN_QSCORE |
+|-|-|-|-|-|-|-|-|-|-|-|
 
 ### Detailed Results
 #### edits.tsv
-This file is a WIP, reporting for each edit (where called query sequence differs from truth sequence) the contig, pos, hap, len, supercluster, and all valid quals (on separate lines).
+This file reports for each edit (where called query sequence differs from truth sequence) the contig, pos, hap, len, supercluster, and the quality range for which these edits occur.
 
-| CONTIG | START | HAP | TYPE | SIZE | SUPERCLUSTER | QUAL |
+| CONTIG | START | HAP | TYPE | SIZE | SUPERCLUSTER | MIN_QUAL | MAX_QUAL
+|-|-|-|-|-|-|-|-|
 
 #### phase-blocks.tsv
 Reports the size, location, and composition of each phase block.
 
 | CONTIG | START | STOP | SIZE | SUPERCLUSTERS |
+|-|-|-|-|-|
 
 #### superclusters.tsv
 Reports the size, location, and composition of each supercluster.
 
 | CONTIG | START | STOP | SIZE | QUERY1_VARS | QUERY2_VARS | TRUTH1_VARS | TRUTH2_VARS | ORIG_ED | SWAP_ED | PHASE | PHASE_BLOCK |
+|-|-|-|-|-|-|-|-|-|-|-|-|
 
 #### query.tsv, truth.tsv
 Reports detailed information regarding each variant.
 
 | CONTIG | POS | HAP | REF | ALT | QUAL | TYPE | ERR_TYPE | CREDIT | CLUSTER | SUPERCLUSTER | LOCATION |
+|-|-|-|-|-|-|-|-|-|-|-|-|
 
 ### Output VCFs
 #### orig-query.vcf, orig-truth.vcf
