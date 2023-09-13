@@ -215,14 +215,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:BC:QQ:SC:SP", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SP", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BK:BC:QQ:SC:SP", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SP", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;

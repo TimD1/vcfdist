@@ -100,8 +100,11 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
     if (stop_idx >= int(this->regions[contig].stops.size())) return BED_BORDER;
 
     // variant in middle
-    if (stop_idx == start_idx)
+    if (stop_idx == start_idx) {
+        if (start == this->regions[contig].starts[start_idx]) // starts exactly at region border
+            return BED_BORDER;
         return BED_INSIDE;
+    }
     if (stop_idx == start_idx + 1) {
         int next_region_start = this->regions[contig].starts[stop_idx];
         int prev_region_stop = this->regions[contig].stops[start_idx];
