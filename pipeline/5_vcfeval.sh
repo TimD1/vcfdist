@@ -9,6 +9,19 @@ for truth in "${truth_ids[@]}"; do
     mkdir -p $data/pfda-v2/${truth}_vcfeval
 done
 
+# rtgtools multi-threaded vcfeval timing evaluation
+$parallel -j1 --joblog 5_vcfeval.log \
+    "$timer -v -o 5_{4}_{2}.txt ~/software/rtg-tools-3.12.1/rtg vcfeval \
+        -b $data/{3}/$ref_id/{5} \
+        -c $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
+        -t $data/refs/$ref_name.sdf \
+        -e $data/{3}/$ref_id/{6} \
+        --threads 56 \
+        --all-records \
+        -o $data/pfda-v2/{4}_vcfeval/{1}_HG002_{2}" ::: \
+    ${sub_ids[@]} ::: ${reps[@]} ::: \
+    ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
+
 # # rtgtools vcfeval timing evaluation
 # $parallel -j1 --joblog 5_vcfeval.log \
 #     "$timer -v -o 5_{4}_{2}.txt ~/software/rtg-tools-3.12.1/rtg RTG_MEM=8G vcfeval \
@@ -21,21 +34,21 @@ done
 #     ${sub_ids[@]} ::: ${reps[@]} ::: \
 #     ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
 
-# hap.py vcfeval timing evaluation
-# "$timer -v -o 5_{4}_{2}.txt python ~/software/happy/install/bin/hap.py \
-$parallel -j5 --joblog 5_vcfeval.log \
-    "$timer -v -o 5_{4}_{2}.txt taskset 1 python ~/software/happy/install/bin/hap.py \
-        $data/{3}/$ref_id/{5} \
-        $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
-        -r $data/refs/$ref_name \
-        -T $data/{3}/$ref_id/{6} \
-        --threads 1 \
-        --roc QUAL \
-        --write-counts \
-        --engine vcfeval \
-        -o $data/pfda-v2/{4}_vcfeval/{1}_HG002_{2}" ::: \
-    ${sub_ids[@]} ::: ${reps[@]} ::: \
-    ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
+# # hap.py vcfeval timing evaluation
+# # "$timer -v -o 5_{4}_{2}.txt python ~/software/happy/install/bin/hap.py \
+# $parallel -j5 --joblog 5_vcfeval.log \
+#     "$timer -v -o 5_{4}_{2}.txt taskset 1 python ~/software/happy/install/bin/hap.py \
+#         $data/{3}/$ref_id/{5} \
+#         $data/pfda-v2/phased_vcfs/$ref_id/{1}_HG002_{2}.vcf.gz \
+#         -r $data/refs/$ref_name \
+#         -T $data/{3}/$ref_id/{6} \
+#         --threads 1 \
+#         --roc QUAL \
+#         --write-counts \
+#         --engine vcfeval \
+#         -o $data/pfda-v2/{4}_vcfeval/{1}_HG002_{2}" ::: \
+#     ${sub_ids[@]} ::: ${reps[@]} ::: \
+#     ${truth_names[@]} :::+ ${truth_ids[@]} :::+ ${truth_vcfs[@]} :::+ ${truth_beds[@]}
 
 # # standardized representation (vcfdist output)
 # $parallel -j2 --joblog 5_vcfevalstd.log \
