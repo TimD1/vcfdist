@@ -629,7 +629,7 @@ void write_results(
     std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";
     FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
     if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
-    fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\n");
+    fprintf(out_phasings, "CONTIG\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tPHASE\n");
     for (auto ctg : phasedata_ptr->contigs) {
         auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_superclusters = ctg_phasings->ctg_superclusters;
@@ -638,8 +638,9 @@ void write_results(
             int end_idx = ctg_phasings->phase_blocks[i+1]-1;
             int beg = ctg_superclusters->begs[beg_idx];
             int end = ctg_superclusters->ends[end_idx];
-            fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\n", 
-                    ctg.data(), beg, end, end-beg, end_idx-beg_idx+1);
+            int phase = ctg_phasings->pb_phasings[i];
+            fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\t%d\n", 
+                    ctg.data(), beg, end, end-beg, end_idx-beg_idx+1, phase);
         }
     }
     fclose(out_phasings);

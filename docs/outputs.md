@@ -37,8 +37,8 @@ This file reports for each edit (where called query sequence differs from truth 
 #### phase-blocks.tsv
 Reports the size, location, and composition of each phase block.
 
-| CONTIG | START | STOP | SIZE | SUPERCLUSTERS |
-|-|-|-|-|-|
+| CONTIG | START | STOP | SIZE | SUPERCLUSTERS | PHASE |
+|-|-|-|-|-|-|
 
 #### superclusters.tsv
 Reports the size, location, and composition of each supercluster.
