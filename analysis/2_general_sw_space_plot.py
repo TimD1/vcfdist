@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import numpy as np
+from numpy import sin, cos, pi, linspace
 import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['text.usetex'] = True
@@ -19,13 +20,13 @@ plt.fill_between(x, x, ymax, alpha=0.8, facecolor='k')
 
 # vertical
 plt.annotate("$2(o+e) < x$", (0.46,1.18), rotation=90, color="white")
-plt.axvspan(0, 0.5, alpha=0.1, color='k', zorder=-100)
-plt.annotate("$3x < o+e$", (3.01,1.22), rotation=90, color="black")
-plt.axvspan(3, 3.2, alpha=0.1, color='k', zorder=-100)
+plt.axvline(0.5, alpha=0.8, color='k', zorder=-100)
+# plt.annotate("$3x < o+e$", (3.01,1.22), rotation=90, color="black")
+# plt.axvspan(3, 3.2, alpha=0.1, color='k', zorder=-100)
 
 # horizontal
-plt.annotate("$x < 2e$", (label_pad,0.57), ha="left", va="top", color="white")
-plt.fill_between(x, 0.5, ymax, facecolor='k', alpha=0.1)
+# plt.annotate("$x < 2e$", (label_pad,0.57), ha="left", va="top", color="white")
+# plt.plot(x, [0.5]*len(x), color='k', alpha=0.8)
 plt.annotate("$e < 0$", (label_pad,-0.03), ha="left", va="top", color="white")
 plt.fill_between(x, -0.2, 0, facecolor='k', alpha=0.8)
 
@@ -73,35 +74,40 @@ for name, x in ngmlr_presets.items():
 # npore
 points = [[1.7, 0.5], [1.7,0.7], [1.7, 1], [1.7, 0.8], [1.7, 1.1], [2.3, 1.8], [2.8, 1], [3.2, 1.1], [3.2, 2.1], [3.2, 1], [3.7, 1.9], [3.7, 2], [3.7, 1], [3.7, 0.6], [3.8, 2.4], [3.8, 1.7], [3.8, 0.8], [4.6, 2.5], [4.6, 2.3], [4.6, 1.5]]
 for p in points:
-    plt.scatter(p[0]/5.72, p[1]/5.72, color=f"C{i}")
-plt.annotate("npore", (0.5, 0.25), ha="left", va="center", color=f"C{i}")
-plt.scatter(6/5.72, 1/5.72, marker="s", color=f"C{i}")
-plt.annotate("npore", (6/5.72+label_pad, 1/5.72), ha="left", va="center", color=f"C{i}")
+    plt.scatter(p[0]/5.72, p[1]/5.72, color=f"purple")
+plt.annotate("npore", (0.5, 0.25), ha="left", va="center", color=f"purple")
+plt.scatter(6/5.72, 1/5.72, marker="s", color=f"purple")
+plt.annotate("npore", (6/5.72+label_pad, 1/5.72), ha="left", va="center", color=f"purple")
 i += 1
 
 # verkko
-plt.scatter(0, 0, color=f"C{i}", zorder=100)
-plt.annotate("verkko", (label_pad, 0), ha="left", va="bottom", color=f"C{i}")
+plt.scatter(0, 0, color=f"goldenrod", zorder=100)
+plt.annotate("verkko", (label_pad, 0), ha="left", va="bottom", color=f"goldenrod")
 
 # points
-plt.scatter(0.4, 0.3, marker="*", color=f"C0")
-plt.annotate("A", (0.4+label_pad, 0.3), ha="left", va="center", color="C0")
-plt.scatter(1, 0.333, marker="*", color=f"C1")
-plt.annotate("B", (1+label_pad, 0.333), ha="left", va="center", color="C1")
-plt.scatter(1.6, 0.4, marker="*", color=f"C2")
-plt.annotate("C", (1.6+label_pad, 0.4), ha="left", va="center", color="C2")
-plt.scatter(2, 0.2, marker="*", color=f"C3")
-plt.annotate("D", (2+label_pad, 0.2), ha="left", va="center", color="C3")
+plt.scatter(0.4, 0.3, marker="*", color=f"k")
+plt.annotate("A", (0.4+label_pad, 0.3), ha="left", va="center", color="k")
+plt.scatter(1, 0.333, marker="*", color=f"k")
+plt.annotate("B", (1+label_pad, 0.333), ha="left", va="center", color="k")
+plt.scatter(1.6, 0.4, marker="*", color=f"k")
+plt.annotate("C", (1.6+label_pad, 0.4), ha="left", va="center", color="k")
+plt.scatter(2, 0.2, marker="*", color=f"k")
+plt.annotate("D", (2+label_pad, 0.2), ha="left", va="center", color="k")
 
 # arrows
-plt.arrow(2.5, 0.9,  0.1,  0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # right
-plt.annotate("prefer\nsubstitutions", (2.6+label_pad, 0.95), ha="left", va="center")
-plt.arrow(2.5, 0.9, -0.1, -0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # left
-plt.annotate("prefer\nINDELs", (2.4-label_pad, 0.85), ha="right", va="center")
-plt.arrow(2.5, 0.9, -0.05,  0.1, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # up
-plt.annotate("prefer\nseparate\ngaps", (2.45, 1+label_pad), ha="center", va="bottom")
-plt.arrow(2.5, 0.9,  0.05, -0.1, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # down
-plt.annotate("prefer\nmerged\ngaps", (2.55, 0.8-label_pad), ha="center", va="top")
+plt.arrow(2.1, 1.1,  0.1,  0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # right
+plt.annotate("prefer\nsubstitutions", (2.2+label_pad, 1.15), ha="left", va="center")
+plt.arrow(2.1, 1.1, -0.1, -0.05, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # left
+plt.annotate("prefer\nINDELs", (2.0-label_pad, 1.05), ha="right", va="center")
+plt.arrow(2.065, 1.175, -0.01,  0.01, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # up
+plt.annotate("prefer\nseparate\ngaps", (2.05, 1.2+label_pad), ha="center", va="bottom")
+plt.arrow(2.13, 1.05,  0, -0.02, color='k', length_includes_head=True, head_width=0.02, head_length=0.016) # down
+plt.annotate("prefer\nmerged\ngaps", (2.15, 1-label_pad), ha="center", va="top")
+arc_angles = linspace(0 * pi, pi/4, 20)
+r = 0.2
+arc_xs = r * cos(arc_angles)
+arc_ys = r * sin(arc_angles)
+plt.plot(arc_xs+1.93, arc_ys+1.03, color = 'k')
 
 # legend
 sra = mlines.Line2D([], [], color='k', marker='^', linestyle='None',
@@ -116,8 +122,14 @@ ed = mlines.Line2D([], [], color='k', marker='X', linestyle='None',
         markersize=7, label = 'Edit Distance Align')
 points = mlines.Line2D([], [], color='k', marker='*', linestyle='None',
         markersize=9, label = 'Select Design Points')
-plt.legend(handles = [sra, lra, aa, sva, ed, points], loc = "lower right")
+leg1 = plt.legend(handles = [sra, lra, aa, sva, ed, points], loc = (0.8,0.2))
 
+m = mlines.Line2D([], [], linestyle='None', label = r'$m$ : match penalty ($0$)')
+x = mlines.Line2D([], [], linestyle='None', label = r'$x$ : mismatch penalty')
+o = mlines.Line2D([], [], linestyle='None', label = r'$o$ : gap opening penalty')
+e = mlines.Line2D([], [], linestyle='None', label = r'$e$ : gap extension penalty')
+plt.legend(handles = [m, x, o, e], loc=(0.78, 0.6), frameon=False)
+plt.gca().add_artist(leg1)
 
 # labels
 plt.xlabel(r'\LARGE{$(o+e) / x$}')
