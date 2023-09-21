@@ -1,6 +1,6 @@
 # vcfdist: benchmarking phased variant calls
 ![build](https://github.com/timd1/vcfdist/actions/workflows/build.yml/badge.svg)
-<!-- ![Github All Releases](https://img.shields.io/github/downloads/timd1/vcfdist/total.svg) -->
+[![DOI](https://zenodo.org/badge/472945373.svg)](https://zenodo.org/badge/latestdoi/472945373)
 
 ## Overview
 
