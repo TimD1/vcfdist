@@ -147,6 +147,8 @@ void check_contigs(
                         *itr) == g.bed.contigs.end()) {
                 query_ptr->lengths.erase(query_ptr->lengths.begin() + 
                         (itr - query_ptr->contigs.begin()));
+                query_ptr->ploidy.erase(query_ptr->ploidy.begin() + 
+                        (itr - query_ptr->contigs.begin()));
                 query_ptr->ctg_variants[HAP1].erase(*itr);
                 query_ptr->ctg_variants[HAP2].erase(*itr);
                 itr = query_ptr->contigs.erase(itr);
@@ -159,6 +161,8 @@ void check_contigs(
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
                         *itr) == g.bed.contigs.end()) {
                 truth_ptr->lengths.erase(truth_ptr->lengths.begin() + 
+                        (itr - truth_ptr->contigs.begin()));
+                truth_ptr->ploidy.erase(truth_ptr->ploidy.begin() + 
                         (itr - truth_ptr->contigs.begin()));
                 truth_ptr->ctg_variants[HAP1].erase(*itr);
                 truth_ptr->ctg_variants[HAP2].erase(*itr);
@@ -200,6 +204,7 @@ void check_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+                query_ptr->ploidy.push_back(0);
             }
             if (std::find(truth_ptr->contigs.begin(), 
                         truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
@@ -210,6 +215,7 @@ void check_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 truth_ptr->contigs.push_back(ctg);
                 truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+                truth_ptr->ploidy.push_back(0);
             }
         }
 
@@ -228,6 +234,8 @@ void check_contigs(
                         *itr) == truth_ptr->contigs.end()) {
                 ERROR("Contig '%s' found in query VCF but not truth VCF. Please provide BED file.", (*itr).data());
                 query_ptr->lengths.erase(query_ptr->lengths.begin() + 
+                        (itr - query_ptr->contigs.begin()));
+                query_ptr->ploidy.erase(query_ptr->ploidy.begin() + 
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->ctg_variants[HAP1].erase(*itr);
                 query_ptr->ctg_variants[HAP2].erase(*itr);
@@ -253,6 +261,7 @@ void check_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+                query_ptr->ploidy.push_back(0);
             }
         }
     }

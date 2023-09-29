@@ -1895,10 +1895,6 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                 }
             }
 
-            /////////////////////////////////////////////////////////////////////
-            // PRECISION-RECALL: allow skipping called variants                  
-            /////////////////////////////////////////////////////////////////////
-            
             // set pointers between truth1/2 and reference
             std::string truth1 = "", ref_t1 = ""; 
             std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;

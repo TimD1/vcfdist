@@ -443,7 +443,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
             float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
                          query_counts[type][PP_FRAC][qidx];
             float query_fp_f = query_tot - query_tp_f;
-            if (query_tot == 0) WARN("No QUERY variant calls.");
+            if (query_tot == 0) WARN("No QUERY %s variant calls.", vartype_strs[type].data());
 
             int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
                         truth_counts[type][ERRTYPE_PP][0] +
@@ -453,7 +453,7 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                              truth_counts[type][ERRTYPE_TP][qidx];
             float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
                              truth_counts[type][PP_FRAC][qidx];
-            if (truth_tot == 0) WARN("No TRUTH variant calls.");
+            if (truth_tot == 0) WARN("No TRUTH %s variant calls.", vartype_strs[type].data());
 
             float precision = truth_tp_f + query_fp_f == 0 ? 
                 1.0f : truth_tp_f / (truth_tp_f + query_fp_f);
