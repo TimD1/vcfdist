@@ -101,4 +101,4 @@ ax[0][1].plot(indel_recall, indel_prec, linestyle='',
         marker='.', color=f"C0", label=label)
 
 plt.tight_layout()
-plt.savefig('img/4_vcfdist_plot.png', dpi=300)
+plt.savefig('img/4_vcfdist_plot.pdf', format="pdf")

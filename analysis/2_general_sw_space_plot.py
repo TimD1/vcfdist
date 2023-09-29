@@ -132,7 +132,8 @@ plt.legend(handles = [m, x, o, e], loc=(0.78, 0.6), frameon=False)
 plt.gca().add_artist(leg1)
 
 # labels
-plt.xlabel(r'\LARGE{$(o+e) / x$}')
-plt.ylabel(r'\LARGE{$e / x$}')
+plt.xlabel(r'\LARGE{Starting a Gap: $(o+e) / x$}')
+plt.ylabel(r'\LARGE{Extending a Gap: $e / x$}')
 plt.tight_layout()
+# plt.savefig("img/2_general_sw_space.pdf", format="pdf")
 plt.savefig("img/2_general_sw_space.png", dpi=200)

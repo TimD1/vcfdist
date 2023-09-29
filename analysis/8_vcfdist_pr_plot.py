@@ -113,4 +113,4 @@ for di, dataset in enumerate(datasets):
             ax[ei][di*2+1].set_yticks(np.arange(0.9, 1.01, 0.02))
 
 plt.tight_layout()
-plt.savefig('img/8_vcfdist_pr_plot.png', dpi=200)
+plt.savefig('img/8_vcfdist_pr_plot.pdf', format="pdf")

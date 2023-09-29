@@ -168,4 +168,4 @@ for di, dataset in enumerate(datasets):
     ax[di*3+2].text(0.05,0.8,f"AMRC: {aln_amrc:.2f}", fontsize=15, transform=ax[di*3+2].transAxes)
 
 plt.tight_layout()
-plt.savefig('img/9_f1_ed_plot.png', dpi=200)
+plt.savefig('img/9_f1_ed_plot.pdf', format="pdf")

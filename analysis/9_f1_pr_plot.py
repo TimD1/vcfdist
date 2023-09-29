@@ -14,27 +14,25 @@ plt.rcParams.update({"figure.facecolor": (0,0,0,0)})
 data = "/home/timdunn/vcfdist/data"
 datasets = ["nist", "cmrg"]
 tools = ["vcfeval", "vcfdist"]
-# names = ["original", "A", "B", "C", "D"]
-# colors = ["k", "C0", "C1", "C2", "C3"]
-names = ["original", "B", "C", "D"]
-colors = ["k", "C1", "C2", "C3"]
-
-sub_ids = [
-    "0GOOR", "23O09", "4GKR1", "61YRJ", "8H0ZB", "B1S5A", "C6JUX", "EIUT6", "H9OJ3", "IA789",
-    "KXBR8", "MECML", "NWQ6Y", "R9CXN", "SEX9X", "UYMUW", "W91C1", "XC97E", "YBE9U", "YUI27",
-    "4HL0B", "7NJ5C", "9DGOR", "BARQS", "CN36L", "ES3XW", "HB8P3", "ISKOS", "JIPSI", "KFA0T",
-    "PGXA4", "RU88N", "TG5TE", "VES2R", "WGQ43", "XV7ZN", "YGOTK", "13678", "32LOW", "60Z59", 
-    "JBBK0", "K4GT3", "7RR8Z", "ASJT6", "BSODP", "CZA1Y", "0O7FL", "2OT9Q", "FFFGB", "HF8CT", "Y8QR8", "YJN61", "LR1FD", "MT57N",
-    "J04SL", "K33QJ", "KPXT2", "M9KLP", "NFT0L", "QUE7Q", "S7K7S", "TZMTX", "W607K", "WX8VK"
-]
-markers = ['.']*len(sub_ids)
+names = ["original", "A", "B", "C", "D"]
+colors = ["k", "C0", "C1", "C2", "C3"]
 
 # sub_ids = [
-#     "K4GT3", # Google Health
-#     "W91C1", # Sentieon
-#     "IA789"  # Roche
+#     "0GOOR", "23O09", "4GKR1", "61YRJ", "8H0ZB", "B1S5A", "C6JUX", "EIUT6", "H9OJ3", "IA789",
+#     "KXBR8", "MECML", "NWQ6Y", "R9CXN", "SEX9X", "UYMUW", "W91C1", "XC97E", "YBE9U", "YUI27",
+#     "4HL0B", "7NJ5C", "9DGOR", "BARQS", "CN36L", "ES3XW", "HB8P3", "ISKOS", "JIPSI", "KFA0T",
+#     "PGXA4", "RU88N", "TG5TE", "VES2R", "WGQ43", "XV7ZN", "YGOTK", "13678", "32LOW", "60Z59", 
+#     "JBBK0", "K4GT3", "7RR8Z", "ASJT6", "BSODP", "CZA1Y", "0O7FL", "2OT9Q", "FFFGB", "HF8CT", "Y8QR8", "YJN61", "LR1FD", "MT57N",
+#     "J04SL", "K33QJ", "KPXT2", "M9KLP", "NFT0L", "QUE7Q", "S7K7S", "TZMTX", "W607K", "WX8VK"
 # ]
-# markers = ['s', 'o', '^']
+# markers = ['.']*len(sub_ids)
+
+sub_ids = [
+    "K4GT3", # Google Health
+    "W91C1", # Sentieon
+    "IA789"  # Roche
+]
+markers = ['s', 'o', '^']
 
 fig, ax = plt.subplots(2, 4, figsize=(20,8))
 
@@ -245,13 +243,13 @@ for di, dataset in enumerate(datasets):
             ax[ti][di*2].text(0.05,0.8,f"AMRC: {snp_amrc:.2f}", fontsize=15, transform=ax[ti][di*2].transAxes)
             ax[ti][di*2+1].text(0.05,0.8,f"AMRC: {indel_amrc:.2f}", fontsize=15, transform=ax[ti][di*2+1].transAxes)
 
-# square = mlines.Line2D([], [], linestyle="", color='k', marker='s',
-#                                   markersize=12, label='Google Health')
-# circle = mlines.Line2D([], [], linestyle="", color='k', marker='o',
-#                                   markersize=12, label='Sentieon')
-# triangle = mlines.Line2D([], [], linestyle="", color='k', marker='^',
-#                                   markersize=12, label='Roche')
-# ax[0][0].legend(handles=[square, circle, triangle], loc="center right", fontsize=15)
+square = mlines.Line2D([], [], linestyle="", color='k', marker='s',
+                                  markersize=12, label='Google Health')
+circle = mlines.Line2D([], [], linestyle="", color='k', marker='o',
+                                  markersize=12, label='Sentieon')
+triangle = mlines.Line2D([], [], linestyle="", color='k', marker='^',
+                                  markersize=12, label='Roche')
+ax[0][0].legend(handles=[square, circle, triangle], loc="center right", fontsize=15)
 
 O = mlines.Line2D([], [], linestyle="", color='k', marker='.',
                                   markersize=12, label='original')
@@ -264,8 +262,10 @@ C = mlines.Line2D([], [], linestyle="", color='C2', marker='.',
 D = mlines.Line2D([], [], linestyle="", color='C3', marker='.',
                                   markersize=12, label='D')
 ax2 = ax[0][0].twinx()
-ax2.legend(handles=[O,A,B,C,D], loc="center right", fontsize=15)
+
+# ax2.legend(handles=[O,A,B,C,D], loc="center right", fontsize=15)
+ax2.legend(handles=[O,A,B,C,D], loc="center left", fontsize=15)
 
 
 plt.tight_layout()
-plt.savefig('img/9_f1_pr_plot.png', dpi=200)
+plt.savefig('img/9_f1_pr_plot.pdf', format="pdf")
