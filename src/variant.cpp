@@ -217,14 +217,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:SP", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:PS:PF", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:SP", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:PS:PF", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -234,13 +234,15 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 }
 
 
-void ctgVariants::print_var_empty(FILE* out_fp, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:.:.:.%s", query ? "\n" : "");
+void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx, 
+        int phase_block, bool query /* = false */) {
+    fprintf(out_fp, "\t.:.:.:.:.:%d:.:%d:.:.%s", sc_idx, phase_block, query ? "\n" : "");
 }
 
 
 void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt, 
-        int sc_idx, bool swap, bool query /* = false */) {
+        int sc_idx, int phase_block, bool phase_switch, bool phase_flip, 
+        bool query /* = false */) {
 
     std::string errtype;
     switch (this->errtypes[idx]) {
@@ -252,9 +254,11 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
                  (query ? "FP" : "FN"); break;
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%s%s", gt.data(), errtype.data(), 
+    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
             this->credit[idx], int(this->var_quals[idx]), sc_idx, 
-            int(this->sync_group[idx]), query ? (swap ? "1" : "0") : "." , 
+            int(this->sync_group[idx]), phase_block,
+            query ? (phase_switch ? "1" : "0") : "." , 
+            query ? (phase_flip ? "1" : "0") : "." , 
             query ? "\n" : "");
 }
 

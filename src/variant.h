@@ -23,9 +23,9 @@ public:
             std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq);
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
             std::string ctg, int idx);
-    void print_var_empty(FILE* out_vcf, bool query = false);
+    void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);
     void print_var_sample(FILE* out_vcf, int idx, std::string gt, 
-            int sc_idx, bool swap, bool query = false);
+            int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query = false);
 
     // data (all of size n)
     std::vector<int> poss;          // variant start positions (0-based)
