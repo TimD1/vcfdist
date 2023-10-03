@@ -1126,6 +1126,7 @@ void calc_prec_recall(
             clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0;
 
         // init
+        int sync_group = 0;
         int ti_size = truth_ref_ptrs[i][PTRS].size();
         int hi = pr_query_ref_end[i];
         int qri_size = (hi % 2 == QUERY) ? query_ref_ptrs[i][PTRS].size() :
@@ -1182,6 +1183,7 @@ void calc_prec_recall(
             while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // just passed variant(s)
                 if (prev_hi == ri) { // FP if when in variant was on REF
                     query_vars->errtypes[query_var_ptr] = ERRTYPE_FP;
+                    query_vars->sync_group[query_var_ptr] = sync_group++;
                     query_vars->credit[query_var_ptr] = 0;
                     query_vars->callq[query_var_ptr] = 
                         query_vars->var_quals[query_var_ptr];
@@ -1250,6 +1252,7 @@ void calc_prec_recall(
                     if (query_vars->errtypes[query_var_idx] == ERRTYPE_UN) {
                         if (new_ed == 0) { // TP
                             query_vars->errtypes[query_var_idx] = ERRTYPE_TP;
+                            query_vars->sync_group[query_var_idx] = sync_group;
                             query_vars->credit[query_var_idx] = credit;
                             query_vars->callq[query_var_idx] = callq;
                             if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
@@ -1258,6 +1261,7 @@ void calc_prec_recall(
                                     "TP", credit);
                         } else if (new_ed == old_ed) { // FP
                             query_vars->errtypes[query_var_idx] = ERRTYPE_FP;
+                            query_vars->sync_group[query_var_idx] = sync_group;
                             query_vars->credit[query_var_idx] = 0;
                             query_vars->callq[query_var_idx] = callq;
                             if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
@@ -1266,6 +1270,7 @@ void calc_prec_recall(
                                     "FP", 0.0f);
                         } else { // PP
                             query_vars->errtypes[query_var_idx] = ERRTYPE_PP;
+                            query_vars->sync_group[query_var_idx] = sync_group;
                             query_vars->credit[query_var_idx] = credit;
                             query_vars->callq[query_var_idx] = callq;
                             if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
@@ -1282,6 +1287,7 @@ void calc_prec_recall(
                     float credit = 1 - float(new_ed)/old_ed;
                     if (new_ed == 0) { // TP
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_TP;
+                        truth_vars->sync_group[truth_var_idx] = sync_group;
                         truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = callq;
                         if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
@@ -1290,6 +1296,7 @@ void calc_prec_recall(
                                 "TP", credit);
                     } else if (new_ed == old_ed) { // FP call, FN truth
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_FN;
+                        truth_vars->sync_group[truth_var_idx] = sync_group;
                         truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = g.max_qual;
                         if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
@@ -1298,6 +1305,7 @@ void calc_prec_recall(
                                 "FN", credit);
                     } else { // PP
                         truth_vars->errtypes[truth_var_idx] = ERRTYPE_PP;
+                        truth_vars->sync_group[truth_var_idx] = sync_group;
                         truth_vars->credit[truth_var_idx] = credit;
                         truth_vars->callq[truth_var_idx] = callq;
                         if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
@@ -1315,6 +1323,11 @@ void calc_prec_recall(
                         prev_truth_var_ptr, truth_var_ptr
                 );
 
+                // new sync group if there were any variants
+                if (query_var_ptr != prev_query_var_ptr || 
+                    truth_var_ptr != prev_truth_var_ptr) {
+                    sync_group++;
+                }
                 prev_query_var_ptr = query_var_ptr;
                 prev_truth_var_ptr = truth_var_ptr;
                 prev_sync_ref_idx = sync_ref_idx;

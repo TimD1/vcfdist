@@ -49,8 +49,8 @@ Reports the size, location, and composition of each supercluster.
 #### query.tsv, truth.tsv
 Reports detailed information regarding each variant.
 
-| CONTIG | POS | HAP | REF | ALT | QUAL | TYPE | ERR_TYPE | CREDIT | CLUSTER | SUPERCLUSTER | LOCATION |
-|-|-|-|-|-|-|-|-|-|-|-|-|
+| CONTIG | POS | HAP | REF | ALT | QUAL | TYPE | ERR_TYPE | CREDIT | CLUSTER | SUPERCLUSTER | SYNC_GROUP | LOCATION |
+|-|-|-|-|-|-|-|-|-|-|-|-|-|
 
 ### Output VCFs
 #### orig-query.vcf, orig-truth.vcf
@@ -85,7 +85,7 @@ Output query and truth VCFs, standardized by vcfdist (at point C).
 | HAP | integer | Haplotype of current region (0/1). |
 | SIZE | integer | Size of current region. |
 | QUAL | float | Quality of current variant. |
-| (SUPER)CLUSTER(S) | integer | Either 0-based index of or total (super)clusters in this region. |
+| (SUPER)CLUSTER(S) | integer | Either 0-based index of or total (super)clusters in this region (per contig). |
 | (QUERY/TRUTH)(1/2)_VARS | integer | Total variants on a particular haplotype within this region. |
 | (ORIG/SWAP)_ED | integer | Total edit distance (minimum) of supercluster for both possible phasings. |
 | PHASE | char | Character representing phasing. (=/X/?) for same, swap, unknown |
@@ -93,4 +93,5 @@ Output query and truth VCFs, standardized by vcfdist (at point C).
 | POS | integer | 0-based index of position within contig. |
 | REF/ALT | string | String of reference/alternate sequence at this position. |
 | CREDIT | float | Fraction of partial credit this variant received. |
+| SYNC_GROUP | integer | 0-based index of credit grouping for variants for this supercluster and haplotype. |
 | LOCATION | string | Location of variant relative to BED regions (INSIDE/OUTSIDE/BORDER/OFF CTG)|

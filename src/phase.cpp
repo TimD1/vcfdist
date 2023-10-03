@@ -28,6 +28,7 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
     fprintf(out_vcf, "##FORMAT=<ID=BK,Number=1,Type=String,Description=\"BenchmarK category (for hap.py compatibility, always genotype match 'gm')\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality for ROC creation\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster index\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (for equivalence and credit assignment)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SP,Number=1,Type=Integer,Description=\"Swapped Phase (from original) for query variant (0=NO,1=YES)\">\n");
     fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRUTH\tQUERY\n");
 

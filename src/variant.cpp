@@ -31,7 +31,9 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
     this->var_quals.push_back(std::min(vq, float(g.max_qual)));
     this->n++;
 
+    // added during precision/recall backtrack
     this->errtypes.push_back(ERRTYPE_UN);
+    this->sync_group.push_back(0);
     this->credit.push_back(0);
     this->callq.push_back(0);
 }
@@ -215,14 +217,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SP", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:SP", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SP", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:SP", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -233,7 +235,7 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 
 
 void ctgVariants::print_var_empty(FILE* out_fp, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:.:.%s", query ? "\n" : "");
+    fprintf(out_fp, "\t.:.:.:.:.:.:.:.%s", query ? "\n" : "");
 }
 
 
@@ -250,9 +252,10 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
                  (query ? "FP" : "FN"); break;
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%s%s", gt.data(), errtype.data(), 
-            this->credit[idx], int(this->var_quals[idx]), sc_idx, query ? 
-            (swap ? "1" : "0") : "." , query ? "\n" : "");
+    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%s%s", gt.data(), errtype.data(), 
+            this->credit[idx], int(this->var_quals[idx]), sc_idx, 
+            int(this->sync_group[idx]), query ? (swap ? "1" : "0") : "." , 
+            query ? "\n" : "");
 }
 
 

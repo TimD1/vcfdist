@@ -705,7 +705,7 @@ void write_results(
     if (g.verbosity >= 1) INFO("  Printing call variant results to '%s'", out_query_fn.data());
     FILE* out_query = fopen(out_query_fn.data(), "w");
     fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
-            "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
+            "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
     for (auto ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
@@ -733,7 +733,7 @@ void write_results(
                     ERROR("Out of bounds supercluster during write_results(): query1")
                 while (query1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
-                fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
+                fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
                         ctg.data(),
                         query1_vars->poss[var1_idx],
                         query1_vars->haps[var1_idx],
@@ -745,6 +745,7 @@ void write_results(
                         query1_vars->credit[var1_idx],
                         cluster1_idx,
                         supercluster_idx,
+                        query1_vars->sync_group[var1_idx],
                         region_strs[query1_vars->locs[var1_idx]].data()
                        );
                 var1_idx++;
@@ -756,7 +757,7 @@ void write_results(
                     ERROR("Out of bounds supercluster during write_results(): query2")
                 while (query2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
-                fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
+                fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
                         ctg.data(),
                         query2_vars->poss[var2_idx],
                         query2_vars->haps[var2_idx],
@@ -768,6 +769,7 @@ void write_results(
                         query2_vars->credit[var2_idx],
                         cluster2_idx,
                         supercluster_idx,
+                        query2_vars->sync_group[var2_idx],
                         region_strs[query2_vars->locs[var2_idx]].data()
                        );
                 var2_idx++;
@@ -780,7 +782,7 @@ void write_results(
     std::string out_truth_fn = g.out_prefix + "truth.tsv";
     if (g.verbosity >= 1) INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
-    fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tLOCATION\n");
+    fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
     for (auto ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
@@ -806,7 +808,7 @@ void write_results(
                     ERROR("Out of bounds supercluster during write_results(): truth1")
                 while (truth1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
-                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
                         ctg.data(),
                         truth1_vars->poss[var1_idx],
                         truth1_vars->haps[var1_idx],
@@ -818,6 +820,7 @@ void write_results(
                         truth1_vars->credit[var1_idx],
                         cluster1_idx,
                         supercluster_idx,
+                        truth1_vars->sync_group[var1_idx],
                         region_strs[truth1_vars->locs[var1_idx]].data()
                        );
                 var1_idx++;
@@ -830,7 +833,7 @@ void write_results(
                     ERROR("Out of bounds supercluster during write_results(): truth2")
                 while (truth2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
                     supercluster_idx++;
-                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%s\n",
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
                         ctg.data(),
                         truth2_vars->poss[var2_idx],
                         truth2_vars->haps[var2_idx],
@@ -842,6 +845,7 @@ void write_results(
                         truth2_vars->credit[var2_idx],
                         cluster2_idx,
                         supercluster_idx,
+                        truth2_vars->sync_group[var2_idx],
                         region_strs[truth2_vars->locs[var2_idx]].data()
                        );
                 var2_idx++;

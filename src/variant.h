@@ -45,6 +45,7 @@ public:
 
     // set during prec_recall_aln()
     std::vector<uint8_t> errtypes;  // error type: TP, FP, FN, PP
+    std::vector<int> sync_group;    // group of variants that participate in TP/PP
     std::vector<float> callq;       // call quality (for truth, of associated call)
                                     // or for call, min quality in sync group
     std::vector<float> credit;      // fraction of TP for partial positive (PP)
