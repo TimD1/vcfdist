@@ -13,6 +13,13 @@
 
 ctgVariants::ctgVariants() { 
     this->n = 0; 
+    for (int i = 0; i < PHASES; i++) {
+        this->errtypes.push_back(std::vector<uint8_t>());
+        this->sync_group.push_back(std::vector<int>());
+        this->callq.push_back(std::vector<float>());
+        this->credit.push_back(std::vector<float>());
+
+    }
 }
 
 void ctgVariants::add_cluster(int g) { this->clusters.push_back(g); }
@@ -32,10 +39,12 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
     this->n++;
 
     // added during precision/recall backtrack
-    this->errtypes.push_back(ERRTYPE_UN);
-    this->sync_group.push_back(0);
-    this->credit.push_back(0);
-    this->callq.push_back(0);
+    for (int i = 0; i < PHASES; i++) {
+        this->errtypes[i].push_back(ERRTYPE_UN);
+        this->sync_group[i].push_back(0);
+        this->credit[i].push_back(0);
+        this->callq[i].push_back(0);
+    }
 }
 
 /******************************************************************************/
@@ -244,19 +253,23 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
         int sc_idx, int phase_block, bool phase_switch, bool phase_flip, 
         bool query /* = false */) {
 
+    // use either the normal or swapped evaluation
+    bool swap = phase_switch ^ phase_flip;
+
+    // get categorization
     std::string errtype;
-    switch (this->errtypes[idx]) {
+    switch (this->errtypes[swap][idx]) {
         case ERRTYPE_TP: errtype = "TP"; break;
         case ERRTYPE_FP: errtype = "FP"; break;
         case ERRTYPE_FN: errtype = "FN"; break;
         case ERRTYPE_PP: // for hap.py compatibility
-             errtype = this->credit[idx] >= 0.5 ? "TP" : 
+             errtype = this->credit[swap][idx] >= 0.5 ? "TP" : 
                  (query ? "FP" : "FN"); break;
     }
 
     fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[idx], int(this->var_quals[idx]), sc_idx, 
-            int(this->sync_group[idx]), phase_block,
+            this->credit[swap][idx], int(this->var_quals[idx]), sc_idx, 
+            int(this->sync_group[swap][idx]), phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
             query ? (phase_flip ? "1" : "0") : "." , 
             query ? "\n" : "");

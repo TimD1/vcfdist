@@ -122,6 +122,7 @@ class idx2;
 #define PHASE_ORIG 0
 #define PHASE_SWAP 1
 #define PHASE_NONE 2
+#define PHASES 2
 
 #define PHASE_PTR_KEEP 0
 #define PHASE_PTR_SWAP 1

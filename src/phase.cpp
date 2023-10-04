@@ -189,28 +189,28 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
                     ptrs[QUERY][HAP2]++;
                 }
             } else { // no query variants, just truth
-                if (next[TRUTH][HAP1] && next[TRUTH][HAP2]) { // two truth variants
+                if (next[TRUTH][HAP1^swap] && next[TRUTH][HAP2^swap]) { // two truth variants
                     // don't collapse homozygous variants (credit results may differ)
                     for(int h = 0; h < HAPS; h++) {
-                        vars[TRUTH][h]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][h]);
-                        vars[TRUTH][h]->print_var_sample(out_vcf, ptrs[TRUTH][h], 
+                        vars[TRUTH][h^swap]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][h^swap]);
+                        vars[TRUTH][h^swap]->print_var_sample(out_vcf, ptrs[TRUTH][h^swap], 
                                 (h^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip);
                         vars[QUERY][h]->print_var_empty(out_vcf, sc_idx, phase_block, true);
-                        ptrs[TRUTH][h]++;
+                        ptrs[TRUTH][h^swap]++;
                     }
                 } else { // one truth variant
-                    if (next[TRUTH][HAP1]) {
-                        vars[TRUTH][HAP1]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP1]);
-                        vars[TRUTH][HAP1]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1], 
-                                ploidy == 1 ? "1" : swap?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip);
+                    if (next[TRUTH][HAP1^swap]) {
+                        vars[TRUTH][HAP1^swap]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP1^swap]);
+                        vars[TRUTH][HAP1^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1^swap], 
+                                ploidy == 1 ? "1" : (HAP1^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip);
                         vars[QUERY][HAP1]->print_var_empty(out_vcf, sc_idx, phase_block, true);
-                        ptrs[TRUTH][HAP1]++;
-                    } else if (next[TRUTH][HAP2]) {
-                        vars[TRUTH][HAP2]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP2]);
-                        vars[TRUTH][HAP2]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2], 
-                                ploidy == 1 ? "1" : swap?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip);
+                        ptrs[TRUTH][HAP1^swap]++;
+                    } else if (next[TRUTH][HAP2^swap]) {
+                        vars[TRUTH][HAP2^swap]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP2^swap]);
+                        vars[TRUTH][HAP2^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2^swap], 
+                                ploidy == 1 ? "1" : (HAP2^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip);
                         vars[QUERY][HAP2]->print_var_empty(out_vcf, sc_idx, phase_block, true);
-                        ptrs[TRUTH][HAP2]++;
+                        ptrs[TRUTH][HAP2^swap]++;
                     } else {
                         ERROR("No variants are selected next.");
                     }
