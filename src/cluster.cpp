@@ -427,27 +427,27 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 right_compute = false;
             }
 
-            // debug print
-            if (prev_active[clust] && clust < prev_clusters.size()-1) {
-                printf("\n\ncluster %d: vars %d-%d, pos %d-%d\n",
-                        int(clust), vars->clusters[clust],
-                        vars->clusters[clust+1],
-                        vars->poss[vars->clusters[clust]],
-                        vars->poss[vars->clusters[clust+1]-1] +
-                        vars->rlens[vars->clusters[clust+1]-1]);
-                for (int var_idx = vars->clusters[clust]; 
-                        var_idx < vars->clusters[clust+1]; var_idx++) {
-                    printf("    %s %d %s %s var:%d\n",
-                            ctg.data(), 
-                            vars->poss[var_idx],
-                            vars->refs[var_idx].size() ? 
-                                vars->refs[var_idx].data() : "_",
-                            vars->alts[var_idx].size() ? 
-                                vars->alts[var_idx].data() : "_",
-                            var_idx
-                    );
-                }
-            }
+            /* // debug print */
+            /* if (print && prev_active[clust] && clust < prev_clusters.size()-1) { */
+            /*     printf("\n\ncluster %d: vars %d-%d, pos %d-%d\n", */
+            /*             int(clust), vars->clusters[clust], */
+            /*             vars->clusters[clust+1], */
+            /*             vars->poss[vars->clusters[clust]], */
+            /*             vars->poss[vars->clusters[clust+1]-1] + */
+            /*             vars->rlens[vars->clusters[clust+1]-1]); */
+            /*     for (int var_idx = vars->clusters[clust]; */ 
+            /*             var_idx < vars->clusters[clust+1]; var_idx++) { */
+            /*         printf("    %s %d %s %s var:%d\n", */
+            /*                 ctg.data(), */ 
+            /*                 vars->poss[var_idx], */
+            /*                 vars->refs[var_idx].size() ? */ 
+            /*                     vars->refs[var_idx].data() : "_", */
+            /*                 vars->alts[var_idx].size() ? */ 
+            /*                     vars->alts[var_idx].data() : "_", */
+            /*                 var_idx */
+            /*         ); */
+            /*     } */
+            /* } */
 
             int l_reach = 0, r_reach = 0, score = 0;
             if (left_compute || right_compute) {
