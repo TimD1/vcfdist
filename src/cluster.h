@@ -50,6 +50,7 @@ public:
             std::shared_ptr<fastaData> ref_ptr);
 
     void gap_supercluster();
+    void supercluster();
 
     // data
     std::vector<std::string> contigs;
