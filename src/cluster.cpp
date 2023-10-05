@@ -361,7 +361,7 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
  */
 void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         int sub, int open, int extend) {
-    bool print = true;
+    /* bool print = true; */
 
     // allocate this memory once, use on each cluster
     std::vector<int> offs_buffer(MATS * g.max_size*2 * 
@@ -392,7 +392,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 prev_active.end(), true) != prev_active.end()) {
         iter++;
         if (iter > g.max_cluster_itrs) break;
-        if (print) printf("Iteration %d\n", iter);
+        /* if (print) printf("Iteration %d\n", iter); */
 
         // count clusters currently being expanded
         int active = 0;
@@ -592,10 +592,10 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
             } else {
                 r_reach = right_reach[clust];
             }
-            if (print) printf("span: %s - %s\n", 
-                        l_reach == len+g.reach_min_gap*2 ? 
-                            "X" : std::to_string(l_reach).data(), 
-                        r_reach == -g.reach_min_gap*2 ? "X" : std::to_string(r_reach).data());
+            /* if (print) printf("span: %s - %s\n", */ 
+            /*             l_reach == len+g.reach_min_gap*2 ? */ 
+            /*                 "X" : std::to_string(l_reach).data(), */ 
+            /*             r_reach == -g.reach_min_gap*2 ? "X" : std::to_string(r_reach).data()); */
         }
 
         // merge dependent clusters rightwards
