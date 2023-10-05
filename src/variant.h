@@ -42,6 +42,8 @@ public:
 
     // set during (swg_)cluster()
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
+    std::vector<int> left_reaches;  // cluster leftmost reach
+    std::vector<int> right_reaches; // cluster rightmost reach
 
     // set during prec_recall_aln()
     // error type: TP, FP, FN, PP

@@ -361,6 +361,7 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
  */
 void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         int sub, int open, int extend) {
+    bool print = true;
 
     // allocate this memory once, use on each cluster
     std::vector<int> offs_buffer(MATS * g.max_size*2 * 
@@ -381,7 +382,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         prev_clusters[i] = i;
     std::vector<bool> prev_active(nvar+1, true);
 
-    std::vector<int> right_reach, left_reach;
+    std::vector<int> right_reach(nvar+1), left_reach(nvar+1);
     std::vector<int> next_clusters, tmp_clusters;
     std::vector<bool> next_active, tmp_active;
 
@@ -391,7 +392,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 prev_active.end(), true) != prev_active.end()) {
         iter++;
         if (iter > g.max_cluster_itrs) break;
-        /* if (print) printf("Iteration %d\n", iter); */
+        if (print) printf("Iteration %d\n", iter);
 
         // count clusters currently being expanded
         int active = 0;
@@ -402,16 +403,20 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         // save temp clustering (generate_str assumes clustered)
         vars->clusters = prev_clusters;
 
+        // set left/right reach for OOB
+        int off_right = len + g.reach_min_gap*2;
+        int off_left = -g.reach_min_gap*2;
+        left_reach[0] = off_right;
+        left_reach[prev_clusters.size()-1] = off_right;
+        right_reach[prev_clusters.size()-1] = off_left;
+        right_reach[prev_clusters.size()-2] = off_left;
+
         // update all cluster reaches
         for (size_t clust = 0; clust < prev_clusters.size(); clust++) {
 
             // only compute necessary reaches (adjacent merge)
             bool left_compute = prev_active[clust];
-            if (clust > 0) // protect OOB
-                left_compute = left_compute || prev_active[clust-1];
             bool right_compute = prev_active[clust];
-            if (clust < prev_active.size() - 1) // protect OOB
-                right_compute = right_compute || prev_active[clust+1];
 
             // no left cluster, not actual cluster
             if (clust == 0 || clust == prev_clusters.size()-1) {
@@ -422,27 +427,27 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 right_compute = false;
             }
 
-            /* // debug print */
-            /* if (print && clust < prev_clusters.size()-1) { */
-            /*     printf("\n\ncluster %d: vars %d-%d, pos %d-%d\n", */
-            /*             int(clust), vars->clusters[clust], */
-            /*             vars->clusters[clust+1], */
-            /*             vars->poss[vars->clusters[clust]], */
-            /*             vars->poss[vars->clusters[clust+1]-1] + */
-            /*             vars->rlens[vars->clusters[clust+1]-1]); */
-            /*     for (int var_idx = vars->clusters[clust]; */ 
-            /*             var_idx < vars->clusters[clust+1]; var_idx++) { */
-            /*         printf("    %s %d %s %s var:%d\n", */
-            /*                 ctg.data(), */ 
-            /*                 vars->poss[var_idx], */
-            /*                 vars->refs[var_idx].size() ? */ 
-            /*                     vars->refs[var_idx].data() : "_", */
-            /*                 vars->alts[var_idx].size() ? */ 
-            /*                     vars->alts[var_idx].data() : "_", */
-            /*                 var_idx */
-            /*         ); */
-            /*     } */
-            /* } */
+            // debug print
+            if (prev_active[clust] && clust < prev_clusters.size()-1) {
+                printf("\n\ncluster %d: vars %d-%d, pos %d-%d\n",
+                        int(clust), vars->clusters[clust],
+                        vars->clusters[clust+1],
+                        vars->poss[vars->clusters[clust]],
+                        vars->poss[vars->clusters[clust+1]-1] +
+                        vars->rlens[vars->clusters[clust+1]-1]);
+                for (int var_idx = vars->clusters[clust]; 
+                        var_idx < vars->clusters[clust+1]; var_idx++) {
+                    printf("    %s %d %s %s var:%d\n",
+                            ctg.data(), 
+                            vars->poss[var_idx],
+                            vars->refs[var_idx].size() ? 
+                                vars->refs[var_idx].data() : "_",
+                            vars->alts[var_idx].size() ? 
+                                vars->alts[var_idx].data() : "_",
+                            var_idx
+                    );
+                }
+            }
 
             int l_reach = 0, r_reach = 0, score = 0;
             if (left_compute || right_compute) {
@@ -483,7 +488,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 // calculate max reaching path to left
                 int ref_len = score/extend + 3;
                 int reach = ref_len - 1;
-                while (reach == ref_len-1) {
+                while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;
                     int beg_pos = end_pos - std::max(0, main_diag) - ref_len - score/extend-3;
                     query = generate_str(vcf->ref, vars, ctg, 
@@ -502,29 +507,24 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                     reach = wf_swg_max_reach(query, ref, offs_buffer,
                             main_diag, main_diag_start, score,
                             sub, open, extend, 
-                            false /* print */, true  /* reverse */);
+                            false /* print */, true /* reverse */);
                     // reset buffer
                     for (size_t i = 0; i < offs_size; i++)
                         offs_buffer[i] = -2;
                 }
                 /* if (print) printf("    left reach: %d\n", reach); */
                 l_reach = end_pos - reach;
+                left_reach[clust] = l_reach;
 
-                if (false) {
-                    printf("REF:        %s\n", ref.data());
-                    printf("QUERY:      %s\n", query.data());
-                    printf(" main diag:  %d\n", main_diag);
-                    printf("diag start:  %d\n\n", main_diag_start);
-                }
-                
+                /* if (print) { */
+                /*     printf("REF:        %s\n", ref.data()); */
+                /*     printf("QUERY:      %s\n", query.data()); */
+                /*     printf(" main diag:  %d\n", main_diag); */
+                /*     printf("diag start:  %d\n\n", main_diag_start); */
+                /* } */
             } else {
-                // past farthest right (unused)
-                if (clust < prev_clusters.size()-1)
-                    l_reach = vars->poss[vars->clusters[clust]];
-                else
-                    l_reach = len + g.reach_min_gap*2;
+                l_reach = left_reach[clust];
             }
-            left_reach.push_back(l_reach);
 
             // RIGHT REACH
             if (right_compute) { // calculate right reach
@@ -557,7 +557,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 // calculate max reaching path to right
                 int ref_len = score/extend + 3;
                 int reach = ref_len - 1;
-                while (reach == ref_len-1) {
+                while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;
                     int end_pos = beg_pos + std::max(0, main_diag) + ref_len + score/extend+3;
                     query = generate_str(vcf->ref, vars, ctg, 
@@ -581,32 +581,25 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 }
                 /* if (print) printf("   right reach: %d\n", reach); */
                 r_reach = beg_pos + reach + 1;
+                right_reach[clust] = r_reach;
 
-                if (false) {
-                    printf("REF:        %s\n", ref.data());
-                    printf("QUERY:      %s\n", query.data());
-                    printf(" main diag:  %d\n", main_diag);
-                    printf("diag start:  %d\n\n", main_diag_start);
-                }
-                
-            } else { // non-adjacent, don't really compute
-                if (clust < prev_clusters.size()-1)
-                    r_reach = vars->poss[vars->clusters[clust+1]-1] +
-                             vars->rlens[vars->clusters[clust+1]-1];
-                else
-                    r_reach = -g.reach_min_gap*2; // past farthest left (unused)
+                /* if (true) { */
+                /*     printf("REF:        %s\n", ref.data()); */
+                /*     printf("QUERY:      %s\n", query.data()); */
+                /*     printf(" main diag:  %d\n", main_diag); */
+                /*     printf("diag start:  %d\n\n", main_diag_start); */
+                /* } */
+            } else {
+                r_reach = right_reach[clust];
             }
-            right_reach.push_back(r_reach);
-            /* if (print) printf("span: %s - %s\n", */ 
-            /*             l_reach == len+g.reach_min_gap*2 ? */ 
-            /*                 "X" : std::to_string(l_reach).data(), */ 
-            /*             r_reach == -g.reach_min_gap*2 ? "X" : std::to_string(r_reach).data()); */
+            if (print) printf("span: %s - %s\n", 
+                        l_reach == len+g.reach_min_gap*2 ? 
+                            "X" : std::to_string(l_reach).data(), 
+                        r_reach == -g.reach_min_gap*2 ? "X" : std::to_string(r_reach).data());
         }
 
         // merge dependent clusters rightwards
         std::vector<int> tmp_left_reach, tmp_right_reach;
-        tmp_right_reach.push_back(-g.reach_min_gap*2);
-        tmp_left_reach.push_back(len+g.reach_min_gap*2);
         int clust = 0;
         while (clust < int(prev_clusters.size())) {
             int clust_size = 1;
@@ -628,14 +621,16 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
             tmp_active.push_back(clust_size > 1); // true if merge occurred
             clust += clust_size;
         }
+        left_reach.clear();
+        right_reach.clear();
 
         /* printf("tmp clusters:"); */
-        /* for (int i = 0; i < int(tmp_clusters.size()); i++) { */
+        /* for (int i = 0; i < 1000; i++) { */
         /*     printf("\t%d", tmp_clusters[i]); */
         /* } */
         /* printf("\n"); */
         /* printf("  tmp active:"); */
-        /* for (int i = 0; i < int(tmp_active.size()); i++) { */
+        /* for (int i = 0; i < 1000; i++) { */
         /*     printf("\t%d", tmp_active[i] ? 1 : 0); */
         /* } */
         /* printf("\n"); */
@@ -646,13 +641,18 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         while (clust >= 0) {
             int clust_size = 1;
             int min_left_reach = tmp_left_reach[clust];
+            int max_right_reach = tmp_right_reach[clust];
             while (clust - clust_size >= 0 &&
                     min_left_reach <= 
                     tmp_right_reach[clust-clust_size] + g.reach_min_gap) {
                 min_left_reach = std::min(min_left_reach,
                         tmp_left_reach[clust-clust_size]);
+                max_right_reach = std::max(max_right_reach,
+                        tmp_right_reach[clust-clust_size]);
                 clust_size++;
             }
+            left_reach.push_back(min_left_reach);
+            right_reach.push_back(max_right_reach);
             next_clusters.push_back(tmp_clusters[clust]);
             next_active.push_back(was_merged); // from previous itr
             was_merged = clust_size > 1 || tmp_active[clust];
@@ -660,14 +660,16 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         }
         std::reverse(next_clusters.begin(), next_clusters.end());
         std::reverse(next_active.begin(), next_active.end());
+        std::reverse(left_reach.begin(), left_reach.end());
+        std::reverse(right_reach.begin(), right_reach.end());
 
         /* printf("next clusters:"); */
-        /* for (int i = 0; i < int(next_clusters.size()); i++) { */
+        /* for (int i = 0; i < 1000; i++) { */
         /*     printf("\t%d", next_clusters[i]); */
         /* } */
         /* printf("\n"); */
         /* printf("  next active:"); */
-        /* for (int i = 0; i < int(next_active.size()); i++) { */
+        /* for (int i = 0; i < 1000; i++) { */
         /*     printf("\t%d", next_active[i] ? 1 : 0); */
         /* } */
         /* printf("\n"); */
@@ -679,10 +681,10 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         tmp_active.clear();
         next_clusters.clear();
         next_active.clear();
-        left_reach.clear();
-        right_reach.clear();
     }
 
     // save final clustering
     vars->clusters = prev_clusters;
+    vars->left_reaches = left_reach;
+    vars->right_reaches = right_reach;
 }

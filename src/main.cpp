@@ -60,12 +60,16 @@ g.timers[TIME_CLUST].start();
                     COLOR_PURPLE, callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
                             g.query_sub, g.query_open, g.query_extend)); 
-            for (auto & t : threads)
-                t.join();
+                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & t : threads) t.join();
+                    threads.clear();
+                }
+            }
+            for (auto & t : threads) t.join();
         }
 g.timers[TIME_CLUST].stop();
 
@@ -91,12 +95,16 @@ g.timers[TIME_RECLUST].start();
                     COLOR_PURPLE, callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
                             g.query_sub, g.query_open, g.query_extend)); 
-            for (auto & t : threads)
-                t.join();
+                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & t : threads) t.join();
+                    threads.clear();
+                }
+            }
+            for (auto & t : threads) t.join();
         }
 g.timers[TIME_RECLUST].stop();
     }
@@ -112,12 +120,16 @@ g.timers[TIME_CLUST].start();
                     COLOR_PURPLE, callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
                             g.truth_sub, g.truth_open, g.truth_extend)); 
-            for (auto & t : threads)
-                t.join();
+                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & t : threads) t.join();
+                    threads.clear();
+                }
+            }
+            for (auto & t : threads) t.join();
         }
 g.timers[TIME_CLUST].stop();
 
@@ -151,12 +163,16 @@ g.timers[TIME_RECLUST].start();
                     COLOR_PURPLE, callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
-            for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++)
+            for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
                             g.truth_sub, g.truth_open, g.truth_extend)); 
-            for (auto & t : threads)
-                t.join();
+                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & t : threads) t.join();
+                    threads.clear();
+                }
+            }
+            for (auto & t : threads) t.join();
         }
 g.timers[TIME_RECLUST].stop();
     }
