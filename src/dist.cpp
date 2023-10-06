@@ -113,7 +113,7 @@ std::string generate_str(
                 str += ref->fasta.at(ctg).substr(ref_pos, ref_end-ref_pos);
                 ref_pos = ref_end;
             } catch (const std::out_of_range & e) {
-                ERROR("Contig %s not in reference FASTA (generate_str)", ctg.data());
+                ERROR("Contig '%s' not in reference FASTA or position out of range (generate_str)", ctg.data());
             }
         }
     }

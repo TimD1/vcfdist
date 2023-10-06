@@ -64,12 +64,12 @@ g.timers[TIME_CLUST].start();
                 threads.push_back(std::thread( wf_swg_cluster, 
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
                             g.query_sub, g.query_open, g.query_extend)); 
-                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & t : threads) t.join();
+                if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & t : threads) t.join();
+            for (auto & thread : threads) thread.join();
         }
 g.timers[TIME_CLUST].stop();
 
@@ -99,12 +99,12 @@ g.timers[TIME_RECLUST].start();
                 threads.push_back(std::thread( wf_swg_cluster, 
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
                             g.query_sub, g.query_open, g.query_extend)); 
-                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & t : threads) t.join();
+                if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & t : threads) t.join();
+            for (auto & thread : threads) thread.join();
         }
 g.timers[TIME_RECLUST].stop();
     }
@@ -124,12 +124,12 @@ g.timers[TIME_CLUST].start();
                 threads.push_back(std::thread( wf_swg_cluster, 
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
                             g.truth_sub, g.truth_open, g.truth_extend)); 
-                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & t : threads) t.join();
+                if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & t : threads) t.join();
+            for (auto & thread : threads) thread.join();
         }
 g.timers[TIME_CLUST].stop();
 
@@ -167,12 +167,12 @@ g.timers[TIME_RECLUST].start();
                 threads.push_back(std::thread( wf_swg_cluster, 
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
                             g.truth_sub, g.truth_open, g.truth_extend)); 
-                if (t+1 % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & t : threads) t.join();
+                if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
+                    for (auto & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & t : threads) t.join();
+            for (auto & thread : threads) thread.join();
         }
 g.timers[TIME_RECLUST].stop();
     }
