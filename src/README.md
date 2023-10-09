@@ -71,5 +71,5 @@ Options:
       please cite vcfdist if used in your analyses
 
   -v, --version
-      print vcfdist version (v2.0.2)
+      print vcfdist version (v2.0.3)
 ```
