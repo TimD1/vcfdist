@@ -198,8 +198,9 @@ void superclusterData::supercluster() {
 
         // skip empty contigs
         int nvars = 0;
-        for (int i = 0; i < CALLSETS*HAPS; i++)
+        for (int i = 0; i < CALLSETS*HAPS; i++) {
             nvars += this->ctg_superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
+        }
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
@@ -233,7 +234,7 @@ void superclusterData::supercluster() {
             while (just_active) {
                 just_active = false;
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    while (lefts[i] < curr_right) {
+                    while (lefts[i] <= curr_right) {
                         curr_right = std::max(curr_right,
                             vars[i>>1][i&1]->right_reaches[ next_brks[i] ]);
                         next_brks[i]++;
@@ -266,8 +267,9 @@ void superclusterData::supercluster() {
             total_bases += end_pos-beg_pos;
             int this_vars = 0;
             for (int i = 0; i < CALLSETS*HAPS; i++) {
-                this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
-                    vars[i>>1][i&1]->clusters[ brks[i] ];
+                if (vars[i>>1][i&1]->clusters.size())
+                    this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
+                        vars[i>>1][i&1]->clusters[ brks[i] ];
             }
             most_vars = std::max(most_vars, this_vars);
             total_vars += this_vars;
@@ -278,10 +280,17 @@ void superclusterData::supercluster() {
                 printf("POS: %s:%d-%d\n", ctg.data(), beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    printf("%s%d: clusters %d-%d, %d total\n",
+                    printf("%s%d: clusters %d-%d of %d\n",
                             callset_strs[i>>1].data(), (i&1)+1,
                             brks[i], next_brks[i], 
                             std::max(int(vars[i>>1][i&1]->clusters.size())-1, 0));
+                    if (vars[i>>1][i&1]->clusters.size())
+                    for (int v = vars[i>>1][i&1]->clusters[ brks[i]]; v < vars[i>>1][i&1]->clusters[ next_brks[i] ]; v++) {
+                        printf("    var %d = %s:%d\t%s\t%s\n", v, ctg.data(),
+                                vars[i>>1][i&1]->poss[v], 
+                                vars[i>>1][i&1]->refs[v].data(),
+                                vars[i>>1][i&1]->alts[v].data());
+                    }
                 }
                 printf("curr_right: %d, lefts: %d %d %d %d\n",
                     curr_right, lefts[0], lefts[1], lefts[2], lefts[3]);
@@ -317,7 +326,7 @@ void superclusterData::supercluster() {
  */
 void superclusterData::gap_supercluster() {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[4/8] Superclustering TRUTH and QUERY variants%s",
+    if (g.verbosity >= 1) INFO("%s[4/8] Gap superclustering TRUTH and QUERY variants%s",
             COLOR_PURPLE, COLOR_WHITE);
 
     // iterate over each contig
