@@ -7,7 +7,6 @@
 * [Introduction](#introduction)
 * [Installation](#installation)
 * [Usage](#usage)
-* [Variant Stratification](#variant-stratification)
 * [Acknowledgements](#acknowledgements)
 * [Limitations](#limitations)
 * [License](#license)
@@ -53,6 +52,7 @@ Please cite the following pre-print if you use vcfdist:
 
 ## Installation
 
+### Option 1: GitHub Source
 vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib. Please note that on Mac, `g++` is aliased to `clang`, which is currently not supported. If you don't have HTSlib already, please set it up as follows:
 ```bash
 > wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
@@ -73,6 +73,12 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 vcfdist v2.0.3
 ```
 
+### Option 2: Docker Image
+A pre-built Docker Hub image can be downloaded from <a href="https://hub.docker.com/r/timd1/vcfdist">here</a> using:
+```bash
+sudo docker pull timd1/vcfdist
+sudo docker run -it timd1/vcfdist:latest vcfdist --help
+```
 
 ## Usage
 
@@ -96,35 +102,7 @@ Please see additional options documented <a href="./src/README.md">here</a>, or 
 
 The output TSV files are documented <a href="./docs/outputs.md">here</a>.
 
-
-## Variant Stratification
-
-We currently output an intermediate VCF in GA4GH compatible format, meaning the results can be stratified and analyzed by `hap.py`'s quantification helper script `qfy.py`.
-In order to use `qfy.py` please install <a href="https://github.com/Illumina/hap.py">`hap.py`</a>.
-`tabix` and `bgzip` should already be included as part of HTSlib.
-
-```bash
-> ./vcfdist \                                 # run vcfdist
-    query.vcf.gz \
-    truth.vcf.gz \
-    reference.fasta \
-    -b analysis-regions.bed \
-    -p output-prefix/
-> bgzip output-prefix/summary.vcf             # compress summary VCF
-> tabix -p vcf output-prefix/summary.vcf.gz   # index summary VCF
-> export HGREF=/path/to/reference.fasta       # set reference path
-> source /path/to/happy/venv2/bin/activate    # activate hap.py virtualenv
-> python /path/to/happy/install/bin/qfy.py \  # run quantification script
-    -t ga4gh \
-    --write-vcf \
-    --write-counts \
-    --stratification strat.tsv \
-    --roc QUAL \
-    --o results/qfy-output-prefix \
-    output-prefix/summary.vcf.gz
-```
-Ensure that `strat.tsv` contains one stratification region per line; each line consists of a region name and BED file name separated by a tab.
-GIAB stratification regions for GRCh38 can be found <a href="https://github.com/genome-in-a-bottle/genome-stratifications/tree/master/GRCh38">here</a>.
+Find out more information on using `hap.py` to stratify variants <a href="./docs/stratification.md">here</a>.
 
 
 ## Acknowledgements
