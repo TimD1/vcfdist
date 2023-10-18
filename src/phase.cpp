@@ -24,14 +24,14 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=BD,Number=1,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN). PP conversion: TP if BC >= 0.5 else FP/FN (hap.py compatibility)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=1,Type=String,Description=\"Benchmark Credit for call on the interval [0,1].\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=1,Type=String,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=BK,Number=1,Type=String,Description=\"BenchmarK category (for hap.py compatibility, always genotype match 'gm')\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality for ROC creation\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster (index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (for equivalence and credit assignment)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Switch (phaseblock state)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=PF,Number=1,Type=Integer,Description=\"Phase Flip (supercluster error)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block State (phaseblock truth-to-query mapping state; 0 = T1Q1:T2Q2, 1 = T1Q2:T2Q1)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=FE,Number=1,Type=Integer,Description=\"Flip Error (a per-supercluster error)\">\n");
     fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRUTH\tQUERY\n");
 
     // write variants
@@ -319,7 +319,7 @@ void phaseData::phase()
                 } else if (ptrs[phase][i] == PHASE_PTR_KEEP) { // within phase block
                     if (this->ctg_phasings[ctg]->sc_phasings[i] != PHASE_NONE &&
                             this->ctg_phasings[ctg]->sc_phasings[i] != phase)
-                        this->ctg_phasings[ctg]->nerrors++;
+                        this->ctg_phasings[ctg]->nflips++;
                 }
                 i--;
             }
@@ -335,7 +335,7 @@ void phaseData::phase()
 
     // print
     int switch_errors = 0;
-    int phase_errors = 0;
+    int flip_errors = 0;
     for (auto ctg : this->contigs) {
 
         if (g.verbosity >= 2) {
@@ -354,8 +354,18 @@ void phaseData::phase()
             printf("\033[0m\n");
         }
         switch_errors += this->ctg_phasings[ctg]->nswitches;
-        phase_errors += this->ctg_phasings[ctg]->nerrors;
+        flip_errors += this->ctg_phasings[ctg]->nflips;
+    }
+    if (g.verbosity >= 1) {
+        INFO("  Contigs:");
+        for (size_t i = 0; i < this->contigs.size(); i++) {
+            INFO("    [%2lu] %s: %d switches, %d flips", 
+                    i, this->contigs[i].data(),
+                    this->ctg_phasings[this->contigs[i]]->nswitches,
+                    this->ctg_phasings[this->contigs[i]]->nflips);
+        }
+        INFO(" ");
     }
     if (g.verbosity >= 1) INFO("  Total switch errors: %d", switch_errors);
-    if (g.verbosity >= 1) INFO("  Total phase errors: %d", phase_errors);
+    if (g.verbosity >= 1) INFO("  Total flip errors: %d", flip_errors);
 }

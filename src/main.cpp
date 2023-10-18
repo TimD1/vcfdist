@@ -63,7 +63,7 @@ g.timers[TIME_CLUST].start();
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
-                            g.query_sub, g.query_open, g.query_extend)); 
+                            g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (auto & thread : threads) thread.join();
                     threads.clear();
@@ -75,7 +75,7 @@ g.timers[TIME_CLUST].stop();
 
 g.timers[TIME_REALN].start();
         query_ptr = wf_swg_realign(query_ptr, ref_ptr, 
-                g.query_sub, g.query_open, g.query_extend, QUERY);
+                g.sub, g.open, g.extend, QUERY);
         query_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
@@ -98,7 +98,7 @@ g.timers[TIME_RECLUST].start();
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
-                            g.query_sub, g.query_open, g.query_extend)); 
+                            g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (auto & thread : threads) thread.join();
                     threads.clear();
@@ -123,7 +123,7 @@ g.timers[TIME_CLUST].start();
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
-                            g.truth_sub, g.truth_open, g.truth_extend)); 
+                            g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (auto & thread : threads) thread.join();
                     threads.clear();
@@ -135,7 +135,7 @@ g.timers[TIME_CLUST].stop();
 
 g.timers[TIME_REALN].start();
         truth_ptr = wf_swg_realign(truth_ptr, ref_ptr, 
-                g.truth_sub, g.truth_open, g.truth_extend, TRUTH);
+                g.sub, g.open, g.extend, TRUTH);
         truth_ptr->left_shift();
 g.timers[TIME_REALN].stop();
     }
@@ -166,7 +166,7 @@ g.timers[TIME_RECLUST].start();
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
-                            g.truth_sub, g.truth_open, g.truth_extend)); 
+                            g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (auto & thread : threads) thread.join();
                     threads.clear();

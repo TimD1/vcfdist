@@ -11,14 +11,17 @@ class ctgPhasings {
 public:
     ctgPhasings() {;}
 
+    // TODO: move this into ctgSuperclusters
     int n = 0;                       // number of superclusters
     std::vector<int> sc_phasings;    // phasing for each supercluster (keep/swap/either)
 
     std::shared_ptr<ctgSuperclusters> ctg_superclusters = nullptr;
-    int nswitches = 0;               // number of phasing switch errors
-    int nerrors = 0;                 // number of phasing errors (whole sc)
-    std::vector<int> phase_blocks;   // n+1 indices of superclusters where phasing switches
-    std::vector<int> pb_phasings;    // n phasing for each phase block (keep/swap)
+
+    int nswitches = 0;               // number of phase switch errors
+    std::vector<int> phase_blocks;   // nswitches+2 indices of superclusters where phasing switches
+    std::vector<int> pb_phasings;    // nswitches+1 phasing for each phase block (keep/swap)
+
+    int nflips = 0;                  // number of supercluster phase flip errors
 };
 
 class phaseData {

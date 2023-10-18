@@ -226,14 +226,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:PS:PF", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:BS:FE", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:PS:PF", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:BS:FE", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -411,6 +411,7 @@ variantData::variantData(std::string vcf_fn,
 
     // data
     std::vector<int> prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
+    std::vector<int> prev_type = {TYPE_SUB, TYPE_SUB};
     std::unordered_map<int, bool> prev_rids;
     int prev_rid = -1;
     std::unordered_map<int, int> ctglens;
@@ -541,6 +542,7 @@ variantData::variantData(std::string vcf_fn,
                 this->ploidy.push_back(0);
                 this->lengths.push_back(ctglens[rec->rid]);
                 prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
+                prev_type = {TYPE_SUB, TYPE_SUB};
             }
         }
 
@@ -781,7 +783,8 @@ variantData::variantData(std::string vcf_fn,
 
             // TODO: keep overlaps, test all non-overlapping subsets?
             // skip overlapping variants
-            if (prev_end[hap] > pos) { // warn if overlap
+            if (prev_end[hap] > pos || // skip overlapping variants
+                    (prev_end[hap] == pos && prev_type[hap] == TYPE_INS && type == TYPE_INS)) { // don't allow two insertions at same position
                 if (g.verbosity > 1) {
                     WARN("Overlap in %s VCF variants at %s:%i, skipping", 
                             callset_strs[callset].data(), ctg.data(), pos);
@@ -802,6 +805,7 @@ variantData::variantData(std::string vcf_fn,
             }
 
             prev_end[hap] = pos + rlen;
+            prev_type[hap] = type;
             npass[hap]++;
             ntypes[hap][type]++;
         }
@@ -848,6 +852,9 @@ variantData::variantData(std::string vcf_fn,
         for (size_t i = 0; i < gt_strs.size(); i++) {
             INFO("    %3s  %i", gt_strs[i].data(), ngts[i]);
         }
+        if (float(ngts[3]) / (ngts[4]+1) > 2 ||
+            float(ngts[4]) / (ngts[3]+1) > 2)
+            WARN("Imbalance of heterozygous variant phasing, VCF may be (partially) unphased")
         INFO(" ");
 
         INFO("  Variant exceeds min qual (%d):", g.min_qual);
@@ -880,7 +887,7 @@ variantData::variantData(std::string vcf_fn,
 
         INFO("  %s VCF overview:", callset_strs[callset].data());
         INFO("    TOTAL %d", n);
-        INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
+        INFO("    KEPT  %d, (homozygous counted twice)", npass[HAP1] + npass[HAP2]);
     }
 
     free(gq);

@@ -182,6 +182,20 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum variant quality provided");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "--max-reach-size") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--max-reach-size' used without providing maximum reach size");
+            }
+            try {
+                this->max_reach_size = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid maximum reach size provided");
+            }
+            if (g.max_reach_size <= 0) {
+                ERROR("Must provide positive maximum variant reach size");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-h" || 
                 std::string(argv[i]) == "--help") {
             i++;
@@ -192,7 +206,7 @@ void Globals::parse_args(int argc, char ** argv) {
             this->print_version();
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-g" || 
-                std::string(argv[i]) == "--supercluster-gap") {
+                std::string(argv[i]) == "--cluster-gap") {
             i++;
             if (i == argc) {
                 ERROR("Option '-g' used without providing minimum gap between (super)clusters");
@@ -210,76 +224,22 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "-x" || 
                 std::string(argv[i]) == "--mismatch-penalty") {
             i++;
-            if (i == argc) {
-                ERROR("Option '-x' used without providing mismatch penalty");
-            } else if (this->query_penalties_set[PEN_SUB]) {
-                ERROR("Query mismatch penalty already set, cannot use '-x'");
-            } else if (this->truth_penalties_set[PEN_SUB]) {
-                ERROR("Truth mismatch penalty already set, cannot use '-x'");
-            } else if (this->eval_penalties_set[PEN_SUB]) {
-                ERROR("Eval mismatch penalty already set, cannot use '-x'");
-            }
+            if (i == argc) ERROR("Option '-x' used without providing mismatch penalty");
             try {
-                this->eval_sub = std::stoi(argv[i]);
-                this->eval_penalties_set[PEN_SUB] = true;
-                this->query_sub = std::stoi(argv[i]);
-                this->query_penalties_set[PEN_SUB] = true;
-                this->truth_sub = std::stoi(argv[i++]);
-                this->truth_penalties_set[PEN_SUB] = true;
+                this->sub = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid mismatch penalty provided");
             }
-            if (this->query_sub < 0) {
+            if (this->sub < 0) {
                 ERROR("Must provide non-negative mismatch penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-qx" || 
-                std::string(argv[i]) == "--query-mismatch-penalty") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-qx' used without providing mismatch penalty");
-            } else if (this->query_penalties_set[PEN_SUB]) {
-                ERROR("Query mismatch penalty already set, cannot use '-qx'");
-            }
-            try {
-                this->query_sub = std::stoi(argv[i++]);
-                this->query_penalties_set[PEN_SUB] = true;
-            } catch (const std::exception & e) {
-                ERROR("Invalid query mismatch penalty provided");
-            }
-            if (this->query_sub < 0) {
-                ERROR("Must provide non-negative query mismatch penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-tx" || 
-                std::string(argv[i]) == "--truth-mismatch-penalty") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-tx' used without providing mismatch penalty");
-            } else if (this->truth_penalties_set[PEN_SUB]) {
-                ERROR("Truth mismatch penalty already set, cannot use '-tx'");
-            }
-            try {
-                this->truth_sub = std::stoi(argv[i++]);
-                this->truth_penalties_set[PEN_SUB] = true;
-            } catch (const std::exception & e) {
-                ERROR("Invalid truth mismatch penalty provided");
-            }
-            if (this->truth_sub < 0) {
-                ERROR("Must provide non-negative truth mismatch penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-ex" || 
                 std::string(argv[i]) == "--eval-mismatch-penalty") {
             i++;
-            if (i == argc) {
-                ERROR("Option '-ex' used without providing mismatch penalty");
-            } else if (this->eval_penalties_set[PEN_SUB]) {
-                ERROR("Evaluation mismatch penalty already set, cannot use '-ex'");
-            }
+            if (i == argc) ERROR("Option '-ex' used without providing mismatch penalty");
             try {
                 this->eval_sub = std::stoi(argv[i++]);
-                this->eval_penalties_set[PEN_SUB] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid evaluation mismatch penalty provided");
             }
@@ -290,76 +250,22 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "-o" || 
                 std::string(argv[i]) == "--gap-open-penalty") {
             i++;
-            if (i == argc) {
-                ERROR("Option '-o' used without providing gap-opening penalty");
-            } else if (this->query_penalties_set[PEN_OPEN]) {
-                ERROR("Query gap-opening penalty already set, cannot use '-o'");
-            } else if (this->truth_penalties_set[PEN_OPEN]) {
-                ERROR("Truth gap-opening penalty already set, cannot use '-o'");
-            } else if (this->eval_penalties_set[PEN_OPEN]) {
-                ERROR("Eval gap-opening penalty already set, cannot use '-o'");
-            }
+            if (i == argc) ERROR("Option '-o' used without providing gap-opening penalty");
             try {
-                this->eval_open = std::stoi(argv[i]);
-                this->eval_penalties_set[PEN_OPEN] = true;
-                this->query_open = std::stoi(argv[i]);
-                this->query_penalties_set[PEN_OPEN] = true;
-                this->truth_open = std::stoi(argv[i++]);
-                this->truth_penalties_set[PEN_OPEN] = true;
+                this->open = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid gap-opening penalty provided");
             }
-            if (this->query_open < 0) {
+            if (this->open < 0) {
                 ERROR("Must provide non-negative gap-opening penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-qo" || 
-                std::string(argv[i]) == "--query-gap-open-penalty") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-qo' used without providing gap-opening penalty");
-            } else if (this->query_penalties_set[PEN_OPEN]) {
-                ERROR("Query gap-opening penalty already set, cannot use '-qo'");
-            }
-            try {
-                this->query_open = std::stoi(argv[i++]);
-                this->query_penalties_set[PEN_OPEN] = true;
-            } catch (const std::exception & e) {
-                ERROR("Invalid gap-opening penalty provided");
-            }
-            if (this->query_open < 0) {
-                ERROR("Must provide non-negative gap-opening penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-to" || 
-                std::string(argv[i]) == "--truth-gap-open-penalty") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-to' used without providing gap-opening penalty");
-            } else if (this->truth_penalties_set[PEN_OPEN]) {
-                ERROR("Truth gap-opening penalty already set, cannot use '-to'");
-            }
-            try {
-                this->truth_open = std::stoi(argv[i++]);
-                this->truth_penalties_set[PEN_OPEN] = true;
-            } catch (const std::exception & e) {
-                ERROR("Invalid truth gap-opening penalty provided");
-            }
-            if (this->truth_open < 0) {
-                ERROR("Must provide non-negative truth gap-opening penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-eo" || 
                 std::string(argv[i]) == "--eval-gap-open-penalty") {
             i++;
-            if (i == argc) {
-                ERROR("Option '-eo' used without providing gap-opening penalty");
-            } else if (this->eval_penalties_set[PEN_OPEN]) {
-                ERROR("Eval gap-opening penalty already set, cannot use '-eo'");
-            }
+            if (i == argc) ERROR("Option '-eo' used without providing gap-opening penalty");
             try {
                 this->eval_open = std::stoi(argv[i++]);
-                this->eval_penalties_set[PEN_OPEN] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid eval gap-opening penalty provided");
             }
@@ -370,76 +276,22 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "-e" || 
                 std::string(argv[i]) == "--gap-extend-penalty") {
             i++;
-            if (i == argc) {
-                ERROR("Option '-e' used without providing gap-extension penalty");
-            } else if (this->query_penalties_set[PEN_EXTEND]) {
-                ERROR("Query gap-extension penalty already set, cannot use '-e'");
-            } else if (this->truth_penalties_set[PEN_EXTEND]) {
-                ERROR("Truth gap-extension penalty already set, cannot use '-e'");
-            } else if (this->eval_penalties_set[PEN_EXTEND]) {
-                ERROR("Eval gap-extension penalty already set, cannot use '-e'");
-            }
+            if (i == argc) ERROR("Option '-e' used without providing gap-extension penalty");
             try {
-                this->eval_extend = std::stoi(argv[i]);
-                this->eval_penalties_set[PEN_EXTEND] = true;
-                this->query_extend = std::stoi(argv[i]);
-                this->query_penalties_set[PEN_EXTEND] = true;
-                this->truth_extend = std::stoi(argv[i++]);
-                this->truth_penalties_set[PEN_EXTEND] = true;
+                this->extend = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid gap-extension penalty provided");
             }
-            if (this->query_extend < 0) {
+            if (this->extend < 0) {
                 ERROR("Must provide non-negative gap-extension penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-qe" || 
-                std::string(argv[i]) == "--query-gap-extend-penalty") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-qe' used without providing gap-extension penalty");
-            } else if (this->query_penalties_set[PEN_EXTEND]) {
-                ERROR("Query gap-extension penalty already set, cannot use '-qe'");
-            }
-            try {
-                this->query_extend = std::stoi(argv[i++]);
-                this->query_penalties_set[PEN_EXTEND] = true;
-            } catch (const std::exception & e) {
-                ERROR("Invalid query gap-extension penalty provided");
-            }
-            if (this->query_extend < 0) {
-                ERROR("Must provide non-negative query gap-extension penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-te" || 
-                std::string(argv[i]) == "--truth-gap-extend-penalty") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-te' used without providing gap-extension penalty");
-            } else if (this->truth_penalties_set[PEN_EXTEND]) {
-                ERROR("Truth gap-extension penalty already set, cannot use '-te'");
-            }
-            try {
-                this->truth_extend = std::stoi(argv[i++]);
-                this->truth_penalties_set[PEN_EXTEND] = true;
-            } catch (const std::exception & e) {
-                ERROR("Invalid truth gap-extension penalty provided");
-            }
-            if (this->truth_extend < 0) {
-                ERROR("Must provide non-negative truth gap-extension penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-ee" || 
                 std::string(argv[i]) == "--eval-gap-extend-penalty") {
             i++;
-            if (i == argc) {
-                ERROR("Option '-ee' used without providing gap-extension penalty");
-            } else if (this->eval_penalties_set[PEN_EXTEND]) {
-                ERROR("Eval gap-extension penalty already set, cannot use '-ee'");
-            }
+            if (i == argc) ERROR("Option '-ee' used without providing gap-extension penalty");
             try {
                 this->eval_extend = std::stoi(argv[i++]);
-                this->eval_penalties_set[PEN_EXTEND] = true;
             } catch (const std::exception & e) {
                 ERROR("Invalid eval gap-extension penalty provided");
             }
@@ -568,103 +420,76 @@ void Globals::print_usage() const
     printf("  <STRING>\tref.fasta\tFASTA file containing draft reference sequence \n");
 
     printf("\nOptions:\n");
+    printf("\n  Inputs/Outputs:\n");
     printf("  -b, --bed <STRING>\n");
-    printf("      BED file containing regions to evaluate\n\n");
-
+    printf("      BED file containing regions to evaluate\n");
     printf("  -p, --prefix <STRING> [./]\n");
-    printf("      prefix for output files (directory needs a trailing slash)\n\n");
-
+    printf("      prefix for output files (directory needs a trailing slash)\n");
     printf("  -v, --verbosity <INTEGER> [%d]\n", g.verbosity);
-    printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n\n");
+    printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
 
-    printf("  -r, --realign-only\n");
-    printf("      standardize truth and query variant representations, then exit\n\n");
-
-    printf("  -q, --keep-query\n");
-    printf("      do not realign query variants, keep original representation\n\n");
-
-    printf("  -t, --keep-truth\n");
-    printf("      do not realign truth variants, keep original representation\n\n");
-
-    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
-    printf("      Smith-Waterman mismatch (substitution) penalty\n\n");
-
-    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
-    printf("      Smith-Waterman gap opening penalty\n\n");
-
-    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
-    printf("      Smith-Waterman gap extension penalty\n\n");
-
-    printf("  --min-qual <INTEGER> [%d]\n", g.min_qual);
-    printf("      minimum variant quality, lower qualities ignored\n\n");
-
-    printf("  --max-qual <INTEGER> [%d]\n", g.max_qual);
-    printf("      maximum variant quality, higher qualities kept but thresholded\n\n");
-
+    printf("\n  Variant Filtering:\n");
     printf("  -s, --smallest-variant <INTEGER> [%d]\n", g.min_size);
-    printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n\n");
-
+    printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
-    printf("      maximum variant size, larger variants ignored\n\n");
+    printf("      maximum variant size, larger variants ignored\n");
+    printf("  --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("      minimum variant quality, lower qualities ignored\n");
+    printf("  --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("      maximum variant quality, higher qualities kept but thresholded\n");
 
-    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
-    printf("      maximum iterations for expanding/merging clusters\n\n");
+    printf("\n  ReAlignment:\n");
+    printf("  -r, --realign-only\n");
+    printf("      standardize truth and query variant representations, then exit\n");
+    printf("  -q, --keep-query\n");
+    printf("      do not realign query variants, keep original representation\n");
+    printf("  -t, --keep-truth\n");
+    printf("      do not realign truth variants, keep original representation\n");
+    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
+    printf("      Smith-Waterman mismatch (substitution) penalty\n");
+    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
+    printf("      Smith-Waterman gap opening penalty\n");
+    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
+    printf("      Smith-Waterman gap extension penalty\n");
 
-    printf("  -g, --supercluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
-    printf("      minimum base gap between independent superclusters\n\n");
+    printf("\n  Clustering:\n");
+    printf("  --simple-cluster\n");
+    printf("      instead of biWFA-based clustering, use gap-based clustering \n");
 
+    printf("\n  Utilization:\n");
     printf("  --max-threads <INTEGER> [%d]\n", g.max_threads);
-    printf("      maximum threads to use for precision/recall alignment\n");
-    printf("      (haps*contigs used for wavefront clustering)\n\n");
-
+    printf("      maximum threads to use for clustering and precision/recall alignment\n");
     printf("  --max-ram <FLOAT> [%.3fGB]\n", g.max_ram);
-    printf("      maximum RAM to use for precision/recall alignment\n");
-    printf("      (work in-progress, more may be used in other steps)\n\n");
+    printf("      (approximate) maximum RAM to use for precision/recall alignment\n");
 
+    printf("\n  Miscellaneous:\n");
     printf("  -h, --help\n");
-    printf("      show this help message\n\n");
-
+    printf("      show this help message\n");
     printf("  -a, --advanced\n");
-    printf("      show advanced options\n\n");
-
+    printf("      show advanced options, not recommended for most users\n");
     printf("  -c, --citation\n");
-    printf("      please cite vcfdist if used in your analyses\n\n");
-
+    printf("      please cite vcfdist if used in your analyses: thanks!\n");
     printf("  -v, --version\n");
-    printf("      print %s version (v%s)\n\n", 
-            this->PROGRAM.data(), this->VERSION.data());
+    printf("      print %s version (v%s)\n", this->PROGRAM.data(), this->VERSION.data());
 
     if (!this->advanced) return;
-    printf("\nAdvanced Options: (not recommended, only for evaluation)\n");
-    printf("  --simple-cluster\n");
-    printf("      instead of Smith-Waterman clustering, use gap-based clustering \n\n");
 
-    printf("  -qx, --query-mismatch-penalty <INTEGER> [%d]\n", g.query_sub);
-    printf("      mismatch penalty (query variant realignment)\n\n");
+    printf("\n\nAdvanced Options: (not recommended for most users)\n");
+    printf("\n  Clustering:\n");
+    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
+    printf("      minimum gap between independent clusters and superclusters (in bases)\n");
+    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
+    printf("      maximum iterations for expanding/merging clusters\n");
+    printf("  --max-reach-size <INTEGER> [%d]\n", g.max_reach_size);
+    printf("      variants considered at most this size for biWFA-based clustering reaches\n");
 
-    printf("  -qo, --query-gap-open-penalty <INTEGER> [%d]\n", g.query_open);
-    printf("      gap opening penalty (query variant realignment)\n\n");
-
-    printf("  -qe, --query-gap-extend-penalty <INTEGER> [%d]\n", g.query_extend);
-    printf("      gap extension penalty (query variant realignment)\n\n");
-
-    printf("  -tx, --truth-mismatch-penalty <INTEGER> [%d]\n", g.truth_sub);
-    printf("      mismatch penalty (truth variant realignment)\n\n");
-
-    printf("  -to, --truth-gap-open-penalty <INTEGER> [%d]\n", g.truth_open);
-    printf("      gap opening penalty (truth variant realignment)\n\n");
-
-    printf("  -te, --truth-gap-extend-penalty <INTEGER> [%d]\n", g.truth_extend);
-    printf("      gap extension penalty (truth variant realignment)\n\n");
-
+    printf("\n  Distance:\n");
     printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
-    printf("      mismatch penalty (distance evaluation)\n\n");
-
+    printf("      mismatch penalty (distance evaluation)\n");
     printf("  -eo, --eval-gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
-    printf("      gap opening penalty (distance evaluation)\n\n");
-
+    printf("      gap opening penalty (distance evaluation)\n");
     printf("  -ee, --eval-gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
-    printf("      gap extension penalty (distance evaluation)\n\n");
+    printf("      gap extension penalty (distance evaluation)\n");
 
 }
 

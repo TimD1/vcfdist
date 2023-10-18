@@ -1096,14 +1096,22 @@ void calc_prec_recall(
         int prev_truth_var_ptr = truth_var_ptr;
         int path_idx = path[i].size()-1;
 
-        if (false) {
+        if (print) {
             printf("%s Path:\n", aln_strs[i].data());
             for (int p = path_idx; p >= 0; p--) {
-                printf("(%s,%d,%d)\n", path[i][p].hi % 2 ? "REF" : "QRY", path[i][p].qri, path[i][p].ti);
+                printf("%s (%s,%d,%d) %s\n", sync[i][p] ? "*" : ".", 
+                        path[i][p].hi % 2 ? "REF" : "QRY", path[i][p].qri, path[i][p].ti, 
+                        edits[i][p] ? "X" : "=");
             }
+            printf("\n%s: %d\n", aln_strs[i].data(), beg);
+            printf("  ref: %2d %s\n", int(ref.size()), ref.data());
+            printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data());
+            printf("truth ptrs:\n");
+            print_ref_ptrs(truth_ref_ptrs[i]);
+            printf("query ptrs:\n");
+            print_ref_ptrs(query_ref_ptrs[i]);
         }
 
-        if (print) printf("\n%s: %d\n", aln_strs[i].data(), beg);
         while (path_idx >= 0) {
 
             // set corresponding REF position
@@ -1112,44 +1120,80 @@ void calc_prec_recall(
                 query_ref_pos = qri;
             } else { // hi == qi, QUERY
                 query_ref_pos = query_ref_ptrs[i][PTRS][qri];
+            }
 
-                // in variant, ignore if didn't just finish REF FP or QRY PP/TP variant
-                if (query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) {
-                    if(prev_hi == ri && !(ref_query_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG)) {
-                        query_ref_pos = query_var_pos+1; // skip next while loop
+            // mark FPs and record variants within sync group
+            int prev_query_var_pos = -1;
+            while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // just passed variant(s)
+
+                if (hi == qi) { 
+                    // in variant, ignore if didn't just finish REF FP or QRY PP/TP variant
+                    if (query_ref_ptrs[i][FLAGS][qri] & PTR_VARIANT) {
+                        if(prev_hi == ri && !(ref_query_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG)) {
+                            break;
+                        }
+                        if (prev_hi == qi && (prev_qri == qri || 
+                                !(query_ref_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG))) { // not query var
+                            break;
+                        }
                     }
-                    if (prev_hi == qi && (prev_qri == qri || 
-                            !(query_ref_ptrs[i][FLAGS][prev_qri] & PTR_VAR_BEG))) { // not query var
-                        query_ref_pos = query_var_pos+1; // skip next while loop
+                    if (query_var_pos == query_ref_pos+1 and query_var_pos == prev_query_var_pos &&
+                            query_vars->types[query_var_ptr] == TYPE_INS &&
+                            query_vars->types[query_var_ptr+1] == TYPE_SUB) {
+                        break;
                     }
                 }
-            }
-            // mark FPs and record variants within sync group
-            while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // just passed variant(s)
+
                 if (prev_hi == ri) { // FP if when in variant was on REF
                     query_vars->errtypes[swap][query_var_ptr] = ERRTYPE_FP;
                     query_vars->sync_group[swap][query_var_ptr] = sync_group++;
                     query_vars->credit[swap][query_var_ptr] = 0;
                     query_vars->callq[swap][query_var_ptr] = 
                         query_vars->var_quals[query_var_ptr];
-                    if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
+                    if (print) printf("%s: QUERY REF='%s'\tALT='%s'\t%s\t%f\n", ctg.data(),
                             query_vars->refs[query_var_ptr].data(),
                             query_vars->alts[query_var_ptr].data(), "FP", 0.0f);
                     query_var_ptr--;
                 } else { // TP/PP
                     query_var_ptr--;
                 }
+
+                prev_query_var_pos = query_var_pos;
                 query_var_pos = (query_var_ptr < query_beg_idx) ? -1 :
                         query_vars->poss[query_var_ptr] - beg;
             }
 
+            // count truth variants
             int truth_ref_pos = truth_ref_ptrs[i][PTRS][ti];
-            if (truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT) {
-                if (prev_ti == ti || !(truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VAR_BEG))
-                    truth_ref_pos = truth_var_pos + 1;
-            }
-            while (truth_ref_pos < truth_var_pos && truth_var_ptr >= truth_beg_idx) { // passed REF variant
+            int prev_truth_var_pos = -1;
+            while (truth_var_pos > truth_ref_pos && truth_var_ptr >= truth_beg_idx) { // passed REF variant
+
+                if (print) {
+                    printf("(%d, %d, %d) -> (%d, %d, %d)\n", prev_hi, prev_qri, prev_ti, hi, qri, ti);
+                    printf("truth_ref_pos: %d\ttruth_var_ptr: %d\ttruth_var_pos: %d\t%s -> %s\n", 
+                            truth_ref_pos, truth_var_ptr, truth_var_pos, 
+                            truth_vars->refs[truth_var_ptr].data(),
+                            truth_vars->alts[truth_var_ptr].data());
+                }
+
+                // in variant and didn't just leave variant
+                if (truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT && 
+                         !(truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VAR_BEG)) {
+                    break;
+                }
+                // in variant and no truth movement
+                if (truth_ref_ptrs[i][FLAGS][ti] & PTR_VARIANT && prev_ti == ti) {
+                    break;
+                }
+                // not elegant, but seems to handle INS+SUB in practice
+                if (truth_var_pos == truth_ref_pos+1 && 
+                        truth_var_pos == prev_truth_var_pos &&
+                        truth_vars->types[truth_var_ptr] == TYPE_INS &&
+                        truth_vars->types[truth_var_ptr+1] == TYPE_SUB) {
+                    break;
+                }
                 truth_var_ptr--;
+                prev_truth_var_pos = truth_var_pos;
                 truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 :
                     truth_vars->poss[truth_var_ptr] - beg;
             }
@@ -1162,25 +1206,31 @@ void calc_prec_recall(
                 sync_ref_idx = (hi == ri) ? qri+1 : query_ref_ptrs[i][PTRS][qri]+1;
                 sync_truth_idx = ti+1;
                 std::vector< std::vector<int> > offs, ptrs;
-                if (print) {
-                    printf("  ref: %2d %s\n", int(ref.size()), ref.data());
-                    printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data());
-                    printf("  ref[%2d:+%2d] = ", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
-                    printf("%s\n", ref.substr(sync_ref_idx, 
-                                prev_sync_ref_idx - sync_ref_idx).data());
-                    printf("truth[%2d:+%2d] = ", sync_truth_idx, prev_sync_truth_idx-sync_truth_idx);
-                    printf("%s\n", truth[i].substr(sync_truth_idx, 
-                                prev_sync_truth_idx - sync_truth_idx).data());
-                }
-                wf_ed(ref.substr(sync_ref_idx, 
-                            prev_sync_ref_idx - sync_ref_idx), 
-                        truth[i].substr(sync_truth_idx, 
-                            prev_sync_truth_idx - sync_truth_idx), 
+                wf_ed(ref.substr(sync_ref_idx, prev_sync_ref_idx - sync_ref_idx), 
+                        truth[i].substr(sync_truth_idx, prev_sync_truth_idx - sync_truth_idx), 
                         old_ed, offs, ptrs);
 
                 if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
-                    WARN("Old edit distance 0, TRUTH variants exist (%d-%d).", 
-                            truth_var_ptr+1, prev_truth_var_ptr+1);
+                    WARN("Zero edit distance with truth variants at supercluster %d, %s:%d", 
+                            sc_idx, ctg.data(), truth_vars->poss[truth_var_ptr]);
+                if (new_ed > old_ed)
+                    WARN("New edit distance exceeds old edit distance at supercluster %d, %s:%d",
+                            sc_idx, ctg.data(), query_vars->poss[query_var_ptr]);
+
+                if (prev_query_var_ptr == query_var_ptr &&
+                        old_ed != new_ed) {
+                    WARN("Non-zero edit distance with no truth variants at supercluster %d, %s:%d",
+                            sc_idx, ctg.data(), query_vars->poss[query_var_ptr]);
+                }
+
+                if (print) {
+                    printf("  ref[%2d:+%2d] ", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
+                    printf("%s\n", ref.substr(sync_ref_idx, 
+                                prev_sync_ref_idx - sync_ref_idx).data());
+                    printf("truth[%2d:+%2d] ", sync_truth_idx, prev_sync_truth_idx-sync_truth_idx);
+                    printf("%s\n", truth[i].substr(sync_truth_idx, 
+                                prev_sync_truth_idx - sync_truth_idx).data());
+                }
 
                 // get min query var qual in sync section (for truth/query)
                 float callq = g.max_qual;
@@ -1200,7 +1250,8 @@ void calc_prec_recall(
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = credit;
                             query_vars->callq[swap][query_var_idx] = callq;
-                            if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
+                            if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
+                                    ctg.data(), query_vars->poss[query_var_idx],
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "TP", credit);
@@ -1209,7 +1260,8 @@ void calc_prec_recall(
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = 0;
                             query_vars->callq[swap][query_var_idx] = callq;
-                            if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
+                            if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
+                                    ctg.data(), query_vars->poss[query_var_idx],
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "FP", 0.0f);
@@ -1218,7 +1270,8 @@ void calc_prec_recall(
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = credit;
                             query_vars->callq[swap][query_var_idx] = callq;
-                            if (print) printf("QUERY REF='%s'\tALT='%s'\t%s\t%f\n",
+                            if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
+                                    ctg.data(), query_vars->poss[query_var_idx],
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "PP", credit);
@@ -1235,7 +1288,8 @@ void calc_prec_recall(
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
                         truth_vars->callq[swap][truth_var_idx] = callq;
-                        if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
+                        if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", 
+                                ctg.data(), truth_vars->poss[truth_var_idx],
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "TP", credit);
@@ -1244,7 +1298,8 @@ void calc_prec_recall(
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
                         truth_vars->callq[swap][truth_var_idx] = g.max_qual;
-                        if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
+                        if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
+                                ctg.data(), truth_vars->poss[truth_var_idx],
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "FN", credit);
@@ -1253,14 +1308,15 @@ void calc_prec_recall(
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
                         truth_vars->callq[swap][truth_var_idx] = callq;
-                        if (print) printf("TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
+                        if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", 
+                                ctg.data(), truth_vars->poss[truth_var_idx],
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "PP", credit);
                     }
                 }
 
-                if (print) printf("SYNC @%s(%2d,%2d) = REF(%2d,%2d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n",
+                if (print) printf("%s: SYNC @%s(%2d,%2d) = REF(%2d,%2d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n\n", ctg.data(),
                         (hi == ri) ? "REF" : "QRY", qri, ti,
                         (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri],
                         truth_ref_ptrs[i][PTRS][ti], old_ed, new_ed, 
@@ -1314,7 +1370,7 @@ void calc_prec_recall(
 void wf_ed(
         const std::string & query, const std::string & truth, int & s, 
         std::vector< std::vector<int> > & offs,
-        std::vector< std::vector<int> > & ptrs
+        std::vector< std::vector<int> > & ptrs, bool print
         ) {
 
     // alignment
@@ -1324,6 +1380,7 @@ void wf_ed(
     // early exit if either string is empty
     if (!query_len) { s = truth_len; return; }
     if (!truth_len) { s = query_len; return; }
+    s = 0;
 
     int mat_len = query_len + truth_len - 1;
     offs.push_back(std::vector<int>(mat_len, -2));
@@ -1351,6 +1408,8 @@ void wf_ed(
                 if (query[off+1] == truth[diag+off+1]) off++;
                 else break;
             }
+            if (off > offs[s][d])
+                if(print) printf("(%d, %d) extend\n", off, off+diag);
             offs[s][d] = off;
 
             // finish if done
@@ -1360,47 +1419,54 @@ void wf_ed(
         }
         if (done) break;
 
+        // debug print
+        if(print) printf("offs %d:", s);
+        for (int di = 0; di < int(query.size() + truth.size()-1); di++) {
+            if(print) printf("\t%d", offs[s][di]);
+        }
+        if(print) printf("\n");
 
         // NEXT WAVEFRONT
-        // add wavefront, fill edge cells
         offs.push_back(std::vector<int>(mat_len, -2));
-        ptrs.push_back(std::vector<int>(mat_len));
-        // left cells
-        if (query_len > 1 && s+1 == query_len-1) {
-            offs[s+1][0] = s+1;
-            ptrs[s+1][0] = PTR_INS;
-        }
-        // right cells
-        if (truth_len > 1 && s+1 == mat_len-1) {
-            offs[s+1][mat_len-1] = 0;
-            ptrs[s+1][mat_len-1] = PTR_DEL;
-        }
+        ptrs.push_back(std::vector<int>(mat_len, PTR_NONE));
+        s++;
+        if(print) printf("\nscore = %d\n", s);
+        for (int d = 0; d < mat_len; d++) {
+            int diag = d + 1 - query_len;
 
-        // central cells
-        for (int d = 1; d < mat_len-1; d++) {
-            int offleft = offs[s][d-1];
-            int offtop  = (offs[s][d+1] == -2) ? 
-                -2 : offs[s][d+1]+1;
-            int offdiag = (offs[s][d] == -2) ? 
-                -2 : offs[s][d]+1;
-            if (offdiag >= offtop && offdiag >= offleft) {
-                offs[s+1][d] = offdiag;
-                ptrs[s+1][d] = PTR_SUB;
-            } else if (offleft >= offtop) {
-                offs[s+1][d] = offleft;
-                ptrs[s+1][d] = PTR_DEL;
-            } else {
-                offs[s+1][d] = offtop;
-                ptrs[s+1][d] = PTR_INS;
+            // SUB
+            if (s-1 >= 0 && offs[s-1][d] != -2 && 
+                            offs[s-1][d]+1 < query_len &&
+                     diag + offs[s-1][d]+1 < truth_len &&
+                            offs[s-1][d]+1 >= offs[s][d]) {
+                offs[s][d] = offs[s-1][d] + 1;
+                ptrs[s][d] |= PTR_SUB;
+                if(print) printf("(%d, %d) sub\n", offs[s][d], offs[s][d]+diag);
+            }
+
+            // DEL
+            if (s-1 >= 0 && d > 0 && 
+                           offs[s-1][d-1] != -2 &&
+                    diag + offs[s-1][d-1] < truth_len &&
+                           offs[s-1][d-1] >= offs[s][d]) {
+                offs[s][d] = offs[s-1][d-1];
+                ptrs[s][d] |= PTR_DEL;
+                if(print) printf("(%d, %d) del\n", offs[s][d], offs[s][d]+diag);
+            }
+
+            // INS
+            if (s-1 >= 0 && d < mat_len-1 && 
+                           offs[s-1][d+1] != -2 &&
+                           offs[s-1][d+1]+1 < query_len &&
+                    diag + offs[s-1][d+1]+1 < truth_len &&
+                    diag + offs[s-1][d+1]+1 >= -1 &&
+                           offs[s-1][d+1]+1 >= offs[s][d]) {
+                offs[s][d] = offs[s-1][d+1]+1;
+                ptrs[s][d] |= PTR_INS;
+                if(print) printf("(%d, %d) ins\n", offs[s][d], offs[s][d]+diag);
+            /* } else if (s-1 >= 0 && offs[s-1][d+1] == -2 && offs[s-1][d+1]+1 ) { */
             }
         }
-
-        // single cell
-        if (query_len == 1 && truth_len == 1) {
-            offs[s+1][0] = offs[s][0]+1;
-            ptrs[s+1][0] = PTR_SUB;
-        }
-        ++s;
     }
 }
 
@@ -1441,7 +1507,6 @@ void wf_swg_align(
                     ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
                     if(print) printf("(S, %d, %d) swap\n", offs[MAT_SUB][s][d], 
                             offs[MAT_SUB][s][d]+d+1-query_len);
-
                 }
             }
         }
@@ -1468,6 +1533,7 @@ void wf_swg_align(
         }
         if (done) break;
 
+        // debug print
         for (int mi = 0; mi < MATS; mi++) {
             if(print) printf("\n%s matrix\n", type_strs[mi+1].data());
             if(print) printf("offs %d:", s);
@@ -1974,11 +2040,13 @@ int calc_vcf_swg_score(std::shared_ptr<ctgVariants> vars,
                 break;
             case TYPE_INS:
                 score += open;
-                score += extend * vars->alts[var_idx].size();
+                score += extend * std::min(g.max_reach_size, 
+                        int(vars->alts[var_idx].size()));
                 break;
             case TYPE_DEL:
                 score += open;
-                score += extend * vars->refs[var_idx].size();
+                score += extend * std::min(g.max_reach_size, 
+                        int(vars->refs[var_idx].size()));
                 break;
             default:
                 ERROR("Unexpected variant type in calc_vcf_swg_score()");

@@ -37,13 +37,13 @@ This file reports for each edit (where called query sequence differs from truth 
 #### phase-blocks.tsv
 Reports the size, location, and composition of each phase block.
 
-| CONTIG | START | STOP | SIZE | SUPERCLUSTERS | PHASE |
+| CONTIG | PHASE_BLOCK | START | STOP | SIZE | SUPERCLUSTERS | BLOCK_STATE |
 |-|-|-|-|-|-|
 
 #### superclusters.tsv
 Reports the size, location, and composition of each supercluster.
 
-| CONTIG | START | STOP | SIZE | QUERY1_VARS | QUERY2_VARS | TRUTH1_VARS | TRUTH2_VARS | ORIG_ED | SWAP_ED | PHASE | PHASE_BLOCK |
+| CONTIG | SUPERCLUSTER | START | STOP | SIZE | QUERY1_VARS | QUERY2_VARS | TRUTH1_VARS | TRUTH2_VARS | ORIG_ED | SWAP_ED | PHASE | PHASE_BLOCK |
 |-|-|-|-|-|-|-|-|-|-|-|-|
 
 #### query.tsv, truth.tsv
@@ -89,7 +89,8 @@ Output query and truth VCFs, standardized by vcfdist (at point C).
 | (QUERY/TRUTH)(1/2)_VARS | integer | Total variants on a particular haplotype within this region. |
 | (ORIG/SWAP)_ED | integer | Total edit distance (minimum) of supercluster for both possible phasings. |
 | PHASE | char | Character representing phasing. (=/X/?) for same, swap, unknown |
-| PHASE_BLOCK | integer | 0-based index of current phase block. |
+| PHASE_BLOCK | integer | 0-based index of current phase block within contig. |
+| BLOCK_STATE | integer | Current phase state for truth to query haplotype mapping (0 = T1Q1:T2Q2, 1 = T1Q2:Q2T1). |
 | POS | integer | 0-based index of position within contig. |
 | REF/ALT | string | String of reference/alternate sequence at this position. |
 | CREDIT | float | Fraction of partial credit this variant received. |

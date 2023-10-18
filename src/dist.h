@@ -231,7 +231,7 @@ std::vector<int> wf_swg_backtrack(
 void wf_ed(
         const std::string & query, const std::string & truth, int & s, 
         std::vector< std::vector<int> > & offs,
-        std::vector< std::vector<int> > & ptrs);
+        std::vector< std::vector<int> > & ptrs, bool print = false);
 
 
 int count_dist(const std::vector<int> & cigar);

@@ -23,6 +23,7 @@ public:
     int max_qual = 60;
     int min_size = 1;
     int max_size = 5000;
+    int max_reach_size = 100;
 
     // clustering params
     bool keep_truth = false;
@@ -47,18 +48,12 @@ public:
     std::string cmd;
 
     // alignment parameters
-    int query_sub = 5;
-    int query_open = 6;
-    int query_extend = 2;
-    int truth_sub = 5;
-    int truth_open = 6;
-    int truth_extend = 2;
+    int sub = 5;
+    int open = 6;
+    int extend = 2;
     int eval_sub = 3;
     int eval_open = 2;
     int eval_extend = 1;
-    std::vector<bool> query_penalties_set = {false, false, false};
-    std::vector<bool> truth_penalties_set = {false, false, false};
-    std::vector<bool> eval_penalties_set  = {false, false, false};
 
     std::vector<timer> timers;
 
@@ -73,7 +68,7 @@ public:
     void init_timers(std::vector<std::string> timer_strs);
 
     // program data
-    const std::string VERSION = "2.0.3";
+    const std::string VERSION = "2.1.0";
     const std::string PROGRAM = "vcfdist";
 };
 
