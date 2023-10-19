@@ -198,7 +198,7 @@ g.timers[TIME_EDITS].stop();
 
     // calculate global phasings
 g.timers[TIME_PHASE].start();
-    std::unique_ptr<phaseData> phasedata_ptr(new phaseData(clusterdata_ptr));
+    std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr));
 g.timers[TIME_PHASE].stop();
 
     // write supercluster/phaseblock results in CSV format

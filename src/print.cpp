@@ -286,7 +286,7 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
 /*******************************************************************************/
 
 
-void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
+void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
     // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN,PP,PP_FRAC, ax2: QUAL
     int PP_FRAC = 4;
@@ -299,25 +299,25 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
 
     // calculate summary statistics
     for (auto ctg : phasedata_ptr->contigs) {
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        auto & ctg_vars = ctg_scs->ctg_variants;
 
         // add query
-        auto & phases = phasedata_ptr->ctg_phasings[ctg];
-        auto & scs = phases->ctg_superclusters;
-        auto & vars = scs->ctg_variants;
         for (int h = 0; h < HAPS; h++) {
             int sc_idx = 0;
             int phase_block = 0;
-            for (int i = 0; i < vars[QUERY][h]->n; i++) {
+            for (int i = 0; i < ctg_vars[QUERY][h]->n; i++) {
 
                 // update supercluster
-                while (vars[QUERY][h]->poss[i] >= scs->ends[sc_idx])
+                while (ctg_vars[QUERY][h]->poss[i] >= ctg_scs->ends[sc_idx])
                     sc_idx++;
 
                 // update phasing info
-                if (sc_idx >= phases->phase_blocks[phase_block+1])
+                if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                bool phase_switch = phases->pb_phasings[phase_block];
-                int phase_sc = phases->sc_phasings[sc_idx];
+                bool phase_switch = ctg_pbs->block_states[phase_block];
+                int phase_sc = ctg_scs->phase[sc_idx];
                 bool swap;
                 switch (phase_sc) {
                     case PHASE_ORIG: swap = false; break;
@@ -325,25 +325,25 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                     default: swap = phase_switch; break;
                 }
 
-                float q = vars[QUERY][h]->callq[swap][i];
+                float q = ctg_vars[QUERY][h]->callq[swap][i];
                 int t = 0;
-                if (vars[QUERY][h]->types[i] == TYPE_SUB) {
+                if (ctg_vars[QUERY][h]->types[i] == TYPE_SUB) {
                     t = VARTYPE_SNP;
-                } else if (vars[QUERY][h]->types[i] == TYPE_INS ||
-                        vars[QUERY][h]->types[i] == TYPE_DEL) {
+                } else if (ctg_vars[QUERY][h]->types[i] == TYPE_INS ||
+                        ctg_vars[QUERY][h]->types[i] == TYPE_DEL) {
                     t = VARTYPE_INDEL;
                 } else {
                     ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                            vars[QUERY][h]->types[i]);
+                            ctg_vars[QUERY][h]->types[i]);
                 }
-                if (vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_UN) {
-                    WARN("Unknown error type at QUERY %s:%d", ctg.data(), vars[QUERY][h]->poss[i]);
+                if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_UN) {
+                    WARN("Unknown error type at QUERY %s:%d", ctg.data(), ctg_vars[QUERY][h]->poss[i]);
                     continue;
                 }
                 for (int qual = g.min_qual; qual <= q; qual++) {
-                    query_counts[t][ vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
-                    if (vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_PP) {
-                        query_counts[t][PP_FRAC][qual-g.min_qual] += vars[QUERY][h]->credit[swap][i];
+                    query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                    if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_PP) {
+                        query_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[QUERY][h]->credit[swap][i];
                     }
                 }
             }
@@ -352,13 +352,13 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
         // add truth
         for (int h = 0; h < HAPS; h++) {
             int phase_block = 0;
-            for (int sc_idx = 0; sc_idx < scs->n; sc_idx++) {
+            for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
 
                 // update phasing info
-                if (sc_idx >= phasedata_ptr->ctg_phasings[ctg]->phase_blocks[phase_block+1])
+                if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                bool phase_switch = phasedata_ptr->ctg_phasings[ctg]->pb_phasings[phase_block];
-                int phase_sc = phasedata_ptr->ctg_phasings[ctg]->sc_phasings[sc_idx];
+                bool phase_switch = ctg_pbs->block_states[phase_block];
+                int phase_sc = ctg_scs->phase[sc_idx];
                 bool swap;
                 switch (phase_sc) {
                     case PHASE_ORIG: swap = false; break;
@@ -366,31 +366,27 @@ void write_precision_recall(std::unique_ptr<phaseData> & phasedata_ptr) {
                     default: swap = phase_switch; break;
                 }
 
-                for (int i = scs->superclusters[TRUTH][h^swap][sc_idx]; i < scs->superclusters[TRUTH][h^swap][sc_idx+1]; i++) {
+                for (int i = ctg_scs->superclusters[TRUTH][h^swap][sc_idx]; i < ctg_scs->superclusters[TRUTH][h^swap][sc_idx+1]; i++) {
 
-                    float q = vars[TRUTH][h^swap]->callq[swap][i];
+                    float q = ctg_vars[TRUTH][h^swap]->callq[swap][i];
                     int t = 0;
-                    if (vars[TRUTH][h^swap]->types[i] == TYPE_SUB) {
+                    if (ctg_vars[TRUTH][h^swap]->types[i] == TYPE_SUB) {
                         t = VARTYPE_SNP;
-                    } else if (vars[TRUTH][h^swap]->types[i] == TYPE_INS ||
-                            vars[TRUTH][h^swap]->types[i] == TYPE_DEL) {
+                    } else if (ctg_vars[TRUTH][h^swap]->types[i] == TYPE_INS ||
+                            ctg_vars[TRUTH][h^swap]->types[i] == TYPE_DEL) {
                         t = VARTYPE_INDEL;
                     } else {
                         ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                                vars[TRUTH][h^swap]->types[i]);
+                                ctg_vars[TRUTH][h^swap]->types[i]);
                     }
-                    if (vars[TRUTH][h^swap]->errtypes[swap][i] == ERRTYPE_UN) {
-                        WARN("Unknown error type at TRUTH %s:%d", ctg.data(), vars[TRUTH][h^swap]->poss[i]);
+                    if (ctg_vars[TRUTH][h^swap]->errtypes[swap][i] == ERRTYPE_UN) {
+                        WARN("Unknown error type at TRUTH %s:%d", ctg.data(), ctg_vars[TRUTH][h^swap]->poss[i]);
                         continue;
                     }
                     for (int qual = g.min_qual; qual <= q; qual++) {
-                        truth_counts[t][ vars[TRUTH][h^swap]->errtypes[swap][i] ][qual-g.min_qual]++;
-                        if (vars[TRUTH][h^swap]->errtypes[swap][i] == ERRTYPE_PP) {
-                            truth_counts[t][PP_FRAC][qual-g.min_qual] += vars[TRUTH][h^swap]->credit[swap][i];
-                            /* if (qual != g.min_qual) { // TODO: remove, for testing PAV */
-                            /*     WARN("TRUTH PP corresponds to non-zero QUERY PP at %s:%d, sc %d hap %d, swap %d", */ 
-                            /*             ctg.data(), vars[TRUTH][h^swap]->poss[i], i, h, swap); */
-                            /* } */
+                        truth_counts[t][ ctg_vars[TRUTH][h^swap]->errtypes[swap][i] ][qual-g.min_qual]++;
+                        if (ctg_vars[TRUTH][h^swap]->errtypes[swap][i] == ERRTYPE_PP) {
+                            truth_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[TRUTH][h^swap]->credit[swap][i];
                         }
                     }
                 }
@@ -642,7 +638,7 @@ void write_distance(const editData & edits) {
 
 
 void write_results(
-        std::unique_ptr<phaseData> & phasedata_ptr, 
+        std::unique_ptr<phaseblockData> & phasedata_ptr, 
         const editData & edits) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[8/8] Writing results%s", COLOR_PURPLE, COLOR_WHITE);
@@ -667,24 +663,24 @@ void write_results(
     fclose(out_edits);
 
     // print phasing information
-    std::string out_phasings_fn = g.out_prefix + "phase-blocks.tsv";
-    FILE* out_phasings = fopen(out_phasings_fn.data(), "w");
-    if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phasings_fn.data());
-    fprintf(out_phasings, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tBLOCK_STATE\n");
+    std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";
+    FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
+    if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phaseblocks_fn.data());
+    fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tBLOCK_STATE\n");
     for (auto ctg : phasedata_ptr->contigs) {
-        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_superclusters = ctg_phasings->ctg_superclusters;
-        for (int i = 0; i <= ctg_phasings->nswitches && ctg_phasings->n > 0; i++) {
-            int beg_idx = ctg_phasings->phase_blocks[i];
-            int end_idx = ctg_phasings->phase_blocks[i+1]-1;
-            int beg = ctg_superclusters->begs[beg_idx];
-            int end = ctg_superclusters->ends[end_idx];
-            int phase = ctg_phasings->pb_phasings[i];
-            fprintf(out_phasings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", 
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
+            int beg_idx = ctg_pbs->phase_blocks[i];
+            int end_idx = ctg_pbs->phase_blocks[i+1]-1;
+            int beg = ctg_scs->begs[beg_idx];
+            int end = ctg_scs->ends[end_idx];
+            int phase = ctg_pbs->block_states[i];
+            fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", 
                     ctg.data(), i, beg, end, end-beg, end_idx-beg_idx+1, phase);
         }
     }
-    fclose(out_phasings);
+    fclose(out_phaseblocks);
 
     // print clustering information
     std::string out_clusterings_fn = g.out_prefix + "superclusters.tsv";
@@ -693,49 +689,45 @@ void write_results(
     fprintf(out_clusterings, "CONTIG\tSUPERCLUSTER\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
             "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
     for (auto ctg : phasedata_ptr->contigs) {
-        auto & ctg_phasings = phasedata_ptr->ctg_phasings[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_supclusts = ctg_phasings->ctg_superclusters;
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         int phase_block_idx = 0;
-        for (int i = 0; i < ctg_supclusts->n; i++) {
+        for (int i = 0; i < ctg_scs->n; i++) {
 
             // we've entered the next phase block
-            if (i >= ctg_phasings->phase_blocks[phase_block_idx+1]) {
+            if (i >= ctg_pbs->phase_blocks[phase_block_idx+1]) {
                 phase_block_idx++;
             }
 
             // count query vars, allowing empty haps
-            int query1_vars = ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters.size() ?
-                ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP1][i+1]] -
-                    ctg_supclusts->ctg_variants[QUERY][HAP1]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP1][i]] : 0;
-            int query2_vars = ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters.size() ?
-                ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP2][i+1]] -
-                    ctg_supclusts->ctg_variants[QUERY][HAP2]->clusters[
-                        ctg_supclusts->superclusters[QUERY][HAP2][i]] : 0;
-            int truth1_vars = ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters.size() ?
-                ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP1][i+1]] -
-                    ctg_supclusts->ctg_variants[TRUTH][HAP1]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP1][i]] : 0;
-            int truth2_vars = ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters.size() ?
-                ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP2][i+1]] -
-                    ctg_supclusts->ctg_variants[TRUTH][HAP2]->clusters[
-                        ctg_supclusts->superclusters[TRUTH][HAP2][i]] : 0;
+            int query1_vars = ctg_scs->ctg_variants[QUERY][HAP1]->clusters.size() ?
+                ctg_scs->ctg_variants[QUERY][HAP1]->clusters[
+                        ctg_scs->superclusters[QUERY][HAP1][i+1]] -
+                    ctg_scs->ctg_variants[QUERY][HAP1]->clusters[
+                        ctg_scs->superclusters[QUERY][HAP1][i]] : 0;
+            int query2_vars = ctg_scs->ctg_variants[QUERY][HAP2]->clusters.size() ?
+                ctg_scs->ctg_variants[QUERY][HAP2]->clusters[
+                        ctg_scs->superclusters[QUERY][HAP2][i+1]] -
+                    ctg_scs->ctg_variants[QUERY][HAP2]->clusters[
+                        ctg_scs->superclusters[QUERY][HAP2][i]] : 0;
+            int truth1_vars = ctg_scs->ctg_variants[TRUTH][HAP1]->clusters.size() ?
+                ctg_scs->ctg_variants[TRUTH][HAP1]->clusters[
+                        ctg_scs->superclusters[TRUTH][HAP1][i+1]] -
+                    ctg_scs->ctg_variants[TRUTH][HAP1]->clusters[
+                        ctg_scs->superclusters[TRUTH][HAP1][i]] : 0;
+            int truth2_vars = ctg_scs->ctg_variants[TRUTH][HAP2]->clusters.size() ?
+                ctg_scs->ctg_variants[TRUTH][HAP2]->clusters[
+                        ctg_scs->superclusters[TRUTH][HAP2][i+1]] -
+                    ctg_scs->ctg_variants[TRUTH][HAP2]->clusters[
+                        ctg_scs->superclusters[TRUTH][HAP2][i]] : 0;
 
             // print data
             fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
-                ctg.data(), i,
-                ctg_supclusts->begs[i],
-                ctg_supclusts->ends[i],
-                ctg_supclusts->ends[i] - ctg_supclusts->begs[i],
+                ctg.data(), i, ctg_scs->begs[i], ctg_scs->ends[i],
+                ctg_scs->ends[i] - ctg_scs->begs[i],
                 query1_vars, query2_vars, truth1_vars, truth2_vars,
-                ctg_supclusts->orig_phase_dist[i],
-                ctg_supclusts->swap_phase_dist[i],
-                phase_strs[ctg_supclusts->phase[i]].data(),
-                phase_block_idx
+                ctg_scs->orig_phase_dist[i], ctg_scs->swap_phase_dist[i],
+                phase_strs[ctg_scs->phase[i]].data(), phase_block_idx
            );
         }
     }
@@ -750,12 +742,10 @@ void write_results(
     for (auto ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
-        std::shared_ptr<ctgVariants> query1_vars = 
-            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[QUERY][HAP1];
-        std::shared_ptr<ctgVariants> query2_vars = 
-            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[QUERY][HAP2];
-        std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
-            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters;
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> query1_vars = ctg_scs->ctg_variants[QUERY][HAP1];
+        std::shared_ptr<ctgVariants> query2_vars = ctg_scs->ctg_variants[QUERY][HAP2];
 
         int supercluster_idx = 0;
         int var1_idx = 0;
@@ -771,16 +761,16 @@ void write_results(
                 if (cluster1_idx+1 >= int(query1_vars->clusters.size())) 
                     ERROR("Out of bounds cluster during write_results(): query1")
                 if (query1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
-                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                if (supercluster_idx >= int(ctg_scs->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): query1")
-                while (query1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (query1_vars->poss[var1_idx] >= ctg_scs->ends[supercluster_idx])
                     supercluster_idx++;
 
                 // update phasing info
-                if (supercluster_idx >= phasedata_ptr->ctg_phasings[ctg]->phase_blocks[phase_block+1])
+                if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                bool phase_switch = phasedata_ptr->ctg_phasings[ctg]->pb_phasings[phase_block];
-                int phase_sc = phasedata_ptr->ctg_phasings[ctg]->sc_phasings[supercluster_idx];
+                bool phase_switch = ctg_pbs->block_states[phase_block];
+                int phase_sc = ctg_scs->phase[supercluster_idx];
                 bool swap;
                 switch (phase_sc) {
                     case PHASE_ORIG: swap = false; break;
@@ -808,16 +798,16 @@ void write_results(
                 if (cluster2_idx+1 >= int(query2_vars->clusters.size()))
                     ERROR("Out of bounds cluster during write_results(): query2")
                 if (query2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
-                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                if (supercluster_idx >= int(ctg_scs->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): query2")
-                while (query2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (query2_vars->poss[var2_idx] >= ctg_scs->ends[supercluster_idx])
                     supercluster_idx++;
 
                 // update phasing info
-                if (supercluster_idx >= phasedata_ptr->ctg_phasings[ctg]->phase_blocks[phase_block+1])
+                if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                bool phase_switch = phasedata_ptr->ctg_phasings[ctg]->pb_phasings[phase_block];
-                int phase_sc = phasedata_ptr->ctg_phasings[ctg]->sc_phasings[supercluster_idx];
+                bool phase_switch = ctg_pbs->block_states[phase_block];
+                int phase_sc = ctg_scs->phase[supercluster_idx];
                 bool swap;
                 switch (phase_sc) {
                     case PHASE_ORIG: swap = false; break;
@@ -846,7 +836,7 @@ void write_results(
     }
     fclose(out_query);
     
-    //print truth variant information
+    // print truth variant information
     std::string out_truth_fn = g.out_prefix + "truth.tsv";
     if (g.verbosity >= 1) INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
@@ -854,12 +844,10 @@ void write_results(
     for (auto ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
-        std::shared_ptr<ctgVariants> truth1_vars = 
-            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[TRUTH][HAP1];
-        std::shared_ptr<ctgVariants> truth2_vars = 
-            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters->ctg_variants[TRUTH][HAP2];
-        std::shared_ptr<ctgSuperclusters> ctg_supclusts = 
-            phasedata_ptr->ctg_phasings[ctg]->ctg_superclusters;
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> truth1_vars = ctg_scs->ctg_variants[TRUTH][HAP1];
+        std::shared_ptr<ctgVariants> truth2_vars = ctg_scs->ctg_variants[TRUTH][HAP2];
 
         int var1_idx = 0;
         int var2_idx = 0;
@@ -873,16 +861,16 @@ void write_results(
                 if (cluster1_idx+1 >= int(truth1_vars->clusters.size()))
                     ERROR("Out of bounds cluster during write_results(): truth1")
                 if (truth1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
-                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                if (supercluster_idx >= int(ctg_scs->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): truth1")
-                while (truth1_vars->poss[var1_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (truth1_vars->poss[var1_idx] >= ctg_scs->ends[supercluster_idx])
                     supercluster_idx++;
 
                 // update phasing info
-                if (supercluster_idx >= phasedata_ptr->ctg_phasings[ctg]->phase_blocks[phase_block+1])
+                if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                bool phase_switch = phasedata_ptr->ctg_phasings[ctg]->pb_phasings[phase_block];
-                int phase_sc = phasedata_ptr->ctg_phasings[ctg]->sc_phasings[supercluster_idx];
+                bool phase_switch = ctg_pbs->block_states[phase_block];
+                int phase_sc = ctg_scs->phase[supercluster_idx];
                 bool swap;
                 switch (phase_sc) {
                     case PHASE_ORIG: swap = false; break;
@@ -911,16 +899,16 @@ void write_results(
                     ERROR("Out of bounds cluster during write_results(): truth2")
                 }
                 if (truth2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
-                if (supercluster_idx >= int(ctg_supclusts->begs.size())) 
+                if (supercluster_idx >= int(ctg_scs->begs.size())) 
                     ERROR("Out of bounds supercluster during write_results(): truth2")
-                while (truth2_vars->poss[var2_idx] >= ctg_supclusts->ends[supercluster_idx])
+                while (truth2_vars->poss[var2_idx] >= ctg_scs->ends[supercluster_idx])
                     supercluster_idx++;
 
                 // update phasing info
-                if (supercluster_idx >= phasedata_ptr->ctg_phasings[ctg]->phase_blocks[phase_block+1])
+                if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                bool phase_switch = phasedata_ptr->ctg_phasings[ctg]->pb_phasings[phase_block];
-                int phase_sc = phasedata_ptr->ctg_phasings[ctg]->sc_phasings[supercluster_idx];
+                bool phase_switch = ctg_pbs->block_states[phase_block];
+                int phase_sc = ctg_scs->phase[supercluster_idx];
                 bool swap;
                 switch (phase_sc) {
                     case PHASE_ORIG: swap = false; break;

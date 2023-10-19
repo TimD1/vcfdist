@@ -37,6 +37,6 @@ void print_wfa_ptrs(
         const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs);
 
-void write_results(std::unique_ptr<phaseData> & phasings, const editData & edits);
+void write_results(std::unique_ptr<phaseblockData> & phasings, const editData & edits);
 
 #endif

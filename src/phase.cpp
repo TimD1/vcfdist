@@ -5,7 +5,7 @@
 #include "print.h"
 #include "globals.h"
 
-void phaseData::write_summary_vcf(std::string out_vcf_fn) {
+void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // VCF header
     if (g.verbosity >= 1) INFO("  Printing GA4GH-compatible summary VCF to '%s'", out_vcf_fn.data());
@@ -44,13 +44,14 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
                 CALLSETS, std::vector<bool>(HAPS, false));
         int sc_idx = 0;
         int ploidy = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg)-contigs.begin()];
-        if (this->ctg_phasings[ctg]->sc_phasings.size() == 0) continue;
-
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        if (ctg_scs->n == 0) continue;
 
         // set supercluster flip/swap based on phaseblock and sc phasing
         int phase_block = 0;
-        bool phase_switch = this->ctg_phasings[ctg]->pb_phasings[phase_block];
-        int phase_sc = this->ctg_phasings[ctg]->sc_phasings[sc_idx];
+        bool phase_switch = ctg_pbs->block_states[phase_block];
+        int phase_sc = ctg_scs->phase[sc_idx];
         bool phase_flip, swap;
         if (phase_switch) {
             if (phase_sc == PHASE_ORIG) { // flip error
@@ -70,7 +71,7 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
             }
         }
 
-        auto & vars = this->ctg_phasings[ctg]->ctg_superclusters->ctg_variants;
+        auto & vars = ctg_scs->ctg_variants;
         while ( ptrs[QUERY][HAP1] < int(vars[QUERY][HAP1]->poss.size()) ||
                 ptrs[QUERY][HAP2] < int(vars[QUERY][HAP2]->poss.size()) ||
                 ptrs[TRUTH][HAP1] < int(vars[TRUTH][HAP1]->poss.size()) ||
@@ -98,15 +99,15 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
             }
 
             // update supercluster and if phase is swapped
-            if (pos >= this->ctg_phasings[ctg]->ctg_superclusters->ends[sc_idx]) {
+            if (pos >= ctg_scs->ends[sc_idx]) {
                 // update supercluster
                 sc_idx++;
-                phase_sc = this->ctg_phasings[ctg]->sc_phasings[sc_idx];
+                phase_sc = ctg_scs->phase[sc_idx];
 
                 // update phase block
-                if (sc_idx >= this->ctg_phasings[ctg]->phase_blocks[phase_block+1])
+                if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                phase_switch = this->ctg_phasings[ctg]->pb_phasings[phase_block];
+                phase_switch = ctg_pbs->block_states[phase_block];
 
                 // update switch/flip status
                 if (phase_switch) {
@@ -225,7 +226,7 @@ void phaseData::write_summary_vcf(std::string out_vcf_fn) {
 /*******************************************************************************/
 
 
-phaseData::phaseData(std::shared_ptr<superclusterData> clusterdata_ptr)
+phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr)
 {
     // copy contigs and reference
     for (int i = 0; i < int(clusterdata_ptr->contigs.size()); i++) {
@@ -233,44 +234,40 @@ phaseData::phaseData(std::shared_ptr<superclusterData> clusterdata_ptr)
         this->contigs.push_back(ctg);
         this->lengths.push_back(clusterdata_ptr->lengths[i]);
         this->ploidy.push_back(clusterdata_ptr->ploidy[i]);
-        this->ctg_phasings[ctg] = std::shared_ptr<ctgPhasings>(new ctgPhasings());
+        this->phase_blocks[ctg] = std::shared_ptr<ctgPhaseblocks>(new ctgPhaseblocks());
     }
     this->ref = clusterdata_ptr->ref;
 
-    // for each contig
+    // add pointers to clusters
     for (auto ctg : clusterdata_ptr->contigs) {
-
-        // add pointer to clusters
-        this->ctg_phasings[ctg]->ctg_superclusters = clusterdata_ptr->ctg_superclusters[ctg];
-
-        // add ctg_phasings
-        for(int i = 0; i < clusterdata_ptr->ctg_superclusters[ctg]->n; i++) {
-            this->ctg_phasings[ctg]->sc_phasings.push_back(
-                    clusterdata_ptr->ctg_superclusters[ctg]->phase[i]);
-            this->ctg_phasings[ctg]->n++;
-        }
+        this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->ctg_superclusters[ctg];
     }
     this->phase();
 }
 
-void phaseData::phase()
+
+/*******************************************************************************/
+
+
+void phaseblockData::phase()
 {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[7/8] Phasing superclusters%s",
             COLOR_PURPLE, COLOR_WHITE);
+
     // phase each contig separately
     for (auto ctg : this->contigs) {
-        std::vector< std::vector<int> > 
-            mat(2, std::vector<int>(this->ctg_phasings[ctg]->n+1));
-        std::vector< std::vector<int> > 
-            ptrs(2, std::vector<int>(this->ctg_phasings[ctg]->n));
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::vector< std::vector<int> > mat(2, std::vector<int>(ctg_scs->n+1));
+        std::vector< std::vector<int> > ptrs(2, std::vector<int>(ctg_scs->n));
 
         // forward pass
-        for (int i = 0; i < this->ctg_phasings[ctg]->n; i++) {
+        for (int i = 0; i < ctg_scs->n; i++) {
 
             // determine costs (penalized if this phasing deemed incorrect)
             std::vector<int> costs = {0, 0};
-            switch (this->ctg_phasings[ctg]->sc_phasings[i]) {
+            switch (ctg_scs->phase[i]) {
                 case PHASE_NONE: 
                     costs[PHASE_PTR_KEEP] = 0; 
                     costs[PHASE_PTR_SWAP] = 0; 
@@ -284,7 +281,7 @@ void phaseData::phase()
                     costs[PHASE_PTR_SWAP] = 0; 
                      break;
                 default:
-                    ERROR("Unexpected phase (%d)", this->ctg_phasings[ctg]->sc_phasings[i]);
+                    ERROR("Unexpected phase (%d)", ctg_scs->phase[i]);
                     break;
             }
 
@@ -301,34 +298,32 @@ void phaseData::phase()
         }
 
         // backwards pass
-        if (this->ctg_phasings[ctg]->n > 0) { // skip empty contigs
+        if (ctg_scs->n > 0) { // skip empty contigs
             // determine starting phase
             int phase = 0;
-            if (mat[PHASE_SWAP][this->ctg_phasings[ctg]->n] <
-                    mat[PHASE_ORIG][this->ctg_phasings[ctg]->n])
+            if (mat[PHASE_SWAP][ctg_scs->n] <
+                    mat[PHASE_ORIG][ctg_scs->n])
                 phase = 1;
 
-            int i = this->ctg_phasings[ctg]->n-1;
-            this->ctg_phasings[ctg]->phase_blocks.push_back(i+1);
+            int i = ctg_scs->n-1;
+            ctg_pbs->phase_blocks.push_back(i+1);
             while (i > 0) {
                 if (ptrs[phase][i] == PHASE_PTR_SWAP) { // new phase block
-                    this->ctg_phasings[ctg]->nswitches++;
-                    this->ctg_phasings[ctg]->phase_blocks.push_back(i+1);
-                    this->ctg_phasings[ctg]->pb_phasings.push_back(phase);
+                    ctg_pbs->n++;
+                    ctg_pbs->nswitches++;
+                    ctg_pbs->phase_blocks.push_back(i+1);
+                    ctg_pbs->block_states.push_back(phase);
                     phase ^= 1;
                 } else if (ptrs[phase][i] == PHASE_PTR_KEEP) { // within phase block
-                    if (this->ctg_phasings[ctg]->sc_phasings[i] != PHASE_NONE &&
-                            this->ctg_phasings[ctg]->sc_phasings[i] != phase)
-                        this->ctg_phasings[ctg]->nflips++;
+                    if (ctg_scs->phase[i] != PHASE_NONE && ctg_scs->phase[i] != phase)
+                        ctg_pbs->nflips++;
                 }
                 i--;
             }
-            this->ctg_phasings[ctg]->phase_blocks.push_back(0);
-            std::reverse(this->ctg_phasings[ctg]->phase_blocks.begin(),
-                    this->ctg_phasings[ctg]->phase_blocks.end());
-            this->ctg_phasings[ctg]->pb_phasings.push_back(phase);
-            std::reverse(this->ctg_phasings[ctg]->pb_phasings.begin(),
-                    this->ctg_phasings[ctg]->pb_phasings.end());
+            ctg_pbs->phase_blocks.push_back(0);
+            std::reverse(ctg_pbs->phase_blocks.begin(), ctg_pbs->phase_blocks.end());
+            ctg_pbs->block_states.push_back(phase);
+            std::reverse(ctg_pbs->block_states.begin(), ctg_pbs->block_states.end());
         }
     }
     
@@ -336,36 +331,39 @@ void phaseData::phase()
     // print
     int switch_errors = 0;
     int flip_errors = 0;
+    if (g.verbosity >= 1) INFO("  Contigs:");
+    int i = 0;
     for (auto ctg : this->contigs) {
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
 
+        // verbose, print phase of each supercluster
         if (g.verbosity >= 2) {
             int s = 0;
             std::vector<std::string> colors {"\033[34m", "\033[32m"};
             int color_idx = 0;
-            for (int i = 0; i < this->ctg_phasings[ctg]->n; i++) {
-                if (i == this->ctg_phasings[ctg]->phase_blocks[s]) {
+            for (int i = 0; i < ctg_scs->n; i++) {
+                if (i == ctg_pbs->phase_blocks[s]) {
                     printf("%s", colors[color_idx].data());
                     color_idx ^= 1;
                     s++;
                 }
-                int ctg_phasing = this->ctg_phasings[ctg]->sc_phasings[i];
-                printf("%s", phase_strs[ctg_phasing].data());
+                int phase = ctg_scs->phase[i];
+                printf("%s", phase_strs[phase].data());
             }
             printf("\033[0m\n");
         }
-        switch_errors += this->ctg_phasings[ctg]->nswitches;
-        flip_errors += this->ctg_phasings[ctg]->nflips;
-    }
-    if (g.verbosity >= 1) {
-        INFO("  Contigs:");
-        for (size_t i = 0; i < this->contigs.size(); i++) {
-            INFO("    [%2lu] %s: %d switches, %d flips", 
-                    i, this->contigs[i].data(),
-                    this->ctg_phasings[this->contigs[i]]->nswitches,
-                    this->ctg_phasings[this->contigs[i]]->nflips);
+
+        // print errors per contig
+        if (g.verbosity >= 1) {
+            INFO("    [%2d] %s: %d switches, %d flips", i, ctg.data(), 
+                    ctg_pbs->nswitches, ctg_pbs->nflips);
+            switch_errors += ctg_pbs->nswitches;
+            flip_errors += ctg_pbs->nflips;
+            i++;
         }
-        INFO(" ");
     }
+    if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Total switch errors: %d", switch_errors);
     if (g.verbosity >= 1) INFO("  Total flip errors: %d", flip_errors);
 }
