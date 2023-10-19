@@ -44,7 +44,7 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
     for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
         std::string ctg = sc_data->contigs[ctg_idx];
-        auto ctg_scs = sc_data->ctg_superclusters[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
         for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
             int max_query_len = 0;
             // get max query length
@@ -132,7 +132,7 @@ superclusterData::superclusterData(
             this->contigs.push_back(ctg);
             this->lengths.push_back(query_ptr->lengths[i]);
             this->ploidy.push_back(query_ptr->ploidy[i]);
-            this->ctg_superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
+            this->superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }
     }
@@ -143,7 +143,7 @@ superclusterData::superclusterData(
             this->contigs.push_back(ctg);
             this->lengths.push_back(truth_ptr->lengths[i]);
             this->ploidy.push_back(truth_ptr->ploidy[i]);
-            this->ctg_superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
+            this->superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }
     }
@@ -151,18 +151,18 @@ superclusterData::superclusterData(
     // set pointers to variant lists (per contig)
     for (std::string ctg : this->contigs) {
         try {
-            this->ctg_superclusters[ctg]->ctg_variants[QUERY][HAP1] = 
-                    query_ptr->ctg_variants[HAP1][ctg];
-            this->ctg_superclusters[ctg]->ctg_variants[QUERY][HAP2] = 
-                    query_ptr->ctg_variants[HAP2][ctg];
+            this->superclusters[ctg]->ctg_variants[QUERY][HAP1] = 
+                    query_ptr->variants[HAP1][ctg];
+            this->superclusters[ctg]->ctg_variants[QUERY][HAP2] = 
+                    query_ptr->variants[HAP2][ctg];
         } catch (const std::exception & e) {
             ERROR("Query VCF does not contain contig '%s'", ctg.data());
         }
         try {
-            this->ctg_superclusters[ctg]->ctg_variants[TRUTH][HAP1] = 
-                    truth_ptr->ctg_variants[HAP1][ctg];
-            this->ctg_superclusters[ctg]->ctg_variants[TRUTH][HAP2] = 
-                    truth_ptr->ctg_variants[HAP2][ctg];
+            this->superclusters[ctg]->ctg_variants[TRUTH][HAP1] = 
+                    truth_ptr->variants[HAP1][ctg];
+            this->superclusters[ctg]->ctg_variants[TRUTH][HAP2] = 
+                    truth_ptr->variants[HAP2][ctg];
         } catch (const std::exception & e) {
             ERROR("Truth VCF does not contain contig '%s'", ctg.data());
         }
@@ -199,12 +199,12 @@ void superclusterData::supercluster() {
         // skip empty contigs
         int nvars = 0;
         for (int i = 0; i < CALLSETS*HAPS; i++) {
-            nvars += this->ctg_superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
+            nvars += this->superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
         }
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
-        auto vars = this->ctg_superclusters[ctg]->ctg_variants;
+        auto vars = this->superclusters[ctg]->ctg_variants;
         std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
         while (true) {
 
@@ -276,7 +276,7 @@ void superclusterData::supercluster() {
 
             // debug print
             if (false) {
-                printf("\nSUPERCLUSTER: %d\n", this->ctg_superclusters[ctg]->n);
+                printf("\nSUPERCLUSTER: %d\n", this->superclusters[ctg]->n);
                 printf("POS: %s:%d-%d\n", ctg.data(), beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -298,18 +298,18 @@ void superclusterData::supercluster() {
             }
 
             // save alignment information
-            this->ctg_superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
+            this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
 
             // reset for next active cluster
             brks = next_brks;
         }
 
         // add sentinel, not actually a supercluster
-        this->ctg_superclusters[ctg]->add_supercluster(brks, 
+        this->superclusters[ctg]->add_supercluster(brks, 
             std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
-        this->ctg_superclusters[ctg]->n--;
+        this->superclusters[ctg]->n--;
 
-        total_superclusters += this->ctg_superclusters[ctg]->n;
+        total_superclusters += this->superclusters[ctg]->n;
     }
     if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
     if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);
@@ -340,11 +340,11 @@ void superclusterData::gap_supercluster() {
         // skip empty contigs
         int nvars = 0;
         for (int i = 0; i < CALLSETS*HAPS; i++)
-            nvars += this->ctg_superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
+            nvars += this->superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
-        auto vars = this->ctg_superclusters[ctg]->ctg_variants;
+        auto vars = this->superclusters[ctg]->ctg_variants;
         std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
         while (true) {
 
@@ -424,7 +424,7 @@ void superclusterData::gap_supercluster() {
 
             // debug print
             if (false) {
-                printf("\nSUPERCLUSTER: %d\n", this->ctg_superclusters[ctg]->n);
+                printf("\nSUPERCLUSTER: %d\n", this->superclusters[ctg]->n);
                 printf("POS: %d-%d\n", beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
                 for (int i = 0; i < CALLSETS*HAPS; i++) {
@@ -436,18 +436,18 @@ void superclusterData::gap_supercluster() {
             }
 
             // save alignment information
-            this->ctg_superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
+            this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
 
             // reset for next active cluster
             brks = next_brks;
         }
 
         // add sentinel, not actually a supercluster
-        this->ctg_superclusters[ctg]->add_supercluster(brks, 
+        this->superclusters[ctg]->add_supercluster(brks, 
             std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
-        this->ctg_superclusters[ctg]->n--;
+        this->superclusters[ctg]->n--;
 
-        total_superclusters += this->ctg_superclusters[ctg]->n;
+        total_superclusters += this->superclusters[ctg]->n;
     }
     if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
     if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);
@@ -472,7 +472,7 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
     int largest_cluster_bases = 0;
     for (std::string ctg : vcf->contigs) {
 
-        // cluster per-haplotype variants: vcf->ctg_variants[hap]
+        // cluster per-haplotype variants: vcf->variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
             int prev_end = -g.cluster_min_gap * 2;
             int cluster_start = 0;
@@ -480,9 +480,9 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
             int end = 0;
             int var_idx = 0;
             int prev_var_idx = 0;
-            for (; var_idx < vcf->ctg_variants[hap][ctg]->n; var_idx++) {
-                pos = vcf->ctg_variants[hap][ctg]->poss[var_idx];
-                end = pos + vcf->ctg_variants[hap][ctg]->rlens[var_idx];
+            for (; var_idx < vcf->variants[hap][ctg]->n; var_idx++) {
+                pos = vcf->variants[hap][ctg]->poss[var_idx];
+                end = pos + vcf->variants[hap][ctg]->rlens[var_idx];
                 if (pos - prev_end > g.cluster_min_gap) {
                     // update summary metrics
                     largest_cluster_bases = std::max(largest_cluster_bases, prev_end-cluster_start);
@@ -490,11 +490,11 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
                     prev_var_idx = var_idx;
                     cluster_start = pos;
                     // add cluster
-                    vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
+                    vcf->variants[hap][ctg]->add_cluster(var_idx);
                 }
                 prev_end = std::max(prev_end, end);
             }
-            vcf->ctg_variants[hap][ctg]->add_cluster(var_idx);
+            vcf->variants[hap][ctg]->add_cluster(var_idx);
         }
     }
     if (g.verbosity >= 1) INFO("  Largest cluster (bases): %d", largest_cluster_bases);
@@ -517,7 +517,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
             std::max(sub, open+extend), -2);
 
     // init: each variant is its own cluster
-    auto vars = vcf->ctg_variants[hap][ctg];
+    auto vars = vcf->variants[hap][ctg];
     int nvar = vars->n;
     if (!nvar) return;
 

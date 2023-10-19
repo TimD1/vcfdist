@@ -81,10 +81,10 @@ public:
     std::vector<std::string> contigs;
     std::vector<int> lengths;
     std::vector<int> ploidy;
-    std::vector< // ctg_variants[hap][ctg] -> variants
+    std::vector< // variants[hap][ctg] -> ctg_variants
         std::unordered_map<
             std::string, 
-            std::shared_ptr<ctgVariants> > > ctg_variants;
+            std::shared_ptr<ctgVariants> > > variants;
 
     std::shared_ptr<fastaData> ref;
 };

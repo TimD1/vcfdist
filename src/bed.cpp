@@ -149,8 +149,8 @@ void check_contigs(
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->ploidy.erase(query_ptr->ploidy.begin() + 
                         (itr - query_ptr->contigs.begin()));
-                query_ptr->ctg_variants[HAP1].erase(*itr);
-                query_ptr->ctg_variants[HAP2].erase(*itr);
+                query_ptr->variants[HAP1].erase(*itr);
+                query_ptr->variants[HAP2].erase(*itr);
                 itr = query_ptr->contigs.erase(itr);
                 if (g.verbosity >= 2) 
                     WARN("Ignoring %s from QUERY VCF, not in BED file.", (*itr).data());
@@ -164,8 +164,8 @@ void check_contigs(
                         (itr - truth_ptr->contigs.begin()));
                 truth_ptr->ploidy.erase(truth_ptr->ploidy.begin() + 
                         (itr - truth_ptr->contigs.begin()));
-                truth_ptr->ctg_variants[HAP1].erase(*itr);
-                truth_ptr->ctg_variants[HAP2].erase(*itr);
+                truth_ptr->variants[HAP1].erase(*itr);
+                truth_ptr->variants[HAP2].erase(*itr);
                 itr = truth_ptr->contigs.erase(itr);
                 if (g.verbosity >= 2) 
                     WARN("Ignoring %s from TRUTH VCF, not in BED file.", (*itr).data());
@@ -198,9 +198,9 @@ void check_contigs(
             if (std::find(query_ptr->contigs.begin(), 
                         query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
                 INFO("Contig '%s' found in BED but not query VCF.", ctg.data());
-                query_ptr->ctg_variants[HAP1][ctg] = 
+                query_ptr->variants[HAP1][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
-                query_ptr->ctg_variants[HAP2][ctg] = 
+                query_ptr->variants[HAP2][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
@@ -209,9 +209,9 @@ void check_contigs(
             if (std::find(truth_ptr->contigs.begin(), 
                         truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
                 INFO("Contig '%s' found in BED but not truth VCF.", ctg.data());
-                truth_ptr->ctg_variants[HAP1][ctg] = 
+                truth_ptr->variants[HAP1][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
-                truth_ptr->ctg_variants[HAP2][ctg] = 
+                truth_ptr->variants[HAP2][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 truth_ptr->contigs.push_back(ctg);
                 truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
@@ -237,8 +237,8 @@ void check_contigs(
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->ploidy.erase(query_ptr->ploidy.begin() + 
                         (itr - query_ptr->contigs.begin()));
-                query_ptr->ctg_variants[HAP1].erase(*itr);
-                query_ptr->ctg_variants[HAP2].erase(*itr);
+                query_ptr->variants[HAP1].erase(*itr);
+                query_ptr->variants[HAP2].erase(*itr);
                 itr = query_ptr->contigs.erase(itr);
             } else itr++;
         }
@@ -255,9 +255,9 @@ void check_contigs(
             if (std::find(query_ptr->contigs.begin(), 
                         query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
                 WARN("Contig '%s' found in truth VCF but not query VCF.", ctg.data());
-                query_ptr->ctg_variants[HAP1][ctg] = 
+                query_ptr->variants[HAP1][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
-                query_ptr->ctg_variants[HAP2][ctg] = 
+                query_ptr->variants[HAP2][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));

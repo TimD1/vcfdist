@@ -240,7 +240,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
 
     // add pointers to clusters
     for (auto ctg : clusterdata_ptr->contigs) {
-        this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->ctg_superclusters[ctg];
+        this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->superclusters[ctg];
     }
     this->phase();
 }

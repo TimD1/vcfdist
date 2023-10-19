@@ -54,7 +54,7 @@ void variantData::left_shift() {
     // shift variants as far left as possible after realignment
     for (int hap = 0; hap < HAPS; hap++) {
         for (std::string ctg : this->contigs) {
-            auto vars = this->ctg_variants[hap][ctg];
+            auto vars = this->variants[hap][ctg];
             for (int i = 0; i < vars->n; i++) {
 
                 // shift INS
@@ -99,7 +99,7 @@ void variantData::left_shift() {
     // for each variant
     for (int hap = 0; hap < HAPS; hap++) {
         for (std::string ctg : this->contigs) {
-            auto vars = this->ctg_variants[hap][ctg];
+            auto vars = this->variants[hap][ctg];
             for (int i = 0; i < vars->n; i++) {
 
                 // if we consume a ref base, and there's another variant at the
@@ -146,67 +146,67 @@ void variantData::write_vcf(std::string out_vcf_fn) {
     for (std::string ctg : this->contigs) {
         std::vector<size_t> ptrs = {0, 0};
         int p = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg) - contigs.begin()];
-        while (ptrs[HAP1] < this->ctg_variants[HAP1][ctg]->poss.size() ||
-                ptrs[HAP2] < this->ctg_variants[HAP2][ctg]->poss.size()) {
+        while (ptrs[HAP1] < this->variants[HAP1][ctg]->poss.size() ||
+                ptrs[HAP2] < this->variants[HAP2][ctg]->poss.size()) {
 
             // get next positions, set flags for which haps
-            int pos_hap1 = ptrs[HAP1] < this->ctg_variants[HAP1][ctg]->poss.size() ? 
-                this->ctg_variants[HAP1][ctg]->poss[ptrs[HAP1]] : std::numeric_limits<int>::max();
-            int pos_hap2 = ptrs[HAP2] < this->ctg_variants[HAP2][ctg]->poss.size() ? 
-                this->ctg_variants[HAP2][ctg]->poss[ptrs[HAP2]] : std::numeric_limits<int>::max();
+            int pos_hap1 = ptrs[HAP1] < this->variants[HAP1][ctg]->poss.size() ? 
+                this->variants[HAP1][ctg]->poss[ptrs[HAP1]] : std::numeric_limits<int>::max();
+            int pos_hap2 = ptrs[HAP2] < this->variants[HAP2][ctg]->poss.size() ? 
+                this->variants[HAP2][ctg]->poss[ptrs[HAP2]] : std::numeric_limits<int>::max();
 
             // indels include previous base, adjust position
-            if (ptrs[HAP1] < this->ctg_variants[HAP1][ctg]->types.size() && 
-                    (this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_INS || 
-                    this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_DEL)) pos_hap1--;
-            if (ptrs[HAP2] < this->ctg_variants[HAP2][ctg]->types.size() && 
-                    (this->ctg_variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_INS || 
-                    this->ctg_variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_DEL)) pos_hap2--;
+            if (ptrs[HAP1] < this->variants[HAP1][ctg]->types.size() && 
+                    (this->variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_INS || 
+                    this->variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_DEL)) pos_hap1--;
+            if (ptrs[HAP2] < this->variants[HAP2][ctg]->types.size() && 
+                    (this->variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_INS || 
+                    this->variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_DEL)) pos_hap2--;
             int pos = std::min(pos_hap1, pos_hap2);
             bool hap1 = (pos_hap1 == pos);
             bool hap2 = (pos_hap2 == pos);
 
             // add variants to output VCF file
             if (hap1 && hap2) {
-                if (this->ctg_variants[HAP1][ctg]->refs[ptrs[HAP1]] == 
-                        this->ctg_variants[HAP2][ctg]->refs[ptrs[HAP2]] &&
-                        this->ctg_variants[HAP1][ctg]->alts[ptrs[HAP1]] == 
-                        this->ctg_variants[HAP2][ctg]->alts[ptrs[HAP2]]) {
+                if (this->variants[HAP1][ctg]->refs[ptrs[HAP1]] == 
+                        this->variants[HAP2][ctg]->refs[ptrs[HAP2]] &&
+                        this->variants[HAP1][ctg]->alts[ptrs[HAP1]] == 
+                        this->variants[HAP2][ctg]->alts[ptrs[HAP2]]) {
                     
                     // homozygous variant (1|1)
                     print_variant(out_vcf, ctg, pos, 
-                            this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]],
-                            this->ctg_variants[HAP1][ctg]->refs[ptrs[HAP1]],
-                            this->ctg_variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                            this->ctg_variants[HAP1][ctg]->var_quals[ptrs[HAP1]], "1|1");
+                            this->variants[HAP1][ctg]->types[ptrs[HAP1]],
+                            this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
+                            this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
+                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], "1|1");
                     
                 } else {
                     // two separate phased variants (0|1 + 1|0)
                     print_variant(out_vcf, ctg, pos, 
-                            this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]],
-                            this->ctg_variants[HAP1][ctg]->refs[ptrs[HAP1]],
-                            this->ctg_variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                            this->ctg_variants[HAP1][ctg]->var_quals[ptrs[HAP1]], "1|0");
+                            this->variants[HAP1][ctg]->types[ptrs[HAP1]],
+                            this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
+                            this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
+                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], "1|0");
                     print_variant(out_vcf, ctg, pos, 
-                            this->ctg_variants[HAP2][ctg]->types[ptrs[HAP2]],
-                            this->ctg_variants[HAP2][ctg]->refs[ptrs[HAP2]],
-                            this->ctg_variants[HAP2][ctg]->alts[ptrs[HAP2]],
-                            this->ctg_variants[HAP2][ctg]->var_quals[ptrs[HAP2]], "0|1");
+                            this->variants[HAP2][ctg]->types[ptrs[HAP2]],
+                            this->variants[HAP2][ctg]->refs[ptrs[HAP2]],
+                            this->variants[HAP2][ctg]->alts[ptrs[HAP2]],
+                            this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]], "0|1");
                 }
 
             } else if (hap1) { // 1|0
                 print_variant(out_vcf, ctg, pos, 
-                        this->ctg_variants[HAP1][ctg]->types[ptrs[HAP1]],
-                        this->ctg_variants[HAP1][ctg]->refs[ptrs[HAP1]],
-                        this->ctg_variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                        this->ctg_variants[HAP1][ctg]->var_quals[ptrs[HAP1]], p == 1 ? "1" : "1|0");
+                        this->variants[HAP1][ctg]->types[ptrs[HAP1]],
+                        this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
+                        this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
+                        this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], p == 1 ? "1" : "1|0");
 
             } else if (hap2) { // 0|1
                 print_variant(out_vcf, ctg, pos, 
-                        this->ctg_variants[HAP2][ctg]->types[ptrs[HAP2]],
-                        this->ctg_variants[HAP2][ctg]->refs[ptrs[HAP2]],
-                        this->ctg_variants[HAP2][ctg]->alts[ptrs[HAP2]],
-                        this->ctg_variants[HAP2][ctg]->var_quals[ptrs[HAP2]],  p == 1 ? "1" :"0|1");
+                        this->variants[HAP2][ctg]->types[ptrs[HAP2]],
+                        this->variants[HAP2][ctg]->refs[ptrs[HAP2]],
+                        this->variants[HAP2][ctg]->alts[ptrs[HAP2]],
+                        this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]],  p == 1 ? "1" :"0|1");
             }
 
             // update pointers
@@ -313,7 +313,7 @@ void variantData::set_header(const std::shared_ptr<variantData> vcf) {
     this->ref = vcf->ref;
     for (std::string ctg : this->contigs)
         for (int hap = 0; hap < 2; hap++)
-            this->ctg_variants[hap][ctg] = 
+            this->variants[hap][ctg] = 
                 std::shared_ptr<ctgVariants>(new ctgVariants());
 }
 
@@ -341,7 +341,7 @@ void variantData::add_variants(
 
             case PTR_SUB: // substitution
                 cig_idx += 2;
-                this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
+                this->variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
                         TYPE_SUB, BED_INSIDE, std::string(1,ref[ref_idx]), 
                         std::string(1,query[query_idx]), 
                         GT_REF_REF, g.max_qual, qual);
@@ -356,7 +356,7 @@ void variantData::add_variants(
                 while (cig_idx < cigar.size() && cigar[cig_idx] == PTR_DEL) {
                     cig_idx++; indel_len++;
                 }
-                this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
+                this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         indel_len, hap, TYPE_DEL, BED_INSIDE,
                         ref.substr(ref_idx, indel_len),
                         "", GT_REF_REF, g.max_qual, qual);
@@ -370,7 +370,7 @@ void variantData::add_variants(
                 while (cig_idx < cigar.size() && cigar[cig_idx] == PTR_INS) {
                     cig_idx++; indel_len++;
                 }
-                this->ctg_variants[hap][ctg]->add_var(ref_pos+ref_idx,
+                this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         0, hap, TYPE_INS, BED_INSIDE, "", 
                         query.substr(query_idx, indel_len), 
                         GT_REF_REF, g.max_qual, qual);
@@ -382,11 +382,11 @@ void variantData::add_variants(
 
 /******************************************************************************/
 
-variantData::variantData() : ctg_variants(2) { ; }
+variantData::variantData() : variants(2) { ; }
 
 variantData::variantData(std::string vcf_fn, 
         std::shared_ptr<fastaData> reference, 
-        int callset) : ctg_variants(2) {
+        int callset) : variants(2) {
 
     // set reference fasta pointer
     this->ref = reference;
@@ -513,9 +513,9 @@ variantData::variantData(std::string vcf_fn,
         goto error1;
     }
     for(int i = 0; i < nctg; i++) {
-        this->ctg_variants[HAP1][ctgnames[i]] = 
+        this->variants[HAP1][ctgnames[i]] = 
                 std::shared_ptr<ctgVariants>(new ctgVariants());
-        this->ctg_variants[HAP2][ctgnames[i]] = 
+        this->variants[HAP2][ctgnames[i]] = 
                 std::shared_ptr<ctgVariants>(new ctgVariants());
     }
 
@@ -795,12 +795,12 @@ variantData::variantData(std::string vcf_fn,
 
             // add to haplotype-specific query info
             if (type == TYPE_CPX) { // split CPX into INS+DEL
-                this->ctg_variants[hap][ctg]->add_var(pos, 0, // INS
+                this->variants[hap][ctg]->add_var(pos, 0, // INS
                     hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq);
-                this->ctg_variants[hap][ctg]->add_var(pos, rlen, // DEL
+                this->variants[hap][ctg]->add_var(pos, rlen, // DEL
                     hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], vq);
             } else {
-                this->ctg_variants[hap][ctg]->add_var(pos, rlen,
+                this->variants[hap][ctg]->add_var(pos, rlen,
                         hap, type, loc, ref, alt, simple_gt, gq[0], vq);
             }
 
@@ -843,8 +843,8 @@ variantData::variantData(std::string vcf_fn,
         INFO("  Contigs:");
         for (size_t i = 0; i < this->contigs.size(); i++) {
             INFO("    [%2lu] %s: %d | %d variants", i, this->contigs[i].data(),
-                    this->ctg_variants[HAP1][this->contigs[i]]->n, 
-                    this->ctg_variants[HAP2][this->contigs[i]]->n);
+                    this->variants[HAP1][this->contigs[i]]->n, 
+                    this->variants[HAP2][this->contigs[i]]->n);
         }
         INFO(" ");
 

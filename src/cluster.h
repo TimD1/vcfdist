@@ -25,11 +25,11 @@ public:
            int swap_phase_dist);
 
     // stores variant info for each contig
-    // ctg_variants[truth/query][hap] -> variants
+    // ctg_variants[truth/query][hap]
     std::vector< std::vector< std::shared_ptr<ctgVariants> > > ctg_variants;
 
     // cluster indices of superclusters
-    // superclusters[truth/query][hap] -> cluster index
+    // superclusters[truth/query][hap]
     std::vector< std::vector< std::vector<int> > > superclusters;
 
     int n = 0; // number of superclusters
@@ -57,7 +57,7 @@ public:
     std::vector<int> lengths;
     std::vector<int> ploidy;
     std::unordered_map<std::string, 
-        std::shared_ptr<ctgSuperclusters> > ctg_superclusters;
+        std::shared_ptr<ctgSuperclusters> > superclusters;
     std::shared_ptr<fastaData> ref;
 };
 

@@ -442,7 +442,7 @@ int store_phase(
     if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
 
     // save alignment information
-    clusterdata_ptr->ctg_superclusters[ctg]->set_phase(sc_idx,
+    clusterdata_ptr->superclusters[ctg]->set_phase(sc_idx,
             phase, orig_phase_dist, swap_phase_dist);
     return phase;
 }
@@ -1036,7 +1036,7 @@ void calc_prec_recall(
         ) {
 
     // set query/truth strings and pointers
-    int beg = clusterdata_ptr->ctg_superclusters[ctg]->begs[sc_idx];
+    int beg = clusterdata_ptr->superclusters[ctg]->begs[sc_idx];
     std::vector<std::string> query = {query1, query1, query2, query2};
     std::vector<std::string> truth = {truth1, truth2, truth1, truth2};
     std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { 
@@ -1058,17 +1058,17 @@ void calc_prec_recall(
 
         // set variant ranges
         std::shared_ptr<ctgVariants> query_vars = 
-                clusterdata_ptr->ctg_superclusters[ctg]->ctg_variants[QUERY][qhi];
+                clusterdata_ptr->superclusters[ctg]->ctg_variants[QUERY][qhi];
         std::shared_ptr<ctgVariants> truth_vars = 
-                clusterdata_ptr->ctg_superclusters[ctg]->ctg_variants[TRUTH][thi];
+                clusterdata_ptr->superclusters[ctg]->ctg_variants[TRUTH][thi];
         int query_beg_idx = query_vars->clusters.size() ? query_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx]] : 0;
+            clusterdata_ptr->superclusters[ctg]->superclusters[QUERY][qhi][sc_idx]] : 0;
         int query_end_idx = query_vars->clusters.size() ? query_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[QUERY][qhi][sc_idx+1]] : 0;
+            clusterdata_ptr->superclusters[ctg]->superclusters[QUERY][qhi][sc_idx+1]] : 0;
         int truth_beg_idx = truth_vars->clusters.size() ? truth_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx]] : 0;
+            clusterdata_ptr->superclusters[ctg]->superclusters[TRUTH][thi][sc_idx]] : 0;
         int truth_end_idx = truth_vars->clusters.size() ? truth_vars->clusters[
-            clusterdata_ptr->ctg_superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0;
+            clusterdata_ptr->superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0;
 
         // init
         int sync_group = 0;
@@ -1706,7 +1706,7 @@ void precision_recall_wrapper(
 
         // set superclusters pointer
         std::shared_ptr<ctgSuperclusters> sc = 
-                clusterdata_ptr->ctg_superclusters[ctg];
+                clusterdata_ptr->superclusters[ctg];
 
         /////////////////////////////////////////////////////////////////////
         // DEBUG PRINTING                                                    
@@ -1882,10 +1882,10 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         std::vector<int> ctg_qual_dists(g.max_qual+2,0);
 
         // set superclusters pointer
-        std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->ctg_superclusters[ctg];
+        std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
 
         // iterate over superclusters
-        for(int sc_idx = 0; sc_idx < clusterdata_ptr->ctg_superclusters[ctg]->n; sc_idx++) {
+        for(int sc_idx = 0; sc_idx < sc->n; sc_idx++) {
 
             /////////////////////////////////////////////////////////////////////
             // DEBUG PRINTING                                                    
@@ -2451,8 +2451,8 @@ std::shared_ptr<variantData> wf_swg_realign(
 
     // iterate over each contig haplotype
     for (int hap = 0; hap < 2; hap++) {
-        for (auto itr = vcf->ctg_variants[hap].begin(); 
-                itr != vcf->ctg_variants[hap].end(); itr++) {
+        for (auto itr = vcf->variants[hap].begin(); 
+                itr != vcf->variants[hap].end(); itr++) {
             std::string ctg = itr->first;
             std::shared_ptr<ctgVariants> vars = itr->second;
             if (vars->poss.size() == 0) continue;
