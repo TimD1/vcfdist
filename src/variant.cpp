@@ -411,6 +411,7 @@ variantData::variantData(std::string vcf_fn,
     std::vector<int> npass  = {0, 0};   // records PASSing all filters
 
     // data
+    bool print = g.verbosity >= 1;
     std::vector<int> prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
     std::vector<int> prev_type = {TYPE_SUB, TYPE_SUB};
     std::unordered_map<int, bool> prev_rids;
@@ -449,6 +450,9 @@ variantData::variantData(std::string vcf_fn,
     int small_var_total = 0;
     int large_var_total = 0;
     int wrong_ploidy_total = 0;
+    int multi_total = 0;
+    int ref_call_total = 0;
+    int complex_total = 0;
     
     // read header
     bcf1_t * rec  = NULL;
@@ -680,17 +684,17 @@ variantData::variantData(std::string vcf_fn,
                 WARN("'PS' tag not defined in header, assuming single phase set");
             }
             phase_set = 0;
-        } else if (nPS == -3) { // PS tag missing
 
+        } else if (nPS == -3) { // PS tag missing
             // only matters if not haploid and GTs differ for this variant
             if (ngt > 1 && bcf_gt_allele(gt[0]) != bcf_gt_allele(gt[1])) {
                 if (g.verbosity > 1)
                     WARN("No PS tag in %s VCF at %s:%lld",
                             callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
-                PS_missing_total++; // only warn once
+                PS_missing_total++;
             }
-
             phase_set = 0;
+
         } else if (nPS <= 0) { // other error
             ERROR("Failed to read %s PS at %s:%lld", 
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
@@ -700,7 +704,6 @@ variantData::variantData(std::string vcf_fn,
 
 
         // parse variant type
-        bool counted_unphased = false;
         for (int hap = 0; hap < std::abs(ngt); hap++) { // allow single-allele chrX, chrY
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 and .|. skipped later)
@@ -720,21 +723,22 @@ variantData::variantData(std::string vcf_fn,
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
 
-            // skip unphased heterozygous variants (1/1 is allowed)
+            // skip unphased heterozygous variants (1/1 is allowed, 0/1 is not)
             if (ngt == 2 && !same && !bcf_gt_is_phased(gt[HAP2])) { // only HAP2 is set, not sure why...
                 if (g.verbosity > 1) {
                     WARN("Unphased genotype in %s VCF at %s:%lld %s %s",
                         callset_strs[callset].data(), ctg.data(), (long long)rec->pos, ref.data(), alt.data());
                 }
-                if (!counted_unphased) { // once per heterozygous variant (1/2)
-                    unphased_gt_total += 1;
-                    counted_unphased = true;
-                }
+                unphased_gt_total += 1;
                 continue; 
             }
 
             // skip spanning deletion
-            if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
+            if (alt == "*") { 
+                ntypes[hap][TYPE_REF]++; 
+                overlapping_var_total++;
+                continue; 
+            }
 
             // determine variant type
             int pos = rec->pos;
@@ -764,7 +768,10 @@ variantData::variantData(std::string vcf_fn,
             } else { // substitution
                 if (ref.size() == 1) {
                     type = (ref[0] == alt[0] ? TYPE_REF : TYPE_SUB);
-                    if (type == TYPE_REF) continue;
+                    if (type == TYPE_REF) {
+                        ref_call_total++;
+                        continue;
+                    }
                 } else {
                     if (ref.substr(1) == alt.substr(1)){
                         type = TYPE_SUB;
@@ -841,6 +848,7 @@ variantData::variantData(std::string vcf_fn,
                     hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq, phase_set);
                 this->variants[hap][ctg]->add_var(pos, rlen, // DEL
                     hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], vq, phase_set);
+                complex_total++;
             } else {
                 this->variants[hap][ctg]->add_var(pos, rlen,
                         hap, type, loc, ref, alt, simple_gt, gq[0], vq, phase_set);
@@ -853,25 +861,56 @@ variantData::variantData(std::string vcf_fn,
         }
     }
 
+    // SUMMARY PRINTING
+
     /* if (gq_missing_total) */ 
     /*     WARN("%d total missing GQ tags in %s VCF, all considered GQ=0", */
     /*         gq_missing_total, callset_strs[callset].data()); */
 
-    if (unknown_allele_total) 
-        WARN("%d total unknown alleles (.) found in %s VCF, skipped",
-            unknown_allele_total, callset_strs[callset].data());
+    if (print) INFO("  Variant exceeds min qual (%d):", g.min_qual);
+    if (print) INFO("    FAIL  %d", pass_min_qual[FAIL]);
+    if (print) INFO("    PASS  %d", pass_min_qual[PASS]);
+    if (print) INFO(" ");
 
     if (wrong_ploidy_total) 
         WARN("%d total variants with incorrect ploidy found in %s VCF, kept",
             wrong_ploidy_total, callset_strs[callset].data());
 
+    if (print) INFO("  Genotypes:");
+    for (size_t i = 0; i < gt_strs.size(); i++) {
+        if (print) INFO("    %3s  %i", gt_strs[i].data(), GT_counts[i]);
+    }
+    if (float(GT_counts[GT_REF_ALT1]) / (GT_counts[GT_ALT1_REF]+1) > 2 ||
+        float(GT_counts[GT_ALT1_REF]) / (GT_counts[GT_REF_ALT1]+1) > 2)
+        WARN("Imbalance of heterozygous variant phasing, VCF may be improperly phased")
+    if (print) INFO(" ");
+
     if (PS_missing_total) 
         WARN("%d total variants with missing PS tags found in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
+    multi_total = GT_counts[GT_ALT1_ALT1] + GT_counts[GT_ALT1_ALT2] +
+        GT_counts[GT_ALT2_ALT1] + GT_counts[GT_OTHER];
+    WARN("%d total homozygous and multi-allelic variants in %s VCF split for evaluation",
+        multi_total, callset_strs[callset].data());
+
+    if (unknown_allele_total) 
+        WARN("%d total unknown alleles (.) found in %s VCF, skipped",
+            unknown_allele_total, callset_strs[callset].data());
+
     if (unphased_gt_total) 
         WARN("%d total variants with unphased genotypes found in %s VCF, skipped",
             unphased_gt_total, callset_strs[callset].data());
+
+    if (ref_call_total) 
+        WARN("%d total reference variant calls found in %s VCF, skipped",
+            ref_call_total, callset_strs[callset].data());
+
+    if (print) INFO("  Variants in BED regions:");
+    for (size_t i = 0; i < region_strs.size(); i++) {
+        if (print) INFO("    %s  %i", region_strs[i].data(), nregions[i]);
+    }
+    if (print) INFO(" ");
 
     if (large_var_total)
         WARN("%d total large %s VCF variant calls skipped, size > %d", 
@@ -885,56 +924,38 @@ variantData::variantData(std::string vcf_fn,
         WARN("%d total overlapping %s VCF variant calls skipped", 
                 overlapping_var_total, callset_strs[callset].data());
 
-    if (g.verbosity >= 1) {
-        INFO("  Contigs:");
-        for (size_t i = 0; i < this->contigs.size(); i++) {
-            INFO("    [%2lu] %s: %d | %d variants", i, this->contigs[i].data(),
-                    this->variants[HAP1][this->contigs[i]]->n, 
-                    this->variants[HAP2][this->contigs[i]]->n);
-        }
-        INFO(" ");
-
-        INFO("  Genotypes:");
-        for (size_t i = 0; i < gt_strs.size(); i++) {
-            INFO("    %3s  %i", gt_strs[i].data(), GT_counts[i]);
-        }
-        if (float(GT_counts[3]) / (GT_counts[4]+1) > 2 ||
-            float(GT_counts[4]) / (GT_counts[3]+1) > 2)
-            WARN("Imbalance of heterozygous variant phasing, VCF may be improperly phased")
-        INFO(" ");
-
-        INFO("  Variant exceeds min qual (%d):", g.min_qual);
-        INFO("    FAIL  %d", pass_min_qual[FAIL]);
-        INFO("    PASS  %d", pass_min_qual[PASS]);
-        INFO(" ");
-
-        INFO("  Variants in BED regions:");
-        for (size_t i = 0; i < region_strs.size(); i++) {
-            INFO("    %s  %i", region_strs[i].data(), nregions[i]);
-        }
-        INFO(" ");
-
-        INFO("  Variant types:");
-        if (g.verbosity >= 2) { // show each hap separately
-            for (int h = 0; h < HAPS; h++) {
-                INFO("    Haplotype %i", h+1);
-                for (size_t i = 0; i < type_strs.size(); i++) {
-                    INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
-                }
-            }
-            INFO(" ");
-        } else { // summarize
+    if (print) INFO("  Variant types:");
+    if (g.verbosity >= 2) { // show each hap separately
+        for (int h = 0; h < HAPS; h++) {
+            if (print) INFO("    Haplotype %i", h+1);
             for (size_t i = 0; i < type_strs.size(); i++) {
-                INFO("    %s  %i", type_strs[i].data(), 
-                        ntypes[HAP1][i] + ntypes[HAP2][i]);
+                if (print) INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
             }
         }
-        INFO(" ");
-
-        INFO("  %s VCF overview:", callset_strs[callset].data());
-        INFO("    TOTAL %d", n);
-        INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
+        if (print) INFO(" ");
+    } else { // summarize
+        for (size_t i = 0; i < type_strs.size(); i++) {
+            if (print) INFO("    %s  %i", type_strs[i].data(), 
+                    ntypes[HAP1][i] + ntypes[HAP2][i]);
+        }
     }
+    if (print) INFO(" ");
+
+    if (complex_total)
+        WARN("%d total complex (CPX) variants from %s VCF split into INS + DEL", 
+                complex_total, callset_strs[callset].data());
+
+    if (print) INFO("  Contigs:");
+    for (size_t i = 0; i < this->contigs.size(); i++) {
+        if (print) INFO("    [%2lu] %s: %d | %d variants", i, this->contigs[i].data(),
+                this->variants[HAP1][this->contigs[i]]->n, 
+                this->variants[HAP2][this->contigs[i]]->n);
+    }
+    if (print) INFO(" ");
+
+    if (print) INFO("  %s VCF overview:", callset_strs[callset].data());
+    if (print) INFO("    TOTAL %d", n + multi_total + complex_total);
+    if (print) INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
 
     free(gq);
     free(fgq);
