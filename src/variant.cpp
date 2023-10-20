@@ -436,7 +436,7 @@ variantData::variantData(std::string vcf_fn,
     /* int gq_missing_total = 0; */
     int overlapping_var_total = 0;
     int unknown_allele_total = 0;
-    /* int unphased_gt_total = 0; */
+    int unphased_gt_total = 0;
     int small_var_total = 0;
     int large_var_total = 0;
     int wrong_ploidy_total = 0;
@@ -661,7 +661,7 @@ variantData::variantData(std::string vcf_fn,
         ngts[orig_gt]++;
 
         // parse variant type
-        /* bool counted_unphased = false; */
+        bool counted_unphased = false;
         for (int hap = 0; hap < std::abs(ngt); hap++) { // allow single-allele chrX, chrY
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 and .|. skipped later)
@@ -681,14 +681,18 @@ variantData::variantData(std::string vcf_fn,
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
 
-            /* // count unphased variants (once per potentially diploid variant) */
-            /* if (!counted_unphased && !bcf_gt_is_phased(gt[hap])) { */
-            /*     if (g.verbosity > 1) */
-            /*         WARN("Unphased genotype in %s VCF at %s:%lld", */
-            /*             callset_strs[callset].data(), ctg.data(), (long long)rec->pos); */
-            /*     unphased_gt_total += 1; */
-            /*     counted_unphased = true; */
-            /* } */
+            // skip unphased heterozygous variants (1/1 is allowed)
+            if (ngt == 2 && !same && !bcf_gt_is_phased(gt[HAP2])) { // only HAP2 is set, not sure why...
+                if (g.verbosity > 1) {
+                    WARN("Unphased genotype in %s VCF at %s:%lld %s %s",
+                        callset_strs[callset].data(), ctg.data(), (long long)rec->pos, ref.data(), alt.data());
+                }
+                if (!counted_unphased) { // once per heterozygous variant (1/2)
+                    unphased_gt_total += 1;
+                    counted_unphased = true;
+                }
+                continue; 
+            }
 
             // skip spanning deletion
             if (alt == "*") { ntypes[hap][TYPE_REF]++; continue; }
@@ -781,7 +785,6 @@ variantData::variantData(std::string vcf_fn,
                 continue;
             }
 
-            // TODO: keep overlaps, test all non-overlapping subsets?
             // skip overlapping variants
             if (prev_end[hap] > pos || // skip overlapping variants
                     (prev_end[hap] == pos && prev_type[hap] == TYPE_INS && type == TYPE_INS)) { // don't allow two insertions at same position
@@ -823,9 +826,9 @@ variantData::variantData(std::string vcf_fn,
         WARN("%d total variants with incorrect ploidy found in %s VCF, kept",
             wrong_ploidy_total, callset_strs[callset].data());
 
-    /* if (unphased_gt_total) */ 
-    /*     WARN("%d total unphased genotypes found in %s VCF", */
-    /*         unphased_gt_total, callset_strs[callset].data()); */
+    if (unphased_gt_total) 
+        WARN("%d total variants with unphased genotypes found in %s VCF, skipped",
+            unphased_gt_total, callset_strs[callset].data());
 
     if (large_var_total)
         WARN("%d total large %s VCF variant calls skipped, size > %d", 
@@ -854,7 +857,7 @@ variantData::variantData(std::string vcf_fn,
         }
         if (float(ngts[3]) / (ngts[4]+1) > 2 ||
             float(ngts[4]) / (ngts[3]+1) > 2)
-            WARN("Imbalance of heterozygous variant phasing, VCF may be (partially) unphased")
+            WARN("Imbalance of heterozygous variant phasing, VCF may be improperly phased")
         INFO(" ");
 
         INFO("  Variant exceeds min qual (%d):", g.min_qual);
@@ -887,7 +890,7 @@ variantData::variantData(std::string vcf_fn,
 
         INFO("  %s VCF overview:", callset_strs[callset].data());
         INFO("    TOTAL %d", n);
-        INFO("    KEPT  %d, (homozygous counted twice)", npass[HAP1] + npass[HAP2]);
+        INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
     }
 
     free(gq);
