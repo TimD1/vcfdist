@@ -687,7 +687,7 @@ void write_results(
     FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
     if (g.verbosity >= 1) INFO("  Printing superclustering results to '%s'", out_clusterings_fn.data());
     fprintf(out_clusterings, "CONTIG\tSUPERCLUSTER\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
-            "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_BLOCK\n");
+            "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_SET\tPHASE_BLOCK\n");
     for (auto ctg : phasedata_ptr->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
@@ -722,12 +722,12 @@ void write_results(
                         ctg_scs->superclusters[TRUTH][HAP2][i]] : 0;
 
             // print data
-            fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", 
+            fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\t%d\n", 
                 ctg.data(), i, ctg_scs->begs[i], ctg_scs->ends[i],
                 ctg_scs->ends[i] - ctg_scs->begs[i],
                 query1_vars, query2_vars, truth1_vars, truth2_vars,
                 ctg_scs->orig_phase_dist[i], ctg_scs->swap_phase_dist[i],
-                phase_strs[ctg_scs->phase[i]].data(), phase_block_idx
+                phase_strs[ctg_scs->phase[i]].data(), ctg_scs->phase_sets[i], phase_block_idx
            );
         }
     }

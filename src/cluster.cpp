@@ -174,10 +174,116 @@ superclusterData::superclusterData(
     } else {
         this->supercluster();
     }
+
+    this->transfer_phase_sets();
 }
 
 
 /******************************************************************************/
+
+/* Using per-variant phase set information from PS tags, calculate per-supercluster
+ * phase sets. */
+void superclusterData::transfer_phase_sets() {
+    bool print = false;
+
+    for (std::string ctg : this->contigs) { // for each contig
+        std::shared_ptr<ctgSuperclusters> ctg_scs = this->superclusters[ctg];
+        if (print) printf("ctg: %s\n", ctg.data());
+
+        // set convenience variables
+        int q1i = 0; int q2i = 0; int t1i = 0; int t2i = 0; // indices
+        std::shared_ptr<ctgVariants> q1v = ctg_scs->ctg_variants[QUERY][HAP1]; // vars
+        std::shared_ptr<ctgVariants> q2v = ctg_scs->ctg_variants[QUERY][HAP2];
+        std::shared_ptr<ctgVariants> t1v = ctg_scs->ctg_variants[TRUTH][HAP1];
+        std::shared_ptr<ctgVariants> t2v = ctg_scs->ctg_variants[TRUTH][HAP2];
+        std::vector<int> & q1sc = ctg_scs->superclusters[QUERY][HAP1]; // superclusters
+        std::vector<int> & q2sc = ctg_scs->superclusters[QUERY][HAP2];
+        std::vector<int> & t1sc = ctg_scs->superclusters[TRUTH][HAP1];
+        std::vector<int> & t2sc = ctg_scs->superclusters[TRUTH][HAP2];
+
+        // get first phase set (to backfill all preceding zeros)
+        int first_pos = std::numeric_limits<int>::max();
+        int phase_set = 0;
+        for (; q1i < q1v->n; q1i++) {
+            if (q1v->phase_sets[q1i] != 0) {
+                if (q1v->poss[q1i] < first_pos) {
+                    first_pos = q1v->poss[q1i]; phase_set = q1v->phase_sets[q1i];
+                }
+                break;
+            }
+        }
+        for (; q2i < q2v->n; q2i++) {
+            if (q2v->phase_sets[q2i] != 0) {
+                if (q2v->poss[q2i] < first_pos) {
+                    first_pos = q2v->poss[q2i]; phase_set = q2v->phase_sets[q2i];
+                }
+                break;
+            }
+        }
+        for (; t1i < t1v->n; t1i++) {
+            if (t1v->phase_sets[t1i] != 0) {
+                if (t1v->poss[t1i] < first_pos) {
+                    first_pos = t1v->poss[t1i]; phase_set = t1v->phase_sets[t1i];
+                }
+                break;
+            }
+        }
+        for (; t2i < t2v->n; t2i++) {
+            if (t2v->phase_sets[t2i] != 0) {
+                if (t2v->poss[t2i] < first_pos) {
+                    first_pos = t2v->poss[t2i]; phase_set = t2v->phase_sets[t2i];
+                }
+                break;
+            }
+        }
+        if (print) printf("first phase set: %d\n", phase_set);
+
+        // carry phase_set across superclusters (if no heterozygous variants)
+        int query_phase_set = phase_set;
+        int truth_phase_set = phase_set;
+        for (int sci = 0; sci < ctg_scs->n; sci++) { // for each supercluster
+            if (print) printf("supercluster: %d", sci);
+
+            // get first non-zero phase set
+            for (q1i = q1v->clusters[q1sc[sci]]; // QUERY HAP 1
+                    q1i < q1v->clusters[q1sc[sci+1]]; q1i++) {
+                if (q1v->phase_sets[q1i] && q1v->phase_sets[q1i] != query_phase_set) {
+                    phase_set = query_phase_set = q1v->phase_sets[q1i];
+                    if (print) printf(" Q1 PS:%d", phase_set);
+                    break;
+                }
+            }
+            for (q2i = q2v->clusters[q2sc[sci]]; // QUERY HAP 2
+                    q2i < q2v->clusters[q2sc[sci+1]]; q2i++) {
+                if (q2v->phase_sets[q2i] && q2v->phase_sets[q2i] != query_phase_set) {
+                    phase_set = query_phase_set = q2v->phase_sets[q2i];
+                    if (print) printf(" Q2 PS:%d", phase_set);
+                    break;
+                }
+            }
+            for (t1i = t1v->clusters[t1sc[sci]]; // TRUTH HAP 1
+                    t1i < t1v->clusters[t1sc[sci+1]]; t1i++) {
+                if (t1v->phase_sets[t1i] && t1v->phase_sets[t1i] != truth_phase_set) {
+                    phase_set = truth_phase_set = t1v->phase_sets[t1i];
+                    if (print) printf(" T1 PS:%d", phase_set);
+                    break;
+                }
+            }
+            for (t2i = t2v->clusters[t2sc[sci]]; // TRUTH HAP 2
+                    t2i < t2v->clusters[t2sc[sci+1]]; t2i++) {
+                if (t2v->phase_sets[t2i] && t2v->phase_sets[t2i] != truth_phase_set) {
+                    phase_set = truth_phase_set = t2v->phase_sets[t2i];
+                    if (print) printf(" T2 PS:%d", phase_set);
+                    break;
+                }
+            }
+
+            // add phase_set to supercluster
+            ctg_scs->phase_sets.push_back(phase_set);
+            if (print) printf(" final=%d\n", phase_set);
+        }
+    }
+}
 
 
 /* Supercluster using left_reach and right_reach of each cluster, calculated

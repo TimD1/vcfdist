@@ -28,18 +28,16 @@ public:
     // ctg_variants[truth/query][hap]
     std::vector< std::vector< std::shared_ptr<ctgVariants> > > ctg_variants;
 
-    // cluster indices of superclusters
-    // superclusters[truth/query][hap]
+    // cluster indices of superclusters (not variant indices!)
+    // superclusters[truth/query][hap] = n+1
     std::vector< std::vector< std::vector<int> > > superclusters;
 
-    int n = 0; // number of superclusters
-
-    // helper information to find reference beg/end pos across haps, truth/query
-    std::vector<int> begs, ends;
-
-    // phasing information per supercluster
-    std::vector<int> phase;
-    std::vector<int> orig_phase_dist, swap_phase_dist;
+    // data (length n)
+    int n = 0;                                         // number of superclusters
+    std::vector<int> begs, ends;                       // ref beg/end pos across haps and truth/query
+    std::vector<int> phase;                            // keep/swap/unknown, from alignment
+    std::vector<int> phase_sets;                       // input, from first variant in sc
+    std::vector<int> orig_phase_dist, swap_phase_dist; // alignment distances
 };
 
 class superclusterData {
@@ -51,6 +49,7 @@ public:
 
     void gap_supercluster();
     void supercluster();
+    void transfer_phase_sets();
 
     // data
     std::vector<std::string> contigs;
