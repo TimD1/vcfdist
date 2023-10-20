@@ -2470,6 +2470,15 @@ std::shared_ptr<variantData> wf_swg_realign(
                     qual = std::min(qual, vars->var_quals[i]);
                 }
 
+                // phase set is first non-zero phase set
+                int phase_set = 0;
+                for (int i = beg_idx; i < end_idx; i++) {
+                    if (vars->phase_sets[i] != phase_set) {
+                        phase_set = vars->phase_sets[i];
+                        break;
+                    }
+                }
+
                 // generate strings
                 std::string query = 
                     generate_str(ref_fasta, vars, ctg, beg_idx, end_idx, beg, end);
@@ -2514,7 +2523,7 @@ std::shared_ptr<variantData> wf_swg_realign(
                 }
                 
                 // save resulting variants
-                results->add_variants(cigar, hap, beg, ctg, query, ref, qual);
+                results->add_variants(cigar, hap, beg, ctg, query, ref, qual, phase_set);
 
             } // cluster
         } // contig

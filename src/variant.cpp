@@ -25,7 +25,7 @@ ctgVariants::ctgVariants() {
 void ctgVariants::add_cluster(int g) { this->clusters.push_back(g); }
 
 void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
-        std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq) {
+        std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps) {
     this->poss.push_back(pos);
     this->rlens.push_back(rlen);
     this->haps.push_back(hap);
@@ -36,6 +36,7 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
     this->orig_gts.push_back(orig_gt);
     this->gt_quals.push_back(gq);
     this->var_quals.push_back(std::min(vq, float(g.max_qual)));
+    this->phase_sets.push_back(ps);
     this->n++;
 
     // added during precision/recall backtrack
@@ -226,14 +227,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:BS:FE", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PS:PB:BS:FE", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PB:BS:FE", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PS:PB:BS:FE", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -245,13 +246,13 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 
 void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx, 
         int phase_block, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:%d:.:%d:.:.%s", sc_idx, phase_block, query ? "\n" : "");
+    fprintf(out_fp, "\t.:.:.:.:.:%d:.:.:%d:.:.%s", sc_idx, phase_block, query ? "\n" : "");
 }
 
 
 void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt, 
-        int sc_idx, int phase_block, bool phase_switch, bool phase_flip, 
-        bool query /* = false */) {
+        int sc_idx, int phase_block, bool phase_switch, 
+        bool phase_flip, bool query /* = false */) {
 
     // use either the normal or swapped evaluation
     bool swap = phase_switch ^ phase_flip;
@@ -267,9 +268,9 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
                  (query ? "FP" : "FN"); break;
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
+    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
             this->credit[swap][idx], int(this->var_quals[idx]), sc_idx, 
-            int(this->sync_group[swap][idx]), phase_block,
+            int(this->sync_group[swap][idx]), this->phase_sets[idx], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
             query ? (phase_flip ? "1" : "0") : "." , 
             query ? "\n" : "");
@@ -325,7 +326,7 @@ void variantData::add_variants(
         const std::string & ctg, 
         const std::string & query, 
         const std::string & ref, 
-        int qual) {
+        int qual, int phase_set) {
 
     int query_idx = 0;
     int ref_idx = 0;
@@ -344,7 +345,7 @@ void variantData::add_variants(
                 this->variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
                         TYPE_SUB, BED_INSIDE, std::string(1,ref[ref_idx]), 
                         std::string(1,query[query_idx]), 
-                        GT_REF_REF, g.max_qual, qual);
+                        GT_REF_REF, g.max_qual, qual, phase_set);
                 ref_idx++;
                 query_idx++;
                 break;
@@ -359,7 +360,7 @@ void variantData::add_variants(
                 this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         indel_len, hap, TYPE_DEL, BED_INSIDE,
                         ref.substr(ref_idx, indel_len),
-                        "", GT_REF_REF, g.max_qual, qual);
+                        "", GT_REF_REF, g.max_qual, qual, phase_set);
                 ref_idx += indel_len;
                 break;
 
@@ -373,7 +374,7 @@ void variantData::add_variants(
                 this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
                         0, hap, TYPE_INS, BED_INSIDE, "", 
                         query.substr(query_idx, indel_len), 
-                        GT_REF_REF, g.max_qual, qual);
+                        GT_REF_REF, g.max_qual, qual, phase_set);
                 query_idx += indel_len;
                 break;
         }
@@ -420,20 +421,28 @@ variantData::variantData(std::string vcf_fn,
     std::vector<int> pass_min_qual = {0, 0};
 
     // quality data for each call
-    int ngq_arr = 0;
+    int GQ_memsize = 0;
     int ngq     = 0;
     int * gq    = (int*) malloc(sizeof(int));
     float * fgq = (float*) malloc(sizeof(float));
     bool int_qual = true;
 
     // genotype data for each call
-    int ngt_arr   = 0;
+    int GT_memsize   = 0;
     int ngt       = 0;
-    std::vector<int> ngts(gt_strs.size(), 0);
+    std::vector<int> GT_counts(gt_strs.size(), 0);
     int * gt      = NULL;
     bool gt_warn  = false;
 
+    // phase set data for each call
+    int PS_memsize   = 0;
+    int nPS       = 0;
+    int * PS      = NULL;
+    bool PS_warn  = false;
+    int phase_set = -1;
+
     /* int gq_missing_total = 0; */
+    int PS_missing_total = 0;
     int overlapping_var_total = 0;
     int unknown_allele_total = 0;
     int unphased_gt_total = 0;
@@ -567,33 +576,36 @@ variantData::variantData(std::string vcf_fn,
 
         // parse GQ in either INT or FLOAT format
         if (int_qual) {
-            ngq = bcf_get_format_int32(hdr, rec, "GQ", &gq, &ngq_arr);
+            ngq = bcf_get_format_int32(hdr, rec, "GQ", &gq, &GQ_memsize);
             if (ngq == -2) {
-                ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &ngq_arr);
+                ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &GQ_memsize);
                 gq[0] = int(fgq[0]);
                 int_qual = false;
             }
         }
         else {
-            ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &ngq_arr);
+            ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &GQ_memsize);
             gq[0] = int(fgq[0]);
         }
-        if ( ngq == -3 ) {
+        if ( ngq == -3 ) { // missing
             /* if (g.verbosity > 1 || !gq_missing_total) */
             /*     WARN("No GQ tag in %s VCF at %s:%lld", */
             /*             callset_strs[callset].data(), ctg.data(), (long long)rec->pos); */
             /* gq_missing_total++; // only warn once */
             gq[0] = 0;
+        } else if (ngq <= 0) { // other error
+            ERROR("Failed to read %s GQ at %s:%lld", 
+                    callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
         }
 
-        // parse GT
-        ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
+        // parse GT: https://github.com/samtools/htslib/blob/99415e2a2ce26bdbf4e910954330ea769de2c3f0/htslib/vcf.h#L1096
+        ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &GT_memsize);
         if (ngt == -1) { // GT not defined in header
             if (!gt_warn) {
                 gt_warn = true;
                 WARN("'GT' tag not defined in header, assuming monoploid");
             }
-        } else if (ngt < 0) { // other error
+        } else if (ngt <= 0) { // other error
             ERROR("Failed to read %s GT at %s:%lld", 
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
         }
@@ -658,7 +670,34 @@ variantData::variantData(std::string vcf_fn,
             ERROR("Expected monoploid/diploid %s VCF, found variant with ploidy %d",
                     callset_strs[callset].data(), ngt);
         }
-        ngts[orig_gt]++;
+        GT_counts[orig_gt]++;
+
+        // parse PS: https://github.com/samtools/htslib/blob/99415e2a2ce26bdbf4e910954330ea769de2c3f0/htslib/vcf.h#L1096
+        nPS = bcf_get_format_int32(hdr, rec, "PS", &PS, &PS_memsize);
+        if (nPS == -1) { // PS not defined in header
+            if (!PS_warn) {
+                PS_warn = true;
+                WARN("'PS' tag not defined in header, assuming single phase set");
+            }
+            phase_set = 0;
+        } else if (nPS == -3) { // PS tag missing
+
+            // only matters if not haploid and GTs differ for this variant
+            if (ngt > 1 && bcf_gt_allele(gt[0]) != bcf_gt_allele(gt[1])) {
+                if (g.verbosity > 1)
+                    WARN("No PS tag in %s VCF at %s:%lld",
+                            callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+                PS_missing_total++; // only warn once
+            }
+
+            phase_set = 0;
+        } else if (nPS <= 0) { // other error
+            ERROR("Failed to read %s PS at %s:%lld", 
+                    callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+        } else {
+            phase_set = PS[0];
+        }
+
 
         // parse variant type
         bool counted_unphased = false;
@@ -799,12 +838,12 @@ variantData::variantData(std::string vcf_fn,
             // add to haplotype-specific query info
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 this->variants[hap][ctg]->add_var(pos, 0, // INS
-                    hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq);
+                    hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq, phase_set);
                 this->variants[hap][ctg]->add_var(pos, rlen, // DEL
-                    hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], vq);
+                    hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], vq, phase_set);
             } else {
                 this->variants[hap][ctg]->add_var(pos, rlen,
-                        hap, type, loc, ref, alt, simple_gt, gq[0], vq);
+                        hap, type, loc, ref, alt, simple_gt, gq[0], vq, phase_set);
             }
 
             prev_end[hap] = pos + rlen;
@@ -825,6 +864,10 @@ variantData::variantData(std::string vcf_fn,
     if (wrong_ploidy_total) 
         WARN("%d total variants with incorrect ploidy found in %s VCF, kept",
             wrong_ploidy_total, callset_strs[callset].data());
+
+    if (PS_missing_total) 
+        WARN("%d total variants with missing PS tags found in %s VCF, kept",
+            PS_missing_total, callset_strs[callset].data());
 
     if (unphased_gt_total) 
         WARN("%d total variants with unphased genotypes found in %s VCF, skipped",
@@ -853,10 +896,10 @@ variantData::variantData(std::string vcf_fn,
 
         INFO("  Genotypes:");
         for (size_t i = 0; i < gt_strs.size(); i++) {
-            INFO("    %3s  %i", gt_strs[i].data(), ngts[i]);
+            INFO("    %3s  %i", gt_strs[i].data(), GT_counts[i]);
         }
-        if (float(ngts[3]) / (ngts[4]+1) > 2 ||
-            float(ngts[4]) / (ngts[3]+1) > 2)
+        if (float(GT_counts[3]) / (GT_counts[4]+1) > 2 ||
+            float(GT_counts[4]) / (GT_counts[3]+1) > 2)
             WARN("Imbalance of heterozygous variant phasing, VCF may be improperly phased")
         INFO(" ");
 

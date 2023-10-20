@@ -20,12 +20,12 @@ public:
     // helper functions
     void add_cluster(int g);
     void add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
-            std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq);
+            std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps);
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
             std::string ctg, int idx);
     void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);
-    void print_var_sample(FILE* out_vcf, int idx, std::string gt, 
-            int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query = false);
+    void print_var_sample(FILE* out_vcf, int idx, std::string gt, int sc_idx, 
+            int phase_block, bool phase_switch, bool phase_flip, bool query = false);
 
     // data (all of size n)
     std::vector<int> poss;          // variant start positions (0-based)
@@ -38,6 +38,7 @@ public:
     std::vector<uint8_t> orig_gts;  // simple genotype (0|1, 1|0, or 1|1)
     std::vector<float> gt_quals;    // genotype quality (0-60)
     std::vector<float> var_quals;   // variant quality (0-60)
+    std::vector<int> phase_sets;    // integer representing variant phase set (0 = missing)
     int n = 0;
 
     // set during (swg_)cluster()
@@ -69,9 +70,9 @@ public:
     void print_variant(FILE* out_fp, std::string ctg, int pos, int type,
         std::string ref, std::string alt, float qual, std::string gt);
     void set_header(const std::shared_ptr<variantData> vcf);
-    void add_variants( const std::vector<int> & cigar, 
-        int hap, int ref_pos, const std::string & ctg, 
-        const std::string & query, const std::string & ref, int qual);
+    void add_variants( const std::vector<int> & cigar, int hap, 
+            int ref_pos, const std::string & ctg, const std::string & query, 
+            const std::string & ref, int qual, int phase_set);
     void left_shift();
 
     // data
