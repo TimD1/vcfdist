@@ -286,13 +286,19 @@ void phaseblockData::phase()
                     break;
             }
 
+            // no cost for phase switches if on border of phase set
+            int cost_swap = 1;
+            if (i+1 < ctg_scs->n && ctg_scs->phase_sets[i] != ctg_scs->phase_sets[i+1]) {
+                cost_swap = 0;
+            }
+
             for (int phase = 0; phase < 2; phase++) {
-                if (mat[phase][i] + costs[phase] <= mat[phase^1][i] + 1) {
+                if (mat[phase][i] + costs[phase] <= mat[phase^1][i] + cost_swap) {
                     mat[phase][i+1] = mat[phase][i] + costs[phase];
                     ptrs[phase][i] = PHASE_PTR_KEEP;
                 }
                 else {
-                    mat[phase][i+1] = mat[phase^1][i] + 1;
+                    mat[phase][i+1] = mat[phase^1][i] + cost_swap;
                     ptrs[phase][i] = PHASE_PTR_SWAP;
                 }
             }
@@ -300,10 +306,10 @@ void phaseblockData::phase()
 
         // backwards pass
         if (ctg_scs->n > 0) { // skip empty contigs
+
             // determine starting phase
             int phase = 0;
-            if (mat[PHASE_SWAP][ctg_scs->n] <
-                    mat[PHASE_ORIG][ctg_scs->n])
+            if (mat[PHASE_SWAP][ctg_scs->n] < mat[PHASE_ORIG][ctg_scs->n])
                 phase = 1;
 
             int i = ctg_scs->n-1;
@@ -311,7 +317,11 @@ void phaseblockData::phase()
             while (i > 0) {
                 if (ptrs[phase][i] == PHASE_PTR_SWAP) { // new phase block
                     ctg_pbs->n++;
-                    ctg_pbs->nswitches++;
+
+                    // not a switch error if between phase sets
+                    if (i+1 < ctg_scs->n && ctg_scs->phase_sets[i] == ctg_scs->phase_sets[i+1])
+                        ctg_pbs->nswitches++;
+
                     ctg_pbs->phase_blocks.push_back(i+1);
                     ctg_pbs->block_states.push_back(phase);
                     phase ^= 1;
@@ -332,6 +342,7 @@ void phaseblockData::phase()
     // print
     int switch_errors = 0;
     int flip_errors = 0;
+    int phase_blocks = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int i = 0;
     for (auto ctg : this->contigs) {
@@ -357,14 +368,16 @@ void phaseblockData::phase()
 
         // print errors per contig
         if (g.verbosity >= 1) {
-            INFO("    [%2d] %s: %d switches, %d flips", i, ctg.data(), 
-                    ctg_pbs->nswitches, ctg_pbs->nflips);
+            INFO("    [%2d] %s: %d switches, %d flips, %d blocks", i, ctg.data(), 
+                    ctg_pbs->nswitches, ctg_pbs->nflips, ctg_pbs->n);
             switch_errors += ctg_pbs->nswitches;
             flip_errors += ctg_pbs->nflips;
+            phase_blocks += ctg_pbs->n;
             i++;
         }
     }
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Total switch errors: %d", switch_errors);
-    if (g.verbosity >= 1) INFO("  Total flip errors: %d", flip_errors);
+    if (g.verbosity >= 1) INFO("  Total   flip errors: %d", flip_errors);
+    if (g.verbosity >= 1) INFO("  Total  phase blocks: %d", phase_blocks);
 }
