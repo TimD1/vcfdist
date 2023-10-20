@@ -26,8 +26,9 @@ class phaseblockData {
 public:
     phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr); 
 
-    void phase();
     void write_summary_vcf(std::string vcf_fn);
+    void phase();
+    int calculate_ng50();
 
     std::shared_ptr<fastaData> ref;
     std::vector<std::string> contigs;

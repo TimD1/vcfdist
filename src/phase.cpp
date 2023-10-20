@@ -343,6 +343,7 @@ void phaseblockData::phase()
     int switch_errors = 0;
     int flip_errors = 0;
     int phase_blocks = 0;
+    int superclusters = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int i = 0;
     for (auto ctg : this->contigs) {
@@ -375,9 +376,53 @@ void phaseblockData::phase()
             phase_blocks += ctg_pbs->n;
             i++;
         }
+        superclusters += ctg_scs->n;
     }
+    int ng50 = this->calculate_ng50();
+
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("  Total switch errors: %d", switch_errors);
-    if (g.verbosity >= 1) INFO("  Total   flip errors: %d", flip_errors);
-    if (g.verbosity >= 1) INFO("  Total  phase blocks: %d", phase_blocks);
+    if (g.verbosity >= 1) INFO("   Total switch errors: %d", switch_errors);
+    if (g.verbosity >= 1) INFO("   Total   flip errors: %d", flip_errors);
+    if (g.verbosity >= 1) INFO("   Total  phase blocks: %d", phase_blocks);
+    if (g.verbosity >= 1) INFO("  SC Switch error rate: %.4f%%", 100*float(switch_errors)/superclusters);
+    if (g.verbosity >= 1) INFO("    SC Flip error rate: %.4f%%", 100*float(flip_errors)/superclusters);
+    if (g.verbosity >= 1) INFO("       Phaseblock NG50: %d", ng50);
+}
+
+
+/*******************************************************************************/
+
+
+int phaseblockData::calculate_ng50() {
+
+    // get total bases in genome
+    size_t total_bases = 0;
+    for (size_t i = 0; i < this->contigs.size(); i++) {
+        total_bases += lengths[i];
+    }
+
+    // get sizes of each phase block
+    std::vector<int> phase_blocks;
+    for (std::string ctg: this->contigs) {
+        
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
+            int beg_idx = ctg_pbs->phase_blocks[i];
+            int end_idx = ctg_pbs->phase_blocks[i+1]-1;
+            int beg = ctg_scs->begs[beg_idx];
+            int end = ctg_scs->ends[end_idx];
+            phase_blocks.push_back(end-beg);
+        }
+    }
+
+    // return NG50
+    size_t total_phased = 0;
+    std::sort(phase_blocks.begin(), phase_blocks.end(), std::greater<>());
+    for (size_t i = 0; i < phase_blocks.size(); i++) {
+        total_phased += phase_blocks[i];
+        if (total_phased >= total_bases / 2)
+            return phase_blocks[i];
+    }
+    return 0;
 }
