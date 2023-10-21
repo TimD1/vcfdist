@@ -28,8 +28,9 @@ public:
     int max_reach_size = 100;
 
     // clustering params
-    bool keep_truth = false;
-    bool keep_query = false;
+    bool realign_truth = false;
+    bool realign_query = false;
+    bool realign_only = false;
     bool simple_cluster = false;
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
@@ -43,7 +44,6 @@ public:
     std::vector<float> ram_steps;
 
     // high-level options
-    bool exit = false;
     bool advanced = false;
     int verbosity = 1;
     std::string out_prefix;

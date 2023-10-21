@@ -50,7 +50,7 @@ g.timers[TIME_WRITE].stop();
     check_contigs(query_ptr, truth_ptr, ref_ptr);
 
     // cluster, realign, and cluster query VCF
-    if (!g.keep_query) {
+    if (g.realign_query) {
 g.timers[TIME_CLUST].start();
         if (g.simple_cluster) {
             gap_cluster(query_ptr, QUERY);
@@ -80,7 +80,7 @@ g.timers[TIME_REALN].start();
 g.timers[TIME_REALN].stop();
     }
 
-    if (g.exit) { // realign only, exit early
+    if (g.realign_only) { // realign only, exit early
 g.timers[TIME_WRITE].start();
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
 g.timers[TIME_WRITE].stop();
@@ -91,8 +91,8 @@ g.timers[TIME_RECLUST].start();
             gap_cluster(query_ptr, QUERY);
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[Q 3/8] Wavefront reclustering %s VCF%s '%s'", 
-                    COLOR_PURPLE, callset_strs[QUERY].data(), 
+            if (g.verbosity >= 1) INFO("%s[Q 3/8] Wavefront %sclustering %s VCF%s '%s'", 
+                    COLOR_PURPLE, g.realign_query ? "re":"", callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
@@ -110,7 +110,7 @@ g.timers[TIME_RECLUST].stop();
     }
 
     // cluster, realign, and cluster truth VCF
-    if (!g.keep_truth) {
+    if (g.realign_truth) {
 g.timers[TIME_CLUST].start();
         if (g.simple_cluster) {
             gap_cluster(truth_ptr, TRUTH);
@@ -140,7 +140,7 @@ g.timers[TIME_REALN].start();
 g.timers[TIME_REALN].stop();
     }
 
-    if (g.exit) { // realign only, exit early
+    if (g.realign_only) { // realign only, exit early
 g.timers[TIME_WRITE].start();
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
 g.timers[TIME_WRITE].stop();
@@ -159,8 +159,8 @@ g.timers[TIME_RECLUST].start();
             gap_cluster(truth_ptr, TRUTH); 
         } else {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[T 3/8] Wavefront reclustering %s VCF%s '%s'", 
-                    COLOR_PURPLE, callset_strs[TRUTH].data(), 
+            if (g.verbosity >= 1) INFO("%s[T 3/8] Wavefront %sclustering %s VCF%s '%s'", 
+                    COLOR_PURPLE, g.realign_truth ? "re":"", callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
@@ -181,10 +181,10 @@ g.timers[TIME_RECLUST].stop();
 g.timers[TIME_SUPCLUST].start();
     std::shared_ptr<superclusterData> clusterdata_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
-g.timers[TIME_SUPCLUST].stop();
 
     // calculate supercluster sizes
     auto sc_groups = sort_superclusters(clusterdata_ptr);
+g.timers[TIME_SUPCLUST].stop();
 
     // calculate precision/recall and local phasing
 g.timers[TIME_PR_ALN].start();

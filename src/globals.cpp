@@ -334,7 +334,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max cluster iterations must be positive");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--max-threads") {
+        } else if (std::string(argv[i]) == "-t" ||
+                std::string(argv[i]) == "--max-threads") {
             i++;
             if (i == argc) {
                 ERROR("Option '--max-threads' used without providing max threads");
@@ -348,7 +349,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max threads must be positive");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--max-ram") {
+        } else if (std::string(argv[i]) == "-r" ||
+                std::string(argv[i]) == "--max-ram") {
             i++;
             if (i == argc) {
                 ERROR("Option '--max-ram' used without providing max RAM");
@@ -362,25 +364,25 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max RAM must be positive");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-r" || 
+        } else if (std::string(argv[i]) == "-ro" || 
                 std::string(argv[i]) == "--realign-only") {
             i++;
-            g.exit = true;
+            g.realign_only = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-a" || 
                 std::string(argv[i]) == "--advanced") {
             i++;
             g.advanced = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-t" ||
-                std::string(argv[i]) == "--keep-truth") {
+        } else if (std::string(argv[i]) == "-rt" ||
+                std::string(argv[i]) == "--realign-truth") {
             i++;
-            g.keep_truth = true;
+            g.realign_truth = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-q" ||
-                std::string(argv[i]) == "--keep-query") {
+        } else if (std::string(argv[i]) == "-rq" ||
+                std::string(argv[i]) == "--realign-query") {
             i++;
-            g.keep_query = true;
+            g.realign_query = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "--simple-cluster") {
             i++;
@@ -461,12 +463,12 @@ void Globals::print_usage() const
     printf("      maximum variant quality, higher qualities kept but thresholded\n");
 
     printf("\n  ReAlignment:\n");
-    printf("  -r, --realign-only\n");
+    printf("  -rq, --realign-query\n");
+    printf("      realign query variants using Smith-Waterman parameters\n");
+    printf("  -rt, --realign-truth\n");
+    printf("      realign truth variants using Smith-Waterman parameters\n");
+    printf("  -ro, --realign-only\n");
     printf("      standardize truth and query variant representations, then exit\n");
-    printf("  -q, --keep-query\n");
-    printf("      do not realign query variants, keep original representation\n");
-    printf("  -t, --keep-truth\n");
-    printf("      do not realign truth variants, keep original representation\n");
     printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
     printf("      Smith-Waterman mismatch (substitution) penalty\n");
     printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
@@ -479,9 +481,9 @@ void Globals::print_usage() const
     printf("      instead of biWFA-based clustering, use gap-based clustering \n");
 
     printf("\n  Utilization:\n");
-    printf("  --max-threads <INTEGER> [%d]\n", g.max_threads);
+    printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
     printf("      maximum threads to use for clustering and precision/recall alignment\n");
-    printf("  --max-ram <FLOAT> [%.3fGB]\n", g.max_ram);
+    printf("  -r, --max-ram <FLOAT> [%.3fGB]\n", g.max_ram);
     printf("      (approximate) maximum RAM to use for precision/recall alignment\n");
 
     printf("\n  Miscellaneous:\n");
