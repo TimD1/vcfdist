@@ -19,6 +19,8 @@ public:
     bool bed_exists = false;
 
     // variant params
+    std::vector<std::string> filters;
+    std::vector<int> filter_ids;
     int min_qual = 0;
     int max_qual = 60;
     int min_size = 1;

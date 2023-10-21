@@ -1,5 +1,7 @@
 #include "htslib/vcf.h"
 
+#include <sstream>
+
 #include "globals.h"
 #include "print.h"
 #include "timer.h"
@@ -126,6 +128,24 @@ void Globals::parse_args(int argc, char ** argv) {
                 this->out_prefix = std::string(argv[i++]);
                 std::filesystem::create_directory(
                         std::filesystem::path(out_prefix).parent_path());
+            } catch (const std::exception & e) {
+                ERROR("%s", e.what());
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-f" || 
+                std::string(argv[i]) == "--filter") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--filter' used without providing filters");
+            }
+            try {
+                std::stringstream filters_ss(argv[i++]);
+                while (filters_ss.good()) {
+                    std::string filter;
+                    getline(filters_ss, filter, ',');
+                    this->filters.push_back(filter);
+                    this->filter_ids.push_back(-1);
+                }
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
@@ -429,6 +449,8 @@ void Globals::print_usage() const
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
 
     printf("\n  Variant Filtering:\n");
+    printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
+    printf("      select just variants passing these FILTERs (OR operation)\n");
     printf("  -s, --smallest-variant <INTEGER> [%d]\n", g.min_size);
     printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);

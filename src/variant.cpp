@@ -453,14 +453,13 @@ variantData::variantData(std::string vcf_fn,
     int multi_total = 0;
     int ref_call_total = 0;
     int complex_total = 0;
+    int failed_filter_total = 0;
     
     // read header
     bcf1_t * rec  = NULL;
     bcf_hdr_t *hdr = bcf_hdr_read(vcf);
-    int pass_filter_id = 0;
     bool pass = false;
-    bool pass_found = false;
-    for (int i = 0; i < hdr->nhrec; i++) {
+    for (int i = 0; i < hdr->nhrec; i++) { // for each header record (line)
 
         /* // DEBUG HEADER PRINT */
         /* printf("%s=%s\n", hdr->hrec[i]->key, hdr->hrec[i]->value); */
@@ -471,21 +470,22 @@ variantData::variantData(std::string vcf_fn,
         // search all FILTER lines
         if (hdr->hrec[i]->type == BCF_HL_FLT) {
 
-            // select PASS filter
-            bool is_pass_filter = false;
-            for (int j = 0; j < hdr->hrec[i]->nkeys; j++) {
-                if (std::string(hdr->hrec[i]->keys[j]) == std::string("ID") &&  
-                        std::string(hdr->hrec[i]->vals[j]) == std::string("PASS")) {
-                    is_pass_filter = true;
+            // is this a filter we selected?
+            int filter_idx = -1;
+            for (int j = 0; j < hdr->hrec[i]->nkeys; j++) { // for each key in this FILTER record
+                for (int fi = 0; fi < int(g.filters.size()); fi++) { // for each filter
+                    if (std::string(hdr->hrec[i]->keys[j]) == std::string("ID") &&  
+                            std::string(hdr->hrec[i]->vals[j]) == g.filters[fi]) {
+                        filter_idx = fi;
+                    }
                 }
             }
 
-            // save PASS filter index to keep only passing reads
-            if (is_pass_filter) {
+            // if so, save this filter's index
+            if (filter_idx >= 0) {
                 for (int j = 0; j < hdr->hrec[i]->nkeys; j++) {
                     if (std::string(hdr->hrec[i]->keys[j]) == std::string("IDX")) {
-                        pass_filter_id = std::stoi(hdr->hrec[i]->vals[j]);
-                        pass_found = true;
+                        g.filter_ids[filter_idx] = std::stoi(hdr->hrec[i]->vals[j]);
                     }
                 }
             }
@@ -509,13 +509,18 @@ variantData::variantData(std::string vcf_fn,
             }
         }
     }
-    if (!pass_found)
-        ERROR("Failed to find PASS FILTER index in %s VCF '%s'",
-                callset_strs[callset].data(), vcf_fn.data());
+
     if (bcf_hdr_nsamples(hdr) != 1) 
         ERROR("Expected 1 sample but found %d in %s VCF '%s'", bcf_hdr_nsamples(hdr),
                 callset_strs[callset].data(), vcf_fn.data());
     this->sample = hdr->samples[0];
+
+    // verify that the filters we selected were in the VCF
+    for (int fi = 0; fi < int(g.filters.size()); fi++) {
+        if (g.filter_ids[fi] < 0)
+            WARN("Filter '%s' not found in %s VCF", g.filters[fi].data(),
+                    callset_strs[callset].data());
+    }
 
     // report names of all the ctgs in the VCF file
     const char **ctgnames = NULL;
@@ -563,13 +568,23 @@ variantData::variantData(std::string vcf_fn,
         bcf_unpack(rec, BCF_UN_ALL);
         n++;
 
-        // check that variant passed all filters
+        // check that variant contained a passing filter
         pass = false;
-        for (int i = 0; i < rec->d.n_flt; i++) {
-            if (rec->d.flt[i] == pass_filter_id) pass = true;
+        if (rec->d.n_flt == 0 || g.filters.size() == 0) { // no filters, default pass
+            pass = true;
+        } else {
+            for (int i = 0; i < rec->d.n_flt; i++) { // check this variant's filters
+                for (int fi = 0; fi < int(g.filters.size()); fi++) {
+                    if (rec->d.flt[i] == g.filter_ids[fi]) pass = true;
+                }
+            }
         }
-        if (rec->d.n_flt == 0) pass = true; // allow if no other filters
-        if (!pass) continue;
+
+        // variant doesn't contain a passing filter
+        if (!pass) {
+            failed_filter_total++;
+            continue;
+        }
 
         // check that variant exceeds min_qual
         float vq = rec->qual;
@@ -867,6 +882,10 @@ variantData::variantData(std::string vcf_fn,
     /*     WARN("%d total missing GQ tags in %s VCF, all considered GQ=0", */
     /*         gq_missing_total, callset_strs[callset].data()); */
 
+    if (failed_filter_total) 
+        WARN("%d total variants failed FILTER in %s VCF, skipped",
+            failed_filter_total, callset_strs[callset].data());
+
     if (print) INFO("  Variant exceeds min qual (%d):", g.min_qual);
     if (print) INFO("    FAIL  %d", pass_min_qual[FAIL]);
     if (print) INFO("    PASS  %d", pass_min_qual[PASS]);
@@ -891,8 +910,9 @@ variantData::variantData(std::string vcf_fn,
 
     multi_total = GT_counts[GT_ALT1_ALT1] + GT_counts[GT_ALT1_ALT2] +
         GT_counts[GT_ALT2_ALT1] + GT_counts[GT_OTHER];
-    WARN("%d total homozygous and multi-allelic variants in %s VCF split for evaluation",
-        multi_total, callset_strs[callset].data());
+    if (multi_total)
+        WARN("%d total homozygous and multi-allelic variants in %s VCF split for evaluation",
+            multi_total, callset_strs[callset].data());
 
     if (unknown_allele_total) 
         WARN("%d total unknown alleles (.) found in %s VCF, skipped",
