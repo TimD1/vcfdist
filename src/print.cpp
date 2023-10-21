@@ -591,7 +591,9 @@ void write_distance(const editData & edits) {
     for (int type = 0; type < TYPES; type++) {
 
         // skip INS/DEL individually unless higher print verbosity
-        if ((type == TYPE_INS || type == TYPE_DEL) && g.verbosity == 0)
+        if (g.verbosity == 0 && type != TYPE_ALL)
+            continue;
+        if (g.verbosity == 1 && (type == TYPE_INS || type == TYPE_DEL))
             continue;
 
         INFO(" ");
