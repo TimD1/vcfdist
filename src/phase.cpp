@@ -384,8 +384,10 @@ void phaseblockData::phase()
     if (g.verbosity >= 1) INFO("   Total switch errors: %d", switch_errors);
     if (g.verbosity >= 1) INFO("   Total   flip errors: %d", flip_errors);
     if (g.verbosity >= 1) INFO("   Total  phase blocks: %d", phase_blocks);
-    if (g.verbosity >= 1) INFO("  SC Switch error rate: %.4f%%", 100*float(switch_errors)/superclusters);
-    if (g.verbosity >= 1) INFO("    SC Flip error rate: %.4f%%", 100*float(flip_errors)/superclusters);
+    if (g.verbosity >= 1 && superclusters) 
+        INFO("  SC Switch error rate: %.4f%%", 100*switch_errors/float(superclusters));
+    if (g.verbosity >= 1 && superclusters) 
+        INFO("    SC Flip error rate: %.4f%%", 100*flip_errors/float(superclusters));
     if (g.verbosity >= 1) INFO("       Phaseblock NG50: %d", ng50);
 }
 

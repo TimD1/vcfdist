@@ -193,6 +193,7 @@ void superclusterData::transfer_phase_sets() {
     for (std::string ctg : this->contigs) { // for each contig
         std::shared_ptr<ctgSuperclusters> ctg_scs = this->superclusters[ctg];
         if (print) printf("ctg: %s\n", ctg.data());
+        if (!ctg_scs->n) continue;
 
         // set convenience variables
         int q1i = 0; int q2i = 0; int t1i = 0; int t2i = 0; // indices
@@ -251,6 +252,7 @@ void superclusterData::transfer_phase_sets() {
             if (print) printf("supercluster: %d", sci);
 
             // check all variants in supercluster for each haplotype
+            if (q1v->n)
             for (q1i = q1v->clusters[q1sc[sci]]; // QUERY HAP 1
                     q1i < q1v->clusters[q1sc[sci+1]]; q1i++) {
                 if (q1v->phase_sets[q1i]) { // non-zero, has PS tag
@@ -265,6 +267,7 @@ void superclusterData::transfer_phase_sets() {
                     }
                 }
             }
+            if (q2v->n)
             for (q2i = q2v->clusters[q2sc[sci]]; // QUERY HAP 2
                     q2i < q2v->clusters[q2sc[sci+1]]; q2i++) {
                 if (q2v->phase_sets[q2i]) { // non-zero, has PS tag
@@ -279,6 +282,7 @@ void superclusterData::transfer_phase_sets() {
                     }
                 }
             }
+            if (t1v->n)
             for (t1i = t1v->clusters[t1sc[sci]]; // TRUTH HAP 1
                     t1i < t1v->clusters[t1sc[sci+1]]; t1i++) {
                 if (t1v->phase_sets[t1i]) { // non-zero, has PS tag
@@ -293,6 +297,7 @@ void superclusterData::transfer_phase_sets() {
                     }
                 }
             }
+            if (t2v->n)
             for (t2i = t2v->clusters[t2sc[sci]]; // TRUTH HAP 2
                     t2i < t2v->clusters[t2sc[sci+1]]; t2i++) {
                 if (t2v->phase_sets[t2i]) { // non-zero, has PS tag
