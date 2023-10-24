@@ -70,7 +70,7 @@ public:
     void init_timers(std::vector<std::string> timer_strs);
 
     // program data
-    const std::string VERSION = "2.1.0";
+    const std::string VERSION = "2.2.0";
     const std::string PROGRAM = "vcfdist";
 };
 

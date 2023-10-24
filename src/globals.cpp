@@ -479,6 +479,9 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  --simple-cluster\n");
     printf("      instead of biWFA-based clustering, use gap-based clustering \n");
+    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
+    printf("      minimum gap between independent clusters and superclusters (in bases),\n");
+    printf("      only applicable if used with '--simple-cluster' option\n");
 
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
@@ -500,8 +503,6 @@ void Globals::print_usage() const
 
     printf("\n\nAdvanced Options: (not recommended for most users)\n");
     printf("\n  Clustering:\n");
-    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
-    printf("      minimum gap between independent clusters and superclusters (in bases)\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
     printf("  --max-reach-size <INTEGER> [%d]\n", g.max_reach_size);

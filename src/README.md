@@ -18,6 +18,8 @@ Options:
       printing verbosity (0: succinct, 1: default, 2:verbose)
 
   Variant Filtering:
+  -f, --filter <STRING1,STRING2...> [ALL]
+      select just variants passing these FILTERs (OR operation)
   -s, --smallest-variant <INTEGER> [1]
       minimum variant size, smaller variants ignored (SNPs are size 1)
   -l, --largest-variant <INTEGER> [5000]
@@ -28,12 +30,12 @@ Options:
       maximum variant quality, higher qualities kept but thresholded
 
   ReAlignment:
-  -r, --realign-only
+  -rq, --realign-query
+      realign query variants using Smith-Waterman parameters
+  -rt, --realign-truth
+      realign truth variants using Smith-Waterman parameters
+  -ro, --realign-only
       standardize truth and query variant representations, then exit
-  -q, --keep-query
-      do not realign query variants, keep original representation
-  -t, --keep-truth
-      do not realign truth variants, keep original representation
   -x, --mismatch-penalty <INTEGER> [3]
       Smith-Waterman mismatch (substitution) penalty
   -o, --gap-open-penalty <INTEGER> [2]
@@ -44,11 +46,14 @@ Options:
   Clustering:
   --simple-cluster
       instead of biWFA-based clustering, use gap-based clustering 
+  -g, --cluster-gap <INTEGER> [50]
+      minimum gap between independent clusters and superclusters (in bases),
+      only applicable if used with '--simple-cluster' option
 
   Utilization:
-  --max-threads <INTEGER> [64]
+  -t, --max-threads <INTEGER> [64]
       maximum threads to use for clustering and precision/recall alignment
-  --max-ram <FLOAT> [64.000GB]
+  -r, --max-ram <FLOAT> [64.000GB]
       (approximate) maximum RAM to use for precision/recall alignment
 
   Miscellaneous:
@@ -59,5 +64,22 @@ Options:
   -c, --citation
       please cite vcfdist if used in your analyses: thanks!
   -v, --version
-      print vcfdist version (v2.1.0)
+      print vcfdist version (v2.2.0)
+
+
+Advanced Options: (not recommended for most users)
+
+  Clustering:
+  -i, --max-iterations <INTEGER> [4]
+      maximum iterations for expanding/merging clusters
+  --max-reach-size <INTEGER> [100]
+      variants considered at most this size for biWFA-based clustering reaches
+
+  Distance:
+  -ex, --eval-mismatch-penalty <INTEGER> [3]
+      mismatch penalty (distance evaluation)
+  -eo, --eval-gap-open-penalty <INTEGER> [2]
+      gap opening penalty (distance evaluation)
+  -ee, --eval-gap-extend-penalty <INTEGER> [1]
+      gap extension penalty (distance evaluation)
 ```
