@@ -883,21 +883,20 @@ variantData::variantData(std::string vcf_fn,
     /*         gq_missing_total, callset_strs[callset].data()); */
 
     if (failed_filter_total) 
-        WARN("%d total variants failed FILTER in %s VCF, skipped",
+        INFO("%d variants failed FILTER in %s VCF, skipped",
             failed_filter_total, callset_strs[callset].data());
 
-    if (print) INFO("  Variant exceeds min qual (%d):", g.min_qual);
-    if (print) INFO("    FAIL  %d", pass_min_qual[FAIL]);
-    if (print) INFO("    PASS  %d", pass_min_qual[PASS]);
-    if (print) INFO(" ");
+    if (pass_min_qual[FAIL])
+        INFO("%d variants of low quality (<%d) in %s VCF, skipped", 
+            pass_min_qual[FAIL], g.min_qual, callset_strs[callset].data());
 
     if (wrong_ploidy_total) 
-        WARN("%d total variants with incorrect ploidy found in %s VCF, kept",
+        WARN("%d variants with incorrect ploidy found in %s VCF, kept",
             wrong_ploidy_total, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");
     for (size_t i = 0; i < gt_strs.size(); i++) {
-        if (print) INFO("    %3s  %i", gt_strs[i].data(), GT_counts[i]);
+        if (print && GT_counts[i]) INFO("    %3s: %i", gt_strs[i].data(), GT_counts[i]);
     }
     if (float(GT_counts[GT_REF_ALT1]) / (GT_counts[GT_ALT1_REF]+1) > 2 ||
         float(GT_counts[GT_ALT1_REF]) / (GT_counts[GT_REF_ALT1]+1) > 2)
@@ -905,65 +904,69 @@ variantData::variantData(std::string vcf_fn,
     if (print) INFO(" ");
 
     if (PS_missing_total) 
-        WARN("%d total variants with missing PS tags found in %s VCF, kept",
+        WARN("%d variants with missing PS tags found in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
     multi_total = GT_counts[GT_ALT1_ALT1] + GT_counts[GT_ALT1_ALT2] +
         GT_counts[GT_ALT2_ALT1] + GT_counts[GT_OTHER];
     if (multi_total)
-        WARN("%d total homozygous and multi-allelic variants in %s VCF split for evaluation",
+        INFO("%d homozygous and multi-allelic variants in %s VCF, split for evaluation",
             multi_total, callset_strs[callset].data());
 
     if (unknown_allele_total) 
-        WARN("%d total unknown alleles (.) found in %s VCF, skipped",
+        WARN("%d unknown alleles (.) found in %s VCF, skipped",
             unknown_allele_total, callset_strs[callset].data());
 
     if (unphased_gt_total) 
-        WARN("%d total variants with unphased genotypes found in %s VCF, skipped",
+        WARN("%d variants with unphased genotypes found in %s VCF, skipped",
             unphased_gt_total, callset_strs[callset].data());
 
     if (ref_call_total) 
-        WARN("%d total reference variant calls found in %s VCF, skipped",
+        WARN("%d reference variant calls found in %s VCF, skipped",
             ref_call_total, callset_strs[callset].data());
 
-    if (print) INFO("  Variants in BED regions:");
-    for (size_t i = 0; i < region_strs.size(); i++) {
-        if (print) INFO("    %s  %i", region_strs[i].data(), nregions[i]);
-    }
-    if (print) INFO(" ");
+    if (nregions[BED_OFFCTG] + nregions[BED_OUTSIDE])
+        INFO("%d variants outside of selected regions in %s VCF, skipped",
+                nregions[BED_OFFCTG] + nregions[BED_OUTSIDE], 
+                callset_strs[callset].data());
+
+    if (nregions[BED_BORDER])
+        INFO("%d variants on border of selected regions in %s VCF, kept",
+                nregions[BED_BORDER], callset_strs[callset].data());
 
     if (large_var_total)
-        WARN("%d total large %s VCF variant calls skipped, size > %d", 
+        WARN("%d large %s VCF variant calls skipped, size > %d", 
                 large_var_total, callset_strs[callset].data(), g.max_size);
 
     if (small_var_total)
-        WARN("%d total small %s VCF variant calls skipped, size < %d", 
+        WARN("%d small %s VCF variant calls skipped, size < %d", 
                 small_var_total, callset_strs[callset].data(), g.min_size);
 
     if (overlapping_var_total)
-        WARN("%d total overlapping %s VCF variant calls skipped", 
+        WARN("%d overlapping %s VCF variant calls skipped", 
                 overlapping_var_total, callset_strs[callset].data());
 
+    if (complex_total)
+        WARN("%d complex (CPX) variants found in  %s VCF, split into INS + DEL", 
+                complex_total, callset_strs[callset].data());
+
+    if (print) INFO(" ");
     if (print) INFO("  Variant types:");
     if (g.verbosity >= 2) { // show each hap separately
         for (int h = 0; h < HAPS; h++) {
             if (print) INFO("    Haplotype %i", h+1);
             for (size_t i = 0; i < type_strs.size(); i++) {
-                if (print) INFO("      %s  %i", type_strs[i].data(), ntypes[h][i]);
+                if (print) INFO("      %s: %i", type_strs[i].data(), ntypes[h][i]);
             }
         }
         if (print) INFO(" ");
     } else { // summarize
         for (size_t i = 0; i < type_strs.size(); i++) {
-            if (print) INFO("    %s  %i", type_strs[i].data(), 
-                    ntypes[HAP1][i] + ntypes[HAP2][i]);
+            if (print && ntypes[HAP1][i] + ntypes[HAP2][i]) 
+                INFO("    %s: %i", type_strs[i].data(), ntypes[HAP1][i] + ntypes[HAP2][i]);
         }
     }
     if (print) INFO(" ");
-
-    if (complex_total)
-        WARN("%d total complex (CPX) variants from %s VCF split into INS + DEL", 
-                complex_total, callset_strs[callset].data());
 
     if (print) INFO("  Contigs:");
     for (size_t i = 0; i < this->contigs.size(); i++) {
@@ -974,8 +977,8 @@ variantData::variantData(std::string vcf_fn,
     if (print) INFO(" ");
 
     if (print) INFO("  %s VCF overview:", callset_strs[callset].data());
-    if (print) INFO("    TOTAL %d", n + multi_total + complex_total);
-    if (print) INFO("    KEPT  %d", npass[HAP1] + npass[HAP2]);
+    if (print) INFO("    TOTAL: %d", n + multi_total + complex_total);
+    if (print) INFO("    KEPT : %d", npass[HAP1] + npass[HAP2]);
 
     free(gq);
     free(fgq);
