@@ -41,8 +41,15 @@ g.timers[TIME_READ].start();
     std::shared_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr, TRUTH));
 g.timers[TIME_READ].stop();
+
+// write results
 g.timers[TIME_WRITE].start();
+if (g.verbosity >= 1) INFO(" ");
+if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
+        std::string(g.out_prefix + "orig-query.vcf").data());
     query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
+if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
+        std::string(g.out_prefix + "orig-truth.vcf").data());
     truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
 g.timers[TIME_WRITE].stop();
 
@@ -183,6 +190,8 @@ g.timers[TIME_SUPCLUST].start();
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
 
     // calculate supercluster sizes
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Sorting superclusters by size");
     auto sc_groups = sort_superclusters(clusterdata_ptr);
 g.timers[TIME_SUPCLUST].stop();
 
