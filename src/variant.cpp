@@ -606,13 +606,13 @@ variantData::variantData(std::string vcf_fn,
             ngq = bcf_get_format_float(hdr, rec, "GQ", &fgq, &GQ_memsize);
             gq[0] = int(fgq[0]);
         }
-        if ( ngq == -3 ) { // missing
+        if ( ngq == -3 || ngq == -1 ) { // missing
             /* if (g.verbosity > 1 || !gq_missing_total) */
             /*     WARN("No GQ tag in %s VCF at %s:%lld", */
             /*             callset_strs[callset].data(), ctg.data(), (long long)rec->pos); */
             /* gq_missing_total++; // only warn once */
             gq[0] = 0;
-        } else if (ngq <= 0) { // other error
+        } else if (ngq < 0) { // other error
             ERROR("Failed to read %s GQ at %s:%lld", 
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
         }
@@ -696,7 +696,7 @@ variantData::variantData(std::string vcf_fn,
         if (nPS == -1) { // PS not defined in header
             if (!PS_warn) {
                 PS_warn = true;
-                WARN("'PS' tag not defined in header, assuming single phase set");
+                WARN("'PS' tag not defined in header, assuming one phase set per contig");
             }
             phase_set = 0;
 
@@ -860,13 +860,13 @@ variantData::variantData(std::string vcf_fn,
             // add to haplotype-specific query info
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 this->variants[hap][ctg]->add_var(pos, 0, // INS
-                    hap, TYPE_INS, loc, "", alt, simple_gt, gq[0], vq, phase_set);
+                    hap, TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
                 this->variants[hap][ctg]->add_var(pos, rlen, // DEL
-                    hap, TYPE_DEL, loc, ref, "", simple_gt, gq[0], vq, phase_set);
+                    hap, TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
                 complex_total++;
             } else {
                 this->variants[hap][ctg]->add_var(pos, rlen,
-                        hap, type, loc, ref, alt, simple_gt, gq[0], vq, phase_set);
+                        hap, type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
             }
 
             prev_end[hap] = pos + rlen;
