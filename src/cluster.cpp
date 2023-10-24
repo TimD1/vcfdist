@@ -51,18 +51,19 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             for (int hap = 0; hap < HAPS; hap++) {
                 // get range of included variants
                 /* printf("QUERY hap=%d\n", hap); */
-                auto vars = ctg_scs->ctg_variants[QUERY][hap];
-                if (vars->clusters.size() == 0) continue;
-                auto scs = ctg_scs->superclusters[QUERY][hap];
+                if (ctg_scs->ctg_variants[QUERY][hap]->clusters.size() == 0) continue;
                 /* printf("nscs=%d, sc_size=%d, sc_idx=%d\n", ctg_scs->n, int(scs.size()), sc_idx); */
                 /* printf("clust_beg=%d, clust_end=%d, clust_size=%d\n", scs[sc_idx], scs[sc_idx+1], int(vars->clusters.size())); */
-                int var_beg = vars->clusters[scs[sc_idx]];
-                int var_end = vars->clusters[scs[sc_idx+1]];
+                int var_beg = ctg_scs->ctg_variants[QUERY][hap]->clusters[
+                        ctg_scs->superclusters[QUERY][hap][sc_idx]];
+                int var_end = ctg_scs->ctg_variants[QUERY][hap]->clusters[
+                        ctg_scs->superclusters[QUERY][hap][sc_idx+1]];
                 /* printf("var_beg=%d, var_end=%d, nvar=%d, var_size=%d\n", var_beg, var_end, vars->n, int(vars->poss.size())); */
                 // calculate query len after applying variants
                 int query_len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
                 for (int var = var_beg; var < var_end; var++) {
-                    query_len += (vars->alts[var].size() - vars->refs[var].size());
+                    query_len += (ctg_scs->ctg_variants[QUERY][hap]->alts[var].size() - 
+                            ctg_scs->ctg_variants[QUERY][hap]->refs[var].size());
                 }
                 max_query_len = std::max(max_query_len, query_len);
             }
@@ -71,15 +72,16 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             int max_truth_len = 0;
             for (int hap = 0; hap < HAPS; hap++) {
                 // get range of included variants
-                auto vars = ctg_scs->ctg_variants[TRUTH][hap];
-                if (vars->clusters.size() == 0) continue;
-                auto scs = ctg_scs->superclusters[TRUTH][hap];
-                int var_beg = vars->clusters[scs[sc_idx]];
-                int var_end = vars->clusters[scs[sc_idx+1]];
+                if (ctg_scs->ctg_variants[TRUTH][hap]->clusters.size() == 0) continue;
+                int var_beg = ctg_scs->ctg_variants[TRUTH][hap]->clusters[
+                        ctg_scs->superclusters[TRUTH][hap][sc_idx]];
+                int var_end = ctg_scs->ctg_variants[TRUTH][hap]->clusters[
+                        ctg_scs->superclusters[TRUTH][hap][sc_idx+1]];
                 // calculate truth len after applying variants
                 int truth_len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
                 for (int var = var_beg; var < var_end; var++) {
-                    truth_len += (vars->alts[var].size() - vars->refs[var].size());
+                    truth_len += (ctg_scs->ctg_variants[TRUTH][hap]->alts[var].size() - 
+                            ctg_scs->ctg_variants[TRUTH][hap]->refs[var].size());
                 }
                 max_truth_len = std::max(max_truth_len, truth_len);
             }
