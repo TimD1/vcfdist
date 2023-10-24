@@ -24,6 +24,21 @@ inline bool contains(const std::unordered_map<T,U> & wave, const T & idx) {
 /******************************************************************************/
 
 
+int calc_ng50(std::vector<int> phase_blocks, size_t total_bases) {
+    size_t total_phased = 0;
+    std::sort(phase_blocks.begin(), phase_blocks.end(), std::greater<>());
+    for (size_t i = 0; i < phase_blocks.size(); i++) {
+        total_phased += phase_blocks[i];
+        if (total_phased >= total_bases / 2)
+            return phase_blocks[i];
+    }
+    return 0;
+}
+
+
+/******************************************************************************/
+
+
 /* Reverse two strings and their associated pointers for reverse alignment. */
 void reverse_ptrs_strs(
         std::string & query, std::string & ref,

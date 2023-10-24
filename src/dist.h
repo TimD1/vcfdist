@@ -119,6 +119,10 @@ std::string generate_str(
 
 /******************************************************************************/
 
+int calc_ng50(std::vector<int> phase_blocks, size_t total_bases);
+
+/******************************************************************************/
+
 void calc_prec_recall_aln(
         const std::string & query1, const std::string & query2,
         const std::string & truth1, const std::string & truth2, 
