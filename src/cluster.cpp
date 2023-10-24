@@ -256,6 +256,7 @@ void superclusterData::transfer_phase_sets() {
         for (int sci = 0; sci < ctg_scs->n; sci++) { // for each supercluster
             int query_ps_ct = 0;
             int truth_ps_ct = 0;
+            int non_increasing = 0;
             if (print) printf("supercluster: %d", sci);
 
             // check all variants in supercluster for each haplotype
@@ -274,7 +275,8 @@ void superclusterData::transfer_phase_sets() {
                         if (!query_ps_ct) { query_ps_ct++; }
                         query_ps_end = std::max(query_ps_end, q1v->poss[q1i] + q1v->rlens[q1i]);
                     } else {
-                        total_non_increasing++;
+                        query_ps_ct++;
+                        non_increasing++;
                     }
                 }
             }
@@ -293,7 +295,8 @@ void superclusterData::transfer_phase_sets() {
                         if (!query_ps_ct) { query_ps_ct++; }
                         query_ps_end = std::max(query_ps_end, q2v->poss[q2i] + q2v->rlens[q2i]);
                     } else {
-                        total_non_increasing++;
+                        query_ps_ct++;
+                        non_increasing++;
                     }
                 }
             }
@@ -312,7 +315,8 @@ void superclusterData::transfer_phase_sets() {
                         if (!truth_ps_ct) { truth_ps_ct++; }
                         truth_ps_end = std::max(truth_ps_end, t1v->poss[t1i] + t1v->rlens[t1i]);
                     } else {
-                        total_non_increasing++;
+                        truth_ps_ct++;
+                        non_increasing++;
                     }
                 }
             }
@@ -331,7 +335,8 @@ void superclusterData::transfer_phase_sets() {
                         if (!truth_ps_ct) { truth_ps_ct++; }
                         truth_ps_end = std::max(truth_ps_end, t2v->poss[t2i] + t2v->rlens[t2i]);
                     } else {
-                        total_non_increasing++;
+                        truth_ps_ct++;
+                        non_increasing++;
                     }
                 }
             }
@@ -339,6 +344,8 @@ void superclusterData::transfer_phase_sets() {
             // if one supercluster contains variants in multiple phase sets
             if (query_ps_ct > 1 || truth_ps_ct > 1) {
                 total_multiple_phase_sets++;
+            } else {
+                total_non_increasing += non_increasing;
             }
 
             // add phase_set to supercluster
