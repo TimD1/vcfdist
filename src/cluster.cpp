@@ -186,12 +186,13 @@ superclusterData::superclusterData(
 void superclusterData::transfer_phase_sets() {
     bool print = false;
 
-    int total_query_phase_sets = 1;
-    int total_truth_phase_sets = 1;
+    int total_query_phase_sets = 0;
+    int total_truth_phase_sets = 0;
     int total_multiple_phase_sets = 0;
     int total_non_increasing = 0;
     std::vector<int> query_phase_set_sizes;
     std::vector<int> truth_phase_set_sizes;
+    int ctg_idx = 0;
     for (std::string ctg : this->contigs) { // for each contig
         std::shared_ptr<ctgSuperclusters> ctg_scs = this->superclusters[ctg];
         if (print) printf("ctg: %s\n", ctg.data());
@@ -246,10 +247,10 @@ void superclusterData::transfer_phase_sets() {
         if (print) printf("first phase set: %d\n", phase_set);
 
         // carry phase_set across superclusters (if no heterozygous variants)
-        int query_phase_set = phase_set;
-        int truth_phase_set = phase_set;
-        int query_ps_beg = phase_set; int query_ps_end = 0;
-        int truth_ps_beg = phase_set; int truth_ps_end = 0;
+        int query_phase_set = 0;
+        int truth_phase_set = 0;
+        int query_ps_beg = 0; int query_ps_end = 0;
+        int truth_ps_beg = 0; int truth_ps_end = 0;
         for (int sci = 0; sci < ctg_scs->n; sci++) { // for each supercluster
             int query_ps_ct = 0;
             int truth_ps_ct = 0;
@@ -261,9 +262,9 @@ void superclusterData::transfer_phase_sets() {
                     q1i < q1v->clusters[q1sc[sci+1]]; q1i++) {
                 if (q1v->phase_sets[q1i]) { // non-zero, has PS tag
                     if (q1v->phase_sets[q1i] > query_phase_set) { // new PS
+                        if (query_phase_set) query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
                         phase_set = query_phase_set = q1v->phase_sets[q1i];
                         total_query_phase_sets++; query_ps_ct++;
-                        query_phase_set_sizes.push_back(query_ps_end - query_ps_beg); // add phase set
                         if (print) printf(" Q1 PS:%d %d-%d", phase_set, query_ps_beg, query_ps_end);
                         query_ps_beg = q1v->poss[q1i];
                         query_ps_end = q1v->poss[q1i] + q1v->rlens[q1i];
@@ -280,9 +281,9 @@ void superclusterData::transfer_phase_sets() {
                     q2i < q2v->clusters[q2sc[sci+1]]; q2i++) {
                 if (q2v->phase_sets[q2i]) { // non-zero, has PS tag
                     if (q2v->phase_sets[q2i] > query_phase_set) { // new
+                        if (query_phase_set) query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
                         phase_set = query_phase_set = q2v->phase_sets[q2i];
                         total_query_phase_sets++; query_ps_ct++;
-                        query_phase_set_sizes.push_back(query_ps_end - query_ps_beg); // add phase set
                         if (print) printf(" Q2 PS:%d %d-%d", phase_set, query_ps_beg, query_ps_end);
                         query_ps_beg = q2v->poss[q2i];
                         query_ps_end = q2v->poss[q2i] + q2v->rlens[q2i];
@@ -299,9 +300,9 @@ void superclusterData::transfer_phase_sets() {
                     t1i < t1v->clusters[t1sc[sci+1]]; t1i++) {
                 if (t1v->phase_sets[t1i]) { // non-zero, has PS tag
                     if (t1v->phase_sets[t1i] > truth_phase_set) { // new
+                        if (truth_phase_set) truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
                         phase_set = truth_phase_set = t1v->phase_sets[t1i];
                         total_truth_phase_sets++; truth_ps_ct++;
-                        truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg); // add phase set
                         if (print) printf(" T1 PS:%d %d-%d", phase_set, truth_ps_beg, truth_ps_end);
                         truth_ps_beg = t1v->poss[t1i];
                         truth_ps_end = t1v->poss[t1i] + t1v->rlens[t1i];
@@ -318,9 +319,9 @@ void superclusterData::transfer_phase_sets() {
                     t2i < t2v->clusters[t2sc[sci+1]]; t2i++) {
                 if (t2v->phase_sets[t2i]) { // non-zero, has PS tag
                     if (t2v->phase_sets[t2i] > truth_phase_set) { // new
+                        if (truth_phase_set) truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
                         phase_set = truth_phase_set = t2v->phase_sets[t2i];
                         total_truth_phase_sets++; truth_ps_ct++;
-                        truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg); // add phase set
                         if (print) printf(" T2 PS:%d %d-%d", phase_set, truth_ps_beg, truth_ps_end);
                         truth_ps_beg = t2v->poss[t2i];
                         truth_ps_end = t2v->poss[t2i] + t2v->rlens[t2i];
@@ -344,8 +345,21 @@ void superclusterData::transfer_phase_sets() {
         }
 
         // add final phase set on contig
-        query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
-        truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
+        if (!query_phase_set) {
+            query_phase_set_sizes.push_back(this->lengths[ctg_idx]);
+            total_query_phase_sets++;
+        } else {
+            query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
+            total_query_phase_sets++;
+        }
+        if (!truth_phase_set) {
+            truth_phase_set_sizes.push_back(this->lengths[ctg_idx]);
+            total_truth_phase_sets++;
+        } else {
+            truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
+            total_truth_phase_sets++;
+        }
+        ctg_idx++;
     }
 
     // calculate phaseset NG50
