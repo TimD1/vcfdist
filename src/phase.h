@@ -29,6 +29,7 @@ public:
     void write_summary_vcf(std::string vcf_fn);
     void phase();
     int calculate_ng50();
+    int calculate_ngc50();
 
     std::shared_ptr<fastaData> ref;
     std::vector<std::string> contigs;

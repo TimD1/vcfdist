@@ -345,7 +345,7 @@ void phaseblockData::phase()
     int phase_blocks = 0;
     int superclusters = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
-    int i = 0;
+    int id = 0;
     for (auto ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
@@ -369,26 +369,76 @@ void phaseblockData::phase()
 
         // print errors per contig
         if (g.verbosity >= 1) {
-            INFO("    [%2d] %s: %d switches, %d flips, %d blocks", i, ctg.data(), 
+            INFO("    [%2d] %s: %d switches, %d flips, %d blocks", id, ctg.data(), 
                     ctg_pbs->nswitches, ctg_pbs->nflips, ctg_pbs->n);
-            switch_errors += ctg_pbs->nswitches;
-            flip_errors += ctg_pbs->nflips;
-            phase_blocks += ctg_pbs->n;
-            i++;
         }
         superclusters += ctg_scs->n;
+        switch_errors += ctg_pbs->nswitches;
+        flip_errors += ctg_pbs->nflips;
+        phase_blocks += ctg_pbs->n;
+        id++;
     }
     int ng50 = this->calculate_ng50();
+    int ngc50 = this->calculate_ngc50();
 
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("   Total switch errors: %d", switch_errors);
     if (g.verbosity >= 1) INFO("   Total   flip errors: %d", flip_errors);
     if (g.verbosity >= 1) INFO("   Total  phase blocks: %d", phase_blocks);
+    if (g.verbosity >= 1) INFO("      Phaseblock  NG50: %d", ng50);
+    if (g.verbosity >= 1) INFO("      Phaseblock NGC50: %d", ngc50);
     if (g.verbosity >= 1 && superclusters) 
         INFO("  SC Switch error rate: %.4f%%", 100*switch_errors/float(superclusters));
     if (g.verbosity >= 1 && superclusters) 
         INFO("    SC Flip error rate: %.4f%%", 100*flip_errors/float(superclusters));
-    if (g.verbosity >= 1) INFO("       Phaseblock NG50: %d", ng50);
+}
+
+
+/*******************************************************************************/
+
+
+int phaseblockData::calculate_ngc50() {
+
+    // get total bases in genome
+    size_t total_bases = 0;
+    for (size_t i = 0; i < this->contigs.size(); i++) {
+        total_bases += lengths[i];
+    }
+
+    // get sizes of each correct phase block (split on flips, not just switch)
+    std::vector<int> correct_blocks;
+    for (std::string ctg: this->contigs) {
+        
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        for (int pb = 0; pb < ctg_pbs->n && ctg_scs->n > 0; pb++) { // each phase block
+
+            // init start of this correct block
+            int sc = ctg_pbs->phase_blocks[pb];
+            int beg = ctg_scs->begs[sc];
+            int end = 0;
+            for (; sc < ctg_pbs->phase_blocks[pb+1]; sc++) { // each superclsuter
+                if (ctg_scs->phase[sc] != PHASE_NONE &&  // flip error
+                        ctg_scs->phase[sc] != ctg_pbs->block_states[pb]) {
+                    end = ctg_scs->ends[sc-1];
+                    correct_blocks.push_back(end-beg);
+                    beg = ctg_scs->begs[sc]; // reset
+                }
+            }
+            end = ctg_scs->ends[sc-1];
+            correct_blocks.push_back(end-beg);
+        }
+    }
+
+    // return NGC50
+    size_t total_correct = 0;
+    std::sort(correct_blocks.begin(), correct_blocks.end(), std::greater<>());
+    for (size_t i = 0; i < correct_blocks.size(); i++) {
+        total_correct += correct_blocks[i];
+        if (total_correct >= total_bases / 2)
+            return correct_blocks[i];
+    }
+    return 0;
 }
 
 
