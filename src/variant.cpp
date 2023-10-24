@@ -730,7 +730,7 @@ variantData::variantData(std::string vcf_fn,
             int alt_idx = ngt < 0 ? 1 : bcf_gt_allele(gt[hap]); // if no GT, assume 1
             if (alt_idx < 0) {
                 if (g.verbosity > 1)
-                    WARN("Unknown allele (.) in %s VCF at %s:%lld, skipping",
+                    WARN("Variant with unknown allele (.) in %s VCF at %s:%lld, skipping",
                         callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
                 unknown_allele_total += 1;
                 continue;
@@ -741,7 +741,7 @@ variantData::variantData(std::string vcf_fn,
             // skip unphased heterozygous variants (1/1 is allowed, 0/1 is not)
             if (ngt == 2 && !same && !bcf_gt_is_phased(gt[HAP2])) { // only HAP2 is set, not sure why...
                 if (g.verbosity > 1) {
-                    WARN("Unphased genotype in %s VCF at %s:%lld %s %s",
+                    WARN("Variant with unphased genotype in %s VCF at %s:%lld %s %s, skipping",
                         callset_strs[callset].data(), ctg.data(), (long long)rec->pos, ref.data(), alt.data());
                 }
                 unphased_gt_total += 1;
@@ -891,7 +891,7 @@ variantData::variantData(std::string vcf_fn,
             pass_min_qual[FAIL], g.min_qual, callset_strs[callset].data());
 
     if (wrong_ploidy_total) 
-        WARN("%d variants with incorrect ploidy found in %s VCF, kept",
+        WARN("%d variants with incorrect ploidy in %s VCF, kept",
             wrong_ploidy_total, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");
@@ -904,7 +904,7 @@ variantData::variantData(std::string vcf_fn,
     if (print) INFO(" ");
 
     if (PS_missing_total) 
-        WARN("%d variants with missing PS tags found in %s VCF, kept",
+        WARN("%d variants missing PS tags in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
     multi_total = GT_counts[GT_ALT1_ALT1] + GT_counts[GT_ALT1_ALT2] +
@@ -914,19 +914,19 @@ variantData::variantData(std::string vcf_fn,
             multi_total, callset_strs[callset].data());
 
     if (unknown_allele_total) 
-        WARN("%d unknown alleles (.) found in %s VCF, skipped",
+        WARN("%d variants with unknown (./.) alleles in %s VCF, skipped",
             unknown_allele_total, callset_strs[callset].data());
 
     if (unphased_gt_total) 
-        WARN("%d variants with unphased genotypes found in %s VCF, skipped",
+        WARN("%d variants with unphased genotypes in %s VCF, skipped",
             unphased_gt_total, callset_strs[callset].data());
 
     if (ref_call_total) 
-        WARN("%d reference variant calls found in %s VCF, skipped",
+        WARN("%d reference variants in %s VCF, skipped",
             ref_call_total, callset_strs[callset].data());
 
     if (nregions[BED_OFFCTG] + nregions[BED_OUTSIDE])
-        INFO("%d variants outside of selected regions in %s VCF, skipped",
+        INFO("%d variants outside selected regions in %s VCF, skipped",
                 nregions[BED_OFFCTG] + nregions[BED_OUTSIDE], 
                 callset_strs[callset].data());
 
@@ -935,19 +935,19 @@ variantData::variantData(std::string vcf_fn,
                 nregions[BED_BORDER], callset_strs[callset].data());
 
     if (large_var_total)
-        WARN("%d large %s VCF variant calls skipped, size > %d", 
-                large_var_total, callset_strs[callset].data(), g.max_size);
+        WARN("%d large (size > %d) variants in %s VCF, skipped", 
+                large_var_total, g.max_size, callset_strs[callset].data());
 
     if (small_var_total)
-        WARN("%d small %s VCF variant calls skipped, size < %d", 
-                small_var_total, callset_strs[callset].data(), g.min_size);
+        WARN("%d small (size < %d) variants in %s VCF, skipped", 
+                small_var_total, g.min_size, callset_strs[callset].data());
 
     if (overlapping_var_total)
-        WARN("%d overlapping %s VCF variant calls skipped", 
+        WARN("%d overlapping variants in %s VCF, skipped", 
                 overlapping_var_total, callset_strs[callset].data());
 
     if (complex_total)
-        WARN("%d complex (CPX) variants found in  %s VCF, split into INS + DEL", 
+        WARN("%d complex (CPX) variants in %s VCF, split into INS + DEL", 
                 complex_total, callset_strs[callset].data());
 
     if (print) INFO(" ");

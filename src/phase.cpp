@@ -369,7 +369,7 @@ void phaseblockData::phase()
 
         // print errors per contig
         if (g.verbosity >= 1) {
-            INFO("    [%2d] %s: %d switches, %d flips, %d blocks", id, ctg.data(), 
+            INFO("    [%2d] %s: %d switches, %d flips, %d phase blocks", id, ctg.data(), 
                     ctg_pbs->nswitches, ctg_pbs->nflips, ctg_pbs->n);
         }
         superclusters += ctg_scs->n;
@@ -385,12 +385,12 @@ void phaseblockData::phase()
     if (g.verbosity >= 1) INFO("   Total switch errors: %d", switch_errors);
     if (g.verbosity >= 1) INFO("   Total   flip errors: %d", flip_errors);
     if (g.verbosity >= 1) INFO("   Total  phase blocks: %d", phase_blocks);
-    if (g.verbosity >= 1) INFO("      Phaseblock  NG50: %d", ng50);
-    if (g.verbosity >= 1) INFO("      Phaseblock NGC50: %d", ngc50);
+    if (g.verbosity >= 1) INFO("     Phase block  NG50: %d", ng50);
+    if (g.verbosity >= 1) INFO("     Phase block NGC50: %d", ngc50);
     if (g.verbosity >= 1 && superclusters) 
-        INFO("  SC Switch error rate: %.4f%%", 100*switch_errors/float(superclusters));
+        INFO("  SC Switch error rate: %.6f%%", 100*switch_errors/float(superclusters));
     if (g.verbosity >= 1 && superclusters) 
-        INFO("    SC Flip error rate: %.4f%%", 100*flip_errors/float(superclusters));
+        INFO("    SC Flip error rate: %.6f%%", 100*flip_errors/float(superclusters));
 }
 
 

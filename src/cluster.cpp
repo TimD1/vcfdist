@@ -383,9 +383,9 @@ void superclusterData::transfer_phase_sets() {
                 total_non_increasing)
 
     if (g.verbosity >= 1) INFO("        Input QUERY phase sets: %d", total_query_phase_sets);
-    if (g.verbosity >= 1) INFO("     Input QUERY phaseset NG50: %d", query_ps_ng50);
+    if (g.verbosity >= 1) INFO("    Input QUERY phase set NG50: %d", query_ps_ng50);
     if (g.verbosity >= 1) INFO("        Input TRUTH phase sets: %d", total_truth_phase_sets);
-    if (g.verbosity >= 1) INFO("     Input TRUTH phaseset NG50: %d", truth_ps_ng50);
+    if (g.verbosity >= 1) INFO("    Input TRUTH phase set NG50: %d", truth_ps_ng50);
 }
 
 
