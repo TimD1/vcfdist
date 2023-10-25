@@ -346,12 +346,13 @@ void phaseblockData::phase()
     int superclusters = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int id = 0;
+    bool print = false;
     for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
 
         // verbose, print phase of each supercluster
-        if (g.verbosity >= 2) {
+        if (print) {
             int s = 0;
             std::vector<std::string> colors {"\033[34m", "\033[32m"};
             int color_idx = 0;
