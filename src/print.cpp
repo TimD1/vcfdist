@@ -305,45 +305,44 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
         // add query
         for (int h = 0; h < HAPS; h++) {
-            int sc_idx = 0;
-            int phase_block = 0;
-            for (int i = 0; i < ctg_vars[QUERY][h]->n; i++) {
+            for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
+                for (int sci = ctg_pbs->phase_blocks[pbi]; 
+                        sci < ctg_pbs->phase_blocks[pbi+1]; sci++) {
 
-                // update supercluster
-                while (ctg_vars[QUERY][h]->poss[i] >= ctg_scs->ends[sc_idx])
-                    sc_idx++;
+                    // get swap info
+                    bool swap;
+                    switch (ctg_scs->phase[sci]) {
+                        case PHASE_ORIG: swap = false; break;
+                        case PHASE_SWAP: swap = true; break;
+                        default: swap = ctg_pbs->block_states[pbi]; break;
+                    }
 
-                // update phasing info
-                if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1])
-                    phase_block++;
-                bool phase_switch = ctg_pbs->block_states[phase_block];
-                int phase_sc = ctg_scs->phase[sc_idx];
-                bool swap;
-                switch (phase_sc) {
-                    case PHASE_ORIG: swap = false; break;
-                    case PHASE_SWAP: swap = true; break;
-                    default: swap = phase_switch; break;
-                }
+                    for (int i = ctg_vars[QUERY][h]->clusters[
+                            ctg_scs->superclusters[QUERY][h][sci] ]; 
+                            i < ctg_vars[QUERY][h]->clusters[
+                            ctg_scs->superclusters[QUERY][h][sci+1] ]; i++) {
 
-                float q = ctg_vars[QUERY][h]->callq[swap][i];
-                int t = 0;
-                if (ctg_vars[QUERY][h]->types[i] == TYPE_SUB) {
-                    t = VARTYPE_SNP;
-                } else if (ctg_vars[QUERY][h]->types[i] == TYPE_INS ||
-                        ctg_vars[QUERY][h]->types[i] == TYPE_DEL) {
-                    t = VARTYPE_INDEL;
-                } else {
-                    ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                            ctg_vars[QUERY][h]->types[i]);
-                }
-                if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_UN) {
-                    WARN("Unknown error type at QUERY %s:%d", ctg.data(), ctg_vars[QUERY][h]->poss[i]);
-                    continue;
-                }
-                for (int qual = g.min_qual; qual <= q; qual++) {
-                    query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
-                    if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_PP) {
-                        query_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[QUERY][h]->credit[swap][i];
+                        float q = ctg_vars[QUERY][h]->callq[swap][i];
+                        int t = 0;
+                        if (ctg_vars[QUERY][h]->types[i] == TYPE_SUB) {
+                            t = VARTYPE_SNP;
+                        } else if (ctg_vars[QUERY][h]->types[i] == TYPE_INS ||
+                                ctg_vars[QUERY][h]->types[i] == TYPE_DEL) {
+                            t = VARTYPE_INDEL;
+                        } else {
+                            ERROR("Unexpected variant type (%d) in write_precision_recall()", 
+                                    ctg_vars[QUERY][h]->types[i]);
+                        }
+                        if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_UN) {
+                            WARN("Unknown error type at QUERY %s:%d", ctg.data(), ctg_vars[QUERY][h]->poss[i]);
+                            continue;
+                        }
+                        for (int qual = g.min_qual; qual <= q; qual++) {
+                            query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                            if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_PP) {
+                                query_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[QUERY][h]->credit[swap][i];
+                            }
+                        }
                     }
                 }
             }
@@ -351,42 +350,43 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
         // add truth
         for (int h = 0; h < HAPS; h++) {
-            int phase_block = 0;
-            for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
+            for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
+                for (int sci = ctg_pbs->phase_blocks[pbi]; 
+                        sci < ctg_pbs->phase_blocks[pbi+1]; sci++) {
 
-                // update phasing info
-                if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1])
-                    phase_block++;
-                bool phase_switch = ctg_pbs->block_states[phase_block];
-                int phase_sc = ctg_scs->phase[sc_idx];
-                bool swap;
-                switch (phase_sc) {
-                    case PHASE_ORIG: swap = false; break;
-                    case PHASE_SWAP: swap = true; break;
-                    default: swap = phase_switch; break;
-                }
-
-                for (int i = ctg_scs->superclusters[TRUTH][h^swap][sc_idx]; i < ctg_scs->superclusters[TRUTH][h^swap][sc_idx+1]; i++) {
-
-                    float q = ctg_vars[TRUTH][h^swap]->callq[swap][i];
-                    int t = 0;
-                    if (ctg_vars[TRUTH][h^swap]->types[i] == TYPE_SUB) {
-                        t = VARTYPE_SNP;
-                    } else if (ctg_vars[TRUTH][h^swap]->types[i] == TYPE_INS ||
-                            ctg_vars[TRUTH][h^swap]->types[i] == TYPE_DEL) {
-                        t = VARTYPE_INDEL;
-                    } else {
-                        ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                                ctg_vars[TRUTH][h^swap]->types[i]);
+                    // get swap info
+                    bool swap;
+                    switch (ctg_scs->phase[sci]) {
+                        case PHASE_ORIG: swap = false; break;
+                        case PHASE_SWAP: swap = true; break;
+                        default: swap = ctg_pbs->block_states[pbi]; break;
                     }
-                    if (ctg_vars[TRUTH][h^swap]->errtypes[swap][i] == ERRTYPE_UN) {
-                        WARN("Unknown error type at TRUTH %s:%d", ctg.data(), ctg_vars[TRUTH][h^swap]->poss[i]);
-                        continue;
-                    }
-                    for (int qual = g.min_qual; qual <= q; qual++) {
-                        truth_counts[t][ ctg_vars[TRUTH][h^swap]->errtypes[swap][i] ][qual-g.min_qual]++;
-                        if (ctg_vars[TRUTH][h^swap]->errtypes[swap][i] == ERRTYPE_PP) {
-                            truth_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[TRUTH][h^swap]->credit[swap][i];
+
+                    for (int i = ctg_vars[TRUTH][h]->clusters[
+                            ctg_scs->superclusters[TRUTH][h][sci] ]; 
+                            i < ctg_vars[TRUTH][h]->clusters[
+                            ctg_scs->superclusters[TRUTH][h][sci+1] ]; i++) {
+
+                        float q = ctg_vars[TRUTH][h]->callq[swap][i];
+                        int t = 0;
+                        if (ctg_vars[TRUTH][h]->types[i] == TYPE_SUB) {
+                            t = VARTYPE_SNP;
+                        } else if (ctg_vars[TRUTH][h]->types[i] == TYPE_INS ||
+                                ctg_vars[TRUTH][h]->types[i] == TYPE_DEL) {
+                            t = VARTYPE_INDEL;
+                        } else {
+                            ERROR("Unexpected variant type (%d) in write_precision_recall()", 
+                                    ctg_vars[TRUTH][h]->types[i]);
+                        }
+                        if (ctg_vars[TRUTH][h]->errtypes[swap][i] == ERRTYPE_UN) {
+                            WARN("Unknown error type at TRUTH %s:%d", ctg.data(), ctg_vars[TRUTH][h]->poss[i]);
+                            continue;
+                        }
+                        for (int qual = g.min_qual; qual <= q; qual++) {
+                            truth_counts[t][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                            if (ctg_vars[TRUTH][h]->errtypes[swap][i] == ERRTYPE_PP) {
+                                truth_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[TRUTH][h]->credit[swap][i];
+                            }
                         }
                     }
                 }
