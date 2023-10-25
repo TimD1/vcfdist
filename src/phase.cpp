@@ -8,7 +8,7 @@
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // VCF header
-    if (g.verbosity >= 1) INFO("  Printing GA4GH-compatible summary VCF to '%s'", out_vcf_fn.data());
+    if (g.verbosity >= 1) INFO("  Writing GA4GH-compatible summary VCF to '%s'", out_vcf_fn.data());
     FILE* out_vcf = fopen(out_vcf_fn.data(), "w");
     const std::chrono::time_point now{std::chrono::system_clock::now()};
     time_t tt = std::chrono::system_clock::to_time_t(now);

@@ -39,6 +39,8 @@ void ctgSuperclusters::set_phase(
 std::vector< std::vector< std::vector<int> > > 
 sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Sorting superclusters by size");
     std::vector< std::vector< std::vector<int> > > sc_groups(g.thread_nsteps,
             std::vector< std::vector<int> >(2));
 

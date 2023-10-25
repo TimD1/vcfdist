@@ -31,8 +31,8 @@ int main(int argc, char **argv) {
     g.init_timers(timer_strs);
 
     // parse reference fasta
-g.timers[TIME_TOTAL].start();
-g.timers[TIME_READ].start();
+    g.timers[TIME_TOTAL].start();
+    g.timers[TIME_READ].start();
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
     // parse query and truth VCFs
@@ -40,25 +40,27 @@ g.timers[TIME_READ].start();
             new variantData(g.query_vcf_fn, ref_ptr, QUERY));
     std::shared_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr, TRUTH));
-g.timers[TIME_READ].stop();
+    g.timers[TIME_READ].stop();
 
-// write results
-g.timers[TIME_WRITE].start();
-if (g.verbosity >= 1) INFO(" ");
-if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
-        std::string(g.out_prefix + "orig-query.vcf").data());
-    query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
-if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
-        std::string(g.out_prefix + "orig-truth.vcf").data());
-    truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
-g.timers[TIME_WRITE].stop();
+    // write results
+    if (g.write) {
+        g.timers[TIME_WRITE].start();
+        if (g.verbosity >= 1) INFO(" ");
+        if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
+                std::string(g.out_prefix + "orig-query.vcf").data());
+            query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
+        if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
+                std::string(g.out_prefix + "orig-truth.vcf").data());
+            truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
+        g.timers[TIME_WRITE].stop();
+    }
 
     // ensure each input contains all contigs in BED
     check_contigs(query_ptr, truth_ptr, ref_ptr);
 
     // cluster, realign, and cluster query VCF
     if (g.realign_query) {
-g.timers[TIME_CLUST].start();
+        g.timers[TIME_CLUST].start();
         if (g.simple_cluster) {
             gap_cluster(query_ptr, QUERY);
         } else {
@@ -78,22 +80,22 @@ g.timers[TIME_CLUST].start();
             }
             for (std::thread & thread : threads) thread.join();
         }
-g.timers[TIME_CLUST].stop();
+        g.timers[TIME_CLUST].stop();
 
-g.timers[TIME_REALN].start();
+        g.timers[TIME_REALN].start();
         query_ptr = wf_swg_realign(query_ptr, ref_ptr, 
                 g.sub, g.open, g.extend, QUERY);
         query_ptr->left_shift();
-g.timers[TIME_REALN].stop();
+        g.timers[TIME_REALN].stop();
     }
 
-    if (g.realign_only) { // realign only, exit early
-g.timers[TIME_WRITE].start();
+    if (g.realign_only && g.write) { // realign only, exit early
+        g.timers[TIME_WRITE].start();
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
-g.timers[TIME_WRITE].stop();
+        g.timers[TIME_WRITE].stop();
 
     } else { // re-cluster based on new alignments
-g.timers[TIME_RECLUST].start();
+        g.timers[TIME_RECLUST].start();
         if (g.simple_cluster) {
             gap_cluster(query_ptr, QUERY);
         } else {
@@ -113,12 +115,12 @@ g.timers[TIME_RECLUST].start();
             }
             for (std::thread & thread : threads) thread.join();
         }
-g.timers[TIME_RECLUST].stop();
+        g.timers[TIME_RECLUST].stop();
     }
 
     // cluster, realign, and cluster truth VCF
     if (g.realign_truth) {
-g.timers[TIME_CLUST].start();
+        g.timers[TIME_CLUST].start();
         if (g.simple_cluster) {
             gap_cluster(truth_ptr, TRUTH);
         } else {
@@ -138,20 +140,22 @@ g.timers[TIME_CLUST].start();
             }
             for (std::thread & thread : threads) thread.join();
         }
-g.timers[TIME_CLUST].stop();
+        g.timers[TIME_CLUST].stop();
 
-g.timers[TIME_REALN].start();
+        g.timers[TIME_REALN].start();
         truth_ptr = wf_swg_realign(truth_ptr, ref_ptr, 
                 g.sub, g.open, g.extend, TRUTH);
         truth_ptr->left_shift();
-g.timers[TIME_REALN].stop();
+        g.timers[TIME_REALN].stop();
     }
 
     if (g.realign_only) { // realign only, exit early
-g.timers[TIME_WRITE].start();
-        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
-g.timers[TIME_WRITE].stop();
-g.timers[TIME_TOTAL].stop();
+        if (g.write) {
+            g.timers[TIME_WRITE].start();
+            truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+            g.timers[TIME_WRITE].stop();
+        }
+        g.timers[TIME_TOTAL].stop();
         if (g.verbosity >= 1) {
             INFO(" ")
             INFO("Timers:")
@@ -161,7 +165,7 @@ g.timers[TIME_TOTAL].stop();
 
     } else {
 
-g.timers[TIME_RECLUST].start();
+        g.timers[TIME_RECLUST].start();
         if (g.simple_cluster) {
             gap_cluster(truth_ptr, TRUTH); 
         } else {
@@ -181,47 +185,47 @@ g.timers[TIME_RECLUST].start();
             }
             for (std::thread & thread : threads) thread.join();
         }
-g.timers[TIME_RECLUST].stop();
+        g.timers[TIME_RECLUST].stop();
     }
 
     // calculate superclusters
-g.timers[TIME_SUPCLUST].start();
+    g.timers[TIME_SUPCLUST].start();
     std::shared_ptr<superclusterData> clusterdata_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
 
     // calculate supercluster sizes
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("  Sorting superclusters by size");
     auto sc_groups = sort_superclusters(clusterdata_ptr);
-g.timers[TIME_SUPCLUST].stop();
+    g.timers[TIME_SUPCLUST].stop();
 
     // calculate precision/recall and local phasing
-g.timers[TIME_PR_ALN].start();
+    g.timers[TIME_PR_ALN].start();
     precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
-g.timers[TIME_PR_ALN].stop();
+    g.timers[TIME_PR_ALN].stop();
 
     // calculate edit distance
-g.timers[TIME_EDITS].start();
+    g.timers[TIME_EDITS].start();
     editData edits = edits_wrapper(clusterdata_ptr);
-g.timers[TIME_EDITS].stop();
+    g.timers[TIME_EDITS].stop();
 
     // calculate global phasings
-g.timers[TIME_PHASE].start();
+    g.timers[TIME_PHASE].start();
     std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr));
-g.timers[TIME_PHASE].stop();
+    g.timers[TIME_PHASE].stop();
 
     // write supercluster/phaseblock results in CSV format
-g.timers[TIME_WRITE].start();
+    g.timers[TIME_WRITE].start();
     write_results(phasedata_ptr, edits);
 
     // save new VCF
-    query_ptr->write_vcf(g.out_prefix + "query.vcf");
-    truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
-    phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
-g.timers[TIME_WRITE].stop();
+    if (g.write) {
+        query_ptr->write_vcf(g.out_prefix + "query.vcf");
+        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+        phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
+    }
+    g.timers[TIME_WRITE].stop();
 
     // report timing results
-g.timers[TIME_TOTAL].stop();
+    g.timers[TIME_TOTAL].stop();
     if (g.verbosity >= 1) {
         INFO(" ")
         INFO("Timers:")

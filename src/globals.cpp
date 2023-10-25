@@ -216,6 +216,11 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide positive maximum variant reach size");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-n" || 
+                std::string(argv[i]) == "--no-output-files") {
+            i++;
+            g.write = false;
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-h" || 
                 std::string(argv[i]) == "--help") {
             i++;
@@ -445,10 +450,12 @@ void Globals::print_usage() const
     printf("\n  Inputs/Outputs:\n");
     printf("  -b, --bed <STRING>\n");
     printf("      BED file containing regions to evaluate\n");
-    printf("  -p, --prefix <STRING> [./]\n");
-    printf("      prefix for output files (directory needs a trailing slash)\n");
     printf("  -v, --verbosity <INTEGER> [%d]\n", g.verbosity);
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
+    printf("  -p, --prefix <STRING> [./]\n");
+    printf("      prefix for output files (directory needs a trailing slash)\n");
+    printf("  -n, --no-output-files\n");
+    printf("      skip writing output files, only print summary to console\n");
 
     printf("\n  Variant Filtering:\n");
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");

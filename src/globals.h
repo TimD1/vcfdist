@@ -17,6 +17,7 @@ public:
     std::string bed_fn;
     bedData bed;
     bool bed_exists = false;
+    bool write = true;
 
     // variant params
     std::vector<std::string> filters;
