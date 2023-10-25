@@ -30,6 +30,10 @@ int main(int argc, char **argv) {
     g.parse_args(argc, argv);
     g.init_timers(timer_strs);
 
+    g.timers[TIME_WRITE].start();
+    write_params();
+    g.timers[TIME_WRITE].stop();
+
     // parse reference fasta
     g.timers[TIME_TOTAL].start();
     g.timers[TIME_READ].start();

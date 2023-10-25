@@ -64,9 +64,10 @@ void Globals::parse_args(int argc, char ** argv) {
         }
     }
 
-    for (int i = 0; i < argc; i++)
+    g.cmd = std::string(argv[0]);
+    for (int i = 1; i < argc; i++)
         g.cmd += " " + std::string(argv[i]);
-    if (g.verbosity >= 1) INFO("Command: '%s'", g.cmd.data()+1);
+    if (g.verbosity >= 1) INFO("Command: '%s'", g.cmd.data());
 
     if (argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-') {
         WARN("Optional arguments should be provided AFTER mandatory arguments, cannot use STDIN");

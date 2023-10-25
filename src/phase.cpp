@@ -16,7 +16,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     fprintf(out_vcf, "##fileformat=VCFv4.2\n");
     fprintf(out_vcf, "##fileDate=%04d%02d%02d\n", local_time.tm_year + 1900, 
             local_time.tm_mon + 1, local_time.tm_mday);
-    fprintf(out_vcf, "##CL=%s\n", g.cmd.data()+1);
+    fprintf(out_vcf, "##CL=%s\n", g.cmd.data());
     for (size_t i = 0; i < this->contigs.size(); i++) {
         fprintf(out_vcf, "##contig=<ID=%s,length=%d,ploidy=%d>\n", 
                 this->contigs[i].data(), this->lengths[i], this->ploidy[i]);
