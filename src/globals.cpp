@@ -476,13 +476,6 @@ void Globals::print_usage() const
     printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
     printf("      Smith-Waterman gap extension penalty\n");
 
-    printf("\n  Clustering:\n");
-    printf("  --simple-cluster\n");
-    printf("      instead of biWFA-based clustering, use gap-based clustering \n");
-    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
-    printf("      minimum gap between independent clusters and superclusters (in bases),\n");
-    printf("      only applicable if used with '--simple-cluster' option\n");
-
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
     printf("      maximum threads to use for clustering and precision/recall alignment\n");
@@ -507,6 +500,11 @@ void Globals::print_usage() const
     printf("      maximum iterations for expanding/merging clusters\n");
     printf("  --max-reach-size <INTEGER> [%d]\n", g.max_reach_size);
     printf("      variants considered at most this size for biWFA-based clustering reaches\n");
+    printf("  --simple-cluster\n");
+    printf("      instead of biWFA-based clustering, use gap-based clustering \n");
+    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
+    printf("      minimum gap between independent clusters and superclusters (in bases),\n");
+    printf("      only applicable if used with '--simple-cluster' option\n");
 
     printf("\n  Distance:\n");
     printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
