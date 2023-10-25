@@ -445,6 +445,7 @@ variantData::variantData(std::string vcf_fn,
     /* int gq_missing_total = 0; */
     int PS_missing_total = 0;
     int overlapping_var_total = 0;
+    int spanning_del_total = 0;
     int unknown_allele_total = 0;
     int unphased_gt_total = 0;
     int small_var_total = 0;
@@ -751,7 +752,7 @@ variantData::variantData(std::string vcf_fn,
             // skip spanning deletion
             if (alt == "*") { 
                 ntypes[hap][TYPE_REF]++; 
-                overlapping_var_total++;
+                spanning_del_total++;
                 continue; 
             }
 
@@ -920,6 +921,10 @@ variantData::variantData(std::string vcf_fn,
     if (unphased_gt_total) 
         WARN("%d variants with unphased genotypes in %s VCF, skipped",
             unphased_gt_total, callset_strs[callset].data());
+
+    if (spanning_del_total)
+        WARN("%d variants spanned by deletion in %s VCF, skipped", 
+                spanning_del_total, callset_strs[callset].data());
 
     if (ref_call_total) 
         WARN("%d reference variants in %s VCF, skipped",
