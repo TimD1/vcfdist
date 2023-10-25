@@ -4,10 +4,10 @@
 4. Make final Git commit of changes
 ```bash
 git commit -m "version bump (vX.X.X)"
-git checkout -b master
+git checkout master
 git merge dev
 git push origin master
-git checkout -b dev
+git checkout dev
 ```
 5. Make new release and tag on Github
 6. Build and deploy new Docker image
@@ -15,6 +15,7 @@ git checkout -b dev
 cd ~/vcfdist/src
 sudo docker login -u timd1
 sudo docker build --no-cache -t vcfdist .
-sudo docker image tag timd1/vcfdist:latest timd1/vcfdist/vX.X.X
+sudo docker image ls
+sudo docker image tag timd1/vcfdist:latest timd1/vcfdist:vX.X.X
 sudo docker image push timd1/vcfdist:vX.X.X
 ```
