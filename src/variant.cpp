@@ -983,7 +983,7 @@ variantData::variantData(std::string vcf_fn,
 
     if (print) INFO("  %s VCF overview:", callset_strs[callset].data());
     if (print) INFO("    TOTAL: %d", n + multi_total + complex_total);
-    if (print) INFO("    KEPT : %d", npass[HAP1] + npass[HAP2]);
+    if (print) INFO("    KEPT : %d", npass[HAP1] + npass[HAP2] + complex_total);
 
     free(gq);
     free(fgq);
