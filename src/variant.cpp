@@ -55,7 +55,7 @@ void variantData::left_shift() {
     // shift variants as far left as possible after realignment
     for (int hap = 0; hap < HAPS; hap++) {
         for (std::string ctg : this->contigs) {
-            auto vars = this->variants[hap][ctg];
+            std::shared_ptr<ctgVariants> vars = this->variants[hap][ctg];
             for (int i = 0; i < vars->n; i++) {
 
                 // shift INS
@@ -100,7 +100,7 @@ void variantData::left_shift() {
     // for each variant
     for (int hap = 0; hap < HAPS; hap++) {
         for (std::string ctg : this->contigs) {
-            auto vars = this->variants[hap][ctg];
+            std::shared_ptr<ctgVariants> vars = this->variants[hap][ctg];
             for (int i = 0; i < vars->n; i++) {
 
                 // if we consume a ref base, and there's another variant at the

@@ -72,11 +72,11 @@ g.timers[TIME_CLUST].start();
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & thread : threads) thread.join();
+                    for (std::thread & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & thread : threads) thread.join();
+            for (std::thread & thread : threads) thread.join();
         }
 g.timers[TIME_CLUST].stop();
 
@@ -107,11 +107,11 @@ g.timers[TIME_RECLUST].start();
                             query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & thread : threads) thread.join();
+                    for (std::thread & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & thread : threads) thread.join();
+            for (std::thread & thread : threads) thread.join();
         }
 g.timers[TIME_RECLUST].stop();
     }
@@ -132,11 +132,11 @@ g.timers[TIME_CLUST].start();
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & thread : threads) thread.join();
+                    for (std::thread & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & thread : threads) thread.join();
+            for (std::thread & thread : threads) thread.join();
         }
 g.timers[TIME_CLUST].stop();
 
@@ -175,11 +175,11 @@ g.timers[TIME_RECLUST].start();
                             truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
-                    for (auto & thread : threads) thread.join();
+                    for (std::thread & thread : threads) thread.join();
                     threads.clear();
                 }
             }
-            for (auto & thread : threads) thread.join();
+            for (std::thread & thread : threads) thread.join();
         }
 g.timers[TIME_RECLUST].stop();
     }

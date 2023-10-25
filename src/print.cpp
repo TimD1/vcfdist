@@ -298,7 +298,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
 
     // calculate summary statistics
-    for (auto ctg : phasedata_ptr->contigs) {
+    for (std::string ctg : phasedata_ptr->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         auto & ctg_vars = ctg_scs->ctg_variants;
@@ -605,7 +605,7 @@ void write_distance(const editData & edits) {
                     COLOR_BLUE, COLOR_WHITE);
         }
         std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
-        for (auto q : quals) {
+        for (int q : quals) {
 
             // fill out ED/DE for selected quals
             std::vector<int> edit_dists(TYPES, 0);
@@ -669,7 +669,7 @@ void write_results(
     FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
     if (g.verbosity >= 1) INFO("  Printing phasing results to '%s'", out_phaseblocks_fn.data());
     fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tBLOCK_STATE\n");
-    for (auto ctg : phasedata_ptr->contigs) {
+    for (std::string ctg : phasedata_ptr->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
@@ -690,7 +690,7 @@ void write_results(
     if (g.verbosity >= 1) INFO("  Printing superclustering results to '%s'", out_clusterings_fn.data());
     fprintf(out_clusterings, "CONTIG\tSUPERCLUSTER\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
             "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_SET\tPHASE_BLOCK\n");
-    for (auto ctg : phasedata_ptr->contigs) {
+    for (std::string ctg : phasedata_ptr->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         int phase_block_idx = 0;
@@ -741,7 +741,7 @@ void write_results(
     FILE* out_query = fopen(out_query_fn.data(), "w");
     fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
             "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
-    for (auto ctg : phasedata_ptr->contigs) {
+    for (std::string ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
@@ -843,7 +843,7 @@ void write_results(
     if (g.verbosity >= 1) INFO("  Printing truth variant results to '%s'", out_truth_fn.data());
     FILE* out_truth = fopen(out_truth_fn.data(), "w");
     fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
-    for (auto ctg : phasedata_ptr->contigs) {
+    for (std::string ctg : phasedata_ptr->contigs) {
 
         // set pointers to variants and superclusters
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];

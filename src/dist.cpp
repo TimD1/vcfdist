@@ -378,7 +378,7 @@ void calc_prec_recall_aln(
             }
 
             // mark all cells visited this wave as done
-            for (auto x : curr_wave) { 
+            for (idx1 x : curr_wave) { 
                 done[x.hi == ri ? dri : dqi][x.qri][x.ti] = true; 
             }
             curr_wave.clear();
@@ -389,7 +389,7 @@ void calc_prec_recall_aln(
 
 
             // NEXT WAVEFRONT (increase score by one)
-            for (auto x : prev_wave) {
+            for (idx1 x : prev_wave) {
                 int qr_len = (x.hi == qi) ? query_lens[i] : ref_len;
                 if (x.qri+1 < qr_len) { // INS
                     idx1 y(x.hi, x.qri+1, x.ti);
@@ -1668,7 +1668,7 @@ void precision_recall_threads_wrapper(
                             thread_step, start, start+size, thread4));
                 start += size;
             }
-            for (auto & t : threads)
+            for (std::thread & t : threads)
                 t.join();
 
             // we fully finished all problems at this size
@@ -1699,7 +1699,7 @@ void precision_recall_threads_wrapper(
                 }
             }
 
-            for (auto & t : threads)
+            for (std::thread & t : threads)
                 t.join();
         }
     }
@@ -1740,7 +1740,7 @@ void precision_recall_wrapper(
                     cluster_beg, cluster_end);
 
                 for (int j = cluster_beg; j < cluster_end; j++) {
-                    auto vars = sc->ctg_variants[callset][hap];
+                    std::shared_ptr<ctgVariants> vars = sc->ctg_variants[callset][hap];
                     int variant_beg = vars->clusters[j];
                     int variant_end = vars->clusters[j+1];
                     printf("\tCluster %d: %d variants (%d-%d)\n", j, 
@@ -1840,7 +1840,7 @@ void precision_recall_wrapper(
                     std::ref(swap_pred_maps), std::ref(aln_query_ref_end), 
                     ti, ti+1, false));
             }
-            for (auto & t : threads)
+            for (std::thread & t : threads)
                 t.join();
         } else { // calculate 4 alignments in this thread
             calc_prec_recall_aln(
@@ -1919,7 +1919,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                         cluster_beg, cluster_end);
 
                     for (int j = cluster_beg; j < cluster_end; j++) {
-                        auto vars = sc->ctg_variants[callset][hap];
+                        std::shared_ptr<ctgVariants> vars = sc->ctg_variants[callset][hap];
                         int variant_beg = vars->clusters[j];
                         int variant_end = vars->clusters[j+1];
                         printf("\tCluster %d: %d variants (%d-%d)\n", j, 

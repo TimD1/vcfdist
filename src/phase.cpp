@@ -240,7 +240,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     this->ref = clusterdata_ptr->ref;
 
     // add pointers to clusters
-    for (auto ctg : clusterdata_ptr->contigs) {
+    for (std::string ctg : clusterdata_ptr->contigs) {
         this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->superclusters[ctg];
     }
     this->phase();
@@ -257,7 +257,7 @@ void phaseblockData::phase()
             COLOR_PURPLE, COLOR_WHITE);
 
     // phase each contig separately
-    for (auto ctg : this->contigs) {
+    for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         std::vector< std::vector<int> > mat(2, std::vector<int>(ctg_scs->n+1));
@@ -346,7 +346,7 @@ void phaseblockData::phase()
     int superclusters = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int id = 0;
-    for (auto ctg : this->contigs) {
+    for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
 

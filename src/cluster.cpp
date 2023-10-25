@@ -420,7 +420,7 @@ void superclusterData::supercluster() {
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
-        auto vars = this->superclusters[ctg]->ctg_variants;
+        auto & vars = this->superclusters[ctg]->ctg_variants;
         std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
         while (true) {
 
@@ -560,7 +560,7 @@ void superclusterData::gap_supercluster() {
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
-        auto vars = this->superclusters[ctg]->ctg_variants;
+        auto & vars = this->superclusters[ctg]->ctg_variants;
         std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
         while (true) {
 
@@ -733,7 +733,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
             std::max(sub, open+extend), -2);
 
     // init: each variant is its own cluster
-    auto vars = vcf->variants[hap][ctg];
+    std::shared_ptr<ctgVariants> vars = vcf->variants[hap][ctg];
     int nvar = vars->n;
     if (!nvar) return;
 
