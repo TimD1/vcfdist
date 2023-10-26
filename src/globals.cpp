@@ -203,20 +203,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum variant quality provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--max-reach-size") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--max-reach-size' used without providing maximum reach size");
-            }
-            try {
-                this->max_reach_size = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid maximum reach size provided");
-            }
-            if (g.max_reach_size <= 0) {
-                ERROR("Must provide positive maximum variant reach size");
-            }
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-n" || 
                 std::string(argv[i]) == "--no-output-files") {
             i++;
@@ -506,8 +492,6 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  --max-reach-size <INTEGER> [%d]\n", g.max_reach_size);
-    printf("      variants considered at most this size for biWFA-based clustering reaches\n");
     printf("  --simple-cluster\n");
     printf("      instead of biWFA-based clustering, use gap-based clustering \n");
     printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);

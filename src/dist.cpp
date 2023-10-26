@@ -2064,13 +2064,11 @@ int calc_vcf_swg_score(std::shared_ptr<ctgVariants> vars,
                 break;
             case TYPE_INS:
                 score += open;
-                score += extend * std::min(g.max_reach_size, 
-                        int(vars->alts[var_idx].size()));
+                score += extend * vars->alts[var_idx].size();
                 break;
             case TYPE_DEL:
                 score += open;
-                score += extend * std::min(g.max_reach_size, 
-                        int(vars->refs[var_idx].size()));
+                score += extend * vars->refs[var_idx].size();
                 break;
             default:
                 ERROR("Unexpected variant type in calc_vcf_swg_score()");

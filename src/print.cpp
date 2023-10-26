@@ -41,14 +41,14 @@ void write_params() {
         "program = '%s'\nversion = '%s'\nout_prefix = '%s'\ncommand = '%s'\nreference_fasta = '%s'\n"
         "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
         "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\n"
-        "max_var_reach_size = %d\nrealign_truth = %s\nrealign_query = %s\n"
+        "realign_truth = %s\nrealign_query = %s\n"
         "realign_only = %s\nsimple_cluster = %s\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
         "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\n",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size,
-        g.max_reach_size, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
+        b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
         b2s(g.realign_only).data(), b2s(g.simple_cluster).data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
         g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend);

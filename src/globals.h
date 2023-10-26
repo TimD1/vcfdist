@@ -26,7 +26,6 @@ public:
     int max_qual = 60;
     int min_size = 1;
     int max_size = 5000;
-    int max_reach_size = 100;
 
     // clustering params
     bool realign_truth = false;
