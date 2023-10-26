@@ -31,7 +31,7 @@ public:
     std::vector<int> poss;          // variant start positions (0-based)
     std::vector<int> rlens;         // reference lengths
     std::vector<uint8_t> haps;      // variant haplotype
-    std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
+    std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, CPX
     std::vector<uint8_t> locs;      // BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  // variant reference allele
     std::vector<std::string> alts;  // variant alternate allele (always one)

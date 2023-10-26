@@ -821,7 +821,6 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
             }
 
             // LEFT REACH 
-
             if (left_compute) { // calculate left reach
                 std::string query, ref;
 
@@ -919,7 +918,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                     main_diag += vars->refs[vi].size() - vars->alts[vi].size();
 
                 // calculate max reaching path to right
-                int ref_len = score/extend + 3;
+                int ref_len = score/extend + 3; // reasonable starting size
                 int reach = ref_len - 1;
                 while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;

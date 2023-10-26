@@ -26,15 +26,15 @@ public:
     int get_score(int qual) const;                 // smith-waterman distance
 
     // data (all of size n)
-    std::vector<std::string> ctgs;  // contigs
-    std::vector<int> poss;          // variant start positions (0-based)
-    std::vector<uint8_t> haps;      // variant haplotypes
-    std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, GRP
-    std::vector<int> lens;          // variant lengths
-    std::vector<int> superclusters; // variant superclusters
-    std::vector<int> min_quals;     // variant quality start range (inclusive)
-    std::vector<int> max_quals;     // variant quality end range (exclusive)
     int n = 0;
+    std::vector<std::string> ctgs;  // contigs
+    std::vector<int> poss;          // edit start position (0-based)
+    std::vector<uint8_t> haps;      // edit haplotype
+    std::vector<uint8_t> types;     // edit type: SUB, INS, DEL
+    std::vector<int> lens;          // edit length
+    std::vector<int> superclusters; // edit supercluster
+    std::vector<int> min_quals;     // edit quality start range (inclusive)
+    std::vector<int> max_quals;     // edit quality end range (exclusive)
 };
 
 #endif

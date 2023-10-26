@@ -370,7 +370,7 @@ void phaseblockData::phase()
 
         // print errors per contig
         if (g.verbosity >= 1) {
-            INFO("    [%2d] %s: %d switches, %d flips, %d phase blocks", id, ctg.data(), 
+            INFO("    [%2d] %s: %d switch errors, %d flip errors, %d phase blocks", id, ctg.data(), 
                     ctg_pbs->nswitches, ctg_pbs->nflips, ctg_pbs->n);
         }
         superclusters += ctg_scs->n;
