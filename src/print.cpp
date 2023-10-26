@@ -337,7 +337,9 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         auto & ctg_vars = ctg_scs->ctg_variants;
 
         // add query
+        if(ctg_scs->n)
         for (int h = 0; h < HAPS; h++) {
+            if (ctg_vars[QUERY][h]->n)
             for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
                 for (int sci = ctg_pbs->phase_blocks[pbi]; 
                         sci < ctg_pbs->phase_blocks[pbi+1]; sci++) {
@@ -382,7 +384,9 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         }
 
         // add truth
+        if (ctg_scs->n)
         for (int h = 0; h < HAPS; h++) {
+            if (ctg_vars[TRUTH][h]->n)
             for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
                 for (int sci = ctg_pbs->phase_blocks[pbi]; 
                         sci < ctg_pbs->phase_blocks[pbi+1]; sci++) {
