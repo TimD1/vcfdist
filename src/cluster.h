@@ -6,6 +6,7 @@
 #include <vector>
 #include <algorithm>
 
+#include "fasta.h"
 #include "variant.h"
 #include "defs.h"
 

@@ -1893,6 +1893,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
     std::vector<int> all_qual_dists(g.max_qual+2, 0);
     editData edits;
     int ctg_id = 0;
+    if (g.verbosity >= 1) INFO("  Contigs:");
     for (std::string ctg : clusterdata_ptr->contigs) {
         std::vector<int> ctg_qual_dists(g.max_qual+2,0);
 
@@ -1900,7 +1901,6 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
         std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
 
         // iterate over superclusters
-        if (g.verbosity >= 1) INFO("  Contigs:");
         for(int sc_idx = 0; sc_idx < sc->n; sc_idx++) {
 
             /////////////////////////////////////////////////////////////////////

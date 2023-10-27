@@ -726,28 +726,26 @@ void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
 /* Add single-VCF cluster indices to `variantData`. This version assumes that
  * all variant calls are true positives (doesn't allow skipping)
  */
-void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
-        int sub, int open, int extend) {
+void wf_swg_cluster(variantData * vcf, std::string ctg, 
+        int hap, int sub, int open, int extend) {
     bool print = false;
 
     // allocate this memory once, use on each cluster
     std::vector<int> offs_buffer(MATS * g.max_size*2 * 
             std::max(sub, open+extend), -2);
 
-    // init: each variant is its own cluster
     std::shared_ptr<ctgVariants> vars = vcf->variants[hap][ctg];
-    int nvar = vars->n;
-    if (!nvar) return;
+    if (!vars->n) return;
 
     // mark variant boundary between clusters (hence n+1), 
     // and whether it was active on the previous iteration.
     // initially, one variant per cluster
-    std::vector<int> prev_clusters(nvar+1);
-    for (int i = 0; i < nvar+1; i++) 
+    std::vector<int> prev_clusters(vars->n+1);
+    for (int i = 0; i < vars->n+1; i++) 
         prev_clusters[i] = i;
-    std::vector<bool> prev_active(nvar+1, true);
+    std::vector<bool> prev_active(vars->n+1, true);
 
-    std::vector<int> right_reach(nvar+1), left_reach(nvar+1);
+    std::vector<int> right_reach(vars->n+1), left_reach(vars->n+1);
     std::vector<int> next_clusters, tmp_clusters;
     std::vector<bool> next_active, tmp_active;
 
@@ -770,7 +768,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
 
         // set far left/right to avoid OOB for first/last clusters
         left_reach[0] = vars->poss[0];
-        right_reach[prev_clusters.size()-2] = vars->poss[nvar-1];
+        right_reach[prev_clusters.size()-2] = vars->poss[vars->n-1];
         // set sentinel reaches
         left_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
         right_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
@@ -815,9 +813,16 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
 
             int l_reach = 0, r_reach = 0, score = 0;
             if (left_compute || right_compute) {
-                score = calc_vcf_swg_score(
-                        vars, clust, clust+1, sub, open, extend);
-                if (print) printf("    orig score: %d\n", score);
+                int beg_idx = vars->clusters[clust];
+                int end_idx = vars->clusters[clust+1];
+                int beg = vars->poss[beg_idx] - 1;
+                int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1] + 1;
+                std::string query = generate_str(vcf->ref, vars, ctg, beg_idx, end_idx, beg, end);
+                std::string ref = vcf->ref->fasta.at(ctg).substr(beg, end-beg);
+                std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
+                std::vector< std::vector< std::vector<int> > > offs(MATS);
+                wf_swg_align(query, ref, ptrs, offs, score, sub, open, extend, false);
+                if (print) printf("   align score: %d\n", score);
             }
 
             // LEFT REACH 
@@ -827,16 +832,17 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 // error checking
                 if (vars->clusters[clust]-1 < 0)
                     ERROR("left var_idx < 0");
-                if (vars->clusters[clust]-1 >= nvar)
+                if (vars->clusters[clust]-1 >= vars->n)
                     ERROR("left var_idx >= nvar");
                 if (clust+1 >= vars->clusters.size())
                     ERROR("left next clust_idx >= nclust");
                 if (vars->clusters[clust+1]-1 < 0)
                     ERROR("left next var_idx < 0");
-                if (vars->clusters[clust+1]-1 >= nvar)
+                if (vars->clusters[clust+1]-1 >= vars->n)
                     ERROR("left next var_idx >= nvar");
 
                 // just after last variant in this cluster
+                int beg_pos = vars->poss[vars->clusters[clust]]-1;
                 int end_pos = vars->poss[vars->clusters[clust+1]-1] +
                         vars->rlens[vars->clusters[clust+1]-1]+1;
                 
@@ -849,11 +855,11 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                     main_diag += vars->refs[vi].size() - vars->alts[vi].size();
 
                 // calculate max reaching path to left
-                int ref_len = score/extend + 3;
+                int ref_len = end_pos - beg_pos;
                 int reach = ref_len - 1;
                 while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;
-                    int beg_pos = end_pos - std::max(0, main_diag) - ref_len - score/extend-3;
+                    beg_pos = end_pos - ref_len - std::abs(main_diag) - score/extend - 3; // ensure query is longer
                     query = generate_str(vcf->ref, vars, ctg, 
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 
@@ -896,19 +902,22 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                 // error checking
                 if (vars->clusters[clust] < 0)
                     ERROR("right var_idx < 0");
-                if (vars->clusters[clust] >= nvar)
+                if (vars->clusters[clust] >= vars->n)
                     ERROR("right var_idx >= nvar");
                 if (clust+1 >= vars->clusters.size())
                     ERROR("right next clust_idx >= nclust");
                 if (vars->clusters[clust+1] < 0)
                     ERROR("right next var_idx < 0");
-                if (vars->clusters[clust+1] >= nvar)
+                if (vars->clusters[clust+1] >= vars->n)
                     ERROR("right next var_idx >= nvar");
 
                 // right before current cluster
                 int beg_pos = vars->poss[vars->clusters[clust]]-1;
+                int end_pos = vars->poss[vars->clusters[clust+1]-1] +
+                        vars->rlens[vars->clusters[clust+1]-1]+1;
 
                 // get reference end pos of last variant in this cluster
+                // (disallow reference main diag matches after this)
                 int main_diag_start = vars->poss[ 
                             vars->clusters[clust+1]-1]
                             + vars->rlens[vars->clusters[clust+1]-1] - beg_pos;
@@ -918,11 +927,11 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
                     main_diag += vars->refs[vi].size() - vars->alts[vi].size();
 
                 // calculate max reaching path to right
-                int ref_len = score/extend + 3; // reasonable starting size
+                int ref_len = end_pos - beg_pos;
                 int reach = ref_len - 1;
                 while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;
-                    int end_pos = beg_pos + std::max(0, main_diag) + ref_len + score/extend+3;
+                    end_pos = beg_pos + ref_len + std::abs(main_diag) + score/extend + 3;
                     query = generate_str(vcf->ref, vars, ctg, 
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 

@@ -221,8 +221,8 @@ std::shared_ptr<variantData> wf_swg_realign(
 void wf_swg_align(
         const std::string & query, 
         const std::string & truth,
-        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        const std::vector< std::vector< std::vector<int> > > & offs,
+        std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
+        std::vector< std::vector< std::vector<int> > > & offs,
         int & s, int sub, int open, int extend, bool print = false);
 
 std::vector<int> wf_swg_backtrack(
