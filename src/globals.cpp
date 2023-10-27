@@ -482,7 +482,7 @@ void Globals::print_usage() const
     printf("  -a, --advanced\n");
     printf("      show advanced options, not recommended for most users\n");
     printf("  -c, --citation\n");
-    printf("      please cite vcfdist if used in your analyses: thanks!\n");
+    printf("      please cite vcfdist if used in your analyses; thanks :)\n");
     printf("  -v, --version\n");
     printf("      print %s version (v%s)\n", this->PROGRAM.data(), this->VERSION.data());
 

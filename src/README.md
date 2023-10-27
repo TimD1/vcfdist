@@ -12,10 +12,12 @@ Options:
   Inputs/Outputs:
   -b, --bed <STRING>
       BED file containing regions to evaluate
-  -p, --prefix <STRING> [./]
-      prefix for output files (directory needs a trailing slash)
   -v, --verbosity <INTEGER> [1]
       printing verbosity (0: succinct, 1: default, 2:verbose)
+  -p, --prefix <STRING> [./]
+      prefix for output files (directory needs a trailing slash)
+  -n, --no-output-files
+      skip writing output files, only print summary to console
 
   Variant Filtering:
   -f, --filter <STRING1,STRING2...> [ALL]
@@ -43,13 +45,6 @@ Options:
   -e, --gap-extend-penalty <INTEGER> [1]
       Smith-Waterman gap extension penalty
 
-  Clustering:
-  --simple-cluster
-      instead of biWFA-based clustering, use gap-based clustering 
-  -g, --cluster-gap <INTEGER> [50]
-      minimum gap between independent clusters and superclusters (in bases),
-      only applicable if used with '--simple-cluster' option
-
   Utilization:
   -t, --max-threads <INTEGER> [64]
       maximum threads to use for clustering and precision/recall alignment
@@ -62,24 +57,7 @@ Options:
   -a, --advanced
       show advanced options, not recommended for most users
   -c, --citation
-      please cite vcfdist if used in your analyses: thanks!
+      please cite vcfdist if used in your analyses; thanks :)
   -v, --version
-      print vcfdist version (v2.2.0)
-
-
-Advanced Options: (not recommended for most users)
-
-  Clustering:
-  -i, --max-iterations <INTEGER> [4]
-      maximum iterations for expanding/merging clusters
-  --max-reach-size <INTEGER> [100]
-      variants considered at most this size for biWFA-based clustering reaches
-
-  Distance:
-  -ex, --eval-mismatch-penalty <INTEGER> [3]
-      mismatch penalty (distance evaluation)
-  -eo, --eval-gap-open-penalty <INTEGER> [2]
-      gap opening penalty (distance evaluation)
-  -ee, --eval-gap-extend-penalty <INTEGER> [1]
-      gap extension penalty (distance evaluation)
+      print vcfdist version (v2.2.1)
 ```
