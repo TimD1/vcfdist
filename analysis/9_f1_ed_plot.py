@@ -11,10 +11,16 @@ mpl.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams.update({"figure.facecolor": (0,0,0,0)})
 mpl.rcParams['text.usetex'] = True
 
+def mm2in(x):
+    return x / 25.4
+
 data = "/home/timdunn/vcfdist/data"
 datasets = ["nist", "cmrg"]
 names = ["original", "A", "B", "C", "D"]
 colors = ["k", "C0", "C1", "C2", "C3"]
+
+out6c = open("tsv/S5c.tsv", 'w')
+print("DATASET\tSUBMISSION\tREPRESENTATION\tED_QSCORE\tDE_QSCORE\tALN_QSCORE", file=out6c)
 
 sub_ids = [
     "0GOOR", "23O09", "4GKR1", "61YRJ", "8H0ZB", "B1S5A", "C6JUX", "EIUT6", "H9OJ3", "IA789",
@@ -33,7 +39,7 @@ markers = ['.']*len(sub_ids)
 # ]
 # markers = ['s', 'o', '^']
 
-fig, ax = plt.subplots(1, 6, figsize=(20,4))
+fig, ax = plt.subplots(1, 6, figsize=(mm2in(180), mm2in(36)))
 
 for di, dataset in enumerate(datasets):
 
@@ -66,6 +72,7 @@ for di, dataset in enumerate(datasets):
                     de_f1_list.append(de_f1q)
                     aln_f1_list.append(aln_f1q)
                     print(f"{filename}={ed_f1q:.4f}\t", end="")
+                    print(f"{dataset.upper()}\t{sub_id}\t{name.upper()}\t{ed_f1q}\t{de_f1q}\t{aln_f1q}", file=out6c)
             except FileNotFoundError:
                 # print(f"File '{data}/pfda-v2/{dataset}_vcfdist/{sub_id}_HG002_{filename}.distance-summary.tsv' not found.")
                 break
@@ -78,11 +85,11 @@ for di, dataset in enumerate(datasets):
         aln_f1_mean = np.mean(aln_f1_list)
         for ni, name in enumerate(names):
             ax[di*3].plot(ed_f1_mean, ed_f1_list[ni], linestyle='', 
-                    marker=markers[si], color=colors[ni], label=label)
+                    marker=markers[si], markersize=1, color=colors[ni], label=label)
             ax[di*3+1].plot(de_f1_mean, de_f1_list[ni], linestyle='', 
-                    marker=markers[si], color=colors[ni], label=label)
+                    marker=markers[si], markersize=1, color=colors[ni], label=label)
             ax[di*3+2].plot(aln_f1_mean, aln_f1_list[ni], linestyle='', 
-                    marker=markers[si], color=colors[ni], label=label)
+                    marker=markers[si], markersize=1, color=colors[ni], label=label)
         all_ed_f1_y.extend(ed_f1_list)
         all_ed_f1_x.extend([ed_f1_mean]*5)
         all_ed_f1_meds.append(statistics.median(ed_f1_list))
@@ -95,22 +102,25 @@ for di, dataset in enumerate(datasets):
 
     print(" ")
     m, b, r, p, std_err = scipy.stats.linregress(all_ed_f1_x, all_ed_f1_y)
-    ax[di*3].set_xlabel("Avg ED Q-score", fontsize=15)
-    ax[di*3].set_ylabel("ED Q-score", fontsize=15)
-    ax[di*3].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, 
+    ax[di*3].set_xlabel(r"\textbf{Avg ED Q-score}", fontsize=7)
+    ax[di*3].set_ylabel(r"\textbf{ED Q-score}", fontsize=7)
+    ax[di*3].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, 
             transform=ax[di*3].transAxes)
+    ax[di*3].tick_params(axis='both', which='major', labelsize=5)
 
     m, b, r, p, std_err = scipy.stats.linregress(all_de_f1_x, all_de_f1_y)
-    ax[di*3+1].set_xlabel("Avg DE Q-score", fontsize=15)
-    ax[di*3+1].set_ylabel("DE Q-score", fontsize=15)
-    ax[di*3+1].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, 
+    ax[di*3+1].set_xlabel(r"\textbf{Avg DE Q-score}", fontsize=7)
+    ax[di*3+1].set_ylabel(r"\textbf{DE Q-score}", fontsize=7)
+    ax[di*3+1].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, 
             transform=ax[di*3+1].transAxes)
+    ax[di*3+1].tick_params(axis='both', which='major', labelsize=5)
 
     m, b, r, p, std_err = scipy.stats.linregress(all_aln_f1_x, all_aln_f1_y)
-    ax[di*3+2].set_xlabel("Avg ALN Q-score", fontsize=15)
-    ax[di*3+2].set_ylabel("ALN Q-score", fontsize=15)
-    ax[di*3+2].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, 
+    ax[di*3+2].set_xlabel(r"\textbf{Avg ALN Q-score}", fontsize=7)
+    ax[di*3+2].set_ylabel(r"\textbf{ALN Q-score}", fontsize=7)
+    ax[di*3+2].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, 
             transform=ax[di*3+2].transAxes)
+    ax[di*3+2].tick_params(axis='both', which='major', labelsize=5)
 
     # second pass, calculate average max rank change
     all_ed_f1_meds.sort()
@@ -163,9 +173,10 @@ for di, dataset in enumerate(datasets):
     ed_amrc = np.mean(ed_rank_change)
     de_amrc = np.mean(de_rank_change)
     aln_amrc = np.mean(aln_rank_change)
-    ax[di*3].text(0.05,0.8,f"AMRC: {ed_amrc:.2f}", fontsize=15, transform=ax[di*3].transAxes)
-    ax[di*3+1].text(0.05,0.8,f"AMRC: {de_amrc:.2f}", fontsize=15, transform=ax[di*3+1].transAxes)
-    ax[di*3+2].text(0.05,0.8,f"AMRC: {aln_amrc:.2f}", fontsize=15, transform=ax[di*3+2].transAxes)
+    ax[di*3].text(0.05,0.8,f"AMRC: {ed_amrc:.2f}", fontsize=5, transform=ax[di*3].transAxes)
+    ax[di*3+1].text(0.05,0.8,f"AMRC: {de_amrc:.2f}", fontsize=5, transform=ax[di*3+1].transAxes)
+    ax[di*3+2].text(0.05,0.8,f"AMRC: {aln_amrc:.2f}", fontsize=5, transform=ax[di*3+2].transAxes)
 
 plt.tight_layout()
+out6c.close()
 plt.savefig('img/9_f1_ed_plot.pdf', format="pdf")

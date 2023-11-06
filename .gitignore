@@ -11,11 +11,12 @@
 *.vcf
 *.gz
 *.gprof
+*.png
 src/vcfdist
 
 # ignore analysis
 analysis/*/
-analysis/*.png
+analysis-v2/*/*/
 
 # ignore input
 data/*/*

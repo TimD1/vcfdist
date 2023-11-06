@@ -11,30 +11,38 @@ mpl.rcParams.update(mpl.rcParamsDefault)
 mpl.rcParams['text.usetex'] = True
 plt.rcParams.update({"figure.facecolor": (0,0,0,0)})
 
+def mm2in(x):
+    return x / 25.4
+
 data = "/home/timdunn/vcfdist/data"
 datasets = ["nist", "cmrg"]
 tools = ["vcfeval", "vcfdist"]
 names = ["original", "A", "B", "C", "D"]
 colors = ["k", "C0", "C1", "C2", "C3"]
 
-# sub_ids = [
-#     "0GOOR", "23O09", "4GKR1", "61YRJ", "8H0ZB", "B1S5A", "C6JUX", "EIUT6", "H9OJ3", "IA789",
-#     "KXBR8", "MECML", "NWQ6Y", "R9CXN", "SEX9X", "UYMUW", "W91C1", "XC97E", "YBE9U", "YUI27",
-#     "4HL0B", "7NJ5C", "9DGOR", "BARQS", "CN36L", "ES3XW", "HB8P3", "ISKOS", "JIPSI", "KFA0T",
-#     "PGXA4", "RU88N", "TG5TE", "VES2R", "WGQ43", "XV7ZN", "YGOTK", "13678", "32LOW", "60Z59", 
-#     "JBBK0", "K4GT3", "7RR8Z", "ASJT6", "BSODP", "CZA1Y", "0O7FL", "2OT9Q", "FFFGB", "HF8CT", "Y8QR8", "YJN61", "LR1FD", "MT57N",
-#     "J04SL", "K33QJ", "KPXT2", "M9KLP", "NFT0L", "QUE7Q", "S7K7S", "TZMTX", "W607K", "WX8VK"
-# ]
-# markers = ['.']*len(sub_ids)
+out6a = open("tsv/6a.tsv", 'w')
+out6b = open("tsv/6b.tsv", 'w')
+print("DATASET\tSUBMISSION\tREPRESENTATION\tVARIANT_TYPE\tF1_QSCORE", file=out6a)
+print("DATASET\tSUBMISSION\tREPRESENTATION\tVARIANT_TYPE\tF1_QSCORE", file=out6b)
 
 sub_ids = [
-    "K4GT3", # Google Health
-    "W91C1", # Sentieon
-    "IA789"  # Roche
+    "0GOOR", "23O09", "4GKR1", "61YRJ", "8H0ZB", "B1S5A", "C6JUX", "EIUT6", "H9OJ3", "IA789",
+    "KXBR8", "MECML", "NWQ6Y", "R9CXN", "SEX9X", "UYMUW", "W91C1", "XC97E", "YBE9U", "YUI27",
+    "4HL0B", "7NJ5C", "9DGOR", "BARQS", "CN36L", "ES3XW", "HB8P3", "ISKOS", "JIPSI", "KFA0T",
+    "PGXA4", "RU88N", "TG5TE", "VES2R", "WGQ43", "XV7ZN", "YGOTK", "13678", "32LOW", "60Z59", 
+    "JBBK0", "K4GT3", "7RR8Z", "ASJT6", "BSODP", "CZA1Y", "0O7FL", "2OT9Q", "FFFGB", "HF8CT", "Y8QR8", "YJN61", "LR1FD", "MT57N",
+    "J04SL", "K33QJ", "KPXT2", "M9KLP", "NFT0L", "QUE7Q", "S7K7S", "TZMTX", "W607K", "WX8VK"
 ]
-markers = ['s', 'o', '^']
+markers = ['.']*len(sub_ids)
 
-fig, ax = plt.subplots(2, 4, figsize=(20,8))
+# sub_ids = [
+#     "K4GT3", # Google Health
+#     "W91C1", # Sentieon
+#     "IA789"  # Roche
+# ]
+# markers = ['s', 'o', '^']
+
+fig, ax = plt.subplots(2, 4, figsize=(mm2in(180), mm2in(72)))
 
 for di, dataset in enumerate(datasets):
     for ti, tool in enumerate(tools):
@@ -72,6 +80,8 @@ for di, dataset in enumerate(datasets):
                             snp_f1_list.append(snp_f1q)
                             indel_f1_list.append(indel_f1q)
                             print(f"{filename}={snp_f1q:6.4f},{indel_f1q:6.4f}\t", end="")
+                            print(f"{dataset.upper()}\t{sub_id}\t{name.upper()}\tSNP\t{snp_f1q}", file=out6a)
+                            print(f"{dataset.upper()}\t{sub_id}\t{name.upper()}\tINDEL\t{indel_f1q}", file=out6a)
                     except FileNotFoundError:
                         print(f"File '{data}/pfda-v2/{dataset}_vcfeval/{sub_id}_HG002_{filename}.summary.csv' not found.")
                         continue
@@ -80,9 +90,9 @@ for di, dataset in enumerate(datasets):
                 indel_f1_mean = sum(indel_f1_list) / len(indel_f1_list)
                 for ni, name in enumerate(names):
                     ax[ti][di*2].plot(snp_f1_mean, snp_f1_list[ni], linestyle='', 
-                            marker=markers[si], color=colors[ni], label=label)
+                            marker=markers[si], markersize=1, color=colors[ni], label=label)
                     ax[ti][di*2+1].plot(indel_f1_mean, indel_f1_list[ni], linestyle='', 
-                            marker=markers[si], color=colors[ni], label=label)
+                            marker=markers[si], markersize=1, color=colors[ni], label=label)
                 all_snp_f1_y.extend(snp_f1_list)
                 all_snp_f1_x.extend([snp_f1_mean]*len(names))
                 all_snp_f1_meds.append(statistics.median(snp_f1_list))
@@ -91,14 +101,16 @@ for di, dataset in enumerate(datasets):
                 all_indel_f1_meds.append(statistics.median(indel_f1_list))
 
             m, b, r, p, std_err = scipy.stats.linregress(all_snp_f1_x, all_snp_f1_y)
-            ax[ti][di*2].set_xlabel("Avg SNP F1 Q-score", fontsize=15)
-            ax[ti][di*2].set_ylabel("SNP F1 Q-score", fontsize=15)
-            ax[ti][di*2].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, transform=ax[ti][di*2].transAxes)
+            ax[ti][di*2].set_xlabel(r"\textbf{Avg SNP F1 Q-score}", fontsize=7)
+            ax[ti][di*2].set_ylabel(r"\textbf{SNP F1 Q-score}", fontsize=7)
+            ax[ti][di*2].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, transform=ax[ti][di*2].transAxes)
+            ax[ti][di*2].tick_params(axis='both', which='major', labelsize=5)
 
             m, b, r, p, std_err = scipy.stats.linregress(all_indel_f1_x, all_indel_f1_y)
-            ax[ti][di*2+1].set_xlabel("Avg INDEL F1 Q-score", fontsize=15)
-            ax[ti][di*2+1].set_ylabel("INDEL F1 Q-score", fontsize=15)
-            ax[ti][di*2+1].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, transform=ax[ti][di*2+1].transAxes)
+            ax[ti][di*2+1].set_xlabel(r"\textbf{Avg INDEL F1 Q-score}", fontsize=7)
+            ax[ti][di*2+1].set_ylabel(r"\textbf{INDEL F1 Q-score}", fontsize=7)
+            ax[ti][di*2+1].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, transform=ax[ti][di*2+1].transAxes)
+            ax[ti][di*2+1].tick_params(axis='both', which='major', labelsize=5)
 
             # second pass, calculate average max rank change
             all_snp_f1_meds.sort()
@@ -146,8 +158,8 @@ for di, dataset in enumerate(datasets):
                 indel_rank_change.append(indel_max_rank - indel_min_rank)
             snp_amrc = np.mean(snp_rank_change)
             indel_amrc = np.mean(indel_rank_change)
-            ax[ti][di*2].text(0.05,0.8,f"AMRC: {snp_amrc:.2f}", fontsize=15, transform=ax[ti][di*2].transAxes)
-            ax[ti][di*2+1].text(0.05,0.8,f"AMRC: {indel_amrc:.2f}", fontsize=15, transform=ax[ti][di*2+1].transAxes)
+            ax[ti][di*2].text(0.05,0.8,f"AMRC: {snp_amrc:.2f}", fontsize=5, transform=ax[ti][di*2].transAxes)
+            ax[ti][di*2+1].text(0.05,0.8,f"AMRC: {indel_amrc:.2f}", fontsize=5, transform=ax[ti][di*2+1].transAxes)
 
         # VCFDIST
         elif tool == "vcfdist":
@@ -174,6 +186,8 @@ for di, dataset in enumerate(datasets):
                             snp_f1_list.append(snp_f1q)
                             indel_f1_list.append(indel_f1q)
                             print(f"{filename}={snp_f1q:6.4f},{indel_f1q:6.4f}\t", end="")
+                            print(f"{dataset.upper()}\t{sub_id}\t{name.upper()}\tSNP\t{snp_f1q}", file=out6b)
+                            print(f"{dataset.upper()}\t{sub_id}\t{name.upper()}\tINDEL\t{indel_f1q}", file=out6b)
                     except FileNotFoundError:
                         print(f"File '{data}/pfda-v2/{dataset}_vcfdist/{sub_id}_HG002_{filename}.precision-recall-summary.tsv' not found.")
                         continue
@@ -182,9 +196,9 @@ for di, dataset in enumerate(datasets):
                 indel_f1_mean = sum(indel_f1_list) / len(indel_f1_list)
                 for ni, name in enumerate(names):
                     ax[ti][di*2].plot(snp_f1_mean, snp_f1_list[ni], linestyle='', 
-                            marker=markers[si], color=colors[ni], label=label)
+                            marker=markers[si], markersize=1, color=colors[ni], label=label)
                     ax[ti][di*2+1].plot(indel_f1_mean, indel_f1_list[ni], linestyle='', 
-                            marker=markers[si], color=colors[ni], label=label)
+                            marker=markers[si], markersize=1, color=colors[ni], label=label)
                 all_snp_f1_y.extend(snp_f1_list)
                 all_snp_f1_x.extend([snp_f1_mean]*len(names))
                 all_snp_f1_meds.append(statistics.median(snp_f1_list))
@@ -193,14 +207,16 @@ for di, dataset in enumerate(datasets):
                 all_indel_f1_meds.append(statistics.median(indel_f1_list))
 
             m, b, r, p, std_err = scipy.stats.linregress(all_snp_f1_x, all_snp_f1_y)
-            ax[ti][di*2].set_xlabel("Avg SNP F1 Q-score", fontsize=15)
-            ax[ti][di*2].set_ylabel("SNP F1 Q-score", fontsize=15)
-            ax[ti][di*2].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, transform=ax[ti][di*2].transAxes)
+            ax[ti][di*2].set_xlabel(r"\textbf{Avg SNP F1 Q-score}", fontsize=7)
+            ax[ti][di*2].set_ylabel(r"\textbf{SNP F1 Q-score}", fontsize=7)
+            ax[ti][di*2].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, transform=ax[ti][di*2].transAxes)
+            ax[ti][di*2].tick_params(axis='both', which='major', labelsize=5)
 
             m, b, r, p, std_err = scipy.stats.linregress(all_indel_f1_x, all_indel_f1_y)
-            ax[ti][di*2+1].set_xlabel("Avg INDEL F1 Q-score", fontsize=15)
-            ax[ti][di*2+1].set_ylabel("INDEL F1 Q-score", fontsize=15)
-            ax[ti][di*2+1].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=15, transform=ax[ti][di*2+1].transAxes)
+            ax[ti][di*2+1].set_xlabel(r"\textbf{Avg INDEL F1 Q-score}", fontsize=7)
+            ax[ti][di*2+1].set_ylabel(r"\textbf{INDEL F1 Q-score}", fontsize=7)
+            ax[ti][di*2+1].text(0.05,0.9,"$R^2$" +f": {r*r:.6f}", fontsize=5, transform=ax[ti][di*2+1].transAxes)
+            ax[ti][di*2+1].tick_params(axis='both', which='major', labelsize=5)
 
             # second pass, calculate average max rank change
             all_snp_f1_meds.sort()
@@ -240,32 +256,34 @@ for di, dataset in enumerate(datasets):
                 indel_rank_change.append(indel_max_rank - indel_min_rank)
             snp_amrc = np.mean(snp_rank_change)
             indel_amrc = np.mean(indel_rank_change)
-            ax[ti][di*2].text(0.05,0.8,f"AMRC: {snp_amrc:.2f}", fontsize=15, transform=ax[ti][di*2].transAxes)
-            ax[ti][di*2+1].text(0.05,0.8,f"AMRC: {indel_amrc:.2f}", fontsize=15, transform=ax[ti][di*2+1].transAxes)
+            ax[ti][di*2].text(0.05,0.8,f"AMRC: {snp_amrc:.2f}", fontsize=5, transform=ax[ti][di*2].transAxes)
+            ax[ti][di*2+1].text(0.05,0.8,f"AMRC: {indel_amrc:.2f}", fontsize=5, transform=ax[ti][di*2+1].transAxes)
 
-square = mlines.Line2D([], [], linestyle="", color='k', marker='s',
-                                  markersize=12, label='Google Health')
-circle = mlines.Line2D([], [], linestyle="", color='k', marker='o',
-                                  markersize=12, label='Sentieon')
-triangle = mlines.Line2D([], [], linestyle="", color='k', marker='^',
-                                  markersize=12, label='Roche')
-ax[0][0].legend(handles=[square, circle, triangle], loc="center right", fontsize=15)
+# square = mlines.Line2D([], [], linestyle="", color='k', marker='s',
+#                                   markersize=12, label='Google Health')
+# circle = mlines.Line2D([], [], linestyle="", color='k', marker='o',
+#                                   markersize=12, label='Sentieon')
+# triangle = mlines.Line2D([], [], linestyle="", color='k', marker='^',
+#                                   markersize=12, label='Roche')
+# ax[0][0].legend(handles=[square, circle, triangle], loc="center right", fontsize=15)
 
 O = mlines.Line2D([], [], linestyle="", color='k', marker='.',
-                                  markersize=12, label='original')
+                                  markersize=5, label='original')
 A = mlines.Line2D([], [], linestyle="", color='C0', marker='.',
-                                  markersize=12, label='A')
+                                  markersize=5, label='A')
 B = mlines.Line2D([], [], linestyle="", color='C1', marker='.',
-                                  markersize=12, label='B')
+                                  markersize=5, label='B')
 C = mlines.Line2D([], [], linestyle="", color='C2', marker='.',
-                                  markersize=12, label='C')
+                                  markersize=5, label='C')
 D = mlines.Line2D([], [], linestyle="", color='C3', marker='.',
-                                  markersize=12, label='D')
-ax2 = ax[0][0].twinx()
+                                  markersize=5, label='D')
+# ax2 = ax[0][0].twinx()
 
-# ax2.legend(handles=[O,A,B,C,D], loc="center right", fontsize=15)
-ax2.legend(handles=[O,A,B,C,D], loc="center left", fontsize=15)
+ax[0][0].legend(handles=[O,A,B,C,D], loc="lower right", fontsize=5)
+# ax2.legend(handles=[O,A,B,C,D], loc="center left", fontsize=5)
 
 
 plt.tight_layout()
+out6a.close()
+out6b.close()
 plt.savefig('img/9_f1_pr_plot.pdf', format="pdf")

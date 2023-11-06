@@ -2,12 +2,9 @@ import vcf
 import numpy as np
 import matplotlib.pyplot as plt
 
-# full genome, no phab
-# truvari_prefix = "../out/giabtr/truvari-init/result_"
-# vcfdist_prefix = "../out/giabtr/vcfdist-keep/"
 # chr20, with phab
-truvari_prefix = "../out/giabtr/truvari-norm-phab-chr20/result_"
-vcfdist_prefix = "../out/giabtr/vcfdist-norm-phab-chr20/"
+truvari_prefix = "./truvari/pav/result_"
+vcfdist_prefix = "./vcfdist/pav."
 do_print = True
 
 SIZE             = 0
