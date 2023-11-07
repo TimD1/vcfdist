@@ -36,6 +36,9 @@ public:
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
 
+    // phasing options
+    double phase_threshold = 0.5;
+
     // memory params
     int max_threads = 64;
     double max_ram = 64; // GB

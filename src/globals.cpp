@@ -341,6 +341,21 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max threads must be positive");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-pt" ||
+                std::string(argv[i]) == "--phasing-threshold") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--phasing-threshold' used without providing value");
+            }
+            try {
+                this->phase_threshold = std::stod(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid phasing threshold provided");
+            }
+            if (this->phase_threshold <= 0 || this->phase_threshold > 1) {
+                ERROR("Provided phasing threshold must be on the interval (0,1]");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-r" ||
                 std::string(argv[i]) == "--max-ram") {
             i++;
@@ -497,6 +512,11 @@ void Globals::print_usage() const
     printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
     printf("      minimum gap between independent clusters and superclusters (in bases),\n");
     printf("      only applicable if used with '--simple-cluster' option\n");
+
+    printf("\n  Phasing:\n");
+    printf("  -pt, --phasing-threshold <FLOAT> [%.2f]\n", g.phase_threshold);
+    printf("      minimum fractional reduction in edit distance over other phasing\n");
+    printf("      in order to consider this supercluster phased\n");
 
     printf("\n  Distance:\n");
     printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);

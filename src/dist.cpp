@@ -452,9 +452,18 @@ int store_phase(
     // calculate best phasing
     int orig_phase_dist = s[QUERY1_TRUTH1] + s[QUERY2_TRUTH2];
     int swap_phase_dist = s[QUERY2_TRUTH1] + s[QUERY1_TRUTH2];
-    int phase = PHASE_NONE; // default either way if equal dist
-    if (orig_phase_dist < swap_phase_dist) phase = PHASE_ORIG;
-    if (swap_phase_dist < orig_phase_dist) phase = PHASE_SWAP;
+    int phase = PHASE_NONE; // default either way if insufficient evidence
+    if (orig_phase_dist == swap_phase_dist) { // allow either phasing if equal dist
+        phase = PHASE_NONE;
+    } else if (orig_phase_dist == 0) { // protect division by zero
+        phase = PHASE_ORIG;
+    } else if (swap_phase_dist == 0) { // protect division by zero
+        phase = PHASE_SWAP;
+    } else if (1 - swap_phase_dist / orig_phase_dist > g.phase_threshold) { // significant reduction by swapping
+        phase = PHASE_SWAP;
+    } else if (1 - orig_phase_dist / swap_phase_dist > g.phase_threshold) { // significant reduction with orig
+        phase = PHASE_ORIG;
+    }
 
     // save alignment information
     clusterdata_ptr->superclusters[ctg]->set_phase(sc_idx,
