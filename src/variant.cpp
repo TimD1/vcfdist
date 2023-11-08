@@ -259,17 +259,20 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
 
     // get categorization
     std::string errtype;
+    std::string match_type;
     switch (this->errtypes[swap][idx]) {
-        case ERRTYPE_TP: errtype = "TP"; break;
-        case ERRTYPE_FP: errtype = "FP"; break;
-        case ERRTYPE_FN: errtype = "FN"; break;
+        case ERRTYPE_TP: errtype = "TP"; match_type = "gm"; break;
+        case ERRTYPE_FP: errtype = "FP"; match_type = "."; break;
+        case ERRTYPE_FN: errtype = "FN"; match_type = "."; break;
         case ERRTYPE_PP: // for hap.py compatibility
              errtype = this->credit[swap][idx] >= 0.5 ? "TP" : 
-                 (query ? "FP" : "FN"); break;
+                 (query ? "FP" : "FN"); 
+             match_type = "lm";
+             break;
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:gm:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[swap][idx], int(this->var_quals[idx]), sc_idx, 
+    fprintf(out_fp, "\t%s:%s:%f:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
+            this->credit[swap][idx], match_type.data(), int(this->var_quals[idx]), sc_idx, 
             int(this->sync_group[swap][idx]), this->phase_sets[idx], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
             query ? (phase_flip ? "1" : "0") : "." , 
