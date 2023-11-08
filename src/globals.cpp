@@ -356,6 +356,21 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Provided phasing threshold must be on the interval (0,1]");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-ct" ||
+                std::string(argv[i]) == "--credit-threshold") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--credit-threshold' used without providing value");
+            }
+            try {
+                this->credit_threshold = std::stod(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid credit threshold provided");
+            }
+            if (this->credit_threshold <= 0 || this->credit_threshold > 1) {
+                ERROR("Provided credit threshold must be on the interval (0,1]");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-r" ||
                 std::string(argv[i]) == "--max-ram") {
             i++;
@@ -484,6 +499,10 @@ void Globals::print_usage() const
     printf("      Smith-Waterman gap opening penalty\n");
     printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
     printf("      Smith-Waterman gap extension penalty\n");
+
+    printf("\n  Precision-Recall:\n");
+    printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
+    printf("      minimum partial credit to consider variant a true positive\n");
 
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);

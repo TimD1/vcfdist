@@ -260,15 +260,14 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
     // get categorization
     std::string errtype;
     std::string match_type;
-    switch (this->errtypes[swap][idx]) {
-        case ERRTYPE_TP: errtype = "TP"; match_type = "gm"; break;
-        case ERRTYPE_FP: errtype = "FP"; match_type = "."; break;
-        case ERRTYPE_FN: errtype = "FN"; match_type = "."; break;
-        case ERRTYPE_PP: // for hap.py compatibility
-             errtype = this->credit[swap][idx] >= 0.5 ? "TP" : 
-                 (query ? "FP" : "FN"); 
-             match_type = "lm";
-             break;
+    if (this->credit[swap][idx] == 1) {
+        errtype = "TP"; match_type = "gm";
+    } else if (this->credit[swap][idx] == 0) {
+        errtype = "FP"; match_type = ".";
+    } else if (this->credit[swap][idx] >= g.credit_threshold) {
+        errtype = "TP"; match_type = "lm";
+    } else {
+        errtype = "FP"; match_type = "lm";
     }
 
     fprintf(out_fp, "\t%s:%s:%f:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 

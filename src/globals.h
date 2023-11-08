@@ -39,6 +39,9 @@ public:
     // phasing options
     double phase_threshold = 0.5;
 
+    // precision-recall options
+    double credit_threshold = 0.7;
+
     // memory params
     int max_threads = 64;
     double max_ram = 64; // GB

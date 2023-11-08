@@ -41,14 +41,14 @@ void write_params() {
         "program = '%s'\nversion = '%s'\nout_prefix = '%s'\ncommand = '%s'\nreference_fasta = '%s'\n"
         "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
         "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\n"
-        "phase_threshold=%f\nrealign_truth = %s\nrealign_query = %s\n"
+        "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
         "realign_only = %s\nsimple_cluster = %s\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
         "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\n",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size,
-        g.phase_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
+        g.phase_threshold, g.credit_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
         b2s(g.realign_only).data(), b2s(g.simple_cluster).data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
         g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend);
@@ -321,13 +321,13 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
 
 void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
-    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN,PP,PP_FRAC, ax2: QUAL
-    int PP_FRAC = 4;
+    // for each class, store variant counts above each quality threshold
+    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN ax2: QUAL
     std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
-            std::vector< std::vector<float> >(5, 
+            std::vector< std::vector<float> >(3, 
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
     std::vector< std::vector< std::vector<float> > > truth_counts(VARTYPES,
-            std::vector< std::vector<float> >(5, 
+            std::vector< std::vector<float> >(3, 
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
 
     // calculate summary statistics
@@ -374,9 +374,6 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         }
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
-                            if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_PP) {
-                                query_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[QUERY][h]->credit[swap][i];
-                            }
                         }
                     }
                 }
@@ -419,11 +416,13 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             WARN("Unknown error type at TRUTH %s:%d", ctg.data(), ctg_vars[TRUTH][h]->poss[i]);
                             continue;
                         }
+                        // corresponding query call is only correct until its Qscore, after which it falls below
+                        // the quality threshold, is filtered, and becomes a false negative
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             truth_counts[t][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
-                            if (ctg_vars[TRUTH][h]->errtypes[swap][i] == ERRTYPE_PP) {
-                                truth_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[TRUTH][h]->credit[swap][i];
-                            }
+                        }
+                        for (int qual = q+1; qual < g.max_qual; qual++) {
+                            truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
                         }
                     }
                 }
@@ -438,7 +437,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) INFO("  Writing precision-recall results to '%s'", out_pr_fn.data());
         out_pr = fopen(out_pr_fn.data(), "w");
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
-                "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_PP\tQUERY_FP\n");
+                "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     }
     std::vector<float> max_f1_score = {0, 0};
     std::vector<int> max_f1_qual = {0, 0};
@@ -448,36 +447,25 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
             int qidx = qual - g.min_qual;
 
-            int query_tot = query_counts[type][ERRTYPE_TP][qidx] +
-                        query_counts[type][ERRTYPE_FP][qidx] +
-                        query_counts[type][ERRTYPE_PP][qidx];
-            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
-                        query_counts[type][PP_FRAC][qidx];
-            float query_fp_f = query_tot - query_tp_f;
+            // define helper variables
+            int query_tp = query_counts[type][ERRTYPE_TP][qidx];
+            int query_fp = query_counts[type][ERRTYPE_FP][qidx];
+            int query_tot = query_tp + query_fp;
+            int truth_tp = truth_counts[type][ERRTYPE_TP][qidx];
+            int truth_fn = truth_counts[type][ERRTYPE_FN][qidx];
+            int truth_tot = truth_tp + truth_fn;
 
-            int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
-                        truth_counts[type][ERRTYPE_PP][0] +
-                        truth_counts[type][ERRTYPE_FN][0];
-            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
-                         truth_counts[type][PP_FRAC][qidx];
-            if (truth_tot == 0) break;
-            if (truth_tp_f + query_fp_f == 0) break;
-
-            // ignore PP, this is only for summary output, not calculations
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] +
-                         truth_counts[type][ERRTYPE_TP][0] -
-                         truth_counts[type][ERRTYPE_TP][qidx];
-
-            float precision = truth_tp_f / (truth_tp_f + query_fp_f);
-            float recall = truth_tp_f / truth_tot;
-            float f1_score = 2*precision*recall / (precision + recall);
+            // calculate summary metrics
+            float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
+            float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
+            float f1_score = precision+recall ? 2*precision*recall / (precision + recall) : 0;
             if (f1_score > max_f1_score[type]) {
                 max_f1_score[type] = f1_score;
                 max_f1_qual[type] = qual;
             }
 
             if (g.write) fprintf(out_pr, 
-                    "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+                    "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\n",
                     vartype_strs[type].data(),
                     qual,
                     precision,
@@ -486,11 +474,9 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                     qscore(1-f1_score),
                     truth_tot,
                     int(truth_counts[type][ERRTYPE_TP][qidx]),
-                    int(truth_counts[type][ERRTYPE_PP][qidx]),
                     truth_fn,
                     query_tot, 
                     int(query_counts[type][ERRTYPE_TP][qidx]),
-                    int(query_counts[type][ERRTYPE_PP][qidx]),
                     int(query_counts[type][ERRTYPE_FP][qidx])
            );
         }
@@ -518,28 +504,20 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             // redo calculations for these two
             int qidx = qual - g.min_qual;
 
-            int query_tot = query_counts[type][ERRTYPE_TP][qidx] +
-                        query_counts[type][ERRTYPE_FP][qidx] +
-                        query_counts[type][ERRTYPE_PP][qidx];
-            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
-                         query_counts[type][PP_FRAC][qidx];
-            float query_fp_f = query_tot - query_tp_f;
+            // define helper variables
+            int query_tp = query_counts[type][ERRTYPE_TP][qidx];
+            int query_fp = query_counts[type][ERRTYPE_FP][qidx];
+            int query_tot = query_tp + query_fp;
             if (query_tot == 0) WARN("No QUERY %s variant calls.", vartype_strs[type].data());
-
-            int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
-                        truth_counts[type][ERRTYPE_PP][0] +
-                        truth_counts[type][ERRTYPE_FN][0];
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] +
-                             truth_counts[type][ERRTYPE_TP][0] -
-                             truth_counts[type][ERRTYPE_TP][qidx];
-            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
-                             truth_counts[type][PP_FRAC][qidx];
+            int truth_tp = truth_counts[type][ERRTYPE_TP][qidx];
+            int truth_fn = truth_counts[type][ERRTYPE_FN][qidx];
+            int truth_tot = truth_tp + truth_fn;
             if (truth_tot == 0) WARN("No TRUTH %s variant calls.", vartype_strs[type].data());
 
-            float precision = truth_tp_f + query_fp_f == 0 ? 
-                1.0f : truth_tp_f / (truth_tp_f + query_fp_f);
-            float recall = truth_tot == 0 ? 1.0f : truth_tp_f / truth_tot;
-            float f1_score = 2*precision*recall / (precision + recall);
+            // calculate summary metrics
+            float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
+            float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
+            float f1_score = precision+recall ? 2*precision*recall / (precision + recall) : 0;
 
             // print summary
             INFO("%s%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",

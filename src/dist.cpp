@@ -1269,7 +1269,7 @@ void calc_prec_recall(
                     float credit = 1 - float(new_ed)/old_ed;
                     // don't overwrite FPs
                     if (query_vars->errtypes[swap][query_var_idx] == ERRTYPE_UN) {
-                        if (new_ed == 0) { // TP
+                        if (credit >= g.credit_threshold) { // TP
                             query_vars->errtypes[swap][query_var_idx] = ERRTYPE_TP;
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = credit;
@@ -1279,7 +1279,7 @@ void calc_prec_recall(
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "TP", credit);
-                        } else if (new_ed == old_ed) { // FP
+                        } else { // FP
                             query_vars->errtypes[swap][query_var_idx] = ERRTYPE_FP;
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = 0;
@@ -1289,16 +1289,6 @@ void calc_prec_recall(
                                     query_vars->refs[query_var_idx].data(),
                                     query_vars->alts[query_var_idx].data(), 
                                     "FP", 0.0f);
-                        } else { // PP
-                            query_vars->errtypes[swap][query_var_idx] = ERRTYPE_PP;
-                            query_vars->sync_group[swap][query_var_idx] = sync_group;
-                            query_vars->credit[swap][query_var_idx] = credit;
-                            query_vars->callq[swap][query_var_idx] = callq;
-                            if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
-                                    ctg.data(), query_vars->poss[query_var_idx],
-                                    query_vars->refs[query_var_idx].data(),
-                                    query_vars->alts[query_var_idx].data(), 
-                                    "PP", credit);
                         }
                     }
                 }
@@ -1307,7 +1297,7 @@ void calc_prec_recall(
                 for (int truth_var_idx = prev_truth_var_ptr; 
                         truth_var_idx > truth_var_ptr; truth_var_idx--) {
                     float credit = 1 - float(new_ed)/old_ed;
-                    if (new_ed == 0) { // TP
+                    if (credit >= g.credit_threshold) { // TP
                         truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_TP;
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
@@ -1317,7 +1307,7 @@ void calc_prec_recall(
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "TP", credit);
-                    } else if (new_ed == old_ed) { // FP call, FN truth
+                    } else { // FP call, FN truth
                         truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_FN;
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
@@ -1327,17 +1317,7 @@ void calc_prec_recall(
                                 truth_vars->refs[truth_var_idx].data(),
                                 truth_vars->alts[truth_var_idx].data(), 
                                 "FN", credit);
-                    } else { // PP
-                        truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_PP;
-                        truth_vars->sync_group[swap][truth_var_idx] = sync_group;
-                        truth_vars->credit[swap][truth_var_idx] = credit;
-                        truth_vars->callq[swap][truth_var_idx] = callq;
-                        if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", 
-                                ctg.data(), truth_vars->poss[truth_var_idx],
-                                truth_vars->refs[truth_var_idx].data(),
-                                truth_vars->alts[truth_var_idx].data(), 
-                                "PP", credit);
-                    }
+                    } 
                 }
 
                 if (print) printf("%s: SYNC @%s(%2d,%2d) = REF(%2d,%2d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n\n", ctg.data(),

@@ -47,14 +47,14 @@ public:
     std::vector<int> right_reaches; // cluster rightmost reach
 
     // set during prec_recall_aln()
-    // error type: TP, FP, FN, PP
+    // error type: TP, FP, FN
     std::vector< std::vector<uint8_t> > errtypes;  
-    // group of variants that participate in TP/PP
+    // group of variants that participate in credit
     std::vector< std::vector<int> > sync_group;    
     // call quality (for truth, of associated call)
     // or for call, min quality in sync group
     std::vector< std::vector<float> > callq;   
-    // fraction of TP for partial positive (PP)
+    // percentage reduction in edit dist of sync group with variants
     std::vector< std::vector<float> > credit;  
 };
 
