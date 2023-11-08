@@ -36,7 +36,8 @@ public:
     // data (length n)
     int n = 0;                                         // number of superclusters
     std::vector<int> begs, ends;                       // ref beg/end pos across haps and truth/query
-    std::vector<int> phase;                            // keep/swap/unknown, from alignment
+    std::vector<int> sc_phase;                         // keep/swap/unknown, from alignment
+    std::vector<int> pb_phase;                         // keep/swap, from phasing algorithm
     std::vector<int> phase_sets;                       // input, from first variant in sc
     std::vector<int> orig_phase_dist, swap_phase_dist; // alignment distances
 };

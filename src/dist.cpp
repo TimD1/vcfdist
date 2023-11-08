@@ -1944,7 +1944,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
             );
 
-            int phase = sc->phase[sc_idx];
+            int phase = sc->sc_phase[sc_idx];
 
             /////////////////////////////////////////////////////////////////////
             // SMITH-WATERMAN DISTANCE: don't allow skipping called variants     

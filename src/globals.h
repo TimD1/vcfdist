@@ -92,5 +92,6 @@ extern std::vector<std::string> gt_strs;
 extern std::vector<std::string> region_strs;
 extern std::vector<std::string> aln_strs;
 extern std::vector<std::string> phase_strs;
+extern std::vector<std::string> switch_strs;
 
 #endif

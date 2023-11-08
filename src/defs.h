@@ -65,6 +65,14 @@ class idx2;
 #define ERRTYPE_UN 5 // unknown
 #define ERRTYPES   6
 
+#define SWITCHTYPE_FLIP       0
+#define SWITCHTYPE_SWITCH     1
+#define SWITCHTYPE_SWITCH_ERR 2
+#define SWITCHTYPE_FLIP_BEG   3
+#define SWITCHTYPE_FLIP_END   4
+#define SWITCHTYPE_NONE       5
+#define SWITCHTYPES           6
+
 // runtime timers
 #define TIME_READ     0
 #define TIME_CLUST    1
