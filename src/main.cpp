@@ -49,15 +49,17 @@ int main(int argc, char **argv) {
 
     // write results
     if (g.write) {
-        g.timers[TIME_WRITE].start();
-        if (g.verbosity >= 1) INFO(" ");
-        if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
-                std::string(g.out_prefix + "orig-query.vcf").data());
+        if (g.realign_query) {
+            g.timers[TIME_WRITE].start();
+            if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
+                    std::string(g.out_prefix + "orig-query.vcf").data());
             query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
-        if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
-                std::string(g.out_prefix + "orig-truth.vcf").data());
+        } else if (g.realign_truth) {
+            if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
+                    std::string(g.out_prefix + "orig-truth.vcf").data());
             truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
-        g.timers[TIME_WRITE].stop();
+            g.timers[TIME_WRITE].stop();
+        }
     }
 
     // ensure each input contains all contigs in BED
@@ -94,7 +96,7 @@ int main(int argc, char **argv) {
         g.timers[TIME_REALN].stop();
     }
 
-    if (g.realign_only && g.write) { // realign only, exit early
+    if (g.realign_only && g.realign_query && g.write) { // realign only, exit early
         g.timers[TIME_WRITE].start();
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
         g.timers[TIME_WRITE].stop();
@@ -155,7 +157,7 @@ int main(int argc, char **argv) {
     }
 
     if (g.realign_only) { // realign only, exit early
-        if (g.write) {
+        if (g.realign_truth && g.write) {
             g.timers[TIME_WRITE].start();
             truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
             g.timers[TIME_WRITE].stop();
