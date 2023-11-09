@@ -9,14 +9,14 @@ variant_types = ["snv", "indel", "sv"]
 vcf_types = ["snv", "indel", "sv", "small", "large", "all"]
 regions = [
     "summary",
-    "alldifficultregions",
-    "AllHomopolymers_ge7bp_imperfectge11bp_slop5",
-    "AllTandemRepeats",
-    "AllTandemRepeatsandHomopolymers_slop5",
-    "MHC",
-    "satellites_slop5",
-    "segdups",
-    "alllowmapandsegdupregions"
+    # "alldifficultregions",
+    # "AllHomopolymers_ge7bp_imperfectge11bp_slop5",
+    # "AllTandemRepeats",
+    # "AllTandemRepeatsandHomopolymers_slop5",
+    # "MHC",
+    # "satellites_slop5",
+    # "segdups",
+    # "alllowmapandsegdupregions"
 ]
 
 for region in regions:
@@ -119,4 +119,4 @@ for region in regions:
     ax[2].legend(handles=patches, loc=(0.6,0.6))
     ax[0].set_ylabel("True Positive Recall")
     plt.suptitle(f"{region}")
-    plt.savefig(f"counts-{region}.png", dpi=300)
+    plt.savefig(f"./img/counts-{region}.pdf", format='pdf')

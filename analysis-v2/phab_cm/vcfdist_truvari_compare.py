@@ -3,18 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # chr20, with phab
-truvari_prefix = "./truvari/pav/result_"
-vcfdist_prefix = "./vcfdist/pav."
-do_print = True
+truvari_prefix = "./truvari/giab-tr/result_"
+vcfdist_prefix = "./vcfdist/giab-tr."
+do_print = False
 
 SIZE             = 0
 SZ_SNP           = 0
-SZ_INDEL_1_10    = 1
-SZ_INDEL_10_50   = 2
-SZ_INDEL_50_500  = 3
-SZ_INDEL_500PLUS = 4
-SZ_DIMS = 5
-sizes = ["SNP", "INDEL 1-10", "INDEL 10-50", "INDEL 50-500", "INDEL 500+"]
+SZ_INDEL_1_50    = 1
+SZ_INDEL_50_500  = 2
+SZ_INDEL_500PLUS = 3
+SZ_DIMS = 4
+sizes = ["SNP", "INDEL 1-50", "INDEL 50-500", "INDEL 500+"]
 
 VCF_DIST     = 1
 VD_NONE      = 0
@@ -51,10 +50,8 @@ def get_size(ref : str, alt : str):
         if size_diff == 0:
             print("ERROR: size 0 INDEL")
             exit(1)
-        if size_diff <= 10:
-            return SZ_INDEL_1_10
         elif size_diff <= 50:
-            return SZ_INDEL_10_50
+            return SZ_INDEL_1_50
         elif size_diff <= 500:
             return SZ_INDEL_50_500
         else:
@@ -93,7 +90,7 @@ for callset in ["query"]:
     truvari_vcf = vcf.Reader(open(f"{truvari_prefix}{callset}.vcf", "r"))
     name = callset.upper()
     print(name)
-    tv_used, vd_used = True, True
+    tv_used, vd_used, vd_2used = True, True, False
     this_ctg = "chr1"
     print(this_ctg)
 
@@ -102,11 +99,12 @@ for callset in ["query"]:
         # get next valid records for each
         if tv_used: tv_rec = next(truvari_vcf, None)
         if vd_used: vd_rec = next(vcfdist_vcf, None)
+        if vd_2used: vd_rec = next(vcfdist_vcf, None)
         while vd_rec != None and vd_rec.genotype(name)['BD'] == None: # skip other callset
             vd_rec = next(vcfdist_vcf, None)
         while tv_rec != None and tv_rec.ALT[0] == "*": # skip nested var
             tv_rec = next(truvari_vcf, None)
-        tv_used, vd_used = False, False
+        tv_used, vd_used, vd_2used = False, False, False
 
         if do_print:
             print("============================================================")
@@ -141,6 +139,8 @@ for callset in ["query"]:
             if do_print: print(f"TV VD {name} {tv_rec.genotype(name)['GT']} {vd_rec.genotype(name)['GT']} {tv_rec.CHROM}:{tv_rec.POS}\t{tv_rec.REF}\t{tv_rec.ALT[0]}")
             if tv_rec.REF == vd_rec.REF and tv_rec.ALT[0] == vd_rec.ALT[0]: # full match
                 tv_used, vd_used = True, True
+                if tv_rec.genotype(name)['GT'] == '1|1' or tv_rec.genotype(name)['GT'] == '1/1':
+                    vd_2used = True # skip second split of this GT
                 size = get_size(tv_rec.REF, tv_rec.ALT[0])
                 vd_type = get_vd_type(float(vd_rec.genotype(name)['BC']))
                 tv_type = get_tv_type(tv_rec.genotype(name)['BD'])
@@ -200,7 +200,7 @@ for callset in ["query"]:
                     counts[size2][vd_type2][tv_type2] += 1
                     tv_used, vd_used = True, True
                 else:
-                    if do_print: print("ERROR: failed to match")
+                    print("ERROR: failed to match")
 
                     # discard current two, pretend we haven't looked at next two
                     counts[size][VD_NONE][TV_NONE] += 2
@@ -213,17 +213,23 @@ for callset in ["query"]:
             size = get_size(vd_rec.REF, vd_rec.ALT[0])
             if do_print: 
                 print(f"   VD {name} {vd_rec.genotype(name)['GT']} {vd_rec.CHROM}:{vd_rec.POS}\t{vd_rec.REF}\t{vd_rec.ALT[0]}\t")
-                if size != SZ_SNP:
-                    print("WARN: vcfdist only, not SNP")
+            if size != SZ_SNP:
+                print(f"   VD {name} {vd_rec.genotype(name)['GT']} {vd_rec.CHROM}:{vd_rec.POS}\t{vd_rec.REF}\t{vd_rec.ALT[0]}\t")
+                print("WARN: vcfdist only, not SNP")
             vd_type = get_vd_type(float(vd_rec.genotype(name)['BC']))
             tv_type = TV_NONE
             counts[size][vd_type][tv_type] += 1
 
         elif tv_pos < vd_pos: # truvari only
-            if do_print:
-                print(f"TV    {name} {tv_rec.genotype(name)['GT']} {tv_rec.CHROM}:{tv_rec.POS}\t{tv_rec.REF}\t{tv_rec.ALT[0]}")
-                print("WARN: Truvari only")
+            print(f"TV    {name} {tv_rec.genotype(name)['GT']} {tv_rec.CHROM}:{tv_rec.POS}\t{tv_rec.REF}\t{tv_rec.ALT[0]}")
+            print("WARN: Truvari only")
             tv_used = True
+
+            # skip unphased truvari variants
+            gt = tv_rec.genotype(name)['GT']
+            if gt[1] == '/' and gt[0] != gt[2]:
+                continue
+
             size = get_size(tv_rec.REF, tv_rec.ALT[0])
             vd_type = VD_NONE
             tv_type = get_tv_type(tv_rec.genotype(name)['BD'])
@@ -257,4 +263,4 @@ for callset in ["query"]:
         for (i,j), z in np.ndenumerate(counts[size_idx]):
             ax.text(j, i, f"{int(z)}", ha='center', va='center',
                 bbox=dict(boxstyle='round', facecolor='white', edgecolor='0.3'))
-        plt.savefig(f"img/13_{callset}_{size_idx}_cm.png", dpi=200)
+        plt.savefig(f"img/tv_vd_{callset}_{size_idx}_cm.png", dpi=200)
