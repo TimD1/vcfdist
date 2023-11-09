@@ -263,11 +263,11 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
     if (this->credit[swap][idx] == 1) {
         errtype = "TP"; match_type = "gm";
     } else if (this->credit[swap][idx] == 0) {
-        errtype = "FP"; match_type = ".";
+        errtype = query ? "FP" : "FN"; match_type = ".";
     } else if (this->credit[swap][idx] >= g.credit_threshold) {
         errtype = "TP"; match_type = "lm";
     } else {
-        errtype = "FP"; match_type = "lm";
+        errtype = query ? "FP" : "FN"; match_type = "lm";
     }
 
     fprintf(out_fp, "\t%s:%s:%f:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
@@ -625,7 +625,8 @@ variantData::variantData(std::string vcf_fn,
         if (ngt == -1) { // GT not defined in header
             if (!gt_warn) {
                 gt_warn = true;
-                WARN("'GT' tag not defined in header, assuming monoploid");
+                WARN("'GT' tag not defined in %s VCF header, assuming monoploid", 
+                        callset_strs[callset].data());
             }
         } else if (ngt <= 0) { // other error
             ERROR("Failed to read %s GT at %s:%lld", 
@@ -699,7 +700,8 @@ variantData::variantData(std::string vcf_fn,
         if (nPS == -1) { // PS not defined in header
             if (!PS_warn) {
                 PS_warn = true;
-                WARN("'PS' tag not defined in header, assuming one phase set per contig");
+                WARN("'PS' tag not defined in %s VCF header, assuming one phase set per contig",
+                        callset_strs[callset].data());
             }
             phase_set = 0;
 
@@ -885,11 +887,11 @@ variantData::variantData(std::string vcf_fn,
     /*     WARN("%d total missing GQ tags in %s VCF, all considered GQ=0", */
     /*         gq_missing_total, callset_strs[callset].data()); */
 
-    if (failed_filter_total) 
+    if (failed_filter_total && print) 
         INFO("%d variants failed FILTER in %s VCF, skipped",
             failed_filter_total, callset_strs[callset].data());
 
-    if (pass_min_qual[FAIL])
+    if (pass_min_qual[FAIL] && print)
         INFO("%d variants of low quality (<%d) in %s VCF, skipped", 
             pass_min_qual[FAIL], g.min_qual, callset_strs[callset].data());
 
@@ -912,7 +914,7 @@ variantData::variantData(std::string vcf_fn,
 
     multi_total = GT_counts[GT_ALT1_ALT1] + GT_counts[GT_ALT1_ALT2] +
         GT_counts[GT_ALT2_ALT1] + GT_counts[GT_OTHER];
-    if (multi_total)
+    if (multi_total && print)
         INFO("%d homozygous and multi-allelic variants in %s VCF, split for evaluation",
             multi_total, callset_strs[callset].data());
 
@@ -932,12 +934,12 @@ variantData::variantData(std::string vcf_fn,
         WARN("%d reference variants in %s VCF, skipped",
             ref_call_total, callset_strs[callset].data());
 
-    if (nregions[BED_OFFCTG] + nregions[BED_OUTSIDE])
+    if (nregions[BED_OFFCTG] + nregions[BED_OUTSIDE] && print)
         INFO("%d variants outside selected regions in %s VCF, skipped",
                 nregions[BED_OFFCTG] + nregions[BED_OUTSIDE], 
                 callset_strs[callset].data());
 
-    if (nregions[BED_BORDER])
+    if (nregions[BED_BORDER] && print)
         INFO("%d variants on border of selected regions in %s VCF, kept",
                 nregions[BED_BORDER], callset_strs[callset].data());
 
