@@ -401,6 +401,7 @@ void phaseblockData::phase()
 void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
         int flip_errors, int ng50, int s_ngc50, int sf_ngc50) {
     std::string out_phasing_summary_fn = g.out_prefix + "phasing-summary.tsv";
+    if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Writing phasing summary to '%s'", 
             out_phasing_summary_fn.data());
     FILE* out_phasing_summary = fopen(out_phasing_summary_fn.data(), "w");

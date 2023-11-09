@@ -210,9 +210,21 @@ int main(int argc, char **argv) {
     g.timers[TIME_PR_ALN].stop();
 
     // calculate edit distance
-    g.timers[TIME_EDITS].start();
-    editData edits = edits_wrapper(clusterdata_ptr);
-    g.timers[TIME_EDITS].stop();
+    editData edits;
+    if (g.distance) {
+        g.timers[TIME_EDITS].start();
+        editData edits = edits_wrapper(clusterdata_ptr);
+        g.timers[TIME_EDITS].stop();
+
+        g.timers[TIME_WRITE].start();
+        edits.write_distance();
+        if (g.write) edits.write_edits();
+        g.timers[TIME_WRITE].stop();
+    } else {
+        if (g.verbosity >= 1) INFO(" ");
+        if (g.verbosity >= 1) INFO("%s[6/8] Skipping distance metrics%s",
+                COLOR_PURPLE, COLOR_WHITE);
+    }
 
     // calculate global phasings
     g.timers[TIME_PHASE].start();
@@ -221,12 +233,14 @@ int main(int argc, char **argv) {
 
     // write supercluster/phaseblock results in CSV format
     g.timers[TIME_WRITE].start();
-    write_results(phasedata_ptr, edits);
+    write_results(phasedata_ptr);
 
     // save new VCF
     if (g.write) {
-        query_ptr->write_vcf(g.out_prefix + "query.vcf");
-        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+        if (g.realign_query)
+            query_ptr->write_vcf(g.out_prefix + "query.vcf");
+        if (g.realign_truth)
+            truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
         phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
     }
     g.timers[TIME_WRITE].stop();

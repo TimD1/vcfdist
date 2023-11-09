@@ -44,14 +44,14 @@ void write_params() {
         "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
         "realign_only = %s\nsimple_cluster = %s\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
-        "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\n",
+        "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\ndistance = %s",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size,
         g.phase_threshold, g.credit_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
         b2s(g.realign_only).data(), b2s(g.simple_cluster).data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
-        g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend);
+        g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend, b2s(g.distance).data());
     fclose(out_params);
 }
 
@@ -434,6 +434,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
     FILE* out_pr = 0;
     if (g.write) {
+        if (g.verbosity >= 1) INFO(" ");
         if (g.verbosity >= 1) INFO("  Writing precision-recall results to '%s'", out_pr_fn.data());
         out_pr = fopen(out_pr_fn.data(), "w");
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
@@ -557,143 +558,15 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-void write_distance(const editData & edits) {
-
-    // log all distance results
-    std::string dist_fn = g.out_prefix + "distance.tsv";
-    FILE* out_dists = 0;
-    if (g.write) {
-        out_dists = fopen(dist_fn.data(), "w");
-        fprintf(out_dists, "MIN_QUAL\tSUB_DE\tINS_DE\tDEL_DE\tSUB_ED\tINS_ED\tDEL_ED\t"
-                "DISTINCT_EDITS\tEDIT_DIST\tALN_SCORE\tALN_QSCORE\n");
-        if (g.verbosity >= 1) INFO("  Writing distance results to '%s'", dist_fn.data());
-    }
-
-    // get original scores / distance (above g.max_qual, no vars applied)
-    std::vector<int> orig_edit_dists(TYPES, 0);
-    std::vector<int> orig_distinct_edits(TYPES, 0);
-    int orig_score = edits.get_score(g.max_qual+1);
-    for (int type = 0; type < TYPES; type++) {
-        orig_edit_dists[type] = edits.get_ed(g.max_qual+1, type);
-        orig_distinct_edits[type] = edits.get_de(g.max_qual+1, type);
-    }
-
-    std::vector<double> best_score(TYPES, std::numeric_limits<double>::max());
-    std::vector<int> best_qual(TYPES, 0);
-    for (int q = g.min_qual; q <= g.max_qual+1; q++) { // all qualities
-
-        // get ED/DE for each Q threshold, for each type
-        std::vector<int> edit_dists(TYPES, 0);
-        std::vector<int> distinct_edits(TYPES, 0);
-        for (int type = 0; type < TYPES; type++) {
-            edit_dists[type] = edits.get_ed(q, type);
-            distinct_edits[type] = edits.get_de(q, type);
-
-            // save best Q threshold so far
-            double score = double(edit_dists[type]) * distinct_edits[type];
-            if (score < best_score[type]) {
-                best_score[type] = score;
-                best_qual[type] = q;
-            }
-        }
-
-        if (g.write) fprintf(out_dists, 
-                "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\n", 
-                q, distinct_edits[TYPE_SUB],
-                distinct_edits[TYPE_INS], distinct_edits[TYPE_DEL],
-                edit_dists[TYPE_SUB], edit_dists[TYPE_INS], edit_dists[TYPE_DEL],
-                distinct_edits[TYPE_ALL], edit_dists[TYPE_ALL],
-                edits.get_score(q), qscore(double(edits.get_score(q))/orig_score));
-    }
-    if (g.write) fclose(out_dists);
-
-    // summarize distance results
-    std::string dist_summ_fn = g.out_prefix + "distance-summary.tsv";
-    FILE* dists_summ = 0;
-    if (g.write) {
-        dists_summ = fopen(dist_summ_fn.data(), "w");
-        if (g.verbosity >= 1) 
-            INFO("  Writing distance summary to '%s'", dist_summ_fn.data());
-        fprintf(dists_summ, "VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
-    }
-    INFO(" ");
-    INFO("%sALIGNMENT DISTANCE SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
-    for (int type = 0; type < TYPES; type++) {
-
-        // skip INS/DEL individually unless higher print verbosity
-        if (g.verbosity == 0 && type != TYPE_ALL)
-            continue;
-        if (g.verbosity == 1 && (type == TYPE_INS || type == TYPE_DEL))
-            continue;
-
-        INFO(" ");
-        if (type == TYPE_ALL) {
-            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE%s",
-                    COLOR_BLUE, COLOR_WHITE);
-        } else {
-            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE%s",
-                    COLOR_BLUE, COLOR_WHITE);
-        }
-        std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
-        for (int q : quals) {
-
-            // fill out ED/DE for selected quals
-            std::vector<int> edit_dists(TYPES, 0);
-            std::vector<int> distinct_edits(TYPES, 0);
-            for (int type = 0; type < TYPES; type++) {
-                edit_dists[type] = edits.get_ed(q, type);
-                distinct_edits[type] = edits.get_de(q, type);
-            }
-
-            float ed_qscore = qscore(double(edit_dists[type]) / orig_edit_dists[type]);
-            float de_qscore = qscore(double(distinct_edits[type]) / orig_distinct_edits[type]);
-            float all_qscore = type == TYPE_ALL ? qscore(double(edits.get_score(q)) / orig_score) : 0;
-
-            // print summary
-            if (g.write) fprintf(dists_summ, "%s\t%d\t%d\t%d\t%f\t%f\t%f\n", type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
-            if (type == TYPE_ALL) {
-                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore, COLOR_WHITE);
-            } else {
-                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, COLOR_WHITE);
-            }
-        }
-    }
-    INFO(" ");
-    if (g.write) fclose(dists_summ);
-}
-
-
-/*******************************************************************************/
-
-
-void write_results(
-        std::unique_ptr<phaseblockData> & phasedata_ptr, 
-        const editData & edits) {
+void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[8/8] Writing results%s", COLOR_PURPLE, COLOR_WHITE);
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
 
-    // print distance information
-    write_distance(edits);
-
     // print edit information
     if (g.write) {
-        std::string edit_fn = g.out_prefix + "edits.tsv";
-        FILE* out_edits = fopen(edit_fn.data(), "w");
-        fprintf(out_edits, "CONTIG\tSTART\tHAP\tTYPE\tSIZE\tSUPERCLUSTER\tMIN_QUAL\tMAX_QUAL\n");
-        if (g.verbosity >= 1) INFO("  Writing edit results to '%s'", edit_fn.data());
-        for (int i = 0; i < edits.n; i++) {
-            fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\t%d\n", 
-                    edits.ctgs[i].data(), edits.poss[i], edits.haps[i],
-                    type_strs[edits.types[i]].data(), edits.lens[i],
-                    edits.superclusters[i], edits.min_quals[i], edits.max_quals[i]);
-        }
-        fclose(out_edits);
 
         // print phasing information
         std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";

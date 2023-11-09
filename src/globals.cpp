@@ -178,7 +178,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum variant size provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--min-qual") {
+        } else if (std::string(argv[i]) == "-mn" ||
+                std::string(argv[i]) == "--min-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '--min-qual' used without providing minimum variant quality");
@@ -192,7 +193,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative minimum variant quality");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--max-qual") {
+        } else if (std::string(argv[i]) == "-mx" ||
+                std::string(argv[i]) == "--max-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '--max-qual' used without providing maximum variant quality");
@@ -386,6 +388,11 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max RAM must be positive");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-d" || 
+                std::string(argv[i]) == "--distance") {
+            i++;
+            g.distance = true;
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-ro" || 
                 std::string(argv[i]) == "--realign-only") {
             i++;
@@ -406,7 +413,8 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.realign_query = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--simple-cluster") {
+        } else if (std::string(argv[i]) == "-sc" ||
+                std::string(argv[i]) == "--simple-cluster") {
             i++;
             g.simple_cluster = true;
 /*******************************************************************************/
@@ -481,12 +489,12 @@ void Globals::print_usage() const
     printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
     printf("      maximum variant size, larger variants ignored\n");
-    printf("  --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("  -mn, --min-qual <INTEGER> [%d]\n", g.min_qual);
     printf("      minimum variant quality, lower qualities ignored\n");
-    printf("  --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("  -mx, --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality, higher qualities kept but thresholded\n");
 
-    printf("\n  ReAlignment:\n");
+    printf("\n  Re-Alignment:\n");
     printf("  -rq, --realign-query\n");
     printf("      realign query variants using Smith-Waterman parameters\n");
     printf("  -rt, --realign-truth\n");
@@ -503,6 +511,10 @@ void Globals::print_usage() const
     printf("\n  Precision-Recall:\n");
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
     printf("      minimum partial credit to consider variant a true positive\n");
+
+    printf("\n  Distance:\n");
+    printf("  -d, --distance\n");
+    printf("      flag to include alignment distance calculations, skipped by default\n");
 
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
@@ -526,7 +538,7 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  --simple-cluster\n");
+    printf("  -sc, --simple-cluster\n");
     printf("      instead of biWFA-based clustering, use gap-based clustering \n");
     printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
     printf("      minimum gap between independent clusters and superclusters (in bases),\n");
@@ -539,11 +551,11 @@ void Globals::print_usage() const
 
     printf("\n  Distance:\n");
     printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
-    printf("      mismatch penalty (distance evaluation)\n");
+    printf("      mismatch penalty (distance evaluation only)\n");
     printf("  -eo, --eval-gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
-    printf("      gap opening penalty (distance evaluation)\n");
+    printf("      gap opening penalty (distance evaluation only)\n");
     printf("  -ee, --eval-gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
-    printf("      gap extension penalty (distance evaluation)\n");
+    printf("      gap extension penalty (distance evaluation only)\n");
 
 }
 
