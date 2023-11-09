@@ -233,6 +233,7 @@ int main(int argc, char **argv) {
 
     // write supercluster/phaseblock results in CSV format
     g.timers[TIME_WRITE].start();
+    if (g.write) phasedata_ptr->write_switchflips();
     write_results(phasedata_ptr);
 
     // save new VCF

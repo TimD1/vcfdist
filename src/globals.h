@@ -45,7 +45,7 @@ public:
     int extend = 2;
 
     // phasing
-    double phase_threshold = 0.5;
+    double phase_threshold = 0.6;
 
     // precision-recall
     double credit_threshold = 0.7;
