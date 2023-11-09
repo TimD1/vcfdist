@@ -12,7 +12,7 @@ $(TARGET): $(OBJS) main.cpp
 globals.o: globals.cpp globals.h bed.h print.h defs.h timer.h
 	$(CXX) -c $(CXXFLAGS) globals.cpp
 
-print.o: print.cpp print.h globals.h phase.h dist.h edit.h defs.h
+print.o: print.cpp print.h globals.h phase.h dist.h edit.h defs.h variant.h
 	$(CXX) -c $(CXXFLAGS) print.cpp
 
 timer.o: timer.cpp timer.h globals.h defs.h
@@ -30,10 +30,10 @@ bed.o: bed.cpp bed.h print.h defs.h globals.h
 edit.o: edit.cpp edit.h defs.h globals.h
 	$(CXX) -c $(CXXFLAGS) edit.cpp
 
-cluster.o: cluster.cpp cluster.h variant.h globals.h dist.h defs.h
+cluster.o: cluster.cpp cluster.h variant.h fasta.h globals.h dist.h defs.h
 	$(CXX) -c $(CXXFLAGS) cluster.cpp
 
-phase.o: phase.cpp phase.h cluster.h print.h globals.h defs.h
+phase.o: phase.cpp phase.h cluster.h print.h globals.h defs.h variant.h
 	$(CXX) -c $(CXXFLAGS) phase.cpp
 
 clean:

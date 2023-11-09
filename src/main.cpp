@@ -14,7 +14,7 @@ Globals g;
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
 std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
 std::vector<std::string> vartype_strs = {"SNP", "INDEL"};
-std::vector<std::string> error_strs = {"TP", "FP", "FN", "PP", "PE", "GE", "??"};
+std::vector<std::string> error_strs = {"TP", "FP", "FN", "PE", "GE", "??"};
 std::vector<std::string> gt_strs = {
         "0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "M|N" };
 std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CTG"};
@@ -23,6 +23,7 @@ std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
 std::vector<std::string> timer_strs = {"reading", "clustering", "realigning", 
     "reclustering", "superclustering", "precision/recall", "edit distance", "phasing", "writing", "total"};
+std::vector<std::string> switch_strs = {"FLIP", "SWITCH", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
  
 int main(int argc, char **argv) {
 
@@ -48,15 +49,17 @@ int main(int argc, char **argv) {
 
     // write results
     if (g.write) {
-        g.timers[TIME_WRITE].start();
-        if (g.verbosity >= 1) INFO(" ");
-        if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
-                std::string(g.out_prefix + "orig-query.vcf").data());
+        if (g.realign_query) {
+            g.timers[TIME_WRITE].start();
+            if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
+                    std::string(g.out_prefix + "orig-query.vcf").data());
             query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
-        if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
-                std::string(g.out_prefix + "orig-truth.vcf").data());
+        } else if (g.realign_truth) {
+            if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
+                    std::string(g.out_prefix + "orig-truth.vcf").data());
             truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
-        g.timers[TIME_WRITE].stop();
+            g.timers[TIME_WRITE].stop();
+        }
     }
 
     // ensure each input contains all contigs in BED
@@ -93,7 +96,7 @@ int main(int argc, char **argv) {
         g.timers[TIME_REALN].stop();
     }
 
-    if (g.realign_only && g.write) { // realign only, exit early
+    if (g.realign_only && g.realign_query && g.write) { // realign only, exit early
         g.timers[TIME_WRITE].start();
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
         g.timers[TIME_WRITE].stop();
@@ -154,7 +157,7 @@ int main(int argc, char **argv) {
     }
 
     if (g.realign_only) { // realign only, exit early
-        if (g.write) {
+        if (g.realign_truth && g.write) {
             g.timers[TIME_WRITE].start();
             truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
             g.timers[TIME_WRITE].stop();
@@ -207,9 +210,21 @@ int main(int argc, char **argv) {
     g.timers[TIME_PR_ALN].stop();
 
     // calculate edit distance
-    g.timers[TIME_EDITS].start();
-    editData edits = edits_wrapper(clusterdata_ptr);
-    g.timers[TIME_EDITS].stop();
+    editData edits;
+    if (g.distance) {
+        g.timers[TIME_EDITS].start();
+        editData edits = edits_wrapper(clusterdata_ptr);
+        g.timers[TIME_EDITS].stop();
+
+        g.timers[TIME_WRITE].start();
+        edits.write_distance();
+        if (g.write) edits.write_edits();
+        g.timers[TIME_WRITE].stop();
+    } else {
+        if (g.verbosity >= 1) INFO(" ");
+        if (g.verbosity >= 1) INFO("%s[6/8] Skipping distance metrics%s",
+                COLOR_PURPLE, COLOR_WHITE);
+    }
 
     // calculate global phasings
     g.timers[TIME_PHASE].start();
@@ -218,12 +233,15 @@ int main(int argc, char **argv) {
 
     // write supercluster/phaseblock results in CSV format
     g.timers[TIME_WRITE].start();
-    write_results(phasedata_ptr, edits);
+    if (g.write) phasedata_ptr->write_switchflips();
+    write_results(phasedata_ptr);
 
     // save new VCF
     if (g.write) {
-        query_ptr->write_vcf(g.out_prefix + "query.vcf");
-        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+        if (g.realign_query)
+            query_ptr->write_vcf(g.out_prefix + "query.vcf");
+        if (g.realign_truth)
+            truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
         phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
     }
     g.timers[TIME_WRITE].stop();

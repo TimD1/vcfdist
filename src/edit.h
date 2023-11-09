@@ -24,6 +24,8 @@ public:
     int get_ed(int qual, int type=TYPE_ALL) const; // edit distance
     int get_de(int qual, int type=TYPE_ALL) const; // distinct edits
     int get_score(int qual) const;                 // smith-waterman distance
+    void write_distance();
+    void write_edits();
 
     // data (all of size n)
     int n = 0;

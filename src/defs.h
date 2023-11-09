@@ -60,11 +60,18 @@ class idx2;
 #define ERRTYPE_TP 0 // true positive
 #define ERRTYPE_FP 1 // false positive
 #define ERRTYPE_FN 2 // false negative
-#define ERRTYPE_PP 3 // partial positive (reduces ED, but not TP)
-#define ERRTYPE_PE 4 // phase error (0|1 -> 1|0)
-#define ERRTYPE_GE 5 // genotype error (0|1 -> 1|1)
-#define ERRTYPE_UN 6 // unknown
-#define ERRTYPES   7
+#define ERRTYPE_PE 3 // phase error (0|1 -> 1|0)
+#define ERRTYPE_GE 4 // genotype error (0|1 -> 1|1)
+#define ERRTYPE_UN 5 // unknown
+#define ERRTYPES   6
+
+#define SWITCHTYPE_FLIP       0
+#define SWITCHTYPE_SWITCH     1
+#define SWITCHTYPE_SWITCH_ERR 2
+#define SWITCHTYPE_FLIP_BEG   3
+#define SWITCHTYPE_FLIP_END   4
+#define SWITCHTYPE_NONE       5
+#define SWITCHTYPES           6
 
 // runtime timers
 #define TIME_READ     0

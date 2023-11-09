@@ -23,9 +23,9 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=1,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN). PP conversion: TP if BC >= 0.5 else FP/FN (hap.py compatibility)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=1,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=BC,Number=1,Type=String,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=1,Type=String,Description=\"BenchmarK category (for hap.py compatibility, always genotype match 'gm')\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=1,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.')\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster (index in contig)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment)\">\n");
@@ -51,8 +51,8 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
         // set supercluster flip/swap based on phaseblock and sc phasing
         int phase_block = 0;
-        bool phase_switch = ctg_pbs->block_states[phase_block];
-        int phase_sc = ctg_scs->phase[sc_idx];
+        bool phase_switch = ctg_scs->pb_phase[sc_idx];
+        int phase_sc = ctg_scs->sc_phase[sc_idx];
         bool phase_flip, swap;
         if (phase_switch) {
             if (phase_sc == PHASE_ORIG) { // flip error
@@ -103,12 +103,12 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             if (pos >= ctg_scs->ends[sc_idx]) {
                 // update supercluster
                 sc_idx++;
-                phase_sc = ctg_scs->phase[sc_idx];
+                phase_sc = ctg_scs->sc_phase[sc_idx];
 
                 // update phase block
                 if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
-                phase_switch = ctg_pbs->block_states[phase_block];
+                phase_switch = ctg_scs->pb_phase[sc_idx];
 
                 // update switch/flip status
                 if (phase_switch) {
@@ -240,9 +240,25 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     this->ref = clusterdata_ptr->ref;
 
     // add pointers to clusters
-    for (std::string ctg : clusterdata_ptr->contigs) {
+    for (std::string ctg : this->contigs) {
         this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->superclusters[ctg];
     }
+
+    // add phase blocks based on phase sets for each contig
+    for (std::string ctg : this->contigs) {
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        int curr_phase_set = -1;
+        for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
+            if (ctg_scs->phase_sets[sc_idx] != curr_phase_set) {
+                ctg_pbs->phase_blocks.push_back(sc_idx);
+                ctg_pbs->n++;
+                curr_phase_set = ctg_scs->phase_sets[sc_idx];
+            }
+        }
+        ctg_pbs->phase_blocks.push_back(ctg_scs->n);
+    }
+    
     this->phase();
 }
 
@@ -268,7 +284,7 @@ void phaseblockData::phase()
 
             // determine costs (penalized if this phasing deemed incorrect)
             std::vector<int> costs = {0, 0};
-            switch (ctg_scs->phase[i]) {
+            switch (ctg_scs->sc_phase[i]) {
                 case PHASE_NONE: 
                     costs[PHASE_PTR_KEEP] = 0; 
                     costs[PHASE_PTR_SWAP] = 0; 
@@ -282,7 +298,7 @@ void phaseblockData::phase()
                     costs[PHASE_PTR_SWAP] = 0; 
                      break;
                 default:
-                    ERROR("Unexpected phase (%d)", ctg_scs->phase[i]);
+                    ERROR("Unexpected phase (%d)", ctg_scs->sc_phase[i]);
                     break;
             }
 
@@ -313,28 +329,27 @@ void phaseblockData::phase()
                 phase = 1;
 
             int i = ctg_scs->n-1;
-            ctg_pbs->phase_blocks.push_back(i+1);
             while (i > 0) {
-                if (ptrs[phase][i] == PHASE_PTR_SWAP) { // new phase block
-                    ctg_pbs->n++;
+                ctg_scs->pb_phase[i] = phase;
+                if (ptrs[phase][i] == PHASE_PTR_SWAP) {
 
                     // not a switch error if between phase sets
-                    if (i+1 < ctg_scs->n && ctg_scs->phase_sets[i] == ctg_scs->phase_sets[i+1])
+                    if (i+1 < ctg_scs->n && ctg_scs->phase_sets[i] == ctg_scs->phase_sets[i+1]) {
+                        ctg_pbs->switches.push_back(i+1);
                         ctg_pbs->nswitches++;
+                    }
 
-                    ctg_pbs->phase_blocks.push_back(i+1);
-                    ctg_pbs->block_states.push_back(phase);
                     phase ^= 1;
                 } else if (ptrs[phase][i] == PHASE_PTR_KEEP) { // within phase block
-                    if (ctg_scs->phase[i] != PHASE_NONE && ctg_scs->phase[i] != phase)
+                    if (ctg_scs->sc_phase[i] != PHASE_NONE && ctg_scs->sc_phase[i] != phase) {
+                        ctg_pbs->flips.push_back(i);
                         ctg_pbs->nflips++;
+                    }
                 }
                 i--;
             }
-            ctg_pbs->phase_blocks.push_back(0);
-            std::reverse(ctg_pbs->phase_blocks.begin(), ctg_pbs->phase_blocks.end());
-            ctg_pbs->block_states.push_back(phase);
-            std::reverse(ctg_pbs->block_states.begin(), ctg_pbs->block_states.end());
+            std::reverse(ctg_pbs->flips.begin(), ctg_pbs->flips.end());
+            std::reverse(ctg_pbs->switches.begin(), ctg_pbs->switches.end());
         }
     }
     
@@ -346,27 +361,9 @@ void phaseblockData::phase()
     int superclusters = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int id = 0;
-    bool print = false;
     for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-
-        // verbose, print phase of each supercluster
-        if (print) {
-            int s = 0;
-            std::vector<std::string> colors {"\033[34m", "\033[32m"};
-            int color_idx = 0;
-            for (int i = 0; i < ctg_scs->n; i++) {
-                if (i == ctg_pbs->phase_blocks[s]) {
-                    printf("%s", colors[color_idx].data());
-                    color_idx ^= 1;
-                    s++;
-                }
-                int phase = ctg_scs->phase[i];
-                printf("%s", phase_strs[phase].data());
-            }
-            printf("\033[0m\n");
-        }
 
         // print errors per contig
         if (g.verbosity >= 1) {
@@ -379,26 +376,150 @@ void phaseblockData::phase()
         phase_blocks += ctg_pbs->n;
         id++;
     }
-    int ng50 = this->calculate_ng50();
-    int ngc50 = this->calculate_ngc50();
+    int ng50 = this->calculate_ng50(false, false);
+    int s_ngc50 = this->calculate_ng50(true, false);
+    int sf_ngc50 = this->calculate_ng50(true, true);
 
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("   Total switch errors: %d", switch_errors);
-    if (g.verbosity >= 1) INFO("   Total   flip errors: %d", flip_errors);
-    if (g.verbosity >= 1) INFO("   Total  phase blocks: %d", phase_blocks);
-    if (g.verbosity >= 1) INFO("     Phase block  NG50: %d", ng50);
-    if (g.verbosity >= 1) INFO("     Phase block NGC50: %d", ngc50);
+    if (g.verbosity >= 1) INFO("             Total  phase blocks: %d", phase_blocks);
+    if (g.verbosity >= 1) INFO("             Total switch errors: %d", switch_errors);
+    if (g.verbosity >= 1) INFO("             Total   flip errors: %d", flip_errors);
     if (g.verbosity >= 1 && superclusters) 
-        INFO("  SC Switch error rate: %.6f%%", 100*switch_errors/float(superclusters));
+        INFO("  Supercluster switch error rate: %.6f%%", 100*switch_errors/float(superclusters));
     if (g.verbosity >= 1 && superclusters) 
-        INFO("    SC Flip error rate: %.6f%%", 100*flip_errors/float(superclusters));
+        INFO("    Supercluster flip error rate: %.6f%%", 100*flip_errors/float(superclusters));
+    if (g.verbosity >= 1) INFO("               Phase block  NG50: %d", ng50);
+    if (g.verbosity >= 1) INFO("  (switch)     Phase block NGC50: %d", s_ngc50);
+    if (g.verbosity >= 1) INFO("  (switchflip) Phase block NGC50: %d", sf_ngc50);
+    this->write_phasing_summary(phase_blocks, switch_errors, flip_errors, ng50, s_ngc50, sf_ngc50);
 }
 
 
 /*******************************************************************************/
 
 
-int phaseblockData::calculate_ngc50() {
+void phaseblockData::write_switchflips() {
+
+    std::string out_sf_fn = g.out_prefix + "switchflips.tsv";
+    FILE* out_sf = 0;
+    if (g.verbosity >= 1) INFO("  Writing switchflip results to '%s'", out_sf_fn.data());
+    out_sf = fopen(out_sf_fn.data(), "w");
+    fprintf(out_sf, "CONTIG\tSTART\tSTOP\tSWITCH_TYPE\tSUPERCLUSTER\tPHASE_BLOCK\n");
+
+    // get sizes of each correct phase block (split on flips, not just switch)
+    for (std::string ctg: this->contigs) {
+        
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+
+        int switch_idx = 0;
+        int flip_idx = 0;
+        int pb_idx = 1;
+        if (ctg_scs->n == 0) continue;
+
+        // init start of this correct block
+        int sc = 0;
+        int next_sc = ctg_scs->n; // default to last
+        int beg = 0; int end = 0;
+        int type = SWITCHTYPE_NONE;
+
+        while (true) {
+
+            // get type and supercluster of next switch/flip/phaseset
+            // check flip first because it will cause a second switch
+            if (flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] < next_sc) {
+                type = SWITCHTYPE_FLIP;
+                next_sc = ctg_pbs->flips[flip_idx];
+            }
+            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] < next_sc) {
+                type = SWITCHTYPE_SWITCH;
+                next_sc = ctg_pbs->phase_blocks[pb_idx];
+            }
+            if (switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] < next_sc) {
+                type = SWITCHTYPE_SWITCH_ERR;
+                next_sc = ctg_pbs->switches[switch_idx];
+            }
+            if (type == SWITCHTYPE_NONE) { // all out-of-bounds
+                break;
+            }
+            if (next_sc <= sc) ERROR("Next SC is not after current SC");
+
+
+            // get block(s)
+            if (type == SWITCHTYPE_FLIP) {
+                // switch could have occurred anywhere after last phased supercluster
+                int left = next_sc-1;
+                while (left > 0 && ctg_scs->sc_phase[left] == PHASE_NONE)
+                    left--;
+                if (left >= 0) {
+                    beg = ctg_scs->ends[left];
+                    end = ctg_scs->begs[next_sc];
+                    fprintf(out_sf, "%s\t%d\t%d\t%s\t%d\t%d\n", ctg.data(), beg, end, 
+                            switch_strs[SWITCHTYPE_FLIP_BEG].data(), next_sc, pb_idx-1);
+                }
+
+                // switch could have occurred anywhere before next phased supercluster
+                int right = next_sc+1;
+                while (right < ctg_scs->n-1 && ctg_scs->sc_phase[right] == PHASE_NONE)
+                    right++;
+                if (right < ctg_scs->n) {
+                    beg = ctg_scs->ends[next_sc];
+                    end = ctg_scs->begs[right];
+                    fprintf(out_sf, "%s\t%d\t%d\t%s\t%d\t%d\n", ctg.data(), beg, end, 
+                            switch_strs[SWITCHTYPE_FLIP_END].data(), next_sc, pb_idx-1);
+                }
+                flip_idx++;
+            } else if (type == SWITCHTYPE_SWITCH) {
+                // end of phase block, don't print anything since not an error
+                pb_idx++;
+            } else if (type == SWITCHTYPE_SWITCH_ERR) {
+                // expand left/right from in between these clusters
+                int left = next_sc-1;
+                while (left > 0 && ctg_scs->sc_phase[left] == PHASE_NONE)
+                    left--;
+                int right = next_sc;
+                while (right < ctg_scs->n-1 && ctg_scs->sc_phase[right] == PHASE_NONE)
+                    right++;
+                if (left >= 0 && right < ctg_scs->n) {
+                    beg = ctg_scs->ends[left];
+                    end = ctg_scs->begs[right];
+                    fprintf(out_sf, "%s\t%d\t%d\t%s\t%d\t%d\n", ctg.data(), beg, end, 
+                            switch_strs[SWITCHTYPE_SWITCH_ERR].data(), next_sc, pb_idx-1);
+                }
+                switch_idx++;
+            }
+
+            sc = next_sc;
+            next_sc = ctg_scs->n; // reset to end
+            type = SWITCHTYPE_NONE;
+        }
+    }
+    fclose(out_sf);
+}
+
+
+/*******************************************************************************/
+
+
+void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
+        int flip_errors, int ng50, int s_ngc50, int sf_ngc50) {
+    std::string out_phasing_summary_fn = g.out_prefix + "phasing-summary.tsv";
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Writing phasing summary to '%s'", 
+            out_phasing_summary_fn.data());
+    FILE* out_phasing_summary = fopen(out_phasing_summary_fn.data(), "w");
+    fprintf(out_phasing_summary,
+            "PHASE_BLOCKS\tSWITCH_ERRORS\tFLIP_ERRORS\tNG_50\tSWITCH_NGC50\tSWITCHFLIP_NGC50\n");
+    fprintf(out_phasing_summary, "%d\t%d\t%d\t%d\t%d\t%d", phase_blocks, 
+            switch_errors, flip_errors, ng50, s_ngc50, sf_ngc50);
+    fclose(out_phasing_summary);
+}
+
+
+/*******************************************************************************/
+
+
+int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
 
     // get total bases in genome
     size_t total_bases = 0;
@@ -412,23 +533,69 @@ int phaseblockData::calculate_ngc50() {
         
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-        for (int pb = 0; pb < ctg_pbs->n && ctg_scs->n > 0; pb++) { // each phase block
 
-            // init start of this correct block
-            int sc = ctg_pbs->phase_blocks[pb];
-            int beg = ctg_scs->begs[sc];
-            int end = 0;
-            for (; sc < ctg_pbs->phase_blocks[pb+1]; sc++) { // each superclsuter
-                if (ctg_scs->phase[sc] != PHASE_NONE &&  // flip error
-                        ctg_scs->phase[sc] != ctg_pbs->block_states[pb]) {
-                    end = ctg_scs->ends[sc-1];
-                    correct_blocks.push_back(end-beg);
-                    beg = ctg_scs->begs[sc]; // reset
-                }
+        int switch_idx = 0;
+        int flip_idx = 0;
+        int pb_idx = 1;
+        if (ctg_scs->n == 0) continue;
+
+        // init start of this correct block
+        int sc = 0;
+        int next_sc = ctg_scs->n; // default to last
+        int beg = ctg_scs->begs[0];
+        int end = 0;
+        int type = SWITCHTYPE_NONE;
+
+        while (true) {
+
+            // get type and supercluster of next switch/flip/phaseset
+            // check flip first because it will cause a second switch
+            if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] < next_sc) {
+                type = SWITCHTYPE_FLIP;
+                next_sc = ctg_pbs->flips[flip_idx];
             }
-            end = ctg_scs->ends[sc-1];
-            correct_blocks.push_back(end-beg);
+            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] < next_sc) {
+                type = SWITCHTYPE_SWITCH;
+                next_sc = ctg_pbs->phase_blocks[pb_idx];
+            }
+            if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] < next_sc) {
+                type = SWITCHTYPE_SWITCH_ERR;
+                next_sc = ctg_pbs->switches[switch_idx];
+            }
+            if (type == SWITCHTYPE_NONE) { // all out-of-bounds
+                break;
+            }
+            if (next_sc <= sc) ERROR("Next SC is not after current SC");
+
+
+            // get block(s)
+            if (type == SWITCHTYPE_FLIP) {
+                end = ctg_scs->ends[next_sc-1];
+                correct_blocks.push_back(end-beg);
+                beg = ctg_scs->begs[next_sc];
+
+                end = ctg_scs->ends[next_sc];
+                correct_blocks.push_back(end-beg);
+                beg = ctg_scs->begs[next_sc+1];
+                flip_idx++;
+            } else if (type == SWITCHTYPE_SWITCH) {
+                end = ctg_scs->ends[next_sc-1];
+                correct_blocks.push_back(end-beg);
+                beg = ctg_scs->begs[next_sc];
+                pb_idx++;
+            } else if (type == SWITCHTYPE_SWITCH_ERR) {
+                end = ctg_scs->ends[next_sc-1];
+                correct_blocks.push_back(end-beg);
+                beg = ctg_scs->begs[next_sc];
+                switch_idx++;
+            }
+
+            sc = next_sc;
+            next_sc = ctg_scs->n; // reset to end
+            type = SWITCHTYPE_NONE;
         }
+        end = ctg_scs->ends[ctg_scs->n-1];
+        correct_blocks.push_back(end-beg);
     }
 
     // return NGC50
@@ -438,44 +605,6 @@ int phaseblockData::calculate_ngc50() {
         total_correct += correct_blocks[i];
         if (total_correct >= total_bases / 2)
             return correct_blocks[i];
-    }
-    return 0;
-}
-
-
-/*******************************************************************************/
-
-
-int phaseblockData::calculate_ng50() {
-
-    // get total bases in genome
-    size_t total_bases = 0;
-    for (size_t i = 0; i < this->contigs.size(); i++) {
-        total_bases += lengths[i];
-    }
-
-    // get sizes of each phase block
-    std::vector<int> phase_blocks;
-    for (std::string ctg: this->contigs) {
-        
-        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-        for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
-            int beg_idx = ctg_pbs->phase_blocks[i];
-            int end_idx = ctg_pbs->phase_blocks[i+1]-1;
-            int beg = ctg_scs->begs[beg_idx];
-            int end = ctg_scs->ends[end_idx];
-            phase_blocks.push_back(end-beg);
-        }
-    }
-
-    // return NG50
-    size_t total_phased = 0;
-    std::sort(phase_blocks.begin(), phase_blocks.end(), std::greater<>());
-    for (size_t i = 0; i < phase_blocks.size(); i++) {
-        total_phased += phase_blocks[i];
-        if (total_phased >= total_bases / 2)
-            return phase_blocks[i];
     }
     return 0;
 }

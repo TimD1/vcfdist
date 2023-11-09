@@ -178,7 +178,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum variant size provided");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--min-qual") {
+        } else if (std::string(argv[i]) == "-mn" ||
+                std::string(argv[i]) == "--min-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '--min-qual' used without providing minimum variant quality");
@@ -192,7 +193,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative minimum variant quality");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--max-qual") {
+        } else if (std::string(argv[i]) == "-mx" ||
+                std::string(argv[i]) == "--max-qual") {
             i++;
             if (i == argc) {
                 ERROR("Option '--max-qual' used without providing maximum variant quality");
@@ -341,6 +343,36 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max threads must be positive");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-pt" ||
+                std::string(argv[i]) == "--phasing-threshold") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--phasing-threshold' used without providing value");
+            }
+            try {
+                this->phase_threshold = std::stod(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid phasing threshold provided");
+            }
+            if (this->phase_threshold <= 0 || this->phase_threshold > 1) {
+                ERROR("Provided phasing threshold must be on the interval (0,1]");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-ct" ||
+                std::string(argv[i]) == "--credit-threshold") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--credit-threshold' used without providing value");
+            }
+            try {
+                this->credit_threshold = std::stod(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid credit threshold provided");
+            }
+            if (this->credit_threshold <= 0 || this->credit_threshold > 1) {
+                ERROR("Provided credit threshold must be on the interval (0,1]");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-r" ||
                 std::string(argv[i]) == "--max-ram") {
             i++;
@@ -355,6 +387,11 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->max_ram < 0) {
                 ERROR("Max RAM must be positive");
             }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-d" || 
+                std::string(argv[i]) == "--distance") {
+            i++;
+            g.distance = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-ro" || 
                 std::string(argv[i]) == "--realign-only") {
@@ -376,7 +413,8 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.realign_query = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "--simple-cluster") {
+        } else if (std::string(argv[i]) == "-sc" ||
+                std::string(argv[i]) == "--simple-cluster") {
             i++;
             g.simple_cluster = true;
 /*******************************************************************************/
@@ -451,12 +489,12 @@ void Globals::print_usage() const
     printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
     printf("      maximum variant size, larger variants ignored\n");
-    printf("  --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("  -mn, --min-qual <INTEGER> [%d]\n", g.min_qual);
     printf("      minimum variant quality, lower qualities ignored\n");
-    printf("  --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("  -mx, --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality, higher qualities kept but thresholded\n");
 
-    printf("\n  ReAlignment:\n");
+    printf("\n  Re-Alignment:\n");
     printf("  -rq, --realign-query\n");
     printf("      realign query variants using Smith-Waterman parameters\n");
     printf("  -rt, --realign-truth\n");
@@ -469,6 +507,14 @@ void Globals::print_usage() const
     printf("      Smith-Waterman gap opening penalty\n");
     printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
     printf("      Smith-Waterman gap extension penalty\n");
+
+    printf("\n  Precision-Recall:\n");
+    printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
+    printf("      minimum partial credit to consider variant a true positive\n");
+
+    printf("\n  Distance:\n");
+    printf("  -d, --distance\n");
+    printf("      flag to include alignment distance calculations, skipped by default\n");
 
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
@@ -492,19 +538,24 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  --simple-cluster\n");
+    printf("  -sc, --simple-cluster\n");
     printf("      instead of biWFA-based clustering, use gap-based clustering \n");
     printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
     printf("      minimum gap between independent clusters and superclusters (in bases),\n");
     printf("      only applicable if used with '--simple-cluster' option\n");
 
+    printf("\n  Phasing:\n");
+    printf("  -pt, --phasing-threshold <FLOAT> [%.2f]\n", g.phase_threshold);
+    printf("      minimum fractional reduction in edit distance over other phasing\n");
+    printf("      in order to consider this supercluster phased\n");
+
     printf("\n  Distance:\n");
     printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
-    printf("      mismatch penalty (distance evaluation)\n");
+    printf("      mismatch penalty (distance evaluation only)\n");
     printf("  -eo, --eval-gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
-    printf("      gap opening penalty (distance evaluation)\n");
+    printf("      gap opening penalty (distance evaluation only)\n");
     printf("  -ee, --eval-gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
-    printf("      gap extension penalty (distance evaluation)\n");
+    printf("      gap extension penalty (distance evaluation only)\n");
 
 }
 

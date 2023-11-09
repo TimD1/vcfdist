@@ -9,6 +9,9 @@
 
 class Globals {
 public:
+    // constructors
+    Globals() {;}
+
     // input files
     std::string ref_fasta_fn;
     FILE* ref_fasta_fp;
@@ -19,7 +22,7 @@ public:
     bool bed_exists = false;
     bool write = true;
 
-    // variant params
+    // variant filtering
     std::vector<std::string> filters;
     std::vector<int> filter_ids;
     int min_qual = 0;
@@ -27,14 +30,31 @@ public:
     int min_size = 1;
     int max_size = 5000;
 
-    // clustering params
-    bool realign_truth = false;
-    bool realign_query = false;
-    bool realign_only = false;
+    // clustering
     bool simple_cluster = false;
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
+
+    // re-alignment
+    bool realign_truth = false;
+    bool realign_query = false;
+    bool realign_only = false;
+    int sub = 5;
+    int open = 6;
+    int extend = 2;
+
+    // phasing
+    double phase_threshold = 0.6;
+
+    // precision-recall
+    double credit_threshold = 0.7;
+
+    // edit distance
+    bool distance = false;
+    int eval_sub = 3;
+    int eval_open = 2;
+    int eval_extend = 1;
 
     // memory params
     int max_threads = 64;
@@ -49,19 +69,6 @@ public:
     std::string out_prefix;
     std::string cmd;
 
-    // alignment parameters
-    int sub = 5;
-    int open = 6;
-    int extend = 2;
-    int eval_sub = 3;
-    int eval_open = 2;
-    int eval_extend = 1;
-
-    std::vector<timer> timers;
-
-    // constructors
-    Globals() {;}
-
     // member functions
     void parse_args(int argc, char ** argv);
     void print_version() const;
@@ -70,8 +77,9 @@ public:
     void init_timers(std::vector<std::string> timer_strs);
 
     // program data
-    const std::string VERSION = "2.2.1";
+    const std::string VERSION = "2.3.0";
     const std::string PROGRAM = "vcfdist";
+    std::vector<timer> timers;
 };
 
 extern Globals g;
@@ -86,5 +94,6 @@ extern std::vector<std::string> gt_strs;
 extern std::vector<std::string> region_strs;
 extern std::vector<std::string> aln_strs;
 extern std::vector<std::string> phase_strs;
+extern std::vector<std::string> switch_strs;
 
 #endif

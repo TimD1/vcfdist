@@ -19,7 +19,8 @@ void ctgSuperclusters::add_supercluster(
         this->superclusters[i>>1][i&1].push_back(brks[i]);
     this->begs.push_back(beg);
     this->ends.push_back(end);
-    this->phase.push_back(PHASE_NONE);
+    this->sc_phase.push_back(PHASE_NONE);
+    this->pb_phase.push_back(PHASE_NONE);
     this->orig_phase_dist.push_back(-1);
     this->swap_phase_dist.push_back(-1);
     this->n++;
@@ -29,7 +30,7 @@ void ctgSuperclusters::set_phase(
            int sc_idx, int phase, 
            int orig_phase_dist, 
            int swap_phase_dist) {
-    this->phase[sc_idx] = phase;
+    this->sc_phase[sc_idx] = phase;
     this->orig_phase_dist[sc_idx] = orig_phase_dist;
     this->swap_phase_dist[sc_idx] = swap_phase_dist;
 }
@@ -379,8 +380,8 @@ void superclusterData::transfer_phase_sets() {
         total_bases += lengths[i];
     }
 
-    int query_ps_ng50 = calc_ng50(query_phase_set_sizes, total_bases);
-    int truth_ps_ng50 = calc_ng50(truth_phase_set_sizes, total_bases);
+    int query_pb_ng50 = calc_ng50(query_phase_set_sizes, total_bases);
+    int truth_pb_ng50 = calc_ng50(truth_phase_set_sizes, total_bases);
 
     // print
     if (total_multiple_phase_sets)
@@ -391,10 +392,10 @@ void superclusterData::transfer_phase_sets() {
         WARN("%d total phase sets (PS) are in non-increasing order",
                 total_non_increasing)
 
-    if (g.verbosity >= 1) INFO("        Input QUERY phase sets: %d", total_query_phase_sets);
-    if (g.verbosity >= 1) INFO("    Input QUERY phase set NG50: %d", query_ps_ng50);
-    if (g.verbosity >= 1) INFO("        Input TRUTH phase sets: %d", total_truth_phase_sets);
-    if (g.verbosity >= 1) INFO("    Input TRUTH phase set NG50: %d", truth_ps_ng50);
+    if (g.verbosity >= 1) INFO("              QUERY phase sets: %d", total_query_phase_sets);
+    if (g.verbosity >= 1) INFO("        QUERY phase block NG50: %d", query_pb_ng50);
+    if (g.verbosity >= 1) INFO("              TRUTH phase sets: %d", total_truth_phase_sets);
+    if (g.verbosity >= 1) INFO("        TRUTH phase block NG50: %d", truth_pb_ng50);
 }
 
 

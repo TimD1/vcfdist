@@ -41,17 +41,17 @@ void write_params() {
         "program = '%s'\nversion = '%s'\nout_prefix = '%s'\ncommand = '%s'\nreference_fasta = '%s'\n"
         "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
         "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\n"
-        "realign_truth = %s\nrealign_query = %s\n"
+        "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
         "realign_only = %s\nsimple_cluster = %s\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
-        "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\n",
+        "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\ndistance = %s",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size,
-        b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
+        g.phase_threshold, g.credit_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
         b2s(g.realign_only).data(), b2s(g.simple_cluster).data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
-        g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend);
+        g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend, b2s(g.distance).data());
     fclose(out_params);
 }
 
@@ -321,13 +321,13 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
 
 void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
-    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN,PP,PP_FRAC, ax2: QUAL
-    int PP_FRAC = 4;
+    // for each class, store variant counts above each quality threshold
+    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN ax2: QUAL
     std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
-            std::vector< std::vector<float> >(5, 
+            std::vector< std::vector<float> >(3, 
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
     std::vector< std::vector< std::vector<float> > > truth_counts(VARTYPES,
-            std::vector< std::vector<float> >(5, 
+            std::vector< std::vector<float> >(3, 
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
 
     // calculate summary statistics
@@ -346,10 +346,10 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
                     // get swap info
                     bool swap;
-                    switch (ctg_scs->phase[sci]) {
+                    switch (ctg_scs->sc_phase[sci]) {
                         case PHASE_ORIG: swap = false; break;
                         case PHASE_SWAP: swap = true; break;
-                        default: swap = ctg_pbs->block_states[pbi]; break;
+                        default: swap = ctg_scs->pb_phase[sci]; break;
                     }
 
                     for (int i = ctg_vars[QUERY][h]->clusters[
@@ -374,9 +374,6 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         }
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
-                            if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_PP) {
-                                query_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[QUERY][h]->credit[swap][i];
-                            }
                         }
                     }
                 }
@@ -393,10 +390,10 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
                     // get swap info
                     bool swap;
-                    switch (ctg_scs->phase[sci]) {
+                    switch (ctg_scs->sc_phase[sci]) {
                         case PHASE_ORIG: swap = false; break;
                         case PHASE_SWAP: swap = true; break;
-                        default: swap = ctg_pbs->block_states[pbi]; break;
+                        default: swap = ctg_scs->pb_phase[sci]; break;
                     }
 
                     for (int i = ctg_vars[TRUTH][h]->clusters[
@@ -419,11 +416,13 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             WARN("Unknown error type at TRUTH %s:%d", ctg.data(), ctg_vars[TRUTH][h]->poss[i]);
                             continue;
                         }
+                        // corresponding query call is only correct until its Qscore, after which it falls below
+                        // the quality threshold, is filtered, and becomes a false negative
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             truth_counts[t][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
-                            if (ctg_vars[TRUTH][h]->errtypes[swap][i] == ERRTYPE_PP) {
-                                truth_counts[t][PP_FRAC][qual-g.min_qual] += ctg_vars[TRUTH][h]->credit[swap][i];
-                            }
+                        }
+                        for (int qual = q+1; qual < g.max_qual; qual++) {
+                            truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
                         }
                     }
                 }
@@ -435,10 +434,11 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
     FILE* out_pr = 0;
     if (g.write) {
+        if (g.verbosity >= 1) INFO(" ");
         if (g.verbosity >= 1) INFO("  Writing precision-recall results to '%s'", out_pr_fn.data());
         out_pr = fopen(out_pr_fn.data(), "w");
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
-                "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_PP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_PP\tQUERY_FP\n");
+                "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     }
     std::vector<float> max_f1_score = {0, 0};
     std::vector<int> max_f1_qual = {0, 0};
@@ -448,36 +448,25 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
             int qidx = qual - g.min_qual;
 
-            int query_tot = query_counts[type][ERRTYPE_TP][qidx] +
-                        query_counts[type][ERRTYPE_FP][qidx] +
-                        query_counts[type][ERRTYPE_PP][qidx];
-            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
-                        query_counts[type][PP_FRAC][qidx];
-            float query_fp_f = query_tot - query_tp_f;
+            // define helper variables
+            int query_tp = query_counts[type][ERRTYPE_TP][qidx];
+            int query_fp = query_counts[type][ERRTYPE_FP][qidx];
+            int query_tot = query_tp + query_fp;
+            int truth_tp = truth_counts[type][ERRTYPE_TP][qidx];
+            int truth_fn = truth_counts[type][ERRTYPE_FN][qidx];
+            int truth_tot = truth_tp + truth_fn;
 
-            int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
-                        truth_counts[type][ERRTYPE_PP][0] +
-                        truth_counts[type][ERRTYPE_FN][0];
-            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
-                         truth_counts[type][PP_FRAC][qidx];
-            if (truth_tot == 0) break;
-            if (truth_tp_f + query_fp_f == 0) break;
-
-            // ignore PP, this is only for summary output, not calculations
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] +
-                         truth_counts[type][ERRTYPE_TP][0] -
-                         truth_counts[type][ERRTYPE_TP][qidx];
-
-            float precision = truth_tp_f / (truth_tp_f + query_fp_f);
-            float recall = truth_tp_f / truth_tot;
-            float f1_score = 2*precision*recall / (precision + recall);
+            // calculate summary metrics
+            float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
+            float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
+            float f1_score = precision+recall ? 2*precision*recall / (precision + recall) : 0;
             if (f1_score > max_f1_score[type]) {
                 max_f1_score[type] = f1_score;
                 max_f1_qual[type] = qual;
             }
 
             if (g.write) fprintf(out_pr, 
-                    "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+                    "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\n",
                     vartype_strs[type].data(),
                     qual,
                     precision,
@@ -486,11 +475,9 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                     qscore(1-f1_score),
                     truth_tot,
                     int(truth_counts[type][ERRTYPE_TP][qidx]),
-                    int(truth_counts[type][ERRTYPE_PP][qidx]),
                     truth_fn,
                     query_tot, 
                     int(query_counts[type][ERRTYPE_TP][qidx]),
-                    int(query_counts[type][ERRTYPE_PP][qidx]),
                     int(query_counts[type][ERRTYPE_FP][qidx])
            );
         }
@@ -518,28 +505,20 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             // redo calculations for these two
             int qidx = qual - g.min_qual;
 
-            int query_tot = query_counts[type][ERRTYPE_TP][qidx] +
-                        query_counts[type][ERRTYPE_FP][qidx] +
-                        query_counts[type][ERRTYPE_PP][qidx];
-            float query_tp_f = query_counts[type][ERRTYPE_TP][qidx] +
-                         query_counts[type][PP_FRAC][qidx];
-            float query_fp_f = query_tot - query_tp_f;
+            // define helper variables
+            int query_tp = query_counts[type][ERRTYPE_TP][qidx];
+            int query_fp = query_counts[type][ERRTYPE_FP][qidx];
+            int query_tot = query_tp + query_fp;
             if (query_tot == 0) WARN("No QUERY %s variant calls.", vartype_strs[type].data());
-
-            int truth_tot = truth_counts[type][ERRTYPE_TP][0] +
-                        truth_counts[type][ERRTYPE_PP][0] +
-                        truth_counts[type][ERRTYPE_FN][0];
-            int truth_fn = truth_counts[type][ERRTYPE_FN][0] +
-                             truth_counts[type][ERRTYPE_TP][0] -
-                             truth_counts[type][ERRTYPE_TP][qidx];
-            float truth_tp_f = truth_counts[type][ERRTYPE_TP][qidx] +
-                             truth_counts[type][PP_FRAC][qidx];
+            int truth_tp = truth_counts[type][ERRTYPE_TP][qidx];
+            int truth_fn = truth_counts[type][ERRTYPE_FN][qidx];
+            int truth_tot = truth_tp + truth_fn;
             if (truth_tot == 0) WARN("No TRUTH %s variant calls.", vartype_strs[type].data());
 
-            float precision = truth_tp_f + query_fp_f == 0 ? 
-                1.0f : truth_tp_f / (truth_tp_f + query_fp_f);
-            float recall = truth_tot == 0 ? 1.0f : truth_tp_f / truth_tot;
-            float f1_score = 2*precision*recall / (precision + recall);
+            // calculate summary metrics
+            float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
+            float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
+            float f1_score = precision+recall ? 2*precision*recall / (precision + recall) : 0;
 
             // print summary
             INFO("%s%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
@@ -579,149 +558,21 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-void write_distance(const editData & edits) {
-
-    // log all distance results
-    std::string dist_fn = g.out_prefix + "distance.tsv";
-    FILE* out_dists = 0;
-    if (g.write) {
-        out_dists = fopen(dist_fn.data(), "w");
-        fprintf(out_dists, "MIN_QUAL\tSUB_DE\tINS_DE\tDEL_DE\tSUB_ED\tINS_ED\tDEL_ED\t"
-                "DISTINCT_EDITS\tEDIT_DIST\tALN_SCORE\tALN_QSCORE\n");
-        if (g.verbosity >= 1) INFO("  Writing distance results to '%s'", dist_fn.data());
-    }
-
-    // get original scores / distance (above g.max_qual, no vars applied)
-    std::vector<int> orig_edit_dists(TYPES, 0);
-    std::vector<int> orig_distinct_edits(TYPES, 0);
-    int orig_score = edits.get_score(g.max_qual+1);
-    for (int type = 0; type < TYPES; type++) {
-        orig_edit_dists[type] = edits.get_ed(g.max_qual+1, type);
-        orig_distinct_edits[type] = edits.get_de(g.max_qual+1, type);
-    }
-
-    std::vector<double> best_score(TYPES, std::numeric_limits<double>::max());
-    std::vector<int> best_qual(TYPES, 0);
-    for (int q = g.min_qual; q <= g.max_qual+1; q++) { // all qualities
-
-        // get ED/DE for each Q threshold, for each type
-        std::vector<int> edit_dists(TYPES, 0);
-        std::vector<int> distinct_edits(TYPES, 0);
-        for (int type = 0; type < TYPES; type++) {
-            edit_dists[type] = edits.get_ed(q, type);
-            distinct_edits[type] = edits.get_de(q, type);
-
-            // save best Q threshold so far
-            double score = double(edit_dists[type]) * distinct_edits[type];
-            if (score < best_score[type]) {
-                best_score[type] = score;
-                best_qual[type] = q;
-            }
-        }
-
-        if (g.write) fprintf(out_dists, 
-                "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%f\n", 
-                q, distinct_edits[TYPE_SUB],
-                distinct_edits[TYPE_INS], distinct_edits[TYPE_DEL],
-                edit_dists[TYPE_SUB], edit_dists[TYPE_INS], edit_dists[TYPE_DEL],
-                distinct_edits[TYPE_ALL], edit_dists[TYPE_ALL],
-                edits.get_score(q), qscore(double(edits.get_score(q))/orig_score));
-    }
-    if (g.write) fclose(out_dists);
-
-    // summarize distance results
-    std::string dist_summ_fn = g.out_prefix + "distance-summary.tsv";
-    FILE* dists_summ = 0;
-    if (g.write) {
-        dists_summ = fopen(dist_summ_fn.data(), "w");
-        if (g.verbosity >= 1) 
-            INFO("  Writing distance summary to '%s'", dist_summ_fn.data());
-        fprintf(dists_summ, "VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
-    }
-    INFO(" ");
-    INFO("%sALIGNMENT DISTANCE SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
-    for (int type = 0; type < TYPES; type++) {
-
-        // skip INS/DEL individually unless higher print verbosity
-        if (g.verbosity == 0 && type != TYPE_ALL)
-            continue;
-        if (g.verbosity == 1 && (type == TYPE_INS || type == TYPE_DEL))
-            continue;
-
-        INFO(" ");
-        if (type == TYPE_ALL) {
-            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE%s",
-                    COLOR_BLUE, COLOR_WHITE);
-        } else {
-            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE%s",
-                    COLOR_BLUE, COLOR_WHITE);
-        }
-        std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
-        for (int q : quals) {
-
-            // fill out ED/DE for selected quals
-            std::vector<int> edit_dists(TYPES, 0);
-            std::vector<int> distinct_edits(TYPES, 0);
-            for (int type = 0; type < TYPES; type++) {
-                edit_dists[type] = edits.get_ed(q, type);
-                distinct_edits[type] = edits.get_de(q, type);
-            }
-
-            float ed_qscore = qscore(double(edit_dists[type]) / orig_edit_dists[type]);
-            float de_qscore = qscore(double(distinct_edits[type]) / orig_distinct_edits[type]);
-            float all_qscore = type == TYPE_ALL ? qscore(double(edits.get_score(q)) / orig_score) : 0;
-
-            // print summary
-            if (g.write) fprintf(dists_summ, "%s\t%d\t%d\t%d\t%f\t%f\t%f\n", type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
-            if (type == TYPE_ALL) {
-                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore, COLOR_WHITE);
-            } else {
-                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
-                    q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, COLOR_WHITE);
-            }
-        }
-    }
-    INFO(" ");
-    if (g.write) fclose(dists_summ);
-}
-
-
-/*******************************************************************************/
-
-
-void write_results(
-        std::unique_ptr<phaseblockData> & phasedata_ptr, 
-        const editData & edits) {
+void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[8/8] Writing results%s", COLOR_PURPLE, COLOR_WHITE);
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
 
-    // print distance information
-    write_distance(edits);
-
     // print edit information
     if (g.write) {
-        std::string edit_fn = g.out_prefix + "edits.tsv";
-        FILE* out_edits = fopen(edit_fn.data(), "w");
-        fprintf(out_edits, "CONTIG\tSTART\tHAP\tTYPE\tSIZE\tSUPERCLUSTER\tMIN_QUAL\tMAX_QUAL\n");
-        if (g.verbosity >= 1) INFO("  Writing edit results to '%s'", edit_fn.data());
-        for (int i = 0; i < edits.n; i++) {
-            fprintf(out_edits, "%s\t%d\t%d\t%s\t%d\t%d\t%d\t%d\n", 
-                    edits.ctgs[i].data(), edits.poss[i], edits.haps[i],
-                    type_strs[edits.types[i]].data(), edits.lens[i],
-                    edits.superclusters[i], edits.min_quals[i], edits.max_quals[i]);
-        }
-        fclose(out_edits);
 
         // print phasing information
         std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";
         FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
         if (g.verbosity >= 1) INFO("  Writing phasing results to '%s'", out_phaseblocks_fn.data());
-        fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tBLOCK_STATE\n");
+        fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
         for (std::string ctg : phasedata_ptr->contigs) {
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
@@ -730,9 +581,16 @@ void write_results(
                 int end_idx = ctg_pbs->phase_blocks[i+1]-1;
                 int beg = ctg_scs->begs[beg_idx];
                 int end = ctg_scs->ends[end_idx];
-                int phase = ctg_pbs->block_states[i];
-                fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", 
-                        ctg.data(), i, beg, end, end-beg, end_idx-beg_idx+1, phase);
+                int nswitches = 0;
+                for (int si = 0; si < ctg_pbs->nswitches; si++) {
+                    if (ctg_pbs->switches[si] > beg_idx && ctg_pbs->switches[si] <= end_idx) nswitches++;
+                }
+                int nflips = 0;
+                for (int fi = 0; fi < ctg_pbs->nflips; fi++) {
+                    if (ctg_pbs->flips[fi] > beg_idx && ctg_pbs->flips[fi] <= end_idx) nflips++;
+                }
+                fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
+                        ctg.data(), i, beg, end, end-beg, end_idx-beg_idx+1, nflips, nswitches);
             }
         }
         fclose(out_phaseblocks);
@@ -742,7 +600,7 @@ void write_results(
         FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
         if (g.verbosity >= 1) INFO("  Writing superclustering results to '%s'", out_clusterings_fn.data());
         fprintf(out_clusterings, "CONTIG\tSUPERCLUSTER\tSTART\tSTOP\tSIZE\tQUERY1_VARS\tQUERY2_VARS"
-                "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_SET\tPHASE_BLOCK\n");
+                "\tTRUTH1_VARS\tTRUTH2_VARS\tORIG_ED\tSWAP_ED\tPHASE\tPHASE_SET\tPHASE_BLOCK\tFLIP_ERROR\n");
         for (std::string ctg : phasedata_ptr->contigs) {
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
@@ -752,6 +610,16 @@ void write_results(
                 // we've entered the next phase block
                 if (i >= ctg_pbs->phase_blocks[phase_block_idx+1]) {
                     phase_block_idx++;
+                }
+
+                // set supercluster flip/swap based on phaseblock and sc phasing
+                bool phase_switch = ctg_scs->pb_phase[i];
+                int phase_sc = ctg_scs->sc_phase[i];
+                bool flip_error;
+                if (phase_switch) {
+                    flip_error = phase_sc == PHASE_ORIG;
+                } else { // no phase switch
+                    flip_error = phase_sc == PHASE_SWAP;
                 }
 
                 // count query vars, allowing empty haps
@@ -777,12 +645,12 @@ void write_results(
                             ctg_scs->superclusters[TRUTH][HAP2][i]] : 0;
 
                 // print data
-                fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\t%d\n", 
+                fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\t%d\t%s\n", 
                     ctg.data(), i, ctg_scs->begs[i], ctg_scs->ends[i],
                     ctg_scs->ends[i] - ctg_scs->begs[i],
                     query1_vars, query2_vars, truth1_vars, truth2_vars,
                     ctg_scs->orig_phase_dist[i], ctg_scs->swap_phase_dist[i],
-                    phase_strs[ctg_scs->phase[i]].data(), ctg_scs->phase_sets[i], phase_block_idx
+                    phase_strs[phase_sc].data(), ctg_scs->phase_sets[i], phase_block_idx, flip_error ? "TRUE" : "FALSE"
                );
             }
         }
@@ -790,7 +658,7 @@ void write_results(
 
         // print query variant information
         std::string out_query_fn = g.out_prefix + "query.tsv";
-        if (g.verbosity >= 1) INFO("  Writing call variant results to '%s'", out_query_fn.data());
+        if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
         FILE* out_query = fopen(out_query_fn.data(), "w");
         fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
                 "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
@@ -802,7 +670,7 @@ void write_results(
             std::shared_ptr<ctgVariants> query1_vars = ctg_scs->ctg_variants[QUERY][HAP1];
             std::shared_ptr<ctgVariants> query2_vars = ctg_scs->ctg_variants[QUERY][HAP2];
 
-            int supercluster_idx = 0;
+            int sci = 0;
             int var1_idx = 0;
             int var2_idx = 0;
             int cluster1_idx = 0;
@@ -816,16 +684,16 @@ void write_results(
                     if (cluster1_idx+1 >= int(query1_vars->clusters.size())) 
                         ERROR("Out of bounds cluster during write_results(): query1")
                     if (query1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
-                    if (supercluster_idx >= int(ctg_scs->begs.size())) 
+                    if (sci >= int(ctg_scs->begs.size())) 
                         ERROR("Out of bounds supercluster during write_results(): query1")
-                    while (query1_vars->poss[var1_idx] >= ctg_scs->ends[supercluster_idx])
-                        supercluster_idx++;
+                    while (query1_vars->poss[var1_idx] >= ctg_scs->ends[sci])
+                        sci++;
 
                     // update phasing info
-                    if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
+                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
                         phase_block++;
-                    bool phase_switch = ctg_pbs->block_states[phase_block];
-                    int phase_sc = ctg_scs->phase[supercluster_idx];
+                    bool phase_switch = ctg_scs->pb_phase[sci];
+                    int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
                     switch (phase_sc) {
                         case PHASE_ORIG: swap = false; break;
@@ -844,7 +712,7 @@ void write_results(
                             error_strs[query1_vars->errtypes[swap][var1_idx]].data(),
                             query1_vars->credit[swap][var1_idx],
                             cluster1_idx,
-                            supercluster_idx,
+                            sci,
                             query1_vars->sync_group[swap][var1_idx],
                             region_strs[query1_vars->locs[var1_idx]].data()
                            );
@@ -853,16 +721,16 @@ void write_results(
                     if (cluster2_idx+1 >= int(query2_vars->clusters.size()))
                         ERROR("Out of bounds cluster during write_results(): query2")
                     if (query2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
-                    if (supercluster_idx >= int(ctg_scs->begs.size())) 
+                    if (sci >= int(ctg_scs->begs.size())) 
                         ERROR("Out of bounds supercluster during write_results(): query2")
-                    while (query2_vars->poss[var2_idx] >= ctg_scs->ends[supercluster_idx])
-                        supercluster_idx++;
+                    while (query2_vars->poss[var2_idx] >= ctg_scs->ends[sci])
+                        sci++;
 
                     // update phasing info
-                    if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
+                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
                         phase_block++;
-                    bool phase_switch = ctg_pbs->block_states[phase_block];
-                    int phase_sc = ctg_scs->phase[supercluster_idx];
+                    bool phase_switch = ctg_scs->pb_phase[sci];
+                    int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
                     switch (phase_sc) {
                         case PHASE_ORIG: swap = false; break;
@@ -881,7 +749,7 @@ void write_results(
                             error_strs[query2_vars->errtypes[swap][var2_idx]].data(),
                             query2_vars->credit[swap][var2_idx],
                             cluster2_idx,
-                            supercluster_idx,
+                            sci,
                             query2_vars->sync_group[swap][var2_idx],
                             region_strs[query2_vars->locs[var2_idx]].data()
                            );
@@ -908,7 +776,7 @@ void write_results(
             int var2_idx = 0;
             int cluster1_idx = 0;
             int cluster2_idx = 0;
-            int supercluster_idx = 0;
+            int sci = 0;
             int phase_block = 0;
             while (var1_idx < truth1_vars->n || var2_idx < truth2_vars->n) {
                 if (var2_idx >= truth2_vars->n || // only truth1 has remaining vars
@@ -916,16 +784,16 @@ void write_results(
                     if (cluster1_idx+1 >= int(truth1_vars->clusters.size()))
                         ERROR("Out of bounds cluster during write_results(): truth1")
                     if (truth1_vars->clusters[cluster1_idx+1] <= var1_idx) cluster1_idx++;
-                    if (supercluster_idx >= int(ctg_scs->begs.size())) 
+                    if (sci >= int(ctg_scs->begs.size())) 
                         ERROR("Out of bounds supercluster during write_results(): truth1")
-                    while (truth1_vars->poss[var1_idx] >= ctg_scs->ends[supercluster_idx])
-                        supercluster_idx++;
+                    while (truth1_vars->poss[var1_idx] >= ctg_scs->ends[sci])
+                        sci++;
 
                     // update phasing info
-                    if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
+                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
                         phase_block++;
-                    bool phase_switch = ctg_pbs->block_states[phase_block];
-                    int phase_sc = ctg_scs->phase[supercluster_idx];
+                    bool phase_switch = ctg_scs->pb_phase[sci];
+                    int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
                     switch (phase_sc) {
                         case PHASE_ORIG: swap = false; break;
@@ -944,7 +812,7 @@ void write_results(
                             error_strs[truth1_vars->errtypes[swap][var1_idx]].data(),
                             truth1_vars->credit[swap][var1_idx],
                             cluster1_idx,
-                            supercluster_idx,
+                            sci,
                             truth1_vars->sync_group[swap][var1_idx],
                             region_strs[truth1_vars->locs[var1_idx]].data()
                            );
@@ -954,16 +822,16 @@ void write_results(
                         ERROR("Out of bounds cluster during write_results(): truth2")
                     }
                     if (truth2_vars->clusters[cluster2_idx+1] <= var2_idx) cluster2_idx++;
-                    if (supercluster_idx >= int(ctg_scs->begs.size())) 
+                    if (sci >= int(ctg_scs->begs.size())) 
                         ERROR("Out of bounds supercluster during write_results(): truth2")
-                    while (truth2_vars->poss[var2_idx] >= ctg_scs->ends[supercluster_idx])
-                        supercluster_idx++;
+                    while (truth2_vars->poss[var2_idx] >= ctg_scs->ends[sci])
+                        sci++;
 
                     // update phasing info
-                    if (supercluster_idx >= ctg_pbs->phase_blocks[phase_block+1])
+                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
                         phase_block++;
-                    bool phase_switch = ctg_pbs->block_states[phase_block];
-                    int phase_sc = ctg_scs->phase[supercluster_idx];
+                    bool phase_switch = ctg_scs->pb_phase[sci];
+                    int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
                     switch (phase_sc) {
                         case PHASE_ORIG: swap = false; break;
@@ -982,7 +850,7 @@ void write_results(
                             error_strs[truth2_vars->errtypes[swap][var2_idx]].data(),
                             truth2_vars->credit[swap][var2_idx],
                             cluster2_idx,
-                            supercluster_idx,
+                            sci,
                             truth2_vars->sync_group[swap][var2_idx],
                             region_strs[truth2_vars->locs[var2_idx]].data()
                            );
