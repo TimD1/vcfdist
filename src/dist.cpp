@@ -459,9 +459,9 @@ int store_phase(
         phase = PHASE_ORIG;
     } else if (swap_phase_dist == 0) { // protect division by zero
         phase = PHASE_SWAP;
-    } else if (1 - swap_phase_dist / orig_phase_dist > g.phase_threshold) { // significant reduction by swapping
+    } else if (1 - float(swap_phase_dist) / orig_phase_dist > g.phase_threshold) { // significant reduction by swapping
         phase = PHASE_SWAP;
-    } else if (1 - orig_phase_dist / swap_phase_dist > g.phase_threshold) { // significant reduction with orig
+    } else if (1 - float(orig_phase_dist) / swap_phase_dist > g.phase_threshold) { // significant reduction with orig
         phase = PHASE_ORIG;
     }
 
