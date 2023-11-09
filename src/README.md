@@ -26,12 +26,12 @@ Options:
       minimum variant size, smaller variants ignored (SNPs are size 1)
   -l, --largest-variant <INTEGER> [5000]
       maximum variant size, larger variants ignored
-  --min-qual <INTEGER> [0]
+  -mn, --min-qual <INTEGER> [0]
       minimum variant quality, lower qualities ignored
-  --max-qual <INTEGER> [60]
+  -mx, --max-qual <INTEGER> [60]
       maximum variant quality, higher qualities kept but thresholded
 
-  ReAlignment:
+  Re-Alignment:
   -rq, --realign-query
       realign query variants using Smith-Waterman parameters
   -rt, --realign-truth
@@ -44,6 +44,14 @@ Options:
       Smith-Waterman gap opening penalty
   -e, --gap-extend-penalty <INTEGER> [1]
       Smith-Waterman gap extension penalty
+
+  Precision-Recall:
+  -ct, --credit-threshold <FLOAT> [0.70]
+      minimum partial credit to consider variant a true positive
+
+  Distance:
+  -d, --distance
+      flag to include alignment distance calculations, skipped by default
 
   Utilization:
   -t, --max-threads <INTEGER> [64]
@@ -59,5 +67,5 @@ Options:
   -c, --citation
       please cite vcfdist if used in your analyses; thanks :)
   -v, --version
-      print vcfdist version (v2.2.1)
+      print vcfdist version (v2.3.0)
 ```

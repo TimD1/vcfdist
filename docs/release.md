@@ -1,14 +1,19 @@
-1. Update `vcfdist` version in `globals.h`
+1. Benchmark against `run` and `demo` scripts, updating version
+- update `output.txt` for `demo` if necessary
 
-2. Update `vcfdist` help text in `src/README.md`
+2. Update `vcfdist` version in `globals.h`
+
+3. Update `vcfdist` help text in `src/README.md`
 ```bash
-./vcfdist >> src/README.md
+cd src
+make
+./vcfdist >> README.md
 ```
 Manually delete previous text
 
-3. Update `vcfdist` version in `README.md`
+4. Update `vcfdist` version in `README.md`
 
-4. Make final Git commit of changes
+5. Make final Git commit of changes
 ```bash
 git commit -m "version bump (vX.X.X)"
 git checkout master
@@ -17,9 +22,9 @@ git push origin master
 git checkout dev
 ```
 
-5. Make new release and tag on Github
+6. Make new release and tag on Github
 
-6. Build and deploy new Docker image
+7. Build and deploy new Docker image
 ```bash
 cd ~/vcfdist/src
 sudo docker login -u timd1

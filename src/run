@@ -14,4 +14,4 @@ source ../pipeline/includes.sh
     /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../test/bench20.bed \
     -l 1000 \
-    -p ../out/
+    -p ../out/dev.
