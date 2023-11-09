@@ -27,19 +27,19 @@ ref_id="GRCh38"
 ref_name="GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
 truth_names=(
     "nist-v4.2.1"
-    # "cmrg-v1.00"
+    "cmrg-v1.00"
 )
 truth_ids=(
     "nist"
-    # "cmrg"
+    "cmrg"
 )
 truth_vcfs=(
     "HG002_GRCh38_1_22_v4.2.1_benchmark_phased.vcf.gz"
-    # "HG002_GRCh38_CMRG_smallvar_v1.00.vcf.gz"
+    "HG002_GRCh38_CMRG_smallvar_v1.00.vcf.gz"
 )
 truth_beds=(
     "HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed"
-    # "HG002_GRCh38_CMRG_smallvar_v1.00.bed"
+    "HG002_GRCh38_CMRG_smallvar_v1.00.bed"
 )
 
 # shorthand IDs for each sequencing dataset
@@ -110,4 +110,4 @@ e=(
 # include orig rep for eval
 # reps=()
 reps=("O")
-# reps+=("${pts[@]}")
+reps+=("${pts[@]}")
