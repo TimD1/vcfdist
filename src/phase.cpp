@@ -391,6 +391,24 @@ void phaseblockData::phase()
     if (g.verbosity >= 1) INFO("               Phase block  NG50: %d", ng50);
     if (g.verbosity >= 1) INFO("  (switch)     Phase block NGC50: %d", s_ngc50);
     if (g.verbosity >= 1) INFO("  (switchflip) Phase block NGC50: %d", sf_ngc50);
+    this->write_phasing_summary(phase_blocks, switch_errors, flip_errors, ng50, s_ngc50, sf_ngc50);
+}
+
+
+/*******************************************************************************/
+
+
+void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
+        int flip_errors, int ng50, int s_ngc50, int sf_ngc50) {
+    std::string out_phasing_summary_fn = g.out_prefix + "phasing-summary.tsv";
+    if (g.verbosity >= 1) INFO("  Writing phasing summary to '%s'", 
+            out_phasing_summary_fn.data());
+    FILE* out_phasing_summary = fopen(out_phasing_summary_fn.data(), "w");
+    fprintf(out_phasing_summary,
+            "PHASE_BLOCKS\tFLIP_ERRORS\tSWITCH_ERRORS\tNG_50\tSWITCH_NGC50\tSWITCHFLIP_NGC50\n");
+    fprintf(out_phasing_summary, "%d\t%d\t%d\t%d\t%d\t%d", phase_blocks, 
+            switch_errors, flip_errors, ng50, s_ngc50, sf_ngc50);
+    fclose(out_phasing_summary);
 }
 
 
