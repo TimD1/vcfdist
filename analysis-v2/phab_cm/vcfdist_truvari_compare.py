@@ -144,7 +144,7 @@ for callset in ["query"]:
                 size = get_size(tv_rec.REF, tv_rec.ALT[0])
                 vd_type = get_vd_type(float(vd_rec.genotype(name)['BC']))
                 tv_type = get_tv_type(tv_rec.genotype(name)['BD'])
-                counts[size][vd_type][tv_type] += 1
+                counts[size][vd_type][tv_type] += 2 if vd_2used else 1
                 if vd_type == VD_TP and tv_type == TV_FPN_ANY:
                     if do_print: print("vcfdist TP, Truvari FP")
                 if vd_type == VD_FPN and tv_type == TV_TP:
