@@ -15,26 +15,19 @@ SZ_INDEL_500PLUS = 3
 SZ_DIMS = 4
 sizes = ["SNP", "INDEL 1-50", "INDEL 50-500", "INDEL 500+"]
 
-VCF_DIST     = 1
-VD_NONE      = 0
-VD_FPN       = 1
-VD_PP_0_25   = 2
-VD_PP_25_50  = 3
-VD_PP_50_75  = 4
-VD_PP_75_100 = 5
-VD_TP        = 6
-VD_DIMS = 7
-vd_cats = ["None", "FP/FN", "PP (0, .25)", "PP (.25, .5)", "PP(.5, .75)", "PP(.75, 1)", "TP"]
+VD_NONE = 0
+VD_FP   = 1
+VD_PP   = 2
+VD_TP   = 3
+VD_DIMS = 4
+vd_cats = ["None", "FP", "PP", "TP"]
 
-TRU_VARI    = 2
-TV_NONE     = 0
-TV_FPN_ANY  = 1
-TV_FPN_SEQ  = 2
-TV_FPN_SIZE = 3
-TV_FPN_OVLP = 4
-TV_TP       = 5
-TV_DIMS = 6
-tv_cats = ["None", "FP/FN any", "FP/FN seq", "FP/FN size", "FP/FN overlap", "TP"]
+TV_NONE = 0
+TV_FP   = 1
+TV_PP   = 2
+TV_TP   = 3
+TV_DIMS = 4
+tv_cats = ["None", "FP", "PP", "TP"]
 
 tv_min_seq_pct = 0.7
 tv_min_size_pct = 0.7
@@ -58,16 +51,10 @@ def get_size(ref : str, alt : str):
             return SZ_INDEL_500PLUS
 
 def get_vd_type(credit : float):
-    if credit == 0:
-        return VD_FPN
-    elif credit > 0 and credit <= 0.25:
-        return VD_PP_0_25
-    elif credit > 0 and credit <= 0.50:
-        return VD_PP_25_50
-    elif credit > 0 and credit <= 0.75:
-        return VD_PP_50_75
-    elif credit > 0 and credit < 1:
-        return VD_PP_75_100
+    if credit >= 0 and credit < 0.7:
+        return VD_FP
+    elif credit >= 0.7 and credit < 1:
+        return VD_PP
     elif credit == 1:
         return VD_TP
     else:
@@ -75,11 +62,15 @@ def get_vd_type(credit : float):
         exit(1)
 
 
-def get_tv_type(tv_type : str):
+def get_tv_type(tv_type : str, seqsim : float):
+    if seqsim is None:
+        return TV_FP
+    if tv_type == "TP" and  seqsim < 1 and seqsim >= 0.7:
+        return TV_PP
     if tv_type == "TP":
         return TV_TP
-    elif tv_type == "FP" or tv_type == "FN":
-        return TV_FPN_ANY
+    if tv_type == "FP":
+        return TV_FP
 
 
 # for callset in ["query", "truth"]:
@@ -143,27 +134,19 @@ for callset in ["query"]:
                     vd_2used = True # skip second split of this GT
                 size = get_size(tv_rec.REF, tv_rec.ALT[0])
                 vd_type = get_vd_type(float(vd_rec.genotype(name)['BC']))
-                tv_type = get_tv_type(tv_rec.genotype(name)['BD'])
+                tv_type = get_tv_type(tv_rec.genotype(name)['BD'], tv_rec.INFO['PctSeqSimilarity'])
                 counts[size][vd_type][tv_type] += 2 if vd_2used else 1
-                if vd_type == VD_TP and tv_type == TV_FPN_ANY:
+                if vd_type == VD_TP and tv_type == TV_FP:
                     if do_print: print("vcfdist TP, Truvari FP")
-                if vd_type == VD_FPN and tv_type == TV_TP:
+                if vd_type == VD_FP and tv_type == TV_TP:
                     if do_print: print("vcfdist FP, Truvari TP")
 
                 # skip if info unavailable
                 if tv_rec.INFO['PctSeqSimilarity'] == None or \
                         tv_rec.INFO['PctSizeSimilarity'] == None or \
                         tv_rec.INFO['PctRecOverlap'] == None:
-                    counts[size][vd_type][TV_FPN_OVLP] += 1
+                    counts[size][vd_type][TV_FP] += 1
                     continue
-
-                # count truvari filter fails
-                if tv_rec.INFO['PctSeqSimilarity'] < tv_min_seq_pct:
-                    counts[size][vd_type][TV_FPN_SEQ] += 1
-                if tv_rec.INFO['PctSizeSimilarity'] < tv_min_size_pct:
-                    counts[size][vd_type][TV_FPN_SIZE] += 1
-                if tv_rec.INFO['PctRecOverlap'] < tv_min_ovlp_pct:
-                    counts[size][vd_type][TV_FPN_OVLP] += 1
 
             # vcfdist SNP adjacent to INS
             elif len(vd_rec.REF) == 1 and len(vd_rec.ALT[0]) == 1:
@@ -191,12 +174,12 @@ for callset in ["query"]:
                     # 1: tv_rec, vd_rec_next
                     size1 = get_size(tv_rec.REF, tv_rec.ALT[0])
                     vd_type1 = get_vd_type(float(vd_rec_next.genotype(name)['BC']))
-                    tv_type1 = get_tv_type(tv_rec.genotype(name)['BD'])
+                    tv_type1 = get_tv_type(tv_rec_next.genotype(name)['BD'], tv_rec.INFO['PctSeqSimilarity'])
                     counts[size1][vd_type1][tv_type1] += 1
                     # 2: tv_rec_next, vd_rec
                     size2 = get_size(tv_rec_next.REF, tv_rec_next.ALT[0])
                     vd_type2 = get_vd_type(float(vd_rec.genotype(name)['BC']))
-                    tv_type2 = get_tv_type(tv_rec_next.genotype(name)['BD'])
+                    tv_type2 = get_tv_type(tv_rec_next.genotype(name)['BD'], tv_rec.INFO['PctSeqSimilarity'])
                     counts[size2][vd_type2][tv_type2] += 1
                     tv_used, vd_used = True, True
                 else:
@@ -232,35 +215,27 @@ for callset in ["query"]:
 
             size = get_size(tv_rec.REF, tv_rec.ALT[0])
             vd_type = VD_NONE
-            tv_type = get_tv_type(tv_rec.genotype(name)['BD'])
+            tv_type = get_tv_type(tv_rec.genotype(name)['BD'], tv_rec.INFO['PctSeqSimilarity'])
             counts[size][vd_type][tv_type] += 1
 
             # skip if info unavailable
             if tv_rec.INFO['PctSeqSimilarity'] == None or \
                     tv_rec.INFO['PctSizeSimilarity'] == None or \
                     tv_rec.INFO['PctRecOverlap'] == None:
-                counts[size][vd_type][TV_FPN_OVLP] += 1
+                counts[size][vd_type][TV_FP] += 1
                 continue
-
-            # count truvari filter fails
-            if tv_rec.INFO['PctSeqSimilarity'] < tv_min_seq_pct:
-                counts[size][vd_type][TV_FPN_SEQ] += 1
-            if tv_rec.INFO['PctSizeSimilarity'] < tv_min_size_pct:
-                counts[size][vd_type][TV_FPN_SIZE] += 1
-            if tv_rec.INFO['PctRecOverlap'] < tv_min_ovlp_pct:
-                counts[size][vd_type][TV_FPN_OVLP] += 1
  
     for size_idx in range(SZ_DIMS):
-        fig, ax = plt.subplots(figsize=(12,12))
-        ax.matshow(np.log(counts[size_idx] + 0.1), cmap="Blues")
+        fig, ax = plt.subplots()
+        ax.matshow(np.log(counts[size_idx,1:,1:] + 0.1), cmap="Blues")
         plt.title(f"{name} {sizes[size_idx]} Confusion Matrix")
-        plt.ylabel("vcdist")
-        ax.set_yticks(list(range(VD_DIMS)))
-        ax.set_yticklabels(vd_cats)
-        plt.xlabel("TruVari")
-        ax.set_xticks(list(range(TV_DIMS)))
-        ax.set_xticklabels(tv_cats)
-        for (i,j), z in np.ndenumerate(counts[size_idx]):
+        plt.ylabel("vcfdist")
+        ax.set_yticks(list(range(VD_DIMS-1)))
+        ax.set_yticklabels(vd_cats[1:])
+        plt.xlabel("Truvari")
+        ax.set_xticks(list(range(TV_DIMS-1)))
+        ax.set_xticklabels(tv_cats[1:])
+        for (i,j), z in np.ndenumerate(counts[size_idx,1:,1:]):
             ax.text(j, i, f"{int(z)}", ha='center', va='center',
                 bbox=dict(boxstyle='round', facecolor='white', edgecolor='0.3'))
         plt.savefig(f"img/tv_vd_{callset}_{size_idx}_cm.png", dpi=200)
