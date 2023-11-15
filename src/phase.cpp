@@ -426,27 +426,30 @@ void phaseblockData::write_switchflips() {
         while (true) {
 
             // get type and supercluster of next switch/flip/phaseset
-            // check flip first because it will cause a second switch
-            if (flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] < next_sc) {
-                type = SWITCHTYPE_FLIP;
-                next_sc = ctg_pbs->flips[flip_idx];
-            }
-            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] < next_sc) {
+            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_sc) {
                 type = SWITCHTYPE_SWITCH;
                 next_sc = ctg_pbs->phase_blocks[pb_idx];
             }
-            if (switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] < next_sc) {
+            if (switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_sc) {
                 type = SWITCHTYPE_SWITCH_ERR;
                 next_sc = ctg_pbs->switches[switch_idx];
+            }
+            // check flip last because it will cause a second switch
+            if (flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_sc) {
+                if (type == SWITCHTYPE_SWITCH)
+                    type = SWITCHTYPE_SWITCH_AND_FLIP;
+                else
+                    type = SWITCHTYPE_FLIP;
+                next_sc = ctg_pbs->flips[flip_idx];
             }
             if (type == SWITCHTYPE_NONE) { // all out-of-bounds
                 break;
             }
-            if (next_sc <= sc) ERROR("Next SC is not after current SC");
+            if (next_sc <= sc) ERROR("Next supercluster (%d) is not after current supercluster (%d) in write_switchflips()", next_sc, sc);
 
 
             // get block(s)
-            if (type == SWITCHTYPE_FLIP) {
+            if (type == SWITCHTYPE_FLIP || type == SWITCHTYPE_SWITCH_AND_FLIP) {
                 // switch could have occurred anywhere after last phased supercluster
                 int left = next_sc-1;
                 while (left > 0 && ctg_scs->sc_phase[left] == PHASE_NONE)
@@ -469,9 +472,12 @@ void phaseblockData::write_switchflips() {
                             switch_strs[SWITCHTYPE_FLIP_END].data(), next_sc, pb_idx-1);
                 }
                 flip_idx++;
+                if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
+
             } else if (type == SWITCHTYPE_SWITCH) {
                 // end of phase block, don't print anything since not an error
                 pb_idx++;
+
             } else if (type == SWITCHTYPE_SWITCH_ERR) {
                 // expand left/right from in between these clusters
                 int left = next_sc-1;
@@ -549,27 +555,31 @@ int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
         while (true) {
 
             // get type and supercluster of next switch/flip/phaseset
-            // check flip first because it will cause a second switch
-            if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] < next_sc) {
-                type = SWITCHTYPE_FLIP;
-                next_sc = ctg_pbs->flips[flip_idx];
-            }
-            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] < next_sc) {
+            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_sc) {
                 type = SWITCHTYPE_SWITCH;
                 next_sc = ctg_pbs->phase_blocks[pb_idx];
             }
-            if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] < next_sc) {
+            if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_sc) {
                 type = SWITCHTYPE_SWITCH_ERR;
                 next_sc = ctg_pbs->switches[switch_idx];
+            }
+            // check flip last (takes preference due to <=) because it can cause two breaks (before/after)
+            // NOTE: is is possible for one supercluster to have both a switch (new PS) and flip
+            if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_sc) {
+                if (type == SWITCHTYPE_SWITCH)
+                    type = SWITCHTYPE_SWITCH_AND_FLIP;
+                else
+                    type = SWITCHTYPE_FLIP;
+                next_sc = ctg_pbs->flips[flip_idx];
             }
             if (type == SWITCHTYPE_NONE) { // all out-of-bounds
                 break;
             }
-            if (next_sc <= sc) ERROR("Next SC is not after current SC");
+            if (next_sc <= sc) ERROR("Next supercluster (%d) is not after current supercluster (%d) in calc_ng50()", next_sc, sc);
 
 
             // get block(s)
-            if (type == SWITCHTYPE_FLIP) {
+            if (type == SWITCHTYPE_FLIP || type == SWITCHTYPE_SWITCH_AND_FLIP) {
                 end = ctg_scs->ends[next_sc-1];
                 correct_blocks.push_back(end-beg);
                 beg = ctg_scs->begs[next_sc];
@@ -578,6 +588,7 @@ int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
                 correct_blocks.push_back(end-beg);
                 beg = ctg_scs->begs[next_sc+1];
                 flip_idx++;
+                if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
             } else if (type == SWITCHTYPE_SWITCH) {
                 end = ctg_scs->ends[next_sc-1];
                 correct_blocks.push_back(end-beg);

@@ -67,11 +67,12 @@ class idx2;
 
 #define SWITCHTYPE_FLIP       0
 #define SWITCHTYPE_SWITCH     1
-#define SWITCHTYPE_SWITCH_ERR 2
-#define SWITCHTYPE_FLIP_BEG   3
-#define SWITCHTYPE_FLIP_END   4
-#define SWITCHTYPE_NONE       5
-#define SWITCHTYPES           6
+#define SWITCHTYPE_SWITCH_AND_FLIP     2
+#define SWITCHTYPE_SWITCH_ERR 3
+#define SWITCHTYPE_FLIP_BEG   4
+#define SWITCHTYPE_FLIP_END   5
+#define SWITCHTYPE_NONE       6
+#define SWITCHTYPES           7
 
 // runtime timers
 #define TIME_READ     0

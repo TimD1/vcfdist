@@ -23,7 +23,7 @@ std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
 std::vector<std::string> timer_strs = {"reading", "clustering", "realigning", 
     "reclustering", "superclustering", "precision/recall", "edit distance", "phasing", "writing", "total"};
-std::vector<std::string> switch_strs = {"FLIP", "SWITCH", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
+std::vector<std::string> switch_strs = {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
  
 int main(int argc, char **argv) {
 
