@@ -70,7 +70,7 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 > cd vcfdist/src
 > make
 > ./vcfdist --version
-vcfdist v2.3.0
+vcfdist v2.3.1
 ```
 
 ### Option 2: Docker Image

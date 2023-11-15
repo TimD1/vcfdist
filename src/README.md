@@ -67,5 +67,5 @@ Options:
   -c, --citation
       please cite vcfdist if used in your analyses; thanks :)
   -v, --version
-      print vcfdist version (v2.3.0)
+      print vcfdist version (v2.3.1)
 ```
