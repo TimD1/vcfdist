@@ -3,11 +3,10 @@
 source globals.sh
 
 dists=( 
-        "10"
-        # "20"
+        # "10"
         # "50"
         # "100"
-        # "200"
+        "500"
 )
 
 # vcfdist evaluation

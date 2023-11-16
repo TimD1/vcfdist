@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import statistics
 
 # lens = [10, 50, 100, 500, 1000] # 5000, 10000 didn't finish
 lens = [1000]
@@ -12,7 +13,8 @@ for length in lens:
     print(f"Parsing WFA variant max length {length} superclusters")
     counts = [0]*len(bins)
     bases, bases2 = 0, 0
-    with open(f"{data}/sweep_varlens/pav.wfa.len{length}ra.superclusters.tsv", "r") as bedfile:
+    regions = []
+    with open(f"{data}/sweep_varlens/pav.wfa.len{length}.superclusters.tsv", "r") as bedfile:
         next(bedfile)
         for line in bedfile:
             fields = line.split()
@@ -21,6 +23,7 @@ for length in lens:
             for bin_idx, bin_val in enumerate(bins):
                 if size < bin_val:
                     counts[bin_idx] += 1
+                    regions.append(size)
                     bases += size
                     bases2 += size*size
                     break
@@ -36,4 +39,7 @@ for length in lens:
     ax.text(0.5, 0.8, f"$\sum$bases: {bases:,}", transform=ax.transAxes)
     ax.text(0.5, 0.75, f"$\sum$bases$^2$: {bases2:,}", transform=ax.transAxes)
     ax.text(0.5, 0.7, f"regions: {sum(counts):,}", transform=ax.transAxes)
+    ax.text(0.5, 0.65, f"median: {statistics.median(regions)}", transform=ax.transAxes)
+    ax.text(0.5, 0.6, f"mean: {statistics.mean(regions)}", transform=ax.transAxes)
+    ax.text(0.5, 0.55, f"max: {max(regions)}", transform=ax.transAxes)
     plt.savefig(f"img/lens-{length}.png")
