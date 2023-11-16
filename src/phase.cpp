@@ -277,7 +277,7 @@ void phaseblockData::phase()
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         std::vector< std::vector<int> > mat(2, std::vector<int>(ctg_scs->n+1));
-        std::vector< std::vector<int> > ptrs(2, std::vector<int>(ctg_scs->n));
+        std::vector< std::vector<int> > ptrs(2, std::vector<int>(ctg_scs->n+1));
 
         // forward pass
         for (int i = 0; i < ctg_scs->n; i++) {
@@ -286,36 +286,39 @@ void phaseblockData::phase()
             std::vector<int> costs = {0, 0};
             switch (ctg_scs->sc_phase[i]) {
                 case PHASE_NONE: 
-                    costs[PHASE_PTR_KEEP] = 0; 
-                    costs[PHASE_PTR_SWAP] = 0; 
+                    costs[PHASE_ORIG] = 0; 
+                    costs[PHASE_SWAP] = 0; 
                     break;
                 case PHASE_ORIG: 
-                    costs[PHASE_PTR_KEEP] = 0; 
-                    costs[PHASE_PTR_SWAP] = 1; 
+                    costs[PHASE_ORIG] = 0; 
+                    costs[PHASE_SWAP] = 1; 
                      break;
                 case PHASE_SWAP:
-                    costs[PHASE_PTR_KEEP] = 1; 
-                    costs[PHASE_PTR_SWAP] = 0; 
+                    costs[PHASE_ORIG] = 1; 
+                    costs[PHASE_SWAP] = 0; 
                      break;
                 default:
                     ERROR("Unexpected phase (%d)", ctg_scs->sc_phase[i]);
                     break;
             }
 
+            // mat[i] ptrs[i] refer to points directly before cluster i, and if switch occurs it
+            // is between cluster i and i+1
+
             // no cost for phase switches if on border of phase set
             int cost_swap = 1;
-            if (i+1 < ctg_scs->n && ctg_scs->phase_sets[i] != ctg_scs->phase_sets[i+1]) {
+            if (i < ctg_scs->n-1 && ctg_scs->phase_sets[i] != ctg_scs->phase_sets[i+1]) {
                 cost_swap = 0;
             }
 
             for (int phase = 0; phase < 2; phase++) {
-                if (mat[phase][i] + costs[phase] <= mat[phase^1][i] + cost_swap) {
+                if (mat[phase][i] + costs[phase] < mat[phase^1][i] + costs[phase^1] + cost_swap) {
                     mat[phase][i+1] = mat[phase][i] + costs[phase];
-                    ptrs[phase][i] = PHASE_PTR_KEEP;
+                    ptrs[phase][i+1] = PHASE_PTR_KEEP;
                 }
                 else {
-                    mat[phase][i+1] = mat[phase^1][i] + cost_swap;
-                    ptrs[phase][i] = PHASE_PTR_SWAP;
+                    mat[phase][i+1] = mat[phase^1][i] + costs[phase^1] + cost_swap;
+                    ptrs[phase][i+1] = PHASE_PTR_SWAP;
                 }
             }
         }
@@ -324,29 +327,29 @@ void phaseblockData::phase()
         if (ctg_scs->n > 0) { // skip empty contigs
 
             // determine starting phase
-            int phase = 0;
+            int phase = PHASE_ORIG; // 0
             if (mat[PHASE_SWAP][ctg_scs->n] < mat[PHASE_ORIG][ctg_scs->n])
-                phase = 1;
+                phase = PHASE_SWAP; // 1
 
-            int i = ctg_scs->n-1;
+            int i = ctg_scs->n;
             while (i > 0) {
-                ctg_scs->pb_phase[i] = phase;
                 if (ptrs[phase][i] == PHASE_PTR_SWAP) {
 
                     // not a switch error if between phase sets
-                    if (i+1 < ctg_scs->n && ctg_scs->phase_sets[i] == ctg_scs->phase_sets[i+1]) {
-                        ctg_pbs->switches.push_back(i+1);
+                    if (ctg_scs->phase_sets[i] == ctg_scs->phase_sets[i-1]) {
+                        ctg_pbs->switches.push_back(i);
                         ctg_pbs->nswitches++;
                     }
 
                     phase ^= 1;
                 } else if (ptrs[phase][i] == PHASE_PTR_KEEP) { // within phase block
-                    if (ctg_scs->sc_phase[i] != PHASE_NONE && ctg_scs->sc_phase[i] != phase) {
-                        ctg_pbs->flips.push_back(i);
+                    if (ctg_scs->sc_phase[i-1] != PHASE_NONE && ctg_scs->sc_phase[i-1] != phase) {
+                        ctg_pbs->flips.push_back(i-1);
                         ctg_pbs->nflips++;
                     }
                 }
                 i--;
+                ctg_scs->pb_phase[i] = phase;
             }
             std::reverse(ctg_pbs->flips.begin(), ctg_pbs->flips.end());
             std::reverse(ctg_pbs->switches.begin(), ctg_pbs->switches.end());
