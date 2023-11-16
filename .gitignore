@@ -9,6 +9,7 @@
 *gmon.out
 *.svg
 *.vcf
+*.pdf
 *.gz
 *.gprof
 *.png
