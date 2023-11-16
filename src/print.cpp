@@ -40,14 +40,14 @@ void write_params() {
     fprintf(out_params, 
         "program = '%s'\nversion = '%s'\nout_prefix = '%s'\ncommand = '%s'\nreference_fasta = '%s'\n"
         "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
-        "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\n"
+        "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\nsv_threshold = %d\n"
         "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
         "realign_only = %s\nsimple_cluster = %s\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
         "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\ndistance = %s",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
-        filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size,
+        filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size, g.sv_threshold,
         g.phase_threshold, g.credit_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
         b2s(g.realign_only).data(), b2s(g.simple_cluster).data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
@@ -359,14 +359,15 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
                         float q = ctg_vars[QUERY][h]->callq[swap][i];
                         int t = 0;
-                        if (ctg_vars[QUERY][h]->types[i] == TYPE_SUB) {
+                        if (ctg_vars[QUERY][h]->types[i] == TYPE_SUB) { // SNP
                             t = VARTYPE_SNP;
-                        } else if (ctg_vars[QUERY][h]->types[i] == TYPE_INS ||
-                                ctg_vars[QUERY][h]->types[i] == TYPE_DEL) {
+                        } else if ((ctg_vars[QUERY][h]->types[i] == TYPE_INS && // small INDEL
+                                    int(ctg_vars[QUERY][h]->alts[i].size()) < g.sv_threshold) ||
+                                (ctg_vars[QUERY][h]->types[i] == TYPE_DEL &&
+                                 int(ctg_vars[QUERY][h]->refs[i].size()) < g.sv_threshold)) {
                             t = VARTYPE_INDEL;
-                        } else {
-                            ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                                    ctg_vars[QUERY][h]->types[i]);
+                        } else { // SV
+                            t = VARTYPE_SV;
                         }
                         if (ctg_vars[QUERY][h]->errtypes[swap][i] == ERRTYPE_UN) {
                             WARN("Unknown error type at QUERY %s:%d", ctg.data(), ctg_vars[QUERY][h]->poss[i]);
@@ -405,12 +406,13 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         int t = 0;
                         if (ctg_vars[TRUTH][h]->types[i] == TYPE_SUB) {
                             t = VARTYPE_SNP;
-                        } else if (ctg_vars[TRUTH][h]->types[i] == TYPE_INS ||
-                                ctg_vars[TRUTH][h]->types[i] == TYPE_DEL) {
+                        } else if ((ctg_vars[TRUTH][h]->types[i] == TYPE_INS &&
+                                    int(ctg_vars[TRUTH][h]->alts[i].size()) < g.sv_threshold) ||
+                                (ctg_vars[TRUTH][h]->types[i] == TYPE_DEL && 
+                                 int(ctg_vars[TRUTH][h]->refs[i].size()) < g.sv_threshold)) {
                             t = VARTYPE_INDEL;
                         } else {
-                            ERROR("Unexpected variant type (%d) in write_precision_recall()", 
-                                    ctg_vars[TRUTH][h]->types[i]);
+                            t = VARTYPE_SV;
                         }
                         if (ctg_vars[TRUTH][h]->errtypes[swap][i] == ERRTYPE_UN) {
                             WARN("Unknown error type at TRUTH %s:%d", ctg.data(), ctg_vars[TRUTH][h]->poss[i]);
@@ -440,8 +442,8 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
                 "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     }
-    std::vector<float> max_f1_score = {0, 0};
-    std::vector<int> max_f1_qual = {0, 0};
+    std::vector<float> max_f1_score(VARTYPES, 0);
+    std::vector<int> max_f1_qual(VARTYPES, 0);
     for (int type = 0; type < VARTYPES; type++) {
 
         // only sweeping query qualities; always consider all truth variants
@@ -518,7 +520,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             // calculate summary metrics
             float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
             float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
-            float f1_score = precision+recall ? 2*precision*recall / (precision + recall) : 0;
+            float f1_score = precision+recall > 0 ? 2*precision*recall / (precision + recall) : 0;
 
             // print summary
             INFO("%s%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
@@ -675,7 +677,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             int var2_idx = 0;
             int cluster1_idx = 0;
             int cluster2_idx = 0;
-            int phase_block = 0;
             while (var1_idx < query1_vars->n || var2_idx < query2_vars->n) {
                 if (var2_idx >= query2_vars->n || // only query1 has remaining vars
                         (var1_idx < query1_vars->n && query1_vars->poss[var1_idx] < query2_vars->poss[var2_idx])) { // query1 var next
@@ -690,8 +691,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         sci++;
 
                     // update phasing info
-                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
-                        phase_block++;
                     bool phase_switch = ctg_scs->pb_phase[sci];
                     int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
@@ -727,8 +726,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         sci++;
 
                     // update phasing info
-                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
-                        phase_block++;
                     bool phase_switch = ctg_scs->pb_phase[sci];
                     int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
@@ -777,7 +774,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             int cluster1_idx = 0;
             int cluster2_idx = 0;
             int sci = 0;
-            int phase_block = 0;
             while (var1_idx < truth1_vars->n || var2_idx < truth2_vars->n) {
                 if (var2_idx >= truth2_vars->n || // only truth1 has remaining vars
                         (var1_idx < truth1_vars->n && truth1_vars->poss[var1_idx] < truth2_vars->poss[var2_idx])) { // truth1 var next
@@ -790,8 +786,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         sci++;
 
                     // update phasing info
-                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
-                        phase_block++;
                     bool phase_switch = ctg_scs->pb_phase[sci];
                     int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
@@ -828,8 +822,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         sci++;
 
                     // update phasing info
-                    if (sci >= ctg_pbs->phase_blocks[phase_block+1])
-                        phase_block++;
                     bool phase_switch = ctg_scs->pb_phase[sci];
                     int phase_sc = ctg_scs->sc_phase[sci];
                     bool swap;
