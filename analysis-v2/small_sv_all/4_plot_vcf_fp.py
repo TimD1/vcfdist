@@ -23,11 +23,9 @@ for region in regions:
 # initialize fp_counts
     print(region)
     fp_counts = {}
-    pp_counts = {}
     tp_counts = {}
     for vcf in vcfs:
         fp_counts[vcf] = {"snv": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
-        pp_counts[vcf] = {"snv": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
         tp_counts[vcf] = {"snv": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
     colors = ["yellow", "blue", "red", "green", "orange", "purple"]
 
@@ -45,7 +43,7 @@ for region in regions:
                     gt, decision, credit, ga4gh_cat, qual2, sc, swap = query.split(":")
                     if credit == '.': continue
                     haps = sum([0 if x == '.' else int(x) for x in gt.split('|')])
-                    if decision == "FP" and float(credit) == 0:
+                    if decision == "FP":
                         if len(ref) == len(alt) == 1: # snp
                             fp_counts[vcf]["snv"][typ] += haps
                         elif len(ref) == 1 and len(alt) > 1: # insertion
@@ -60,22 +58,7 @@ for region in regions:
                                 fp_counts[vcf]["indel"][typ] += haps
                         else:
                             print("ERROR: unexpected variant type")
-                    elif float(credit) < 1:
-                        if len(ref) == len(alt) == 1: # snp
-                            pp_counts[vcf]["snv"][typ] += haps
-                        elif len(ref) == 1 and len(alt) > 1: # insertion
-                            if len(alt) > 50:
-                                pp_counts[vcf]["sv"][typ] += haps
-                            else:
-                                pp_counts[vcf]["indel"][typ] += haps
-                        elif len(alt) == 1 and len(ref) > 1: # deletion
-                            if len(ref) > 50:
-                                pp_counts[vcf]["sv"][typ] += haps
-                            else:
-                                pp_counts[vcf]["indel"][typ] += haps
-                        else:
-                            print("ERROR: unexpected variant type")
-                    else: # credit == 1
+                    else: # TP
                         if len(ref) == len(alt) == 1: # snp
                             tp_counts[vcf]["snv"][typ] += haps
                         elif len(ref) == 1 and len(alt) > 1: # insertion
@@ -94,7 +77,7 @@ for region in regions:
                     # if line_ct > 1000: break
     print(json.dumps(fp_counts, indent=4))
 
-    fig, ax = plt.subplots(1, 3, figsize=(15,6))
+    fig, ax = plt.subplots(1, 3, figsize=(7,2.5))
     indices = np.arange(len(vcfs)-1)
     width = 0.1
     thirty_less_yquals = [0, 3.01, 6.99, 10, 13.01, 16.99, 20, 23.01, 26.99, 30] 
@@ -109,27 +92,21 @@ for region in regions:
 
             fp = [fp_counts[vcf][var_type][vcf_type]/max(1, tp_counts[vcf][var_type][vcf_type]) for vcf in vcfs[1:]]
             fpq = [0 if not frac else -10*np.log10(frac) for frac in fp]
-            pp = [pp_counts[vcf][var_type][vcf_type]/max(1, tp_counts[vcf][var_type][vcf_type]) for vcf in vcfs[1:]]
-            ppq = [0 if not frac else -10*np.log10(frac) for frac in pp]
-            ppfp = [fpf + ppf for (fpf, ppf) in zip(fp, pp)]
-            ppfpq = [0 if not frac else -10*np.log10(frac) for frac in ppfp]
 
             ax[var_type_idx].bar(indices-2*width+vcf_type_idx*width, 
                     [30-fpqual for fpqual in fpq], width, color=colors[vcf_type_idx])
-            ax[var_type_idx].bar(indices-2*width+vcf_type_idx*width, 
-                    [-(ppfpqual-fpqual) for (ppfpqual, fpqual) in zip(ppfpq, fpq)],
-                        width, color=colors[vcf_type_idx],
-                    bottom=[30-fpqual for fpqual in fpq], alpha=0.5)
         for yqual in thirty_less_yquals:
-            ax[var_type_idx].axhline(y=yqual, color='k', alpha=0.5, linestyle=':', zorder=-1)
-        ax[var_type_idx].set_title(var_type)
-        ax[var_type_idx].set_xlabel("VCFs")
+            ax[var_type_idx].axhline(y=yqual, color='k', alpha=0.5, linestyle=':', ms=0.5, zorder=-1)
+        ax[var_type_idx].set_title(f"{var_type.upper()} evaluation", fontsize=7)
+        ax[var_type_idx].set_xlabel("VCFs", fontsize=7)
         ax[var_type_idx].set_xticks(indices)
-        ax[var_type_idx].set_xticklabels(vcfs[1:])
+        ax[var_type_idx].set_xticklabels([x.upper() for x in vcfs[1:]], fontsize=5)
         ax[var_type_idx].set_yticks(thirty_less_yquals)
-        ax[var_type_idx].set_yticklabels(ylabels, fontsize=8)
-    patches = [mpatches.Patch(color=c, label=l)for c,l in zip(colors, vcf_types)]
-    ax[2].legend(handles=patches, loc=(0.6,0.6))
-    ax[0].set_ylabel("False Positive Rate")
-    plt.suptitle(f"{region}")
+        ax[var_type_idx].set_yticklabels(ylabels, fontsize=5)
+    patches = [mpatches.Patch(color=c, label=f"{l.upper()} variants") 
+            for c,l in zip(colors, vcf_types)]
+    ax[0].legend(handles=patches, loc=(0.05,0.6), fontsize=5)
+    ax[0].set_ylabel("False Positive Rate", fontsize=7)
+    # plt.suptitle(f"{region}")
+    plt.tight_layout()
     plt.savefig(f"img/counts-{region}-fp.pdf", format='pdf')
