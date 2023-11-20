@@ -1,13 +1,18 @@
 #!/bin/bash
 
-echo "filtering pav"
-bcftools filter \
-    ~/vcfdist/data/pav-v4/split/pav.all.vcf.gz \
-    -R ~/vcfdist/data/t2t-q100-v0.9/split/bench.bed \
-    -o ./vcfs/pav.vcf
+source globals.sh
 
-echo "filtering t2t-q100"
+# create VCFs with only benchmarking regions
+echo "filtering $truth_name"
 bcftools filter \
-    ~/vcfdist/data/t2t-q100-v0.9/split/t2t-q100.all.vcf.gz \
-    -R ~/vcfdist/data/t2t-q100-v0.9/split/bench.bed \
-    -o ./vcfs/t2t-q100.vcf
+    $data/${truth_name}-${truth_version}/split/${truth_name}.all.vcf.gz \
+    -R $data/${truth_name}-${truth_version}/split/bench.bed \
+    -o ./vcfs/${truth_name}.vcf
+
+for i in ${!query_names[@]}; do
+    echo "filtering ${query_names[i]}"
+    bcftools filter \
+        $data/${query_names[i]}-${query_versions[i]}/split/${query_names[i]}.all.vcf.gz \
+        -R $data/${truth_name}-${truth_version}/split/bench.bed \
+        -o ./vcfs/${query_names[i]}.vcf
+done
