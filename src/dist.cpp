@@ -1234,9 +1234,14 @@ void calc_prec_recall(
                         truth[i].substr(sync_truth_idx, prev_sync_truth_idx - sync_truth_idx), 
                         old_ed, offs, ptrs);
 
-                if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) 
+                // This only happens when the truth VCF contains several variants that, when
+                // combined, are equivalent to no variants. In this case, the truth VCF should
+                // be fixed. Output a warning, and allow the evaluation to continue.
+                if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) {
                     WARN("Zero edit distance with truth variants at supercluster %d, %s:%d", 
                             sc_idx, ctg.data(), truth_vars->poss[truth_var_ptr]);
+                    old_ed = 1; // prevent divide-by-zero
+                }
                 if (new_ed > old_ed)
                     WARN("New edit distance exceeds old edit distance at supercluster %d, %s:%d",
                             sc_idx, ctg.data(), query_vars->poss[query_var_ptr]);
