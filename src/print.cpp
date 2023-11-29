@@ -62,16 +62,19 @@ void write_params() {
 void print_ref_ptrs(std::vector< std::vector<int> > ptrs) {
     for(int i = 0; i < int(ptrs[0].size()); i++) {
         if (ptrs[FLAGS][i] & PTR_VAR_BEG && ptrs[FLAGS][i] & PTR_VAR_END) {
-            printf("%s ", YELLOW(ptrs[PTRS][i]).data());
+            printf("%s", YELLOW(ptrs[PTRS][i]).data());
         } else if (ptrs[FLAGS][i] & PTR_VAR_BEG) {
-            printf("%s ", GREEN(ptrs[PTRS][i]).data());
+            printf("%s", GREEN(ptrs[PTRS][i]).data());
         } else if (ptrs[FLAGS][i] & PTR_VAR_END) {
-            printf("%s ", RED(ptrs[PTRS][i]).data());
+            printf("%s", RED(ptrs[PTRS][i]).data());
         } else if (ptrs[FLAGS][i] & PTR_VARIANT) {
-            printf("%s ", BLUE(ptrs[PTRS][i]).data());
+            printf("%s", BLUE(ptrs[PTRS][i]).data());
         } else {
-            printf("%d ", ptrs[PTRS][i]);
+            printf("%d", ptrs[PTRS][i]);
         }
+        if (ptrs[FLAGS][i] & PTR_DEL_NXT) printf("-");
+        if (ptrs[FLAGS][i] & PTR_INS_LOC) printf("+");
+        printf(" ");
     }
     printf("\n");
 }
