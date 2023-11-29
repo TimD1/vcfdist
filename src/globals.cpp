@@ -126,7 +126,8 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Option '-p' used without providing prefix for storing results");
             }
             try {
-                if (argv[i][0] == '/')
+                if (argv[i][0] == '/' || std::string(argv[i]).substr(0,2) == "./" ||
+                        std::string(argv[i]).substr(0,3) == "../")
                     this->out_prefix = std::string(argv[i++]);
                 else
                     this->out_prefix = "./" + std::string(argv[i++]);
