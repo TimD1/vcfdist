@@ -121,6 +121,8 @@ class idx2;
 #define PTR_VARIANT 1
 #define PTR_VAR_BEG 2
 #define PTR_VAR_END 4
+#define PTR_DEL_NXT 8
+#define PTR_INS_LOC 16
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1

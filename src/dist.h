@@ -189,7 +189,9 @@ void calc_prec_recall(
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
+        const std::vector< std::vector<int> > & ref_truth1_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
+        const std::vector< std::vector<int> > & ref_truth2_ptrs,
         const std::vector<int> & pr_query_ref_end, bool print
         );
 
