@@ -165,7 +165,6 @@ void get_prec_recall_path_sync(
         std::vector< std::vector<bool> > & edits, 
         std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
         std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
-        const std::vector< std::vector<bool> > & ref_loc_sync, 
         const std::vector< std::vector<int> > & query1_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query1_ptrs,
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
@@ -189,9 +188,7 @@ void calc_prec_recall(
         const std::vector< std::vector<int> > & query2_ref_ptrs, 
         const std::vector< std::vector<int> > & ref_query2_ptrs,
         const std::vector< std::vector<int> > & truth1_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_truth1_ptrs, 
         const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector< std::vector<int> > & ref_truth2_ptrs,
         const std::vector<int> & pr_query_ref_end, bool print
         );
 

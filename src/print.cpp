@@ -72,7 +72,6 @@ void print_ref_ptrs(std::vector< std::vector<int> > ptrs) {
         } else {
             printf("%d", ptrs[PTRS][i]);
         }
-        if (ptrs[FLAGS][i] & PTR_DEL_NXT) printf("-");
         if (ptrs[FLAGS][i] & PTR_INS_LOC) printf("+");
         printf(" ");
     }
