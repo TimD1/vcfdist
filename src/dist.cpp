@@ -429,11 +429,11 @@ void calc_prec_recall_aln(
         if (print) printf("\nREF");
         if (print) print_ptrs(ptrs[ri], ref, truth[i]);
 
-        // save where to start backtrack (prefer ref: omit vars which don't reduce ED)
-        if (done[dri][ref_len-1][truth_lens[i]-1]) {
-            pr_query_ref_end[i] = ri;
-        } else if (done[dqi][query_lens[i]-1][truth_lens[i]-1]) {
+        // save where to start backtrack (prefer query to maximize TPs)
+        if (done[dqi][query_lens[i]-1][truth_lens[i]-1]) {
             pr_query_ref_end[i] = qi;
+        } else if (done[dri][ref_len-1][truth_lens[i]-1]) {
+            pr_query_ref_end[i] = ri;
         } else { ERROR("Alignment not finished in 'prec_recall_aln()'."); }
 
     } // 4 alignments
@@ -809,10 +809,10 @@ void calc_prec_recall_path(
         }
 
         // set pointers
-        if (aln_ptrs[ri][0][0] & PATH)
-            pr_query_ref_beg[i] = ri;
-        else
+        if (aln_ptrs[qi][0][0] & PATH)
             pr_query_ref_beg[i] = qi;
+        else
+            pr_query_ref_beg[i] = ri;
 
         // debug print
         if (print) printf("Alignment %s, path_ptrs\n", aln_strs[i].data());
