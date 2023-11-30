@@ -565,20 +565,20 @@ void calc_prec_recall_path(
                         in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
                     }
 
-                    // check for fp
-                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                    // check for tp
+                    bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
                             ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                             ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
-                            path_scores[x.hi][x.qri][x.ti] + is_fp > path_scores[y.hi][y.qri][y.ti]) {
+                            path_scores[x.hi][x.qri][x.ti] + is_tp > path_scores[y.hi][y.qri][y.ti]) {
                         path_ptrs[y.hi][y.qri][y.ti] = PTR_MAT;
-                        path_scores[y.hi][y.qri][y.ti] = path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        path_scores[y.hi][y.qri][y.ti] = path_scores[x.hi][x.qri][x.ti] + is_tp;
                         if (!contains(curr_wave, y)) curr_wave.insert(y);
                         queue.push(y);
                     } else if (!done[y.hi][y.qri][y.ti] &&
-                            path_scores[x.hi][x.qri][x.ti] + is_fp == path_scores[y.hi][y.qri][y.ti]) {
+                            path_scores[x.hi][x.qri][x.ti] + is_tp == path_scores[y.hi][y.qri][y.ti]) {
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_MAT;
                     }
 
@@ -587,7 +587,7 @@ void calc_prec_recall_path(
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                             in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
-                            is_fp ? GREEN("FP").data() : RED("FP").data());
+                            is_tp ? GREEN("TP").data() : RED("TP").data());
 
                 }
 
@@ -611,20 +611,18 @@ void calc_prec_recall_path(
                             query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
                         in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
 
-                        // check for fp
-                        bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                                ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
-                                ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
-
+                        // no need to check for TP since we were on REF, not QUERY
+                        bool is_tp = false;
+                        
                         // update score
                         if (!done[z.hi][z.qri][z.ti] &&
-                                path_scores[x.hi][x.qri][x.ti] + is_fp > path_scores[z.hi][z.qri][z.ti]) {
+                                path_scores[x.hi][x.qri][x.ti] + is_tp > path_scores[z.hi][z.qri][z.ti]) {
                             path_ptrs[z.hi][z.qri][z.ti] = PTR_SWP_MAT;
-                            path_scores[z.hi][z.qri][z.ti] = path_scores[x.hi][x.qri][x.ti] + is_fp;
+                            path_scores[z.hi][z.qri][z.ti] = path_scores[x.hi][x.qri][x.ti] + is_tp;
                             if (!contains(curr_wave, z)) curr_wave.insert(z);
                             queue.push(z);
                         } else if (!done[z.hi][z.qri][z.ti] &&
-                                path_scores[x.hi][x.qri][x.ti] + is_fp == path_scores[z.hi][z.qri][z.ti]) {
+                                path_scores[x.hi][x.qri][x.ti] + is_tp == path_scores[z.hi][z.qri][z.ti]) {
                             path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                         }
 
@@ -633,7 +631,7 @@ void calc_prec_recall_path(
                                 z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
                                 in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                                 in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
-                                is_fp ? GREEN("FP").data() : RED("FP").data());
+                                is_tp ? GREEN("TP").data() : RED("TP").data());
                     }
 
                 } else { // QUERY -> REF SWAP mvmt
@@ -655,25 +653,29 @@ void calc_prec_recall_path(
                             query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
                         in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
 
-                        // no need to check for FP since we were on QUERY, not REF
+                        // check for tp
+                        bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                                ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
+                                ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                         // update score
                         if (!done[z.hi][z.qri][z.ti] &&
-                                path_scores[x.hi][x.qri][x.ti] > path_scores[z.hi][z.qri][z.ti]) {
+                                path_scores[x.hi][x.qri][x.ti] + is_tp > path_scores[z.hi][z.qri][z.ti]) {
                             path_ptrs[z.hi][z.qri][z.ti] = PTR_SWP_MAT;
-                            path_scores[z.hi][z.qri][z.ti] = path_scores[x.hi][x.qri][x.ti];
+                            path_scores[z.hi][z.qri][z.ti] = path_scores[x.hi][x.qri][x.ti] + is_tp;
                             if (!contains(curr_wave, z)) curr_wave.insert(z);
                             queue.push(z);
                         } else if (!done[z.hi][z.qri][z.ti] &&
-                                path_scores[x.hi][x.qri][x.ti] == path_scores[z.hi][z.qri][z.ti]) {
+                                path_scores[x.hi][x.qri][x.ti] + is_tp == path_scores[z.hi][z.qri][z.ti]) {
                             path_ptrs[z.hi][z.qri][z.ti] |= PTR_SWP_MAT;
                         }
 
-                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s\n",
+                        if (print) printf("(%s, %2d, %2d) --%s-> (%s, %2d, %2d) %s %s %s\n",
                                 x.hi % 2 ? "REF" : "QRY", x.qri, x.ti, "SWP",
                                 z.hi % 2 ? "REF" : "QRY", z.qri, z.ti,
                                 in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
-                                in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data());
+                                in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
+                                is_tp ? GREEN("TP").data() : RED("TP").data());
                     }
                 }
 
@@ -704,20 +706,20 @@ void calc_prec_recall_path(
                         in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
                     }
 
-                    // check for fp
-                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                    // check for tp
+                    bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
                             ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                             ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
-                            path_scores[x.hi][x.qri][x.ti] + is_fp > path_scores[y.hi][y.qri][y.ti]) {
+                            path_scores[x.hi][x.qri][x.ti] + is_tp > path_scores[y.hi][y.qri][y.ti]) {
                         path_ptrs[y.hi][y.qri][y.ti] = PTR_SUB;
-                        path_scores[y.hi][y.qri][y.ti] = path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        path_scores[y.hi][y.qri][y.ti] = path_scores[x.hi][x.qri][x.ti] + is_tp;
                         if (!contains(curr_wave, y)) curr_wave.insert(y);
                         queue.push(y);
                     } else if (!done[y.hi][y.qri][y.ti] &&
-                            path_scores[x.hi][x.qri][x.ti] + is_fp == path_scores[y.hi][y.qri][y.ti]) {
+                            path_scores[x.hi][x.qri][x.ti] + is_tp == path_scores[y.hi][y.qri][y.ti]) {
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_SUB;
                     }
 
@@ -726,7 +728,7 @@ void calc_prec_recall_path(
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                             in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
-                            is_fp ? GREEN("FP").data() : RED("FP").data());
+                            is_tp ? GREEN("TP").data() : RED("TP").data());
                 }
 
                 // INS movement
@@ -744,20 +746,20 @@ void calc_prec_recall_path(
                         in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
                     }
 
-                    // check for fp
-                    bool is_fp = x.hi == ri && ((ref_query_ptrs[i][PTRS][x.qri] != 
+                    // check for tp
+                    bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
                             ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
                             ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
-                            path_scores[x.hi][x.qri][x.ti] + is_fp > path_scores[y.hi][y.qri][y.ti]) {
+                            path_scores[x.hi][x.qri][x.ti] + is_tp > path_scores[y.hi][y.qri][y.ti]) {
                         path_ptrs[y.hi][y.qri][y.ti] = PTR_INS;
-                        path_scores[y.hi][y.qri][y.ti] = path_scores[x.hi][x.qri][x.ti] + is_fp;
+                        path_scores[y.hi][y.qri][y.ti] = path_scores[x.hi][x.qri][x.ti] + is_tp;
                         if (!contains(curr_wave, y)) curr_wave.insert(y);
                         queue.push(y);
                     } else if (!done[y.hi][y.qri][y.ti] &&
-                            path_scores[x.hi][x.qri][x.ti] + is_fp == path_scores[y.hi][y.qri][y.ti]) {
+                            path_scores[x.hi][x.qri][x.ti] + is_tp == path_scores[y.hi][y.qri][y.ti]) {
                         path_ptrs[y.hi][y.qri][y.ti] |= PTR_INS;
                     }
 
@@ -766,7 +768,7 @@ void calc_prec_recall_path(
                             y.hi % 2 ? "REF" : "QRY", y.qri, y.ti,
                             in_query_var ? GREEN("QUERY_VAR").data() : RED("QUERY_VAR").data(), 
                             in_truth_var ? GREEN("TRUTH_VAR").data() : RED("TRUTH_VAR").data(),
-                            is_fp ? GREEN("FP").data() : RED("FP").data());
+                            is_tp ? GREEN("TP").data() : RED("TP").data());
                 }
 
                 // DEL movement
@@ -781,7 +783,7 @@ void calc_prec_recall_path(
                     bool in_query_var = (x.hi == ri) ? false : 
                         query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
 
-                    // no need to check for FP since we don't consume a REF/QUERY base
+                    // no need to check for TP since we don't consume a REF/QUERY base
                     
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
@@ -836,7 +838,7 @@ void calc_prec_recall_path(
 /******************************************************************************/
 
 
-/* Follow path which maximizes FP and minimizes ED, saving sync points and edits.
+/* Follow path which maximizes TP and minimizes ED, saving sync points and edits.
  */
 void get_prec_recall_path_sync(
         std::vector< std::vector<idx1> > & path, 
@@ -903,10 +905,11 @@ void get_prec_recall_path_sync(
         // follow best-path pointers, forward iteration
         while ( (hi == ri && qri < r_size-1) || (hi == qi && qri < q_size-1) || ti < t_size-1) {
             prev_hi = hi; prev_qri = qri; prev_ti = ti;
-            if (hi == qi && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) { // prefer FPs
+            if (hi == ri && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) { // prefer TPs
+                // if tie, default to moving to query, where variant may be considered TP
                 ptr_type = PTR_SWP_MAT;
-                hi = ri;
-                qri = query_ref_ptrs[i][PTRS][qri];
+                hi = qi;
+                qri = ref_query_ptrs[i][PTRS][qri];
                 qri++; ti++; edits[i].push_back(false);
 
             } else if (path_ptrs[hi][qri][ti] & PTR_MAT) {
@@ -925,10 +928,10 @@ void get_prec_recall_path_sync(
                 ptr_type = PTR_DEL;
                 ti++; edits[i].push_back(true);
 
-            } else if (path_ptrs[hi][qri][ti] & PTR_SWP_MAT) {
+            } else if (hi == qi && path_ptrs[hi][qri][ti] & PTR_SWP_MAT) { // last choice is FP
                 ptr_type = PTR_SWP_MAT;
-                hi = qi;
-                qri = ref_query_ptrs[i][PTRS][qri];
+                hi = ri;
+                qri = query_ref_ptrs[i][PTRS][qri];
                 qri++; ti++; edits[i].push_back(false);
 
             } else {
