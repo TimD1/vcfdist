@@ -1193,8 +1193,57 @@ void calc_prec_recall(
                     WARN("New edit distance exceeds old edit distance at supercluster %d", sc_idx);
                 // this should never happen
                 if (prev_query_var_ptr == query_var_ptr && old_ed != new_ed) {
-                    WARN("Non-zero edit distance with no truth variants at supercluster %d", sc_idx);
+                    WARN("Non-zero edit distance with no truth variants at ctg %s supercluster %d",
+                            ctg.data(), sc_idx);
+
+                    printf("\n\nSupercluster: %d\n", sc_idx);
+                    std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
+                    for (int j = 0; j < CALLSETS*HAPS; j++) {
+                        int callset = j >> 1;
+                        int hap = j % 2;
+                        int cluster_beg = sc->superclusters[callset][hap][sc_idx];
+                        int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
+                        printf("%s%d: %d clusters (%d-%d)\n", 
+                            callset_strs[callset].data(), hap+1,
+                            cluster_end-cluster_beg,
+                            cluster_beg, cluster_end);
+
+                        for (int k = cluster_beg; k < cluster_end; k++) {
+                            std::shared_ptr<ctgVariants> vars = sc->ctg_variants[callset][hap];
+                            int variant_beg = vars->clusters[k];
+                            int variant_end = vars->clusters[k+1];
+                            printf("\tCluster %d: %d variants (%d-%d)\n", k, 
+                                variant_end-variant_beg, variant_beg, variant_end);
+                            for (int l = variant_beg; l < variant_end; l++) {
+                                printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[l], 
+                                vars->refs[l].size() ?  vars->refs[l].data() : "_", 
+                                vars->alts[l].size() ?  vars->alts[l].data() : "_",
+                                vars->var_quals[l]);
+                            }
+                        }
+                    }
+
+                    printf("%s Path:\n", aln_strs[i].data());
+                    for (int j = sync[i].size()-1; j >= 0; j--) {
+                        if (j == int(sync[i].size())-1)
+                            printf("%s %s\n", sync[i][j] ? "*" : ".", edits[i][j] ? "X" : "=");
+                        else
+                            printf("(%s,%d,%d)\n%s %s\n", path[i][j].hi % 2 ? "REF" : "QRY", 
+                                    path[i][j].qri, path[i][j].ti, 
+                                    sync[i][j] ? "*" : ".", edits[i][j] ? "X" : "=");
+                    }
+                    printf("\n%s: %d\n", aln_strs[i].data(), beg);
+                    printf("  ref: %2d %s\n", int(ref.size()), ref.data());
+                    printf("query: %2d %s\n", int(query[i].size()), query[i].data());
+                    printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data());
+                    printf("query->ref ptrs:\n");
+                    print_ref_ptrs(query_ref_ptrs[i]);
+                    printf("ref->query ptrs:\n");
+                    print_ref_ptrs(ref_query_ptrs[i]);
+                    printf("truth->ref ptrs:\n");
+                    print_ref_ptrs(truth_ref_ptrs[i]);
                 }
+
                 // this only happens when the truth VCF contains several variants that, when
                 // combined, are equivalent to no variants. In this case, the truth VCF should
                 // be fixed. Output a warning, and allow the evaluation to continue.

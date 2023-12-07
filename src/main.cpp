@@ -207,6 +207,7 @@ int main(int argc, char **argv) {
     // calculate precision/recall and local phasing
     g.timers[TIME_PR_ALN].start();
     precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
+    INFO("    done with precision-recall");
     g.timers[TIME_PR_ALN].stop();
 
     // calculate edit distance
