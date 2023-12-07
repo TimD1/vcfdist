@@ -10,9 +10,9 @@ echo "$src snp"
 bcftools view \
     -i 'TYPE=="SNP"'\
     -Oz \
-    -o ${base}.snv.vcf.gz \
+    -o ${base}.snp.vcf.gz \
     ${base}.all.vcf.gz
-tabix -p vcf ${base}.snv.vcf.gz
+tabix -p vcf ${base}.snp.vcf.gz
 
 echo "$src indel"
 bcftools view \

@@ -5,8 +5,9 @@ import matplotlib.patches as mpatches
 import numpy as np
 
 vcfs = ["t2t-q100", "hprc", "pav", "giab-tr"]
-variant_types = ["snv", "indel", "sv"]
-vcf_types = ["snv", "indel", "sv", "small", "large", "all"]
+names = {"t2t-q100": "Q100-dipcall", "hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR"}
+variant_types = ["snp", "indel", "sv"]
+vcf_types = ["snp", "indel", "sv", "small", "large", "all"]
 regions = [
     "summary",
     # "alldifficultregions",
@@ -19,15 +20,16 @@ regions = [
     # "alllowmapandsegdupregions"
 ]
 
+colors = ["#9e9ac8", "#6aadd5", "#fa6949", "#fc8c3b", "#959595", "#73c375"]
+
 for region in regions:
 # initialize fp_counts
     print(region)
     fp_counts = {}
     tp_counts = {}
     for vcf in vcfs:
-        fp_counts[vcf] = {"snv": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
-        tp_counts[vcf] = {"snv": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
-    colors = ["yellow", "blue", "red", "green", "orange", "purple"]
+        fp_counts[vcf] = {"snp": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
+        tp_counts[vcf] = {"snp": defaultdict(int), "indel": defaultdict(int), "sv": defaultdict(int)}
 
 # count variants
     for vcf in vcfs:
@@ -45,7 +47,7 @@ for region in regions:
                     haps = sum([0 if x == '.' else int(x) for x in gt.split('|')])
                     if decision == "FP":
                         if len(ref) == len(alt) == 1: # snp
-                            fp_counts[vcf]["snv"][typ] += haps
+                            fp_counts[vcf]["snp"][typ] += haps
                         elif len(ref) == 1 and len(alt) > 1: # insertion
                             if len(alt) > 50:
                                 fp_counts[vcf]["sv"][typ] += haps
@@ -60,7 +62,7 @@ for region in regions:
                             print("ERROR: unexpected variant type")
                     else: # TP
                         if len(ref) == len(alt) == 1: # snp
-                            tp_counts[vcf]["snv"][typ] += haps
+                            tp_counts[vcf]["snp"][typ] += haps
                         elif len(ref) == 1 and len(alt) > 1: # insertion
                             if len(alt) > 50:
                                 tp_counts[vcf]["sv"][typ] += haps
@@ -86,9 +88,9 @@ for region in regions:
         for vcf_type_idx, vcf_type in enumerate(vcf_types):
 
             # skip certain plots (few variants due to complex not getting filtered)
-            if var_type == "snv" and vcf_type in ["indel", "large", "sv"]: continue
-            if var_type == "indel" and vcf_type in ["snv", "sv"]: continue
-            if var_type == "sv" and vcf_type in ["snv", "indel", "small"]: continue
+            if var_type == "snp" and vcf_type in ["indel", "large", "sv"]: continue
+            if var_type == "indel" and vcf_type in ["snp", "sv"]: continue
+            if var_type == "sv" and vcf_type in ["snp", "indel", "small"]: continue
 
             fp = [fp_counts[vcf][var_type][vcf_type]/max(1, tp_counts[vcf][var_type][vcf_type]) for vcf in vcfs[1:]]
             fpq = [0 if not frac else -10*np.log10(frac) for frac in fp]
@@ -100,7 +102,7 @@ for region in regions:
         ax[var_type_idx].set_title(f"{var_type.upper()} evaluation", fontsize=7)
         ax[var_type_idx].set_xlabel("VCFs", fontsize=7)
         ax[var_type_idx].set_xticks(indices)
-        ax[var_type_idx].set_xticklabels([x.upper() for x in vcfs[1:]], fontsize=5)
+        ax[var_type_idx].set_xticklabels([names[x] for x in vcfs[1:]], fontsize=5)
         ax[var_type_idx].set_yticks(thirty_less_yquals)
         ax[var_type_idx].set_yticklabels(ylabels, fontsize=5)
     patches = [mpatches.Patch(color=c, label=f"{l.upper()} variants") 
@@ -109,4 +111,4 @@ for region in regions:
     ax[0].set_ylabel("False Positive Rate", fontsize=7)
     # plt.suptitle(f"{region}")
     plt.tight_layout()
-    plt.savefig(f"img/counts-{region}-fp.pdf", format='pdf')
+    plt.savefig(f"img/{region}-fpr.pdf", format='pdf')

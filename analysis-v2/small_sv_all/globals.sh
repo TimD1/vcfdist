@@ -14,19 +14,19 @@ ref_name="${data}/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta"
 
 # filename information for each dataset
 ds_names=(
-    # "t2t-q100" # must always be included as first VCF
-    # "hprc"
+    "t2t-q100" # must always be included as first VCF
+    "hprc"
     "pav"
-    # "giab-tr"
+    "giab-tr"
 )
 ds_versions=(
-    # "v0.9"
-    # "v1"
+    "v0.9"
+    "v1"
     "v4"
-    # "v4.20"
+    "v4.20"
 )
 splits=(
-    "snv"
+    "snp"
     "indel"
     "sv"
     "small"
