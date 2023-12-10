@@ -42,7 +42,7 @@ for region in regions:
                     if line[0] == "#": # header
                         continue
                     contig, pos, var_id, ref, alt, qual, filt, info, fmt, truth, query = line.strip().split('\t')
-                    gt, decision, credit, ga4gh_cat, qual2, sc, swap = query.split(":")
+                    gt, decision, credit, ga4gh_cat, qual2, sc, sg, ps, pb, bs, fe = query.split(":")
                     if credit == '.': continue
                     haps = sum([0 if x == '.' else int(x) for x in gt.split('|')])
                     if decision == "FP":
