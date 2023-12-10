@@ -27,24 +27,25 @@ This project is currently under active development. We welcome the submission of
 
 
 ### Citation
-Please cite the following pre-print if you use vcfdist:
+Please cite the following work if you use vcfdist:
 
 <details>
 <summary>
-<a href="https://www.biorxiv.org/content/10.1101/2023.03.10.532078v2" target="_blank"><b>[bioRxiv]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
+<a href="https://doi.org/10.1038/s41467-023-43876-x" target="_blank"><b>[Nature Comms]</b> vcfdist: Accurately benchmarking phased small variant calls in human genomes</a>
 </summary>
 
 <pre>
-@article {dunn2023vcfdist,
-    author = {Dunn, Tim and Narayanasamy, Satish},
-    title = {vcfdist: Accurately benchmarking phased small variant calls in human genomes},
-    elocation-id = {2023.03.10.532078},
-    year = {2023},
-    doi = {10.1101/2023.03.10.532078},
-    publisher = {Cold Spring Harbor Laboratory},
-    URL = {https://www.biorxiv.org/content/10.1101/2023.03.10.532078v2},
-    eprint = {https://biorxiv.org/content/10.1101/2023.03.10.532078.full.pdf},
-    journal = {bioRxiv}
+@article{dunn2023vcfdist,
+  author={Dunn, Tim and Narayanasamy, Satish},
+  title={vcfdist: Accurately benchmarking phased small variant calls in human genomes},
+  journal={Nature Communications},
+  year={2023},
+  volume={14},
+  number={1},
+  pages={8149},
+  issn={2041-1723},
+  doi={10.1038/s41467-023-43876-x},
+  URL={https://doi.org/10.1038/s41467-023-43876-x}
 }
 </pre>
 </details>

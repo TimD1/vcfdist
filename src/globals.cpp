@@ -571,17 +571,18 @@ void Globals::init_timers(std::vector<std::string> timer_strs) {
 void Globals::print_citation() const
 {
     printf("\nMLA Format:\n\n");
-    printf("  Dunn, Tim, and Satish Narayanasamy. \"vcfdist: Accurately benchmarking phased small variant calls in human genomes.\" bioRxiv (2023): 2023-03.\n");
+    printf("Dunn, T., Narayanasamy, S. \"vcfdist: accurately benchmarking phased small variant calls in human genomes.\" Nature Communications 14, 8149 (2023). https://doi.org/10.1038/s41467-023-43876-x\n");
     printf("\nBibTeX Format:\n\n");
-    printf("  @article {dunn2023vcfdist,\n");
-    printf("    author = {Dunn, Tim and Narayanasamy, Satish},\n");
-    printf("    title = {vcfdist: Accurately benchmarking phased small variant calls in human genomes},\n");
-    printf("    elocation-id = {2023.03.10.532078},\n");
-    printf("    year = {2023},\n");
-    printf("    doi = {10.1101/2023.03.10.532078},\n");
-    printf("    publisher = {Cold Spring Harbor Laboratory},\n");
-    printf("    URL = {https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078},\n");
-    printf("    eprint = {https://biorxiv.org/content/early/2023/03/12/2023.03.10.532078.full.pdf},\n");
-    printf("    journal = {bioRxiv}\n");
-    printf("  }\n");
+    printf("@article{dunn2023vcfdist,\n");
+    printf("  author={Dunn, Tim and Narayanasamy, Satish},\n");
+    printf("  title={vcfdist: Accurately benchmarking phased small variant calls in human genomes},\n");
+    printf("  journal={Nature Communications},\n");
+    printf("  year={2023},\n");
+    printf("  volume={14},\n");
+    printf("  number={1},\n");
+    printf("  pages={8149},\n");
+    printf("  issn={2041-1723},\n");
+    printf("  doi={10.1038/s41467-023-43876-x},\n");
+    printf("  URL={https://doi.org/10.1038/s41467-023-43876-x}\n");
+    printf("}\n");
 }
