@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++17 -O3
 OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o edit.o timer.o
 TARGET = vcfdist
-LDLIBS = -lz -lhts -lstdc++fs -lpthread
+LDLIBS = -lz -lhts -lpthread
 
 all: $(TARGET)
 
