@@ -1,4 +1,4 @@
-1. Benchmark against `run` and `demo` scripts, updating version
+1. Benchmark against `run` and `demo` scripts
 - update `output.txt` for `demo` if necessary
 
 2. Update `vcfdist` version in `globals.h`

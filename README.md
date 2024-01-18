@@ -13,15 +13,16 @@
 
 
 ## Introduction
-vcfdist is a distance-based **variant calling evaluation tool** that:
-- simultaneously evaluates **SNPS, small INDELs, complex, tandem repeat, and structural variants**
-- gives **partial credit** to variant calls which are mostly correct
-- **standardizes** query and truth VCF **variants** to a consistent representation
-- **requires local phasing** of both input VCFs and enforces correct local phasing of variants
-- **discovers** long-range variant **representation dependencies** using a novel clustering algorithm
-- works on **monoploid and diploid** VCF contigs
+vcfdist is a distance-based **germline variant calling evaluation tool** that:
+- simultaneously evaluates **SNPS, INDELs, complex, tandem repeat, and structural variants**
+- **requires local phasing** information for truth and query variants
+- **discovers** long-range variant **representation dependencies**
+- works on **monoploid and diploid** contigs
+- can **identify** variant calls which are **partially correct**
+- can **standardize** query and truth VCF **variants** to a consistent representation
+- can report **alignment distance** based **metrics**
 
-This results in more stable SNP and INDEL precision-recall curves than previous work, particularly for complex variants. vcfdist also reports alignment distance based metrics for evaluation which are entirely independent of variant representation, providing greater insight into variant calling performance.
+This results in more stable and accurate SNP, INDEL, and SV precision-recall curves than previous work, particularly when complex variants are involved.
 
 This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement!
 
@@ -71,7 +72,7 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 > cd vcfdist/src
 > make
 > ./vcfdist --version
-vcfdist v2.3.1
+vcfdist v2.3.2
 ```
 
 ### Option 2: Docker Image
@@ -112,7 +113,8 @@ Datasets used in the evaluation of the accompanying paper are listed <a href="./
 ## Limitations
 The current version of vcfdist is not designed to support:
 - overlapping or unphased variants
-- polyploid chromosomes
+- polyploid contigs
+- somatic variants
 
 ## License
 This project is covered under the <a href="LICENSE">GNU GPL v3</a> license.
