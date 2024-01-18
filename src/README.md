@@ -19,13 +19,15 @@ Options:
   -n, --no-output-files
       skip writing output files, only print summary to console
 
-  Variant Filtering:
+  Variant Filtering/Selection:
   -f, --filter <STRING1,STRING2...> [ALL]
       select just variants passing these FILTERs (OR operation)
   -s, --smallest-variant <INTEGER> [1]
       minimum variant size, smaller variants ignored (SNPs are size 1)
   -l, --largest-variant <INTEGER> [5000]
       maximum variant size, larger variants ignored
+  -sv, --sv-threshold <INTEGER> [50]
+      variants of this size or larger are considered SVs, not INDELs
   -mn, --min-qual <INTEGER> [0]
       minimum variant quality, lower qualities ignored
   -mx, --max-qual <INTEGER> [60]
@@ -67,5 +69,5 @@ Options:
   -c, --citation
       please cite vcfdist if used in your analyses; thanks :)
   -v, --version
-      print vcfdist version (v2.3.1)
+      print vcfdist version (v2.3.2)
 ```
