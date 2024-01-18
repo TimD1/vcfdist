@@ -6,8 +6,10 @@ import numpy as np
 
 datasets = ["hprc", "pav", "giab-tr"]
 names = {"hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR", "t2t-q100": "Q100-dipcall"}
-tools = ["vcfdist", "vcfeval", "truvari", "truvari-wfa", "truvari-mafft"]
-colors = {"vcfdist": "#73c375", "vcfeval": "#fa6949", "truvari": "#6aadd5", "truvari-wfa": "#9e9ac8", "truvari-mafft": "#959595"}
+# tools = ["vcfdist", "vcfeval", "truvari", "truvari-wfa", "truvari-mafft"]
+# colors = {"vcfdist": "#73c375", "vcfeval": "#fa6949", "truvari": "#6aadd5", "truvari-wfa": "#9e9ac8", "truvari-mafft": "#959595"}
+tools = ["vcfdist_tr", "vcfeval_tr", "truvari_tr", "truvari_tr-wfa", "truvari_tr-mafft"]
+colors = {"vcfdist_tr": "#73c375", "vcfeval_tr": "#fa6949", "truvari_tr": "#6aadd5", "truvari_tr-wfa": "#9e9ac8", "truvari_tr-mafft": "#959595"}
 
 sizes = ["snp", "indel", "sv"]
 SZ_SNP   = 0
@@ -83,7 +85,7 @@ for ds_idx, ds in enumerate(datasets):
                             gt_ct = count(gt)
                     counts[size_idx][tool_idx][ds_idx][cat_idx] += gt_ct
 
-        elif tool == "truvari":
+        elif tool == "truvari_tr":
             for callset in ["query", "truth"]:
                 vcf = open(f"{tool}/{ds}/result_{callset}.vcf", 'r')
                 for record in vcf:
@@ -185,11 +187,11 @@ for var_size_idx, var_size in enumerate(sizes):
     ax[var_size_idx].set_yticks(yquals2)
     ax[var_size_idx].set_yticklabels(ylabels2, fontsize=5)
     ax[var_size_idx].set_ylim(0,30)
-patches = [mpatches.Patch(color=colors[t], label=t.upper()) for t in tools]
+patches = [mpatches.Patch(color=colors[t], label=t.replace("_tr","").upper()) for t in tools]
 ax[0].legend(handles=patches, loc='upper left', fontsize=5)
-ax[0].set_ylabel("False Negative Rate", fontsize=7)
+ax[0].set_ylabel("Tandem Repeat Regions\nFalse Negative Rate", fontsize=7)
 plt.tight_layout()
-plt.savefig(f"./img/fnr.pdf", format='pdf')
+plt.savefig(f"./img/fnr_tr.pdf", format='pdf')
 
 fig, ax = plt.subplots(1, 3, figsize=(7,2.5))
 for var_size_idx, var_size in enumerate(sizes):
@@ -211,8 +213,8 @@ for var_size_idx, var_size in enumerate(sizes):
     ax[var_size_idx].set_yticks(yquals2)
     ax[var_size_idx].set_yticklabels(ylabels2, fontsize=5)
     ax[var_size_idx].set_ylim(0,30)
-patches = [mpatches.Patch(color=colors[t], label=t.upper()) for t in tools]
+patches = [mpatches.Patch(color=colors[t], label=t.replace("_tr","").upper()) for t in tools]
 ax[0].legend(handles=patches, loc='upper left', fontsize=5)
-ax[0].set_ylabel("False Positive Rate", fontsize=7)
+ax[0].set_ylabel("Tandem Repeat Regions\nFalse Positive Rate", fontsize=7)
 plt.tight_layout()
-plt.savefig(f"./img/fpr.pdf", format='pdf')
+plt.savefig(f"./img/fpr_tr.pdf", format='pdf')

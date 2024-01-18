@@ -5,7 +5,6 @@ version="v4"
 base="${data}/${src}-${version}/split/${src}"
 
 # split VCF into sub-VCFs of SNPs, INDELs, SVs
-
 echo "$src snp"
 bcftools view \
     -i 'TYPE=="SNP"'\

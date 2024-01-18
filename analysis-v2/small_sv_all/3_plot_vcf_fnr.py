@@ -63,6 +63,19 @@ for region in regions:
                     # if line_ct > 1000: break
     print(json.dumps(counts, indent=4))
 
+    # count separate vs joint FNs
+    sep_fns = {"snp": 0, "indel": 0, "sv": 0}
+    jnt_fns = {"snp": 0, "indel": 0, "sv": 0}
+    for vcf in vcfs[1:]:
+        sep_fns["snp"] += counts["t2t-q100"]["snp"]["small"] - counts[vcf]["snp"]["small"]
+        sep_fns["indel"] += counts["t2t-q100"]["indel"]["small"] - counts[vcf]["indel"]["small"]
+        sep_fns["sv"] += counts["t2t-q100"]["sv"]["sv"] - counts[vcf]["sv"]["sv"]
+        jnt_fns["snp"] += counts["t2t-q100"]["snp"]["all"] - counts[vcf]["snp"]["all"]
+        jnt_fns["indel"] += counts["t2t-q100"]["indel"]["all"] - counts[vcf]["indel"]["all"]
+        jnt_fns["sv"] += counts["t2t-q100"]["sv"]["all"] - counts[vcf]["sv"]["all"]
+    print(sep_fns)
+    print(jnt_fns)
+
     fig, ax = plt.subplots(1, 3, figsize=(7,2.5))
     indices = np.arange(len(vcfs)-1)
     width = 0.1
