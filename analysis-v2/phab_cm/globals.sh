@@ -18,12 +18,17 @@ truth_version="v0.9"
 
 # query VCF information
 query_names=(
-    # "hprc"
-    # "pav"
+    "hprc"
+    "pav"
     "giab-tr"
 )
 query_versions=(
-    # "v1"
-    # "v4"
+    "v1"
+    "v4"
     "v4.20"
+)
+
+truvari_refine_options=(
+    "wfa"
+    "mafft"
 )

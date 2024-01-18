@@ -9,6 +9,7 @@
 *gmon.out
 *.svg
 *.vcf
+*.pdf
 *.gz
 *.gprof
 *.png
@@ -17,6 +18,7 @@ src/vcfdist
 # ignore analysis
 analysis/*/
 analysis-v2/*/*/
+analysis-v2/hla
 
 # ignore input
 data/*/*

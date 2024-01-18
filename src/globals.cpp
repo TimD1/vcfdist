@@ -126,7 +126,10 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Option '-p' used without providing prefix for storing results");
             }
             try {
-                this->out_prefix = std::string(argv[i++]);
+                if (argv[i][0] == '/')
+                    this->out_prefix = std::string(argv[i++]);
+                else
+                    this->out_prefix = "./" + std::string(argv[i++]);
                 std::filesystem::create_directory(
                         std::filesystem::path(out_prefix).parent_path());
             } catch (const std::exception & e) {
@@ -176,6 +179,21 @@ void Globals::parse_args(int argc, char ** argv) {
                 this->max_size = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant size provided");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-sv" || 
+                std::string(argv[i]) == "--sv-threshold") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--sv-threshold' used without providing an SV threshold size");
+            }
+            try {
+                this->sv_threshold = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid SV threshold size provided");
+            }
+            if (g.sv_threshold < 2) {
+                ERROR("Must provide larger SV threshold size");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-mn" ||
@@ -482,13 +500,15 @@ void Globals::print_usage() const
     printf("  -n, --no-output-files\n");
     printf("      skip writing output files, only print summary to console\n");
 
-    printf("\n  Variant Filtering:\n");
+    printf("\n  Variant Filtering/Selection:\n");
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
     printf("      select just variants passing these FILTERs (OR operation)\n");
     printf("  -s, --smallest-variant <INTEGER> [%d]\n", g.min_size);
     printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
     printf("      maximum variant size, larger variants ignored\n");
+    printf("  -sv, --sv-threshold <INTEGER> [%d]\n", g.sv_threshold);
+    printf("      variants of this size or larger are considered SVs, not INDELs\n");
     printf("  -mn, --min-qual <INTEGER> [%d]\n", g.min_qual);
     printf("      minimum variant quality, lower qualities ignored\n");
     printf("  -mx, --max-qual <INTEGER> [%d]\n", g.max_qual);

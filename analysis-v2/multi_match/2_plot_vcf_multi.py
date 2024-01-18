@@ -4,12 +4,16 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 
+datasets = ["hprc", "pav", "giab-tr"]
+names = {"hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR", "t2t-q100": "Q100-dipcall"}
 query_data, truth_data = {}, {}
-BKs = ["TP", "PP", "FP", "FN"]
-for BK in BKs:
-    query_data[BK] = defaultdict(int)
-    truth_data[BK] = defaultdict(int)
+for ds in datasets:
+    query_data[ds] = defaultdict(int)
+    truth_data[ds] = defaultdict(int)
 keys = set()
+results = np.zeros((len(datasets),2,2), dtype=float)
+cmaps = ["Greens", "Reds", "Blues"]
+fig, ax = plt.subplots(1, len(datasets), figsize=(len(datasets)*1.5, 1.5))
 
 QUERY = 0
 TRUTH = 1
@@ -20,118 +24,74 @@ TP = 0
 PP = 1
 FP = 2
 FN = 3
-results = np.zeros((4,2,2), dtype=float)
 
-results_fn = f"/home/timdunn/vcfdist/analysis-v2/multi_match/evals/vcfdist/giab-tr.summary.vcf"
-with open(results_fn, 'r') as results_file:
-    line_ct = 0
-    for line in results_file:
-        if line[0] == "#": # header
-            continue
-        contig, pos, var_id, ref, alt, qual, filt, info, fmt, truth, query = line.strip().split('\t')
-        tGT, tBD, tBC, tBK, tQQ, tSC, tSG, tPB, tPS, tPF = truth.split(":")
-        qGT, qBD, qBC, qBK, qQQ, qSC, qSG, qPB, qPS, qPF = query.split(":")
+for ds_idx, ds in enumerate(datasets):
 
-        # flip qGT if necessary, to compare to correct truth variant
-        if qGT == "0|1":
-            if (int(qPS) + int(qPF)) % 2:
-                qGT = "1|0"
-        elif qGT == "1|0":
-            if (int(qPS) + int(qPF)) % 2:
-                qGT = "0|1"
+    results_fn = f"/home/timdunn/vcfdist/analysis-v2/multi_match/evals/vcfdist/{ds}.summary.vcf"
+    with open(results_fn, 'r') as results_file:
+        line_ct = 0
+        for line in results_file:
+            if line[0] == "#": # header
+                continue
+            contig, pos, var_id, ref, alt, qual, filt, info, fmt, truth, query = line.strip().split('\t')
+            tGT, tBD, tBC, tBK, tQQ, tSC, tSG, tPB, tPS, tPF = truth.split(":")
+            qGT, qBD, qBC, qBK, qQQ, qSC, qSG, qPB, qPS, qPF = query.split(":")
 
-        # parse truth variant
-        if tBC == ".":
-            pass
-        elif float(tBC) == 0:
-            truth_data["FN"][f"{contig}:{tGT}:{tSC}:{tSG}"] += 1
-            keys.add(f"{contig}:{tGT}:{tSC}:{tSG}")
-            # print(f"Truth FN, {contig}:{tGT}:{tSC}:{tSG}")
-        elif float(tBC) < 1:
-            truth_data["PP"][f"{contig}:{tGT}:{tSC}:{tSG}"] += 1
-            keys.add(f"{contig}:{tGT}:{tSC}:{tSG}")
-            # print(f"Truth PP, {contig}:{tGT}:{tSC}:{tSG}")
-        elif float(tBC) == 1:
-            truth_data["TP"][f"{contig}:{tGT}:{tSC}:{tSG}"] += 1
-            keys.add(f"{contig}:{tGT}:{tSC}:{tSG}")
-            # print(f"Truth TP, {contig}:{tGT}:{tSC}:{tSG}")
-        else:
-            print("ERROR: unexpected tBC =", tBC)
+            # flip qGT if necessary, to compare to correct truth variant
+            if qGT == "0|1":
+                if (int(qPS) + int(qPF)) % 2:
+                    qGT = "1|0"
+            elif qGT == "1|0":
+                if (int(qPS) + int(qPF)) % 2:
+                    qGT = "0|1"
 
-        # parse query variant
-        if qBC == ".":
-            pass
-        elif float(qBC) == 0:
-            query_data["FP"][f"{contig}:{qGT}:{qSC}:{qSG}"] += 1
-            keys.add(f"{contig}:{qGT}:{qSC}:{qSG}")
-            # print(f"Query FP, {contig}:{qGT}:{qSC}:{qSG}")
-        elif float(qBC) < 1:
-            query_data["PP"][f"{contig}:{qGT}:{qSC}:{qSG}"] += 1
-            keys.add(f"{contig}:{qGT}:{qSC}:{qSG}")
-            # print(f"Query PP, {contig}:{qGT}:{qSC}:{qSG}")
-        elif float(qBC) == 1:
-            query_data["TP"][f"{contig}:{qGT}:{qSC}:{qSG}"] += 1
-            keys.add(f"{contig}:{qGT}:{qSC}:{qSG}")
-            # print(f"Query TP, {contig}:{qGT}:{qSC}:{qSG}")
-        else:
-            print("ERROR: unexpected qBC =", qBC)
+            # parse truth variant
+            if tBC == ".":
+                pass
+            elif float(tBC) >= 0.7:
+                truth_data[ds][f"{contig}:{tGT}:{tSC}:{tSG}"] += 1
+                keys.add(f"{contig}:{tGT}:{tSC}:{tSG}")
+                # print(f"Truth TP, {contig}:{tGT}:{tSC}:{tSG}")
 
-        line_ct += 1
-        # if line_ct > 1000: break
+            # parse query variant
+            if qBC == ".":
+                pass
+            elif float(qBC) >= 0.7:
+                query_data[ds][f"{contig}:{qGT}:{qSC}:{qSG}"] += 1
+                keys.add(f"{contig}:{qGT}:{qSC}:{qSG}")
+                # print(f"Query TP, {contig}:{qGT}:{qSC}:{qSG}")
 
-# plot results
-for key in keys:
-    for bk, BK in enumerate(BKs):
+            line_ct += 1
+            # if line_ct > 1000: break
+
+    # plot results
+    for key in keys:
         # not in either
-        if truth_data[BK][key] == 0 and query_data[BK][key] == 0:
+        if truth_data[ds][key] == 0 and query_data[ds][key] == 0:
             pass
         # PP/TP, should be present in both
-        elif truth_data[BK][key] > 1 and query_data[BK][key] > 1:
-            results[bk][MULTI][MULTI] += truth_data[BK][key] + query_data[BK][key]
-        elif truth_data[BK][key] > 1 and query_data[BK][key] == 1:
-            results[bk][SINGLE][MULTI] += truth_data[BK][key] + query_data[BK][key]
-        elif truth_data[BK][key] == 1 and query_data[BK][key] > 1:
-            results[bk][MULTI][SINGLE] += truth_data[BK][key] + query_data[BK][key]
-        elif truth_data[BK][key] == 1 and query_data[BK][key] == 1:
-            results[bk][SINGLE][SINGLE] += truth_data[BK][key] + query_data[BK][key]
-        else: # present in one
-            if BK == "FP":
-                results[bk][SINGLE][SINGLE] += 1
-                if truth_data[BK][key] > 0:
-                    print("ERROR: FP key present in truth")
-                    print(BK, key)
+        elif truth_data[ds][key] > 1 and query_data[ds][key] > 1: # MULTI_MULTI
+            results[ds_idx][MULTI][MULTI] += truth_data[ds][key] + query_data[ds][key]
+        elif truth_data[ds][key] > 1 and query_data[ds][key] == 1:
+            results[ds_idx][SINGLE][MULTI] += truth_data[ds][key] + query_data[ds][key]
+        elif truth_data[ds][key] == 1 and query_data[ds][key] > 1:
+            results[ds_idx][MULTI][SINGLE] += truth_data[ds][key] + query_data[ds][key]
+        elif truth_data[ds][key] == 1 and query_data[ds][key] == 1: # SINGLE-SINGLE
+            results[ds_idx][SINGLE][SINGLE] += truth_data[ds][key] + query_data[ds][key]
 
-            elif BK == "FN":
-                results[bk][SINGLE][SINGLE] += 1
-                if query_data[BK][key] > 0:
-                    print("ERROR: FN key present in query")
-                    print(BK, key)
-            else:
-                print("ERROR: PP/TP key not present for truth and query")
-                print(BK, key)
+    props = [100*results[ds] / results[ds].sum(axis=None) for ds in range(len(datasets))]
+    ax[ds_idx].matshow(results[ds_idx], cmap=cmaps[ds_idx])
+    ax[ds_idx].set_title(f"{names[ds]}", fontsize=7)
+    ax[ds_idx].set_yticks([0, 1])
+    ax[ds_idx].set_xticks([0, 1])
+    ax[ds_idx].set_yticklabels(["SINGLE", "MULTI"], fontsize=5)
+    ax[ds_idx].set_xticklabels(["SINGLE", "MULTI"], fontsize=5)
+    ax[ds_idx].set_xlabel("Query", fontsize=7)
+    ax[ds_idx].set_ylabel("Truth", fontsize=7)
 
-fracs = [100*results[x].sum(axis=None) / results.sum(axis=None) for x in range(4)]
-props = [100*results[x] / results[x].sum(axis=None) for x in range(4)]
-# results = 100 * results / results.sum(axis=None)
-# print(results)
-cmaps = ["Greens", "Oranges", "Reds", "Blues"]
-fig, ax = plt.subplots(1, 5, figsize=(15,4))
-for x in range(4):
-    ax[x].matshow(results[x], cmap=cmaps[x])
-    ax[x].set_title(f"{BKs[x]} ({fracs[x]:.3f}%)")
-    ax[x].set_yticks([0, 1])
-    ax[x].set_xticks([0, 1])
-    ax[x].set_yticklabels(["SINGLE", "MULTI"])
-    ax[x].set_xticklabels(["SINGLE", "MULTI"])
-    ax[x].set_xlabel("Query")
-    ax[x].set_ylabel("Truth")
+    for (i,j), z in np.ndenumerate(props[ds_idx]):
+        ax[ds_idx].text(j, i, f"{z:.2f}%", ha='center', va='center', fontsize=5)
+            # bbox=dict(boxstyle='round', facecolor='white', edgecolor='0.3'))
 
-    for (i,j), z in np.ndenumerate(props[x]):
-        ax[x].text(j, i, f"{z:.3f}%", ha='center', va='center',
-            bbox=dict(boxstyle='round', facecolor='white', edgecolor='0.3'))
-
-ax[4].set_title("Variant Calls")
-ax[4].pie(fracs, labels=BKs, autopct='%1.1f%%', explode=(0, 0.6, 0.3, 0),
-        colors=['green', 'orange', 'red', 'blue'])
 plt.tight_layout()
-plt.savefig("results.png")
+plt.savefig("single_multi_frac.pdf", format="pdf")

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 data="/home/timdunn/vcfdist/data"
-out="/home/timdunn/vcfdist/analysis-v2/vs_prior_work"
+out="/home/timdunn/vcfdist/analysis-v2/phasing"
 parallel="/home/timdunn/parallel-20211222/src/parallel"
 vcfdist="/home/timdunn/vcfdist/src/vcfdist"
 rtg="/home/timdunn/software/rtg-tools-3.12.1/rtg"
@@ -26,9 +26,4 @@ query_versions=(
     "v1"
     "v4"
     "v4.20"
-)
-
-truvari_refine_options=(
-    "wfa"
-    "mafft"
 )

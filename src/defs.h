@@ -35,7 +35,8 @@ class idx2;
 
 #define VARTYPE_SNP   0
 #define VARTYPE_INDEL 1
-#define VARTYPES      2
+#define VARTYPE_SV    2
+#define VARTYPES      3
 
 #define HAP1 0
 #define HAP2 1
