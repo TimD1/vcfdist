@@ -493,18 +493,21 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) 
             INFO("  Writing precision-recall summary to '%s'", out_pr_summ_fn.data());
         out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
-        fprintf(out_pr_summ, "VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
+        fprintf(out_pr_summ, "VAR_TYPE\tTHRESHOLD\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\n");
     }
     INFO(" ");
     INFO("%sPRECISION-RECALL SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
+        std::vector<std::string> thresholds = {"NONE", "BEST"};
         INFO(" ");
-        INFO("%sTYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
+        INFO("%sTYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
                 COLOR_BLUE, COLOR_WHITE);
 
-        for (int qual : quals) {
+        for (int i = 0; i < int(quals.size()); i++) {
             // redo calculations for these two
+            int qual = quals[i];
+            std::string thresh = thresholds[i];
             int qidx = qual - g.min_qual;
 
             // define helper variables
@@ -523,9 +526,10 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             float f1_score = precision+recall > 0 ? 2*precision*recall / (precision + recall) : 0;
 
             // print summary
-            INFO("%s%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
+            INFO("%s%s\t%s Q >= %-2d\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
                 COLOR_BLUE,
                 vartype_strs[type].data(),
+                thresh.data(),
                 qual,
                 int(truth_counts[type][ERRTYPE_TP][qidx]),
                 int(query_counts[type][ERRTYPE_TP][qidx]),
@@ -538,8 +542,9 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                 COLOR_WHITE
             );
             if (g.write) fprintf(out_pr_summ,
-               "%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
+               "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
                 vartype_strs[type].data(),
+                thresh.data(),
                 qual,
                 int(truth_counts[type][ERRTYPE_TP][qidx]),
                 int(query_counts[type][ERRTYPE_TP][qidx]),
