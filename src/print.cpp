@@ -423,7 +423,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             truth_counts[t][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
                         }
-                        for (int qual = q+1; qual < g.max_qual; qual++) {
+                        for (int qual = q+1; qual <= g.max_qual; qual++) {
                             truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
                         }
                     }
