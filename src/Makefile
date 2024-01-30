@@ -2,9 +2,17 @@ CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++17 -O3
 OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o edit.o timer.o
 TARGET = vcfdist
-LDLIBS = -lz -lhts -lstdc++fs -lpthread
+INSTALLDIR = /usr/local/bin
+
+LDLIBS = -lz -lhts -lpthread
+# g++ < 9.1 and llvm < 9.0 require linking to lstdc++fs
+# if using g++ >= 9.1 or llvm >= 9.0, please comment the following line
+LDLIBS += -lstdc++fs
 
 all: $(TARGET)
+
+install:
+	cp $(TARGET) $(INSTALLDIR)
 
 $(TARGET): $(OBJS) main.cpp
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET) main.cpp $(LDLIBS)

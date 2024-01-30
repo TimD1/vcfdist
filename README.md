@@ -65,13 +65,14 @@ vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib.
 > sudo make install
 > export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 ```
-If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`. At this point, installation is as simple as cloning the repository and building the executable. It should compile in less than one minute.
+If you do already have HTSlib installed elsewhere, make sure you've added it to your `LD_LIBRARY_PATH`, and that the HTSlib headers are included during compilation. At this point, installation is as simple as cloning the repository and building the executable. It should compile in less than one minute.
 
 ```bash
 > git clone https://github.com/timd1/vcfdist
 > cd vcfdist/src
 > make
-> ./vcfdist --version
+> sudo make install
+> vcfdist --version
 vcfdist v2.3.2
 ```
 
@@ -86,7 +87,7 @@ sudo docker run -it timd1/vcfdist:latest vcfdist --help
 
 The <a href="./demo">`demo`</a> directory contains a <a href="./demo/demo.sh">demo script</a> (shown below) and all required inputs. It operates on the first 5 million bases on `chr1`, and should run in about 3 seconds.
 ```bash
-../src/vcfdist \
+vcfdist \
     query.vcf \
     nist-v4.2.1_chr1_5Mb.vcf.gz \
     GRCh38_chr1_5Mb.fa \
@@ -100,7 +101,7 @@ You can expect to see <a href="./demo/output.txt">this output</a>.
 To include more details on intermediate results, run it again at higher verbosity by removing the `-v 0` flag.
 Please note that your results may not be identical, since vcfdist is under active development and handling of edge-cases may differ between versions.
 
-Please see additional options documented <a href="./src/README.md">here</a>, or run `./vcfdist --help`.
+Please see additional options documented <a href="./src/README.md">here</a>, or run `vcfdist --help`.
 
 The output TSV files are documented <a href="./docs/outputs.md">here</a>.
 
