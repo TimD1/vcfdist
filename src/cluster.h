@@ -49,7 +49,6 @@ public:
             std::shared_ptr<variantData> truth_ptr,
             std::shared_ptr<fastaData> ref_ptr);
 
-    void gap_supercluster();
     void supercluster();
     void transfer_phase_sets();
 
@@ -64,7 +63,7 @@ public:
 
 
 // for single haplotype clustering (one VCF)
-void gap_cluster(std::shared_ptr<variantData> vcf, int callset);
+void simple_cluster(std::shared_ptr<variantData> vcf, int callset);
 void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         int sub, int open, int extend);
 std::vector< std::vector< std::vector<int> > > 

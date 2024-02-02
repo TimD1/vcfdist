@@ -68,9 +68,9 @@ int main(int argc, char **argv) {
     // cluster, realign, and cluster query VCF
     if (g.realign_query) {
         g.timers[TIME_CLUST].start();
-        if (g.simple_cluster) {
-            gap_cluster(query_ptr, QUERY);
-        } else {
+        if (g.cluster_method == "gap" || g.cluster_method == "size") {
+            simple_cluster(query_ptr, QUERY);
+        } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
             if (g.verbosity >= 1) INFO("%s[Q 1/8] Wavefront clustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[QUERY].data(), 
@@ -86,6 +86,8 @@ int main(int argc, char **argv) {
                 }
             }
             for (std::thread & thread : threads) thread.join();
+        } else {
+            ERROR("Unexpected clustering method '%s'", g.cluster_method.data());
         }
         g.timers[TIME_CLUST].stop();
 
@@ -103,9 +105,9 @@ int main(int argc, char **argv) {
 
     } else { // re-cluster based on new alignments
         g.timers[TIME_RECLUST].start();
-        if (g.simple_cluster) {
-            gap_cluster(query_ptr, QUERY);
-        } else {
+        if (g.cluster_method == "gap" || g.cluster_method == "size") {
+            simple_cluster(query_ptr, QUERY);
+        } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
             if (g.verbosity >= 1) INFO("%s[Q 3/8] Wavefront %sclustering %s VCF%s '%s'", 
                     COLOR_PURPLE, g.realign_query ? "re":"", callset_strs[QUERY].data(), 
@@ -121,6 +123,8 @@ int main(int argc, char **argv) {
                 }
             }
             for (std::thread & thread : threads) thread.join();
+        } else { 
+            ERROR("Unexpected clustering method '%s'", g.cluster_method.data()); 
         }
         g.timers[TIME_RECLUST].stop();
     }
@@ -128,9 +132,9 @@ int main(int argc, char **argv) {
     // cluster, realign, and cluster truth VCF
     if (g.realign_truth) {
         g.timers[TIME_CLUST].start();
-        if (g.simple_cluster) {
-            gap_cluster(truth_ptr, TRUTH);
-        } else {
+        if (g.cluster_method == "gap" || g.cluster_method == "size") {
+            simple_cluster(truth_ptr, TRUTH);
+        } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
             if (g.verbosity >= 1) INFO("%s[T 1/8] Wavefront clustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[TRUTH].data(), 
@@ -146,6 +150,8 @@ int main(int argc, char **argv) {
                 }
             }
             for (std::thread & thread : threads) thread.join();
+        } else { 
+            ERROR("Unexpected clustering method '%s'", g.cluster_method.data()); 
         }
         g.timers[TIME_CLUST].stop();
 
@@ -173,9 +179,9 @@ int main(int argc, char **argv) {
     } else {
 
         g.timers[TIME_RECLUST].start();
-        if (g.simple_cluster) {
-            gap_cluster(truth_ptr, TRUTH); 
-        } else {
+        if (g.cluster_method == "gap" || g.cluster_method == "size") {
+            simple_cluster(truth_ptr, TRUTH); 
+        } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
             if (g.verbosity >= 1) INFO("%s[T 3/8] Wavefront %sclustering %s VCF%s '%s'", 
                     COLOR_PURPLE, g.realign_truth ? "re":"", callset_strs[TRUTH].data(), 
@@ -191,6 +197,8 @@ int main(int argc, char **argv) {
                 }
             }
             for (std::thread & thread : threads) thread.join();
+        } else { 
+            ERROR("Unexpected clustering method '%s'", g.cluster_method.data()); 
         }
         g.timers[TIME_RECLUST].stop();
     }

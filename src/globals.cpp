@@ -1,6 +1,7 @@
 #include "htslib/vcf.h"
 
 #include <sstream>
+#include <filesystem>
 
 #include "globals.h"
 #include "print.h"
@@ -27,7 +28,7 @@ void Globals::parse_args(int argc, char ** argv) {
                     std::string(argv[i]) == "--version") {
                 i++;
                 this->print_version();
-            } else if (std::string(argv[i]) == "-c" || 
+            } else if (std::string(argv[i]) == "-ci" || 
                     std::string(argv[i]) == "--citation") {
                 i++;
                 print_cite = true;
@@ -237,19 +238,32 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             this->print_version();
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-g" || 
-                std::string(argv[i]) == "--cluster-gap") {
+        } else if (std::string(argv[i]) == "-c" || 
+                std::string(argv[i]) == "--cluster") {
             i++;
             if (i == argc) {
-                ERROR("Option '-g' used without providing minimum gap between (super)clusters");
+                ERROR("Option '-c' used without providing clustering method.");
             }
-            try {
-                this->cluster_min_gap = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid minimum gap between (super)clusters provided");
-            }
-            if (g.cluster_min_gap <= 0) {
-                ERROR("Must provide positive minimum gap between (super)clusters");
+            if (std::string(argv[i]) == "biwfa") {
+                g.cluster_method = argv[i];
+                i++;
+            } else if (std::string(argv[i]) == "size" || 
+                    std::string(argv[i]) == "gap") {
+                g.cluster_method = argv[i];
+                i++;
+                if (i == argc) {
+                    ERROR("Option '--cluster %s' used without providing minimum gap between (super)clusters", g.cluster_method.data());
+                }
+                try {
+                    this->cluster_min_gap = std::stoi(argv[i++]);
+                } catch (const std::exception & e) {
+                    ERROR("Invalid minimum gap between (super)clusters provided");
+                }
+                if (g.cluster_min_gap <= 0) {
+                    ERROR("Must provide positive minimum gap between (super)clusters");
+                }
+            } else {
+                ERROR("Invalid clustering option '%s' provided, must be one of: biwfa, size, gap", argv[i]);
             }
 
 /*******************************************************************************/
@@ -431,12 +445,7 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.realign_query = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-sc" ||
-                std::string(argv[i]) == "--simple-cluster") {
-            i++;
-            g.simple_cluster = true;
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-c" || 
+        } else if (std::string(argv[i]) == "-ci" || 
                 std::string(argv[i]) == "--citation") {
             i++;
             print_cite = true;
@@ -547,8 +556,8 @@ void Globals::print_usage() const
     printf("      show this help message\n");
     printf("  -a, --advanced\n");
     printf("      show advanced options, not recommended for most users\n");
-    printf("  -c, --citation\n");
-    printf("      please cite vcfdist if used in your analyses; thanks :)\n");
+    printf("  -ci, --citation\n");
+    printf("      please cite vcfdist if used in your analyses. Thanks :)\n");
     printf("  -v, --version\n");
     printf("      print %s version (v%s)\n", this->PROGRAM.data(), this->VERSION.data());
 
@@ -558,11 +567,8 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -sc, --simple-cluster\n");
-    printf("      instead of biWFA-based clustering, use gap-based clustering \n");
-    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
-    printf("      minimum gap between independent clusters and superclusters (in bases),\n");
-    printf("      only applicable if used with '--simple-cluster' option\n");
+    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [size %d]\n", g.cluster_min_gap);
+    printf("      select clustering method (see documentation for details)\n");
 
     printf("\n  Phasing:\n");
     printf("  -pt, --phasing-threshold <FLOAT> [%.2f]\n", g.phase_threshold);
