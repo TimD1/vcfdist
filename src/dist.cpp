@@ -1678,6 +1678,7 @@ void precision_recall_threads_wrapper(
             while (total_ram < g.max_ram && thread_step >= 0) {
                 while (sc_groups[thread_step][SC_IDX].size() == 0) {
                     thread_step--;
+                    if (thread_step < 0) break;
                 }
                 bool thread4 = thread_step >= 2; // max_threads/4+
                 if (thread_step < 0) break;
