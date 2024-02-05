@@ -28,7 +28,7 @@ This project is currently under active development. We welcome the submission of
 
 
 ### Citation
-Please cite the following work if you use vcfdist:
+Please cite the following works if you use vcfdist:
 
 <details>
 <summary>
@@ -47,6 +47,24 @@ Please cite the following work if you use vcfdist:
   issn={2041-1723},
   doi={10.1038/s41467-023-43876-x},
   URL={https://doi.org/10.1038/s41467-023-43876-x}
+}
+</pre>
+</details>
+
+<details>
+<summary>
+<a href="https://doi.org/10.1101/2024.01.23.575922" target="_blank"><b>[bioRxiv]</b> Jointly benchmarking small and structural variant calls with vcfdist</a>
+</summary>
+
+<pre>
+@article{dunn2024vcfdist,
+  author={Dunn, Tim and Zook, Justin M and Holt, James M and Narayanasamy, Satish},
+  title={Jointly benchmarking small and structural variant calls with vcfdist},
+  journal={bioRxiv},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory},
+  doi={10.1101/2024.01.23.575922},
+  URL={https://doi.org/10.1101/2024.01.23.575922}
 }
 </pre>
 </details>
