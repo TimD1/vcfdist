@@ -31,7 +31,7 @@ public:
     int max_size = 5000;
 
     // clustering
-    std::string cluster_method = "size";
+    std::string cluster_method = "biwfa";
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;

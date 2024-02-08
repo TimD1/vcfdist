@@ -567,7 +567,7 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [size %d]\n", g.cluster_min_gap);
+    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n", g.cluster_min_gap);
     printf("      select clustering method (see documentation for details)\n");
 
     printf("\n  Phasing:\n");
