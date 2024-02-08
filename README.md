@@ -7,8 +7,7 @@
 * [Introduction](#introduction)
 * [Installation](#installation)
 * [Usage](#usage)
-* [Acknowledgements](#acknowledgements)
-* [Limitations](#limitations)
+* [Wiki](#wiki)
 * [License](#license)
 
 
@@ -24,11 +23,11 @@ vcfdist is a distance-based **germline variant calling evaluation tool** that:
 
 This results in more stable and accurate SNP, INDEL, and SV precision-recall curves than previous work, particularly when complex variants are involved.
 
-This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement!
+This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement! Check out the [wiki](https://github.com/TimD1/vcfdist/wiki) for more information.
 
 
 ### Citation
-Please cite the following work if you use vcfdist:
+Please cite the following works if you use vcfdist:
 
 <details>
 <summary>
@@ -51,11 +50,29 @@ Please cite the following work if you use vcfdist:
 </pre>
 </details>
 
+<details>
+<summary>
+<a href="https://doi.org/10.1101/2024.01.23.575922" target="_blank"><b>[bioRxiv]</b> Jointly benchmarking small and structural variant calls with vcfdist</a>
+</summary>
+
+<pre>
+@article{dunn2024vcfdist,
+  author={Dunn, Tim and Zook, Justin M and Holt, James M and Narayanasamy, Satish},
+  title={Jointly benchmarking small and structural variant calls with vcfdist},
+  journal={bioRxiv},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory},
+  doi={10.1101/2024.01.23.575922},
+  URL={https://doi.org/10.1101/2024.01.23.575922}
+}
+</pre>
+</details>
+
 
 ## Installation
 
 ### Option 1: GitHub Source
-vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib. Please note that on Mac, `g++` is aliased to `clang`, which is currently not supported. If you don't have HTSlib already, please set it up as follows:
+vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib. If you don't have HTSlib already, please set it up as follows:
 ```bash
 > wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
 > tar -xvf htslib-1.17.tar.bz2
@@ -96,26 +113,30 @@ vcfdist \
     -v 0
 ```
 
-You can expect to see <a href="./demo/output.txt">this output</a>.
+<!--- You can expect to see <a href="./demo/output.txt">this output</a>. -->
+You can expect to see the following output:
+```
+PRECISION-RECALL SUMMARY
+
+TYPE   THRESHOLD     TRUTH_TP  QUERY_TP  TRUTH_FN  QUERY_FP  PREC     RECALL   F1_SCORE  F1_QSCORE
+SNP    NONE Q >= 0   8222      8222      1         2         0.9997   0.9998   0.9998    37.3885
+SNP    BEST Q >= 0   8222      8222      1         2         0.9997   0.9998   0.9998    37.3885
+
+INDEL  NONE Q >= 0   876       876       51        12        0.9864   0.9449   0.9652    14.5953
+INDEL  BEST Q >= 0   876       876       51        12        0.9864   0.9449   0.9652    14.5953
+
+SV     NONE Q >= 0   0         0         0         0         1.0000   1.0000   1.0000    100.000
+SV     BEST Q >= 0   0         0         0         0         1.0000   1.0000   1.0000    100.000
+
+ALL    NONE Q >= 0   9098      9098      52        14        0.9984   0.9943   0.9963    24.4200
+ALL    BEST Q >= 0   9098      9098      52        14        0.9984   0.9943   0.9963    24.4200
+```
 
 To include more details on intermediate results, run it again at higher verbosity by removing the `-v 0` flag.
-Please note that your results may not be identical, since vcfdist is under active development and handling of edge-cases may differ between versions.
 
-Please see additional options documented <a href="./src/README.md">here</a>, or run `vcfdist --help`.
+## Wiki
 
-The output TSV files are documented <a href="./docs/outputs.md">here</a>.
-
-Find out more information on using `hap.py` to stratify variants <a href="./docs/stratification.md">here</a>.
-
-
-## Acknowledgements
-Datasets used in the evaluation of the accompanying paper are listed <a href="./data/README.md">here</a>.
-
-## Limitations
-The current version of vcfdist is not designed to support:
-- overlapping or unphased variants
-- polyploid contigs
-- somatic variants
+The [vcfdist wiki](https://github.com/TimD1/vcfdist/wiki) is currently a work-in-progress, but has helpful information on [command-line parameters](https://github.com/TimD1/vcfdist/wiki/02-Parameters-and-Usage) and [output documentation](https://github.com/TimD1/vcfdist/wiki/09-Outputs). If something isn't covered yet, just start a [discussion](https://github.com/TimD1/vcfdist/discussions) or file an [issue](https://github.com/TimD1/vcfdist/issues) and I'd be happy to answer.
 
 ## License
 This project is covered under the <a href="LICENSE">GNU GPL v3</a> license.
