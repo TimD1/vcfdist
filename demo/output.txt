@@ -1,13 +1,14 @@
 PRECISION-RECALL SUMMARY
 
-TYPE	MIN_QUAL	TRUTH_TP	QUERY_TP	TRUTH_FN	QUERY_FP	PREC		RECALL		F1_SCORE	F1_QSCORE
-SNP	NONE Q >= 0	8222            8222            1               2               0.999757	0.999878	0.999818	37.388565
-SNP	BEST Q >= 0	8222            8222            1               2               0.999757	0.999878	0.999818	37.388565
+TYPE	THRESHOLD	TRUTH_TP	QUERY_TP	TRUTH_FN	QUERY_FP	PREC		RECALL		F1_SCORE	F1_QSCORE
+SNP	NONE Q >= 0 	8222            8222            1               2               0.999757	0.999878	0.999818	37.388565
+SNP	BEST Q >= 0 	8222            8222            1               2               0.999757	0.999878	0.999818	37.388565
 
-TYPE	MIN_QUAL	TRUTH_TP	QUERY_TP	TRUTH_FN	QUERY_FP	PREC		RECALL		F1_SCORE	F1_QSCORE
-INDEL	NONE Q >= 0	876             876             51              12              0.986486	0.944984	0.965289	14.595358
-INDEL	BEST Q >= 0	876             876             51              12              0.986486	0.944984	0.965289	14.595358
+INDEL	NONE Q >= 0 	876             876             51              12              0.986486	0.944984	0.965289	14.595358
+INDEL	BEST Q >= 0 	876             876             51              12              0.986486	0.944984	0.965289	14.595358
 
-TYPE	MIN_QUAL	TRUTH_TP	QUERY_TP	TRUTH_FN	QUERY_FP	PREC		RECALL		F1_SCORE	F1_QSCORE
-SV      NONE Q >= 0     0               0               0               0               1.000000        1.000000        1.000000        100.000000
-SV      BEST Q >= 0     0               0               0               0               1.000000        1.000000        1.000000        100.000000
+SV	NONE Q >= 0 	0               0               0               0               1.000000	1.000000	1.000000	100.000000
+SV	BEST Q >= 0 	0               0               0               0               1.000000	1.000000	1.000000	100.000000
+
+ALL	NONE Q >= 0 	9098            9098            52              14              0.998464	0.994317	0.996386	24.420036
+ALL	BEST Q >= 0 	9098            9098            52              14              0.998464	0.994317	0.996386	24.420036

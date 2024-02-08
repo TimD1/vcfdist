@@ -322,7 +322,7 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
 void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
     // for each class, store variant counts above each quality threshold
-    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN ax2: QUAL
+    // init counters; ax0: SNP/INDEL/SV/ALL, ax1: TP,FP,FN ax2: QUAL
     std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
             std::vector< std::vector<float> >(3, 
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
@@ -375,6 +375,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         }
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                            query_counts[VARTYPE_ALL][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
                         }
                     }
                 }
@@ -422,9 +423,11 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         // the quality threshold, is filtered, and becomes a false negative
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             truth_counts[t][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                            truth_counts[VARTYPE_ALL][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
                         }
                         for (int qual = q+1; qual <= g.max_qual; qual++) {
                             truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
+                            truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
                         }
                     }
                 }
@@ -497,12 +500,12 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     }
     INFO(" ");
     INFO("%sPRECISION-RECALL SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
+    INFO(" ");
+    INFO("%sTYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
+            COLOR_BLUE, COLOR_WHITE);
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         std::vector<std::string> thresholds = {"NONE", "BEST"};
-        INFO(" ");
-        INFO("%sTYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
-                COLOR_BLUE, COLOR_WHITE);
 
         for (int i = 0; i < int(quals.size()); i++) {
             // redo calculations for these two
@@ -514,11 +517,13 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             int query_tp = query_counts[type][ERRTYPE_TP][qidx];
             int query_fp = query_counts[type][ERRTYPE_FP][qidx];
             int query_tot = query_tp + query_fp;
-            if (query_tot == 0) WARN("No QUERY %s variant calls.", vartype_strs[type].data());
+            if (query_tot == 0 && type != VARTYPE_ALL) 
+                WARN("No QUERY %s variants pass all filters.", vartype_strs[type].data());
             int truth_tp = truth_counts[type][ERRTYPE_TP][qidx];
             int truth_fn = truth_counts[type][ERRTYPE_FN][qidx];
             int truth_tot = truth_tp + truth_fn;
-            if (truth_tot == 0) WARN("No TRUTH %s variant calls.", vartype_strs[type].data());
+            if (truth_tot == 0 && type != VARTYPE_ALL) 
+                WARN("No TRUTH %s variants pass all filters.", vartype_strs[type].data());
 
             // calculate summary metrics
             float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
@@ -556,8 +561,8 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                 qscore(1-f1_score)
             );
         }
+        INFO(" ");
     }
-    INFO(" ");
     if (g.write) fclose(out_pr_summ);
 }
 

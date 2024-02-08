@@ -13,7 +13,7 @@
 Globals g;
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
 std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
-std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV"};
+std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "PE", "GE", "??"};
 std::vector<std::string> gt_strs = {
         "0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "M|N" };
