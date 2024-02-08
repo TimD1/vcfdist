@@ -42,7 +42,7 @@ void write_params() {
         "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
         "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\nsv_threshold = %d\n"
         "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
-        "realign_only = %s\ncluster_method = %s\ncluster_min_gap = %d\n"
+        "realign_only = %s\ncluster_method = '%s'\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
         "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\ndistance = %s",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
