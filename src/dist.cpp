@@ -1172,6 +1172,8 @@ void calc_prec_recall(
                     query_vars->errtypes[swap][query_var_ptr] = ERRTYPE_FP;
                     query_vars->sync_group[swap][query_var_ptr] = sync_group++;
                     query_vars->credit[swap][query_var_ptr] = 0;
+                    query_vars->old_ed[swap][query_var_ptr] = 0;
+                    query_vars->new_ed[swap][query_var_ptr] = 0;
                     query_vars->callq[swap][query_var_ptr] = 
                         query_vars->var_quals[query_var_ptr];
                     if (print) printf("%s: QUERY REF='%s'\tALT='%s'\t%s\t%f\n", ctg.data(),
@@ -1278,6 +1280,8 @@ void calc_prec_recall(
                             query_vars->errtypes[swap][query_var_idx] = ERRTYPE_TP;
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = credit;
+                            query_vars->old_ed[swap][query_var_idx] = old_ed;
+                            query_vars->new_ed[swap][query_var_idx] = new_ed;
                             query_vars->callq[swap][query_var_idx] = callq;
                             if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
                                     ctg.data(), query_vars->poss[query_var_idx],
@@ -1287,7 +1291,9 @@ void calc_prec_recall(
                         } else { // FP
                             query_vars->errtypes[swap][query_var_idx] = ERRTYPE_FP;
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
-                            query_vars->credit[swap][query_var_idx] = 0;
+                            query_vars->credit[swap][query_var_idx] = credit;
+                            query_vars->old_ed[swap][query_var_idx] = old_ed;
+                            query_vars->new_ed[swap][query_var_idx] = new_ed;
                             query_vars->callq[swap][query_var_idx] = callq;
                             if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
                                     ctg.data(), query_vars->poss[query_var_idx],
@@ -1306,6 +1312,8 @@ void calc_prec_recall(
                         truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_TP;
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
+                        truth_vars->old_ed[swap][truth_var_idx] = old_ed;
+                        truth_vars->new_ed[swap][truth_var_idx] = new_ed;
                         truth_vars->callq[swap][truth_var_idx] = callq;
                         if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", 
                                 ctg.data(), truth_vars->poss[truth_var_idx],
@@ -1316,6 +1324,8 @@ void calc_prec_recall(
                         truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_FN;
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
+                        truth_vars->old_ed[swap][truth_var_idx] = old_ed;
+                        truth_vars->new_ed[swap][truth_var_idx] = new_ed;
                         truth_vars->callq[swap][truth_var_idx] = g.max_qual;
                         if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
                                 ctg.data(), truth_vars->poss[truth_var_idx],
