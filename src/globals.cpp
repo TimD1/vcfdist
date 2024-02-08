@@ -466,6 +466,22 @@ void Globals::parse_args(int argc, char ** argv) {
         ERROR("Maximum variant quality must exceed minimum variant quality");
     }
 
+    // warn about variant size exclusions and categories
+    if (g.min_size > 1) {
+        WARN("No SNPs will be evaluated with --smallest %d", g.min_size);
+    }
+    if (g.min_size >= g.sv_threshold) {
+        WARN("No INDELs will be evaluated, since --smallest %d >= --sv-threshold %d", 
+                g.min_size, g.sv_threshold);
+    }
+    if (g.max_size < g.sv_threshold) {
+        WARN("No SVs will be evaluated, since --largest %d < --sv-threshold %d", 
+                g.max_size, g.sv_threshold);
+    }
+    if (g.max_size == 1) {
+        WARN("Only SNPs will be evaluated with --largest %d", g.max_size);
+    }
+
     // calculate thread/RAM steps
     thread_nsteps = 0;
     int threads = this->max_threads;
@@ -567,7 +583,7 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n", g.cluster_min_gap);
+    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
     printf("      select clustering method (see documentation for details)\n");
 
     printf("\n  Phasing:\n");
