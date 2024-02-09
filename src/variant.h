@@ -55,8 +55,8 @@ public:
     // or for call, min quality in sync group
     std::vector< std::vector<float> > callq;   
     // percentage reduction in edit dist of sync group with variants
-    std::vector< std::vector<int> > old_ed;  
-    std::vector< std::vector<int> > new_ed;  
+    std::vector< std::vector<int> > ref_ed;  
+    std::vector< std::vector<int> > query_ed;  
     std::vector< std::vector<float> > credit;  
 };
 

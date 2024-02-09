@@ -1109,7 +1109,7 @@ void calc_prec_recall(
         int prev_ti = ti;
         int sync_truth_idx = ti_size;
         int prev_sync_truth_idx = ti_size;
-        int new_ed = 0;
+        int query_ed = 0;
         int query_var_ptr = query_end_idx-1;
         int query_var_pos = query_vars->poss.size() && query_var_ptr >= 0 ? 
                 query_vars->poss[query_var_ptr] - beg : 0;
@@ -1172,8 +1172,8 @@ void calc_prec_recall(
                     query_vars->errtypes[swap][query_var_ptr] = ERRTYPE_FP;
                     query_vars->sync_group[swap][query_var_ptr] = sync_group++;
                     query_vars->credit[swap][query_var_ptr] = 0;
-                    query_vars->old_ed[swap][query_var_ptr] = 0;
-                    query_vars->new_ed[swap][query_var_ptr] = 0;
+                    query_vars->ref_ed[swap][query_var_ptr] = 0;
+                    query_vars->query_ed[swap][query_var_ptr] = 0;
                     query_vars->callq[swap][query_var_ptr] = 
                         query_vars->var_quals[query_var_ptr];
                     if (print) printf("%s: QUERY REF='%s'\tALT='%s'\t%s\t%f\n", ctg.data(),
@@ -1227,29 +1227,29 @@ void calc_prec_recall(
             // sync point: set TP/PP
             if (sync[i][path_idx]) {
 
-                // calculate old edit distance
-                int old_ed = 0;
+                // calculate edit distance without variants
+                int ref_ed = 0;
                 sync_ref_idx = (hi == ri) ? qri+1 : query_ref_ptrs[i][PTRS][qri]+1;
                 sync_truth_idx = ti+1;
                 std::vector< std::vector<int> > offs, ptrs;
                 wf_ed(ref.substr(sync_ref_idx, prev_sync_ref_idx - sync_ref_idx), 
                         truth[i].substr(sync_truth_idx, prev_sync_truth_idx - sync_truth_idx), 
-                        old_ed, offs, ptrs);
+                        ref_ed, offs, ptrs);
 
                 // This only happens when the truth VCF contains several variants that, when
                 // combined, are equivalent to no variants. In this case, the truth VCF should
                 // be fixed. Output a warning, and allow the evaluation to continue.
-                if (old_ed == 0 && truth_var_ptr != prev_truth_var_ptr) {
+                if (ref_ed == 0 && truth_var_ptr != prev_truth_var_ptr) {
                     WARN("Zero edit distance with truth variants at supercluster %d, %s:%d", 
                             sc_idx, ctg.data(), truth_vars->poss[truth_var_ptr]);
-                    old_ed = 1; // prevent divide-by-zero
+                    ref_ed = 1; // prevent divide-by-zero
                 }
-                if (new_ed > old_ed)
+                if (query_ed > ref_ed)
                     WARN("New edit distance exceeds old edit distance at supercluster %d, %s:%d",
                             sc_idx, ctg.data(), query_vars->poss[query_var_ptr]);
 
                 /* if (prev_query_var_ptr == query_var_ptr && */
-                /*         old_ed != new_ed) { */
+                /*         ref_ed != query_ed) { */
                 /*     WARN("Non-zero edit distance with no truth variants at supercluster %d, %s:%d", */
                 /*             sc_idx, ctg.data(), query_vars->poss[query_var_ptr]); */
                 /* } */
@@ -1273,15 +1273,15 @@ void calc_prec_recall(
                 // process QUERY variants
                 for (int query_var_idx = prev_query_var_ptr; 
                         query_var_idx > query_var_ptr; query_var_idx--) {
-                    float credit = 1 - float(new_ed)/old_ed;
+                    float credit = 1 - float(query_ed)/ref_ed;
                     // don't overwrite FPs
                     if (query_vars->errtypes[swap][query_var_idx] == ERRTYPE_UN) {
                         if (credit >= g.credit_threshold) { // TP
                             query_vars->errtypes[swap][query_var_idx] = ERRTYPE_TP;
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = credit;
-                            query_vars->old_ed[swap][query_var_idx] = old_ed;
-                            query_vars->new_ed[swap][query_var_idx] = new_ed;
+                            query_vars->ref_ed[swap][query_var_idx] = ref_ed;
+                            query_vars->query_ed[swap][query_var_idx] = query_ed;
                             query_vars->callq[swap][query_var_idx] = callq;
                             if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
                                     ctg.data(), query_vars->poss[query_var_idx],
@@ -1292,8 +1292,8 @@ void calc_prec_recall(
                             query_vars->errtypes[swap][query_var_idx] = ERRTYPE_FP;
                             query_vars->sync_group[swap][query_var_idx] = sync_group;
                             query_vars->credit[swap][query_var_idx] = credit;
-                            query_vars->old_ed[swap][query_var_idx] = old_ed;
-                            query_vars->new_ed[swap][query_var_idx] = new_ed;
+                            query_vars->ref_ed[swap][query_var_idx] = ref_ed;
+                            query_vars->query_ed[swap][query_var_idx] = query_ed;
                             query_vars->callq[swap][query_var_idx] = callq;
                             if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", 
                                     ctg.data(), query_vars->poss[query_var_idx],
@@ -1307,13 +1307,13 @@ void calc_prec_recall(
                 // process TRUTH variants
                 for (int truth_var_idx = prev_truth_var_ptr; 
                         truth_var_idx > truth_var_ptr; truth_var_idx--) {
-                    float credit = 1 - float(new_ed)/old_ed;
+                    float credit = 1 - float(query_ed)/ref_ed;
                     if (credit >= g.credit_threshold) { // TP
                         truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_TP;
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
-                        truth_vars->old_ed[swap][truth_var_idx] = old_ed;
-                        truth_vars->new_ed[swap][truth_var_idx] = new_ed;
+                        truth_vars->ref_ed[swap][truth_var_idx] = ref_ed;
+                        truth_vars->query_ed[swap][truth_var_idx] = query_ed;
                         truth_vars->callq[swap][truth_var_idx] = callq;
                         if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", 
                                 ctg.data(), truth_vars->poss[truth_var_idx],
@@ -1324,8 +1324,8 @@ void calc_prec_recall(
                         truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_FN;
                         truth_vars->sync_group[swap][truth_var_idx] = sync_group;
                         truth_vars->credit[swap][truth_var_idx] = credit;
-                        truth_vars->old_ed[swap][truth_var_idx] = old_ed;
-                        truth_vars->new_ed[swap][truth_var_idx] = new_ed;
+                        truth_vars->ref_ed[swap][truth_var_idx] = ref_ed;
+                        truth_vars->query_ed[swap][truth_var_idx] = query_ed;
                         truth_vars->callq[swap][truth_var_idx] = g.max_qual;
                         if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n",
                                 ctg.data(), truth_vars->poss[truth_var_idx],
@@ -1338,7 +1338,7 @@ void calc_prec_recall(
                 if (print) printf("%s: SYNC @%s(%2d,%2d) = REF(%2d,%2d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n\n", ctg.data(),
                         (hi == ri) ? "REF" : "QRY", qri, ti,
                         (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri],
-                        truth_ref_ptrs[i][PTRS][ti], old_ed, new_ed, 
+                        truth_ref_ptrs[i][PTRS][ti], ref_ed, query_ed, 
                         prev_query_var_ptr, query_var_ptr,
                         prev_truth_var_ptr, truth_var_ptr
                 );
@@ -1352,7 +1352,7 @@ void calc_prec_recall(
                 prev_truth_var_ptr = truth_var_ptr;
                 prev_sync_ref_idx = sync_ref_idx;
                 prev_sync_truth_idx = sync_truth_idx;
-                new_ed = 0;
+                query_ed = 0;
             }
 
             // update pointers and edit distance
@@ -1372,7 +1372,7 @@ void calc_prec_recall(
             ti = path[i][path_idx].ti;
             prev_hi = hi;
             hi = path[i][path_idx].hi;
-            new_ed += edits[i][path_idx];
+            query_ed += edits[i][path_idx];
 
             // update next variant position
             query_var_pos = (query_var_ptr < query_beg_idx) ? -1 :

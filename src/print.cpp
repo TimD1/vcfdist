@@ -673,7 +673,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
         FILE* out_query = fopen(out_query_fn.data(), "w");
         fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
-                "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tOLD_DIST\tNEW_DIST\tLOCATION\n");
+                "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (std::string ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
@@ -723,8 +723,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster1_idx,
                             sci,
                             query1_vars->sync_group[swap][var1_idx],
-                            query1_vars->old_ed[swap][var1_idx],
-                            query1_vars->new_ed[swap][var1_idx],
+                            query1_vars->ref_ed[swap][var1_idx],
+                            query1_vars->query_ed[swap][var1_idx],
                             region_strs[query1_vars->locs[var1_idx]].data()
                            );
                     var1_idx++;
@@ -760,8 +760,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster2_idx,
                             sci,
                             query2_vars->sync_group[swap][var2_idx],
-                            query2_vars->old_ed[swap][var2_idx],
-                            query2_vars->new_ed[swap][var2_idx],
+                            query2_vars->ref_ed[swap][var2_idx],
+                            query2_vars->query_ed[swap][var2_idx],
                             region_strs[query2_vars->locs[var2_idx]].data()
                            );
                     var2_idx++;
@@ -774,7 +774,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_truth_fn = g.out_prefix + "truth.tsv";
         if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
         FILE* out_truth = fopen(out_truth_fn.data(), "w");
-        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tOLD_DIST\tNEW_DIST\tLOCATION\n");
+        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (std::string ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
@@ -822,8 +822,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster1_idx,
                             sci,
                             truth1_vars->sync_group[swap][var1_idx],
-                            truth1_vars->old_ed[swap][var1_idx],
-                            truth1_vars->new_ed[swap][var1_idx],
+                            truth1_vars->ref_ed[swap][var1_idx],
+                            truth1_vars->query_ed[swap][var1_idx],
                             region_strs[truth1_vars->locs[var1_idx]].data()
                            );
                     var1_idx++;
@@ -860,8 +860,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster2_idx,
                             sci,
                             truth2_vars->sync_group[swap][var2_idx],
-                            truth2_vars->old_ed[swap][var2_idx],
-                            truth2_vars->new_ed[swap][var2_idx],
+                            truth2_vars->ref_ed[swap][var2_idx],
+                            truth2_vars->query_ed[swap][var2_idx],
                             region_strs[truth2_vars->locs[var2_idx]].data()
                            );
                     var2_idx++;
