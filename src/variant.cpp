@@ -273,8 +273,10 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
         errtype = query ? "FP" : "FN"; match_type = "lm";
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:%d:%d:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[swap][idx], this->old_ed[swap][idx], this->new_ed[swap][idx],
+    fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
+            this->credit[swap][idx], 
+            this->old_ed[swap][idx] == 0 ? "." : std::to_string(this->old_ed[swap][idx]).data(),
+            this->old_ed[swap][idx] == 0 ? "." : std::to_string(this->new_ed[swap][idx]).data(),
             match_type.data(), int(this->var_quals[idx]), sc_idx, 
             int(this->sync_group[swap][idx]), this->phase_sets[idx], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
