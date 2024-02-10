@@ -546,11 +546,11 @@ void Globals::print_usage() const
     printf("      realign truth variants using Smith-Waterman parameters\n");
     printf("  -ro, --realign-only\n");
     printf("      standardize truth and query variant representations, then exit\n");
-    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
+    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.sub);
     printf("      Smith-Waterman mismatch (substitution) penalty\n");
-    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
+    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.open);
     printf("      Smith-Waterman gap opening penalty\n");
-    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
+    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.extend);
     printf("      Smith-Waterman gap extension penalty\n");
 
     printf("\n  Precision-Recall:\n");
