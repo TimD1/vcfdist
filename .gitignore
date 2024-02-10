@@ -21,10 +21,8 @@ analysis/*/*/
 analysis-v2/*/*/
 analysis-v2/hla
 
-# ignore input
-data/*/*
-
-# ignore output
+# ignore input/output
+data/
 out/
 
 # don't track test cases
