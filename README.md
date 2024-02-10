@@ -13,15 +13,12 @@
 
 ## Introduction
 vcfdist is a distance-based **germline variant calling evaluation tool** that:
-- simultaneously evaluates **SNPS, INDELs, complex, tandem repeat, and structural variants**
+- simultaneously evaluates **SNPS, INDELs, and SVs** up to 10Kb
 - **requires local phasing** information for truth and query variants
-- **discovers** long-range variant **representation dependencies**
-- works on **monoploid and diploid** contigs
-- can **identify** variant calls which are **partially correct**
-- can **standardize** query and truth VCF **variants** to a consistent representation
-- can report **alignment distance** based **metrics**
+- can **standardize** query and truth VCF **variant representations**
+- can evaluate **flip** and **switch phasing errors**
 
-This results in more stable and accurate SNP, INDEL, and SV precision-recall curves than previous work, particularly when complex variants are involved.
+vcfdist provides more accurate SNP, INDEL, and SV precision-recall curves than previous work, particularly when complex variants are involved.
 
 This project is currently under active development. We welcome the submission of any feedback, issues, or suggestions for improvement! Check out the [wiki](https://github.com/TimD1/vcfdist/wiki) for more information.
 
@@ -113,7 +110,6 @@ vcfdist \
     -v 0
 ```
 
-<!--- You can expect to see <a href="./demo/output.txt">this output</a>. -->
 You can expect to see the following output:
 ```
 PRECISION-RECALL SUMMARY
@@ -136,7 +132,7 @@ To include more details on intermediate results, run it again at higher verbosit
 
 ## Wiki
 
-The [vcfdist wiki](https://github.com/TimD1/vcfdist/wiki) is currently a work-in-progress, but has helpful information on [command-line parameters](https://github.com/TimD1/vcfdist/wiki/02-Parameters-and-Usage) and [output documentation](https://github.com/TimD1/vcfdist/wiki/09-Outputs). If something isn't covered yet, just start a [discussion](https://github.com/TimD1/vcfdist/discussions) or file an [issue](https://github.com/TimD1/vcfdist/issues) and I'd be happy to answer.
+The [vcfdist wiki](https://github.com/TimD1/vcfdist/wiki) has helpful information on [command-line parameters](https://github.com/TimD1/vcfdist/wiki/02-Parameters-and-Usage), [output documentation](https://github.com/TimD1/vcfdist/wiki/09-Outputs), and [implementation](https://github.com/TimD1/vcfdist/wiki/01-Overview).
 
 ## License
 This project is covered under the <a href="LICENSE">GNU GPL v3</a> license.
