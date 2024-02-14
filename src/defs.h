@@ -2,6 +2,7 @@
 #define _DEF_H_
 
 #include <sys/time.h>
+#include <unistd.h>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -19,9 +20,12 @@ class idx2;
 #define CTG_IDX 0
 #define SC_IDX  1
 
-#define COLOR_BLUE "\033[34m"
-#define COLOR_WHITE "\033[0m"
-#define COLOR_PURPLE "\033[35m"
+#define COLOR_RED    isatty(STDERR_FILENO) ? "\033[31m" : ""
+#define COLOR_YELLOW isatty(STDERR_FILENO) ? "\033[33m" : ""
+#define COLOR_GREEN  isatty(STDERR_FILENO) ? "\033[32m" : ""
+#define COLOR_BLUE   isatty(STDERR_FILENO) ? "\033[34m" : ""
+#define COLOR_PURPLE isatty(STDERR_FILENO) ? "\033[35m" : ""
+#define COLOR_WHITE  isatty(STDERR_FILENO) ? "\033[0m"  : ""
 
 // variant
 #define TYPE_REF 0
@@ -138,44 +142,44 @@ class idx2;
 #define PHASE_PTR_SWAP 1
 
 // printing
-#define WARN(f_, ...)                                           \
-{                                                               \
-    struct tm _tm123_;                                          \
-    struct timeval _xxtv123_;                                   \
-    gettimeofday(&_xxtv123_, NULL);                             \
-    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                   \
-    fprintf(stderr, "\033[33m[WARN  %s %02d:%02d:%02d]\033[0m ",\
-            g.PROGRAM.data(), _tm123_.tm_hour,_tm123_.tm_min,   \
-            _tm123_.tm_sec);                                    \
-    fprintf(stderr, (f_), ##__VA_ARGS__);                       \
-    fprintf(stderr, "\n");                                      \
+#define WARN(f_, ...)                                         \
+{                                                             \
+    struct tm _tm123_;                                        \
+    struct timeval _xxtv123_;                                 \
+    gettimeofday(&_xxtv123_, NULL);                           \
+    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                 \
+    fprintf(stderr, "%s[WARN  %s %02d:%02d:%02d]%s ",         \
+            COLOR_YELLOW,  g.PROGRAM.data(), _tm123_.tm_hour, \
+            _tm123_.tm_min, _tm123_.tm_sec, COLOR_WHITE);     \
+    fprintf(stderr, (f_), ##__VA_ARGS__);                     \
+    fprintf(stderr, "\n");                                    \
 };
 
-#define INFO(f_, ...)                                           \
-{                                                               \
-    struct tm _tm123_;                                          \
-    struct timeval _xxtv123_;                                   \
-    gettimeofday(&_xxtv123_, NULL);                             \
-    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                   \
-    fprintf(stderr, "\033[32m[INFO  %s %02d:%02d:%02d]\033[0m ",\
-            g.PROGRAM.data(), _tm123_.tm_hour,_tm123_.tm_min,   \
-            _tm123_.tm_sec);                                    \
-    fprintf(stderr, (f_), ##__VA_ARGS__);                       \
-    fprintf(stderr, "\n");                                      \
+#define INFO(f_, ...)                                         \
+{                                                             \
+    struct tm _tm123_;                                        \
+    struct timeval _xxtv123_;                                 \
+    gettimeofday(&_xxtv123_, NULL);                           \
+    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                 \
+    fprintf(stderr, "%s[INFO  %s %02d:%02d:%02d]%s ",         \
+            COLOR_GREEN, g.PROGRAM.data(), _tm123_.tm_hour,   \
+            _tm123_.tm_min, _tm123_.tm_sec, COLOR_WHITE);     \
+    fprintf(stderr, (f_), ##__VA_ARGS__);                     \
+    fprintf(stderr, "\n");                                    \
 };
 
-#define ERROR(f_, ...)                                           \
-{                                                                \
-    struct tm _tm123_;                                           \
-    struct timeval _xxtv123_;                                    \
-    gettimeofday(&_xxtv123_, NULL);                              \
-    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                    \
-    fprintf(stderr, "\033[31m[ERROR %s %02d:%02d:%02d]\033[0m ", \
-            g.PROGRAM.data(), _tm123_.tm_hour,_tm123_.tm_min,    \
-            _tm123_.tm_sec);                                     \
-    fprintf(stderr, (f_), ##__VA_ARGS__);                        \
-    fprintf(stderr, "\n");                                       \
-    std::exit(1);                                                \
+#define ERROR(f_, ...)                                        \
+{                                                             \
+    struct tm _tm123_;                                        \
+    struct timeval _xxtv123_;                                 \
+    gettimeofday(&_xxtv123_, NULL);                           \
+    localtime_r(&_xxtv123_.tv_sec, &_tm123_);                 \
+    fprintf(stderr, "%s[ERROR %s %02d:%02d:%02d]%s ",         \
+            COLOR_RED, g.PROGRAM.data(), _tm123_.tm_hour,     \
+            _tm123_.tm_min, _tm123_.tm_sec, COLOR_WHITE);     \
+    fprintf(stderr, (f_), ##__VA_ARGS__);                     \
+    fprintf(stderr, "\n");                                    \
+    std::exit(1);                                             \
 };
 
 #endif
