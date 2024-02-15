@@ -1,7 +1,5 @@
 #!/bin/bash
 
-source ../pipeline/includes.sh
-
 # valgrind --leak-check=full \
 #     --show-leak-kinds=all \
 #     --track-origins=yes \
@@ -11,7 +9,7 @@ source ../pipeline/includes.sh
 ./vcfdist \
     ../test/query20.vcf.gz \
     ../test/truth20.vcf.gz \
-    /x/gm24385/reference/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+    /home/timdunn/vcfdist/data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../test/bench20.bed \
     -l 1000 \
     -p ../out/dev.

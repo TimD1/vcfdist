@@ -69,7 +69,7 @@ Please cite the following works if you use vcfdist:
 ## Installation
 
 ### Option 1: GitHub Source
-vcfdist is developed for Linux and its only dependencies are GCC v8+ and HTSlib. If you don't have HTSlib already, please set it up as follows:
+vcfdist is developed for Linux and its only dependencies are GCC v9.1+ and HTSlib v1.17. If you don't have HTSlib already, please set it up as follows:
 ```bash
 > wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
 > tar -xvf htslib-1.17.tar.bz2
@@ -87,7 +87,7 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 > make
 > sudo make install
 > vcfdist --version
-vcfdist v2.3.3
+vcfdist v2.3.4
 ```
 
 ### Option 2: Docker Image

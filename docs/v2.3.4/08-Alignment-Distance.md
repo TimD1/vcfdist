@@ -1,0 +1,3 @@
+Alignment distance is no longer calculated during vcfdist's default evaluation, but can be re-enabled using the `--distance` flag. Instead of counting different categorizations of variant calls (SNPs, INDELs, SVs) which are ill-defined when complex variants are involved, this approach uses a purely sequence-based evaluation approach that is independent of variant representations. For this reason, it can be a useful supplemental comparison method.
+
+vcfdist performs Smith Waterman alignment at [Point B](https://github.com/TimD1/vcfdist/wiki/04-VCF-Normalization#best-alignment-normalization), or m=0, x=3, o=2, e=1. The total number of substitutions, insertions, and deletions parsed from this alignment are reported, as well as the total alignment score.
