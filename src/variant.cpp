@@ -823,15 +823,15 @@ variantData::variantData(std::string vcf_fn,
                     break;
             }
 
-            // check that variant is in region of interest
-            uint8_t loc = g.bed.contains(ctg, pos, pos + rlen);
+            // check that variant (original representation) is in region of interest
+            uint8_t loc = g.bed.contains(ctg, rec->pos, rec->pos + reflen, type);
             switch (loc) {
                 case BED_OUTSIDE: 
                 case BED_OFFCTG:
+                case BED_BORDER:
                     nregions[loc]++;
                     continue; // discard variant
                 case BED_INSIDE: 
-                case BED_BORDER:
                     nregions[loc]++;
                     break;
                 default:
@@ -946,7 +946,7 @@ variantData::variantData(std::string vcf_fn,
                 callset_strs[callset].data());
 
     if (nregions[BED_BORDER] && print)
-        INFO("%d variants on border of selected regions in %s VCF, kept",
+        INFO("%d variants on border of selected regions in %s VCF, skipped",
                 nregions[BED_BORDER], callset_strs[callset].data());
 
     if (large_var_total)

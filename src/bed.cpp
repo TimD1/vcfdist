@@ -70,7 +70,7 @@ void bedData::check() {
     }
 }
 
-int bedData::contains(std::string contig, const int & start, const int & stop) {
+int bedData::contains(std::string contig, const int & start, const int & stop, const int & type) {
 
     if (!g.bed_exists) return BED_INSIDE;
 
@@ -101,7 +101,8 @@ int bedData::contains(std::string contig, const int & start, const int & stop) {
 
     // variant in middle
     if (stop_idx == start_idx) {
-        if (start == this->regions[contig].starts[start_idx]) // starts exactly at region border
+        // don't allow INS exactly at region end
+        if (type == TYPE_INS && start == this->regions[contig].stops[stop_idx]-1)
             return BED_BORDER;
         return BED_INSIDE;
     }

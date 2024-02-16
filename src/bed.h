@@ -27,7 +27,7 @@ public:
 
     void add(const std::string & contig, const int & start, const int & stop);
     void check();
-    int contains(std::string contig, const int & start, const int & stop);
+    int contains(std::string contig, const int & start, const int & stop, const int & type);
 
     operator std::string() const;
 
