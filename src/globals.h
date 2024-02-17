@@ -1,8 +1,6 @@
 #ifndef _GLOBALS_H_
 #define _GLOBALS_H_
 
-#include <filesystem>
-
 #include "bed.h"
 #include "defs.h"
 #include "timer.h"
@@ -82,6 +80,9 @@ public:
     const std::string PROGRAM = "vcfdist";
     std::vector<timer> timers;
 };
+
+std::string parent_path(std::string out_prefix);
+void create_directory(std::string dir);
 
 extern Globals g;
 

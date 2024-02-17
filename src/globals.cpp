@@ -1,7 +1,7 @@
 #include "htslib/vcf.h"
 
 #include <sstream>
-#include <filesystem>
+#include <sys/stat.h>
 
 #include "globals.h"
 #include "print.h"
@@ -127,12 +127,13 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Option '-p' used without providing prefix for storing results");
             }
             try {
-                if (argv[i][0] == '/')
+                if (argv[i][0] == '/' || std::string(argv[i]).substr(0, 2) == "./" ||
+                        std::string(argv[i]).substr(0, 3) == "../")
                     this->out_prefix = std::string(argv[i++]);
                 else
                     this->out_prefix = "./" + std::string(argv[i++]);
-                std::filesystem::create_directory(
-                        std::filesystem::path(out_prefix).parent_path());
+                std::string dir = parent_path(out_prefix);
+                create_directory(dir);
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
@@ -627,4 +628,28 @@ void Globals::print_citation() const
     printf("  doi={10.1038/s41467-023-43876-x},\n");
     printf("  URL={https://doi.org/10.1038/s41467-023-43876-x}\n");
     printf("}\n");
+}
+
+
+std::string parent_path(std::string out_prefix) {
+    for (int i = out_prefix.size()-1; i >= 0; i--) {
+        if (out_prefix[i] == '/')
+            return out_prefix.substr(0, i+1);
+    }
+    return "";
+}
+
+
+void create_directory(std::string dir) {
+    char *p = strdup(dir.data());
+    char *sep = strchr(p+1, '/');
+    while(sep != NULL) {
+        *sep = '\0';
+        if (mkdir(p, 0755) && errno != EEXIST) {
+            ERROR("Unable to create directory '%s'", p);
+        }
+        *sep = '/';
+        sep = strchr(sep+1, '/');
+    }
+    free(p);
 }
