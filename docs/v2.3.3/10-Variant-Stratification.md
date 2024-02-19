@@ -1,5 +1,3 @@
-## Variant Stratification
-
 We currently output an intermediate VCF in GA4GH compatible format, meaning the results can be stratified and analyzed by `hap.py`'s quantification helper script `qfy.py`.
 In order to use `qfy.py` please install <a href="https://github.com/Illumina/hap.py">`hap.py`</a>.
 `tabix` and `bgzip` should already be included as part of HTSlib.
@@ -26,5 +24,3 @@ In order to use `qfy.py` please install <a href="https://github.com/Illumina/hap
 ```
 Ensure that `strat.tsv` contains one stratification region per line; each line consists of a region name and BED file name separated by a tab.
 GIAB stratification regions for GRCh38 can be found <a href="https://github.com/genome-in-a-bottle/genome-stratifications/tree/master/GRCh38">here</a>.
-
-

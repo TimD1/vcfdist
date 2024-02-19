@@ -5,6 +5,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 
 datasets = ["hprc", "pav", "giab-tr"]
+names = {"hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR", "t2t-q100": "Q100-dipcall"}
 query_data, truth_data = {}, {}
 for ds in datasets:
     query_data[ds] = defaultdict(int)
@@ -80,7 +81,7 @@ for ds_idx, ds in enumerate(datasets):
 
     props = [100*results[ds] / results[ds].sum(axis=None) for ds in range(len(datasets))]
     ax[ds_idx].matshow(results[ds_idx], cmap=cmaps[ds_idx])
-    ax[ds_idx].set_title(f"{ds.upper()}", fontsize=7)
+    ax[ds_idx].set_title(f"{names[ds]}", fontsize=7)
     ax[ds_idx].set_yticks([0, 1])
     ax[ds_idx].set_xticks([0, 1])
     ax[ds_idx].set_yticklabels(["SINGLE", "MULTI"], fontsize=5)

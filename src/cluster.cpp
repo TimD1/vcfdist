@@ -94,7 +94,7 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             // (4) aln_ptrs    = 1 byte * 2 haps * 2 phasings
             // (2) path_ptrs   = 1 byte * 2 haps
             // (4) path_scores = 2 byte * 2 haps
-            // 2 is a fudge factor that I'm adding for now
+            // 2 is a fudge factor that I'm adding for now (fragmentation)
             size_t mem = size_t(max_query_len) * size_t(max_truth_len) * 10 * 2;
             double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
             if (mem_gb > g.max_ram) {
@@ -172,14 +172,7 @@ superclusterData::superclusterData(
             ERROR("Truth VCF does not contain contig '%s'", ctg.data());
         }
     }
-
-    // generate variant clusters
-    if (g.simple_cluster) {
-        this->gap_supercluster();
-    } else {
-        this->supercluster();
-    }
-
+    this->supercluster();
     this->transfer_phase_sets();
 }
 
@@ -541,183 +534,139 @@ void superclusterData::supercluster() {
 /******************************************************************************/
 
 
-/* Supercluster by enforcing minimum gap between clusters.
- */
-void superclusterData::gap_supercluster() {
+/* Cluster variants using one of two simple heuristic-based methods:
+ * 1. "gap N" based clustering
+ *     split clusters when genomic distance exceeds N
+ *
+ * 2. "size N" based clustering
+ *     split clusters when genomic distance exceeds max(N, sizeof(X))
+ *     for all nearby variants X
+ *
+ * This function adds `clusters`, `left_reaches`, `right_reaches` metadata
+ * to all `VariantData`
+ * */
+void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[4/8] Gap superclustering TRUTH and QUERY variants%s",
-            COLOR_PURPLE, COLOR_WHITE);
-
-    // iterate over each contig
-    int total_superclusters = 0;
-    int largest_supercluster = 0;
-    int total_vars = 0;
-    int most_vars = 0;
-    int total_bases = 0;
-    for (std::string ctg : this->contigs) {
-
-        // skip empty contigs
-        int nvars = 0;
-        for (int i = 0; i < CALLSETS*HAPS; i++)
-            nvars += this->superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
-        if (!nvars) continue;
-
-        // for each cluster of variants (merge query and truth haps)
-        auto & vars = this->superclusters[ctg]->ctg_variants;
-        std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
-        while (true) {
-
-            // init: empty supercluster
-            std::vector<int> next_brks = brks; // end of current supercluster
-            std::vector<int> poss(4, std::numeric_limits<int>::max());
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                if (brks[i] < int(vars[i>>1][i&1]->clusters.size())-1) {
-                    poss[i] = vars[i>>1][i&1]->poss[ 
-                        vars[i>>1][i&1]->clusters[ next_brks[i] ] ];
-                }
-            }
-
-            // get first cluster, end if all haps are off end
-            int idx = std::distance(poss.begin(),
-                    std::min_element(poss.begin(), poss.end()));
-            if (poss[idx] == std::numeric_limits<int>::max()) break;
-            next_brks[idx]++;
-
-            // initialize cluster merging with first to start
-            int curr_end_pos = vars[idx>>1][idx&1]->poss[
-                vars[idx>>1][idx&1]->clusters[next_brks[idx]]-1] +
-                vars[idx>>1][idx&1]->rlens[
-                    vars[idx>>1][idx&1]->clusters[next_brks[idx]]-1] + 1;
-            poss[idx] = next_brks[idx] < int(vars[idx>>1][idx&1]->clusters.size())-1 ?
-                vars[idx>>1][idx&1]->poss[
-                    vars[idx>>1][idx&1]->clusters[next_brks[idx]]]-1 :
-                    std::numeric_limits<int>::max();
-
-            // keep expanding cluster while possible
-            bool just_active = true;
-            while (just_active) {
-                just_active = false;
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    while (poss[i] < curr_end_pos + g.cluster_min_gap) {
-                        next_brks[i]++;
-                        curr_end_pos = std::max(curr_end_pos,
-                            vars[i>>1][i&1]->poss[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]-1] +
-                            vars[i>>1][i&1]->rlens[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]-1] + 1);
-                        poss[i] = next_brks[i] < int(vars[i>>1][i&1]->clusters.size())-1 ?
-                            vars[i>>1][i&1]->poss[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]]-1 :
-                                std::numeric_limits<int>::max();
-                        just_active = true;
-                    }
-                }
-            }
-
-            // get supercluster start/end positions (allowing empty haps)
-            int beg_pos = std::numeric_limits<int>::max();
-            int end_pos = -1;
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                if (next_brks[i] - brks[i]) {
-                    beg_pos = std::min(beg_pos,
-                        vars[i>>1][i&1]->poss[
-                            vars[i>>1][i&1]->clusters[brks[i]]]-1);
-                    end_pos = std::max(end_pos,
-                            vars[i>>1][i&1]->poss[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]-1] +
-                            vars[i>>1][i&1]->rlens[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]-1] + 1);
-                }
-            }
-
-            // update summary metrics
-            largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
-            total_bases += end_pos-beg_pos;
-            int this_vars = 0;
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
-                    vars[i>>1][i&1]->clusters[ brks[i] ];
-            }
-            most_vars = std::max(most_vars, this_vars);
-            total_vars += this_vars;
-
-            // debug print
-            if (false) {
-                printf("\nSUPERCLUSTER: %d\n", this->superclusters[ctg]->n);
-                printf("POS: %d-%d\n", beg_pos, end_pos);
-                printf("SIZE: %d\n", end_pos - beg_pos);
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    printf("%s%d: clusters %d-%d, %d total\n",
-                            callset_strs[i>>1].data(), (i&1)+1,
-                            brks[i], next_brks[i], 
-                            std::max(int(vars[i>>1][i&1]->clusters.size())-1, 0));
-                }
-            }
-
-            // save alignment information
-            this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
-
-            // reset for next active cluster
-            brks = next_brks;
-        }
-
-        // add sentinel, not actually a supercluster
-        this->superclusters[ctg]->add_supercluster(brks, 
-            std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
-        this->superclusters[ctg]->n--;
-
-        total_superclusters += this->superclusters[ctg]->n;
-    }
-    if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
-    if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);
-    if (g.verbosity >= 1) INFO("  Largest supercluster  (vars): %d", most_vars);
-    if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster (bases): %.3f", total_bases / float(total_superclusters));
-    if (g.verbosity >= 1 && total_superclusters) INFO("  Average supercluster  (vars): %.3f", total_vars / float(total_superclusters));
-}
-
-
-/******************************************************************************/
-
-/* Cluster variants based on minimum gap length for independence */
-void gap_cluster(std::shared_ptr<variantData> vcf, int callset) {
-    /* Add single-VCF cluster indices to `variantData` */
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%sGap clustering %s VCF%s '%s'", 
+    if (g.verbosity >= 1) INFO("%sClustering %s VCF%s '%s'", 
             COLOR_PURPLE, callset_strs[callset].data(), 
             COLOR_WHITE, vcf->filename.data());
 
     // cluster each contig
-    int largest_cluster_vars = 0;
-    int largest_cluster_bases = 0;
     for (std::string ctg : vcf->contigs) {
 
         // cluster per-haplotype variants: vcf->variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
-            int prev_end = -g.cluster_min_gap * 2;
-            int cluster_start = 0;
-            int pos = 0;
-            int end = 0;
-            int var_idx = 0;
-            int prev_var_idx = 0;
-            for (; var_idx < vcf->variants[hap][ctg]->n; var_idx++) {
-                pos = vcf->variants[hap][ctg]->poss[var_idx];
-                end = pos + vcf->variants[hap][ctg]->rlens[var_idx];
-                if (pos - prev_end > g.cluster_min_gap) {
-                    // update summary metrics
-                    largest_cluster_bases = std::max(largest_cluster_bases, prev_end-cluster_start);
-                    largest_cluster_vars = std::max(largest_cluster_vars, var_idx - prev_var_idx);
-                    prev_var_idx = var_idx;
-                    cluster_start = pos;
-                    // add cluster
-                    vcf->variants[hap][ctg]->add_cluster(var_idx);
+
+            std::shared_ptr<ctgVariants> vars = vcf->variants[hap][ctg];
+            if (!vars->n) return;
+
+            // mark variant boundary between clusters (hence n+1), 
+            // with initially one variant per cluster
+            std::vector<int> prev_clusters(vars->n+1);
+            for (int i = 0; i < vars->n+1; i++) 
+                prev_clusters[i] = i;
+            std::vector<int> right_reach(vars->n+1), left_reach(vars->n+1);
+            std::vector<int> next_clusters, tmp_clusters;
+
+            // save temp clustering (generate_str assumes clustered)
+            vars->clusters = prev_clusters;
+
+            // set far left/right to avoid OOB for first/last clusters
+            left_reach[0] = vars->poss[0];
+            right_reach[prev_clusters.size()-2] = vars->poss[vars->n-1];
+            // set sentinel reaches
+            left_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
+            right_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
+
+            // update all cluster reaches
+            for (int var = 0; var < vars->n; var++) {
+                int var_size = 0;
+                // if g.cluster_method == "gap", keep "var_size" zero
+                if (g.cluster_method == "size") {
+                    switch (vars->types[var]) {
+                        case TYPE_SUB:
+                            var_size = 1;
+                            break;
+                        case TYPE_INS:
+                            var_size = vars->alts[var].size();
+                            break;
+                        case TYPE_DEL:
+                            var_size = vars->refs[var].size();
+                            break;
+                        default:
+                            ERROR("Variant type '%s' unexpected at %s:%d.", 
+                                    type_strs[vars->types[var]].data(),
+                                    ctg.data(), vars->poss[var]);
+                    }
                 }
-                prev_end = std::max(prev_end, end);
+
+                // check for no left cluster
+                if (var != 0) {
+                    int l_reach = vars->poss[var] - 
+                            std::max(g.cluster_min_gap, var_size);
+                    left_reach[var] = l_reach;
+                }
+                // check for no right cluster
+                if (var < vars->n - 1) {
+                    int r_reach = vars->poss[var] + vars->rlens[var] +
+                            std::max(g.cluster_min_gap, var_size);
+                    right_reach[var] = r_reach;
+                }
             }
-            vcf->variants[hap][ctg]->add_cluster(var_idx);
+
+            // merge dependent clusters rightwards
+            std::vector<int> tmp_left_reach, tmp_right_reach;
+            int clust = 0;
+            while (clust < int(prev_clusters.size())) {
+                int clust_size = 1;
+                int max_right_reach = right_reach[clust];
+                int min_left_reach = left_reach[clust];
+                while (clust+clust_size < int(prev_clusters.size()) &&
+                        max_right_reach + g.reach_min_gap >= left_reach[clust+clust_size]) {
+                    // keep comparing against farthest-right seen so far
+                    max_right_reach = std::max(max_right_reach,
+                            right_reach[clust+clust_size]);
+                    // calculate to save for next step
+                    min_left_reach = std::min(min_left_reach,
+                            left_reach[clust+clust_size]);
+                    clust_size++;
+                }
+                tmp_right_reach.push_back(max_right_reach);
+                tmp_left_reach.push_back(min_left_reach);
+                tmp_clusters.push_back(prev_clusters[clust]);
+                clust += clust_size;
+            }
+            left_reach.clear();
+            right_reach.clear();
+
+            // merge dependent clusters leftwards
+            clust = tmp_clusters.size()-1;
+            while (clust >= 0) {
+                int min_left_reach = tmp_left_reach[clust];
+                int max_right_reach = tmp_right_reach[clust];
+                while (clust > 0 &&
+                        min_left_reach <= tmp_right_reach[clust-1] + g.reach_min_gap) {
+                    min_left_reach = std::min(min_left_reach,
+                            tmp_left_reach[clust-1]);
+                    max_right_reach = std::max(max_right_reach,
+                            tmp_right_reach[clust-1]);
+                    clust--;
+                }
+                left_reach.push_back(min_left_reach);
+                right_reach.push_back(max_right_reach);
+                next_clusters.push_back(tmp_clusters[clust]);
+                clust--;
+            }
+            std::reverse(next_clusters.begin(), next_clusters.end());
+            std::reverse(left_reach.begin(), left_reach.end());
+            std::reverse(right_reach.begin(), right_reach.end());
+
+            // save final clustering
+            vars->clusters = next_clusters;
+            vars->left_reaches = left_reach;
+            vars->right_reaches = right_reach;
         }
     }
-    if (g.verbosity >= 1) INFO("  Largest cluster (bases): %d", largest_cluster_bases);
-    if (g.verbosity >= 1) INFO("  Largest cluster  (vars): %d", largest_cluster_vars);
 }
 
 
@@ -973,8 +922,6 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
 
         // merge dependent clusters rightwards
         std::vector<int> tmp_left_reach, tmp_right_reach;
-        /* tmp_left_reach.push_back(std::numeric_limits<int>::max()); */
-        /* tmp_right_reach.push_back(std::numeric_limits<int>::min()); */
         int clust = 0;
         while (clust < int(prev_clusters.size())) {
             int clust_size = 1;

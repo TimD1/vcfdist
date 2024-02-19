@@ -12,9 +12,8 @@ for cat in "${splits[@]}"; do
             $data/t2t-q100-v0.9/split/t2t-q100.${cat}.vcf.gz \
             $ref_name \
             --bed $data/t2t-q100-v0.9/GRCh38_HG2-T2TQ100-V0.9_dipcall-z2k.benchmark.bed \
-            --keep-query --keep-truth \
             -l 1000 \
             -p $dir/vcfdist/${ds_names[i]}.${cat}. \
-            2> $dir/vcfdist/log_${ds_names[i]}.${cat}.txt
+            2> $dir/vcfdist/${ds_names[i]}.${cat}.log
     done
 done

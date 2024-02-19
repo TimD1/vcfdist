@@ -2,7 +2,8 @@
 
 source globals.sh
 
-# create VCFs with only benchmarking regions
+# create VCFs with only benchmarking regions,
+# since WhatsHap doesn't take an input BED mask
 echo "filtering $truth_name"
 bcftools filter \
     $data/${truth_name}-${truth_version}/split/${truth_name}.all.vcf.gz \

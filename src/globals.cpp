@@ -1,6 +1,7 @@
 #include "htslib/vcf.h"
 
 #include <sstream>
+#include <sys/stat.h>
 
 #include "globals.h"
 #include "print.h"
@@ -27,7 +28,7 @@ void Globals::parse_args(int argc, char ** argv) {
                     std::string(argv[i]) == "--version") {
                 i++;
                 this->print_version();
-            } else if (std::string(argv[i]) == "-c" || 
+            } else if (std::string(argv[i]) == "-ci" || 
                     std::string(argv[i]) == "--citation") {
                 i++;
                 print_cite = true;
@@ -126,13 +127,13 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Option '-p' used without providing prefix for storing results");
             }
             try {
-                if (argv[i][0] == '/' || std::string(argv[i]).substr(0,2) == "./" ||
-                        std::string(argv[i]).substr(0,3) == "../")
+                if (argv[i][0] == '/' || std::string(argv[i]).substr(0, 2) == "./" ||
+                        std::string(argv[i]).substr(0, 3) == "../")
                     this->out_prefix = std::string(argv[i++]);
                 else
                     this->out_prefix = "./" + std::string(argv[i++]);
-                std::filesystem::create_directory(
-                        std::filesystem::path(out_prefix).parent_path());
+                std::string dir = parent_path(out_prefix);
+                create_directory(dir);
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
@@ -238,19 +239,32 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             this->print_version();
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-g" || 
-                std::string(argv[i]) == "--cluster-gap") {
+        } else if (std::string(argv[i]) == "-c" || 
+                std::string(argv[i]) == "--cluster") {
             i++;
             if (i == argc) {
-                ERROR("Option '-g' used without providing minimum gap between (super)clusters");
+                ERROR("Option '-c' used without providing clustering method.");
             }
-            try {
-                this->cluster_min_gap = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid minimum gap between (super)clusters provided");
-            }
-            if (g.cluster_min_gap <= 0) {
-                ERROR("Must provide positive minimum gap between (super)clusters");
+            if (std::string(argv[i]) == "biwfa") {
+                g.cluster_method = argv[i];
+                i++;
+            } else if (std::string(argv[i]) == "size" || 
+                    std::string(argv[i]) == "gap") {
+                g.cluster_method = argv[i];
+                i++;
+                if (i == argc) {
+                    ERROR("Option '--cluster %s' used without providing minimum gap between (super)clusters", g.cluster_method.data());
+                }
+                try {
+                    this->cluster_min_gap = std::stoi(argv[i++]);
+                } catch (const std::exception & e) {
+                    ERROR("Invalid minimum gap between (super)clusters provided");
+                }
+                if (g.cluster_min_gap <= 0) {
+                    ERROR("Must provide positive minimum gap between (super)clusters");
+                }
+            } else {
+                ERROR("Invalid clustering option '%s' provided, must be one of: biwfa, size, gap", argv[i]);
             }
 
 /*******************************************************************************/
@@ -432,12 +446,7 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.realign_query = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-sc" ||
-                std::string(argv[i]) == "--simple-cluster") {
-            i++;
-            g.simple_cluster = true;
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-c" || 
+        } else if (std::string(argv[i]) == "-ci" || 
                 std::string(argv[i]) == "--citation") {
             i++;
             print_cite = true;
@@ -456,6 +465,22 @@ void Globals::parse_args(int argc, char ** argv) {
     }
     if (g.max_qual < g.min_qual) {
         ERROR("Maximum variant quality must exceed minimum variant quality");
+    }
+
+    // warn about variant size exclusions and categories
+    if (g.min_size > 1) {
+        WARN("No SNPs will be evaluated with --smallest %d", g.min_size);
+    }
+    if (g.min_size >= g.sv_threshold) {
+        WARN("No INDELs will be evaluated, since --smallest %d >= --sv-threshold %d", 
+                g.min_size, g.sv_threshold);
+    }
+    if (g.max_size < g.sv_threshold) {
+        WARN("No SVs will be evaluated, since --largest %d < --sv-threshold %d", 
+                g.max_size, g.sv_threshold);
+    }
+    if (g.max_size == 1) {
+        WARN("Only SNPs will be evaluated with --largest %d", g.max_size);
     }
 
     // calculate thread/RAM steps
@@ -522,11 +547,11 @@ void Globals::print_usage() const
     printf("      realign truth variants using Smith-Waterman parameters\n");
     printf("  -ro, --realign-only\n");
     printf("      standardize truth and query variant representations, then exit\n");
-    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
+    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.sub);
     printf("      Smith-Waterman mismatch (substitution) penalty\n");
-    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
+    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.open);
     printf("      Smith-Waterman gap opening penalty\n");
-    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
+    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.extend);
     printf("      Smith-Waterman gap extension penalty\n");
 
     printf("\n  Precision-Recall:\n");
@@ -548,8 +573,8 @@ void Globals::print_usage() const
     printf("      show this help message\n");
     printf("  -a, --advanced\n");
     printf("      show advanced options, not recommended for most users\n");
-    printf("  -c, --citation\n");
-    printf("      please cite vcfdist if used in your analyses; thanks :)\n");
+    printf("  -ci, --citation\n");
+    printf("      please cite vcfdist if used in your analyses. Thanks :)\n");
     printf("  -v, --version\n");
     printf("      print %s version (v%s)\n", this->PROGRAM.data(), this->VERSION.data());
 
@@ -559,11 +584,8 @@ void Globals::print_usage() const
     printf("\n  Clustering:\n");
     printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
     printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -sc, --simple-cluster\n");
-    printf("      instead of biWFA-based clustering, use gap-based clustering \n");
-    printf("  -g, --cluster-gap <INTEGER> [%d]\n", g.cluster_min_gap);
-    printf("      minimum gap between independent clusters and superclusters (in bases),\n");
-    printf("      only applicable if used with '--simple-cluster' option\n");
+    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
+    printf("      select clustering method (see documentation for details)\n");
 
     printf("\n  Phasing:\n");
     printf("  -pt, --phasing-threshold <FLOAT> [%.2f]\n", g.phase_threshold);
@@ -592,17 +614,42 @@ void Globals::init_timers(std::vector<std::string> timer_strs) {
 void Globals::print_citation() const
 {
     printf("\nMLA Format:\n\n");
-    printf("  Dunn, Tim, and Satish Narayanasamy. \"vcfdist: Accurately benchmarking phased small variant calls in human genomes.\" bioRxiv (2023): 2023-03.\n");
+    printf("Dunn, T., Narayanasamy, S. \"vcfdist: accurately benchmarking phased small variant calls in human genomes.\" Nature Communications 14, 8149 (2023). https://doi.org/10.1038/s41467-023-43876-x\n");
     printf("\nBibTeX Format:\n\n");
-    printf("  @article {dunn2023vcfdist,\n");
-    printf("    author = {Dunn, Tim and Narayanasamy, Satish},\n");
-    printf("    title = {vcfdist: Accurately benchmarking phased small variant calls in human genomes},\n");
-    printf("    elocation-id = {2023.03.10.532078},\n");
-    printf("    year = {2023},\n");
-    printf("    doi = {10.1101/2023.03.10.532078},\n");
-    printf("    publisher = {Cold Spring Harbor Laboratory},\n");
-    printf("    URL = {https://www.biorxiv.org/content/early/2023/03/12/2023.03.10.532078},\n");
-    printf("    eprint = {https://biorxiv.org/content/early/2023/03/12/2023.03.10.532078.full.pdf},\n");
-    printf("    journal = {bioRxiv}\n");
-    printf("  }\n");
+    printf("@article{dunn2023vcfdist,\n");
+    printf("  author={Dunn, Tim and Narayanasamy, Satish},\n");
+    printf("  title={vcfdist: Accurately benchmarking phased small variant calls in human genomes},\n");
+    printf("  journal={Nature Communications},\n");
+    printf("  year={2023},\n");
+    printf("  volume={14},\n");
+    printf("  number={1},\n");
+    printf("  pages={8149},\n");
+    printf("  issn={2041-1723},\n");
+    printf("  doi={10.1038/s41467-023-43876-x},\n");
+    printf("  URL={https://doi.org/10.1038/s41467-023-43876-x}\n");
+    printf("}\n");
+}
+
+
+std::string parent_path(std::string out_prefix) {
+    for (int i = out_prefix.size()-1; i >= 0; i--) {
+        if (out_prefix[i] == '/')
+            return out_prefix.substr(0, i+1);
+    }
+    return "";
+}
+
+
+void create_directory(std::string dir) {
+    char *p = strdup(dir.data());
+    char *sep = strchr(p+1, '/');
+    while(sep != NULL) {
+        *sep = '\0';
+        if (mkdir(p, 0755) && errno != EEXIST) {
+            ERROR("Unable to create directory '%s'", p);
+        }
+        *sep = '/';
+        sep = strchr(sep+1, '/');
+    }
+    free(p);
 }

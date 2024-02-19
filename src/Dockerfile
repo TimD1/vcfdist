@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 # set environment variables
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
-    PATH=/opt/bin/vcfdist/src:$PATH \
+    PATH=/usr/local/bin:$PATH \
     DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
@@ -21,6 +21,7 @@ RUN apt-get update --fix-missing && \
     liblzma-dev
 
 # set up HTSlib
+WORKDIR /tmp
 RUN wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2 && \
     tar -xvf htslib-1.17.tar.bz2
 WORKDIR ./htslib-1.17
@@ -28,10 +29,18 @@ RUN ./configure --prefix=/usr/local && \
     make && \
     make install
 
-# clone repo
-WORKDIR /opt/bin
-RUN git clone https://github.com/TimD1/vcfdist
+# install bcftools
+WORKDIR /tmp
+RUN wget https://github.com/samtools/bcftools/releases/download/1.17/bcftools-1.17.tar.bz2 && \
+    tar -xvf bcftools-1.17.tar.bz2
+WORKDIR ./bcftools-1.17
+RUN ./configure --prefix=/usr/local && \
+    make && \
+    make install
 
-# setup virtual environment
-WORKDIR /opt/bin/vcfdist/src
-RUN make
+# clone repo
+WORKDIR /tmp
+RUN git clone https://github.com/TimD1/vcfdist
+WORKDIR ./vcfdist/src
+RUN make && \
+    make install

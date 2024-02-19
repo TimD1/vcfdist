@@ -1,8 +1,6 @@
 #ifndef _GLOBALS_H_
 #define _GLOBALS_H_
 
-#include <filesystem>
-
 #include "bed.h"
 #include "defs.h"
 #include "timer.h"
@@ -31,7 +29,7 @@ public:
     int max_size = 5000;
 
     // clustering
-    bool simple_cluster = false;
+    std::string cluster_method = "biwfa";
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
@@ -78,10 +76,13 @@ public:
     void init_timers(std::vector<std::string> timer_strs);
 
     // program data
-    const std::string VERSION = "2.3.1";
+    const std::string VERSION = "2.4.0";
     const std::string PROGRAM = "vcfdist";
     std::vector<timer> timers;
 };
+
+std::string parent_path(std::string out_prefix);
+void create_directory(std::string dir);
 
 extern Globals g;
 

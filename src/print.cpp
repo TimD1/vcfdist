@@ -42,14 +42,14 @@ void write_params() {
         "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
         "min_var_qual = %d\nmax_var_qual = %d\nmin_var_size = %d\nmax_var_size = %d\nsv_threshold = %d\n"
         "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
-        "realign_only = %s\nsimple_cluster = %s\ncluster_min_gap = %d\n"
+        "realign_only = %s\ncluster_method = '%s'\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
         "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\ndistance = %s",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.min_size, g.max_size, g.sv_threshold,
         g.phase_threshold, g.credit_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
-        b2s(g.realign_only).data(), b2s(g.simple_cluster).data(), g.cluster_min_gap,
+        b2s(g.realign_only).data(), g.cluster_method.data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
         g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend, b2s(g.distance).data());
     fclose(out_params);
@@ -324,7 +324,7 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
 void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
     // for each class, store variant counts above each quality threshold
-    // init counters; ax0: SUB/INDEL, ax1: TP,FP,FN ax2: QUAL
+    // init counters; ax0: SNP/INDEL/SV/ALL, ax1: TP,FP,FN ax2: QUAL
     std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
             std::vector< std::vector<float> >(3, 
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
@@ -377,6 +377,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         }
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             query_counts[t][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                            query_counts[VARTYPE_ALL][ ctg_vars[QUERY][h]->errtypes[swap][i] ][qual-g.min_qual]++;
                         }
                     }
                 }
@@ -424,9 +425,11 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         // the quality threshold, is filtered, and becomes a false negative
                         for (int qual = g.min_qual; qual <= q; qual++) {
                             truth_counts[t][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
+                            truth_counts[VARTYPE_ALL][ ctg_vars[TRUTH][h]->errtypes[swap][i] ][qual-g.min_qual]++;
                         }
-                        for (int qual = q+1; qual < g.max_qual; qual++) {
+                        for (int qual = q+1; qual <= g.max_qual; qual++) {
                             truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
+                            truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
                         }
                     }
                 }
@@ -495,29 +498,34 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) 
             INFO("  Writing precision-recall summary to '%s'", out_pr_summ_fn.data());
         out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
-        fprintf(out_pr_summ, "VAR_TYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE\n");
+        fprintf(out_pr_summ, "VAR_TYPE\tTHRESHOLD\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\n");
     }
     INFO(" ");
     INFO("%sPRECISION-RECALL SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
+    INFO(" ");
+    INFO("%sTYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
+            COLOR_BLUE, COLOR_WHITE);
     for (int type = 0; type < VARTYPES; type++) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
-        INFO(" ");
-        INFO("%sTYPE\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
-                COLOR_BLUE, COLOR_WHITE);
+        std::vector<std::string> thresholds = {"NONE", "BEST"};
 
-        for (int qual : quals) {
+        for (int i = 0; i < int(quals.size()); i++) {
             // redo calculations for these two
+            int qual = quals[i];
+            std::string thresh = thresholds[i];
             int qidx = qual - g.min_qual;
 
             // define helper variables
             int query_tp = query_counts[type][ERRTYPE_TP][qidx];
             int query_fp = query_counts[type][ERRTYPE_FP][qidx];
             int query_tot = query_tp + query_fp;
-            if (query_tot == 0) WARN("No QUERY %s variant calls.", vartype_strs[type].data());
+            if (query_tot == 0 && type != VARTYPE_ALL) 
+                WARN("No QUERY %s variants pass all filters.", vartype_strs[type].data());
             int truth_tp = truth_counts[type][ERRTYPE_TP][qidx];
             int truth_fn = truth_counts[type][ERRTYPE_FN][qidx];
             int truth_tot = truth_tp + truth_fn;
-            if (truth_tot == 0) WARN("No TRUTH %s variant calls.", vartype_strs[type].data());
+            if (truth_tot == 0 && type != VARTYPE_ALL) 
+                WARN("No TRUTH %s variants pass all filters.", vartype_strs[type].data());
 
             // calculate summary metrics
             float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
@@ -525,9 +533,10 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             float f1_score = precision+recall > 0 ? 2*precision*recall / (precision + recall) : 0;
 
             // print summary
-            INFO("%s%s\tQ >= %d\t\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
+            INFO("%s%s\t%s Q >= %-2d\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
                 COLOR_BLUE,
                 vartype_strs[type].data(),
+                thresh.data(),
                 qual,
                 int(truth_counts[type][ERRTYPE_TP][qidx]),
                 int(query_counts[type][ERRTYPE_TP][qidx]),
@@ -540,8 +549,9 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                 COLOR_WHITE
             );
             if (g.write) fprintf(out_pr_summ,
-               "%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
+               "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
                 vartype_strs[type].data(),
+                thresh.data(),
                 qual,
                 int(truth_counts[type][ERRTYPE_TP][qidx]),
                 int(query_counts[type][ERRTYPE_TP][qidx]),
@@ -553,8 +563,8 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                 qscore(1-f1_score)
             );
         }
+        INFO(" ");
     }
-    INFO(" ");
     if (g.write) fclose(out_pr_summ);
 }
 
@@ -665,7 +675,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
         FILE* out_query = fopen(out_query_fn.data(), "w");
         fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
-                "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
+                "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (std::string ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
@@ -702,7 +712,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         default: swap = phase_switch; break;
                     }
 
-                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
+                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             query1_vars->poss[var1_idx],
                             query1_vars->haps[var1_idx],
@@ -715,6 +725,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster1_idx,
                             sci,
                             query1_vars->sync_group[swap][var1_idx],
+                            query1_vars->ref_ed[swap][var1_idx],
+                            query1_vars->query_ed[swap][var1_idx],
                             region_strs[query1_vars->locs[var1_idx]].data()
                            );
                     var1_idx++;
@@ -737,7 +749,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         default: swap = phase_switch; break;
                     }
 
-                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
+                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             query2_vars->poss[var2_idx],
                             query2_vars->haps[var2_idx],
@@ -750,6 +762,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster2_idx,
                             sci,
                             query2_vars->sync_group[swap][var2_idx],
+                            query2_vars->ref_ed[swap][var2_idx],
+                            query2_vars->query_ed[swap][var2_idx],
                             region_strs[query2_vars->locs[var2_idx]].data()
                            );
                     var2_idx++;
@@ -762,7 +776,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_truth_fn = g.out_prefix + "truth.tsv";
         if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
         FILE* out_truth = fopen(out_truth_fn.data(), "w");
-        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tLOCATION\n");
+        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (std::string ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
@@ -797,7 +811,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         default: swap = phase_switch; break;
                     }
 
-                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
+                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             truth1_vars->poss[var1_idx],
                             truth1_vars->haps[var1_idx],
@@ -810,6 +824,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster1_idx,
                             sci,
                             truth1_vars->sync_group[swap][var1_idx],
+                            truth1_vars->ref_ed[swap][var1_idx],
+                            truth1_vars->query_ed[swap][var1_idx],
                             region_strs[truth1_vars->locs[var1_idx]].data()
                            );
                     var1_idx++;
@@ -833,7 +849,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                         default: swap = phase_switch; break;
                     }
 
-                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%s\n",
+                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             truth2_vars->poss[var2_idx],
                             truth2_vars->haps[var2_idx],
@@ -846,6 +862,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             cluster2_idx,
                             sci,
                             truth2_vars->sync_group[swap][var2_idx],
+                            truth2_vars->ref_ed[swap][var2_idx],
+                            truth2_vars->query_ed[swap][var2_idx],
                             region_strs[truth2_vars->locs[var2_idx]].data()
                            );
                     var2_idx++;

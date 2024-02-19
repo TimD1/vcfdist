@@ -41,7 +41,7 @@ public:
     std::vector<int> phase_sets;    // integer representing variant phase set (0 = missing)
     int n = 0;
 
-    // set during (swg_)cluster()
+    // set during clustering
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
     std::vector<int> left_reaches;  // cluster leftmost reach
     std::vector<int> right_reaches; // cluster rightmost reach
@@ -55,6 +55,8 @@ public:
     // or for call, min quality in sync group
     std::vector< std::vector<float> > callq;   
     // percentage reduction in edit dist of sync group with variants
+    std::vector< std::vector<int> > ref_ed;  
+    std::vector< std::vector<int> > query_ed;  
     std::vector< std::vector<float> > credit;  
 };
 

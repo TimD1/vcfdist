@@ -18,7 +18,8 @@ ctgVariants::ctgVariants() {
         this->sync_group.push_back(std::vector<int>());
         this->callq.push_back(std::vector<float>());
         this->credit.push_back(std::vector<float>());
-
+        this->ref_ed.push_back(std::vector<int>());
+        this->query_ed.push_back(std::vector<int>());
     }
 }
 
@@ -44,6 +45,8 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t 
         this->errtypes[i].push_back(ERRTYPE_UN);
         this->sync_group[i].push_back(0);
         this->credit[i].push_back(0);
+        this->ref_ed[i].push_back(0);
+        this->query_ed[i].push_back(0);
         this->callq[i].push_back(0);
     }
 }
@@ -227,14 +230,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PS:PB:BS:FE", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:FE", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:BK:QQ:SC:SG:PS:PB:BS:FE", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:FE", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -246,7 +249,7 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 
 void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx, 
         int phase_block, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:%d:.:.:%d:.:.%s", sc_idx, phase_block, query ? "\n" : "");
+    fprintf(out_fp, "\t.:.:.:.:.:.:.:%d:.:.:%d:.:.%s", sc_idx, phase_block, query ? "\n" : "");
 }
 
 
@@ -270,8 +273,11 @@ void ctgVariants::print_var_sample(FILE* out_fp, int idx, std::string gt,
         errtype = query ? "FP" : "FN"; match_type = "lm";
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[swap][idx], match_type.data(), int(this->var_quals[idx]), sc_idx, 
+    fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
+            this->credit[swap][idx], 
+            this->ref_ed[swap][idx] == 0 ? "." : std::to_string(this->ref_ed[swap][idx]).data(),
+            this->ref_ed[swap][idx] == 0 ? "." : std::to_string(this->query_ed[swap][idx]).data(),
+            match_type.data(), int(this->var_quals[idx]), sc_idx, 
             int(this->sync_group[swap][idx]), this->phase_sets[idx], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
             query ? (phase_flip ? "1" : "0") : "." , 
@@ -817,15 +823,15 @@ variantData::variantData(std::string vcf_fn,
                     break;
             }
 
-            // check that variant is in region of interest
-            uint8_t loc = g.bed.contains(ctg, pos, pos + rlen);
+            // check that variant (original representation) is in region of interest
+            uint8_t loc = g.bed.contains(ctg, rec->pos, rec->pos + reflen, type);
             switch (loc) {
                 case BED_OUTSIDE: 
                 case BED_OFFCTG:
+                case BED_BORDER:
                     nregions[loc]++;
                     continue; // discard variant
                 case BED_INSIDE: 
-                case BED_BORDER:
                     nregions[loc]++;
                     break;
                 default:
@@ -940,7 +946,7 @@ variantData::variantData(std::string vcf_fn,
                 callset_strs[callset].data());
 
     if (nregions[BED_BORDER] && print)
-        INFO("%d variants on border of selected regions in %s VCF, kept",
+        INFO("%d variants on border of selected regions in %s VCF, skipped",
                 nregions[BED_BORDER], callset_strs[callset].data());
 
     if (large_var_total)
