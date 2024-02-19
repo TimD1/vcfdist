@@ -31,4 +31,5 @@ query_versions=(
 truvari_refine_options=(
     "wfa"
     "mafft"
+    "poa"
 )
