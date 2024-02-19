@@ -106,7 +106,7 @@ def hap2(var):
 
 
 
-am = pp = am_diff = snp = 0
+am = pp = am_diff = snps = dels = 0
 for ds in datasets:
     truvari_records = {}
     vcfdist_records = {}
@@ -166,14 +166,20 @@ for ds in datasets:
         if var in vcfeval_records: (size, ve_type, ve_bk) = vcfeval_records[var]
         if var in truvari_records: (size, tv_type, tv_bk) = truvari_records[var]
         skips[0 if vd_type else 1][0 if ve_type else 1][0 if tv_type else 1] += 1
-        if vd_type and ve_type and tv_type:
+
+        loc, ref, alt, gt = var.split()
+
+        if vd_type and not ve_type and not tv_type:
+            print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk}")
+
+        if vd_type and ve_type and tv_type: # all tools compare
             i = vd_type-1
             j = (ve_type-1)*2 + tv_type-1
             counts[size][i][j] += 1
             if i == 0 and j == 1:
                 if tv_bk == "am": # truvari allele match
                     am += 1
-                    print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
+                    # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                 else:
                     # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                     pass
@@ -201,10 +207,16 @@ for ds in datasets:
 
         elif size == SZ_SNP and vd_type and ve_type and not tv_type: # Truvari skips SNPs
             counts[size][vd_type-1][(ve_type-1)*2] += 1
-            snp += 1
-        elif ve_type and tv_type and not vd_type:
+            snps += 1
+
+        elif vd_type and ve_type and not tv_type: # Truvari skip
             # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
+            # if len(ref) > len(alt):
+            #     dels += 1
             pass
+
+        elif ve_type and tv_type and not vd_type:
+            print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
 
 
 sum_counts = counts[SZ_INDEL][:][:] + counts[SZ_SV][:][:]
@@ -212,14 +224,14 @@ print("[truvari-only TP] more lenient allele match:", am)
 print("[vcfeval-only FP] inexact match:", pp)
 print("[vcfeval-only FP] allele match stringency diff:", am_diff)
 
-# print("         all keep:", skips[0][0][0])
-# print("         all skip:", skips[1][1][1])
-# print("vcfdist-only skip:", skips[1][0][0])
-# print("vcfeval-only skip:", skips[0][1][0])
-# print("truvari-only skip:", skips[0][0][1], f" of which {snp} are SNPs")
-# print("vcfdist-only keep:", skips[0][1][1])
-# print("vcfeval-only keep:", skips[1][0][1])
-# print("truvari-only keep:", skips[1][1][0])
+print("         all keep:", skips[0][0][0])
+print("         all skip:", skips[1][1][1])
+print("vcfdist-only skip:", skips[1][0][0])
+print("vcfeval-only skip:", skips[0][1][0])
+print("truvari-only skip:", skips[0][0][1], f" of which {snps} are SNPs and {dels} are DELs")
+print("vcfdist-only keep:", skips[0][1][1])
+print("vcfeval-only keep:", skips[1][0][1])
+print("truvari-only keep:", skips[1][1][0])
 
 fig, ax = plt.subplots(figsize=(3,6))
 ax.matshow(np.log(sum_counts + 0.1), cmap='Greys')

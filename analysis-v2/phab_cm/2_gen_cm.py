@@ -160,7 +160,7 @@ for var in records:
     if var in truvari_records: (size, tv_type, gts) = truvari_records[var]
     if vd_type and ve_type and tv_type:
         counts[size][vd_type-1][(ve_type-1)*2 + tv_type-1] += gts
-    if size == SZ_SNP and vd_type and ve_type and not tv_type:
+    elif size == SZ_SNP and vd_type and ve_type and not tv_type:
         counts[size][vd_type-1][(ve_type-1)*2] += gts
 
 for size_idx in range(SZ_DIMS):

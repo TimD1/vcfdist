@@ -27,8 +27,3 @@ query_versions=(
     "v4"
     "v4.20"
 )
-
-truvari_refine_options=(
-    "wfa"
-    "mafft"
-)
