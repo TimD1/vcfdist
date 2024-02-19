@@ -228,42 +228,45 @@ void check_contigs(
                 ERROR("Contig '%s' found in truth VCF but not reference FASTA. Please provide BED file.", ctg.data());
         }
 
-        // remove all extraneous contigs
-        std::vector<std::string>::iterator itr = query_ptr->contigs.begin();
-        while (itr != query_ptr->contigs.end()) { // query
-            if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
-                        *itr) == truth_ptr->contigs.end()) {
-                ERROR("Contig '%s' found in query VCF but not truth VCF. Please provide BED file.", (*itr).data());
-                query_ptr->lengths.erase(query_ptr->lengths.begin() + 
-                        (itr - query_ptr->contigs.begin()));
-                query_ptr->ploidy.erase(query_ptr->ploidy.begin() + 
-                        (itr - query_ptr->contigs.begin()));
-                query_ptr->variants[HAP1].erase(*itr);
-                query_ptr->variants[HAP2].erase(*itr);
-                itr = query_ptr->contigs.erase(itr);
-            } else itr++;
-        }
-        auto itr2 = ref_ptr->fasta.begin();
-        while (itr2 != ref_ptr->fasta.end()) { // fasta
-            if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
-                        itr2->first) == truth_ptr->contigs.end()) {
-                itr2 = ref_ptr->fasta.erase(itr2);
-            } else itr2++;
-        }
-
-        // ensure all inputs contain required contigs (even if empty)
-        for (std::string ctg : truth_ptr->contigs) {
+        // ensure query/truth VCFs contain the same contigs (even if devoid of variants)
+        for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
+            std::string ctg = truth_ptr->contigs[i];
             if (std::find(query_ptr->contigs.begin(), 
                         query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
-                WARN("Contig '%s' found in truth VCF but not query VCF.", ctg.data());
+                WARN("Contig '%s' found in truth VCF but not query VCF."
+                     " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
                 query_ptr->variants[HAP1][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 query_ptr->variants[HAP2][ctg] = 
                         std::shared_ptr<ctgVariants>(new ctgVariants());
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                query_ptr->ploidy.push_back(0);
+                query_ptr->ploidy.push_back(truth_ptr->ploidy[i]);
             }
+        }
+        for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
+            std::string ctg = query_ptr->contigs[i];
+            if (std::find(truth_ptr->contigs.begin(), 
+                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
+                WARN("Contig '%s' found in query VCF but not truth VCF."
+                     " All query variants on '%s' will be false positives.", ctg.data(), ctg.data());
+                truth_ptr->variants[HAP1][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                truth_ptr->variants[HAP2][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                truth_ptr->contigs.push_back(ctg);
+                truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+                truth_ptr->ploidy.push_back(query_ptr->ploidy[i]);
+            }
+        }
+
+        // remove extra contigs from fasta
+        auto itr = ref_ptr->fasta.begin();
+        while (itr != ref_ptr->fasta.end()) {
+            if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
+                        itr->first) == truth_ptr->contigs.end()) {
+                itr = ref_ptr->fasta.erase(itr);
+            } else itr++;
         }
     }
 
