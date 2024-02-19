@@ -68,7 +68,21 @@ Please cite the following works if you use vcfdist:
 
 ## Installation
 
-### Option 1: GitHub Source
+### Option 1: bioconda
+If you have `conda` installed with the `bioconda` channel (instructions [here](https://bioconda.github.io/)), run:
+```bash
+conda install vcfdist
+```
+
+### Option 2: Docker image
+A pre-built Docker Hub image can be downloaded from <a href="https://hub.docker.com/r/timd1/vcfdist">here</a> using:
+```bash
+sudo docker pull timd1/vcfdist
+sudo docker run -it timd1/vcfdist:latest vcfdist --help
+```
+
+
+### Option 3: GitHub source
 vcfdist is developed for Linux and its only dependencies are GCC v9.1+ and HTSlib v1.17. If you don't have HTSlib already, please set it up as follows:
 ```bash
 > wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
@@ -88,13 +102,6 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 > sudo make install
 > vcfdist --version
 vcfdist v2.4.0
-```
-
-### Option 2: Docker Image
-A pre-built Docker Hub image can be downloaded from <a href="https://hub.docker.com/r/timd1/vcfdist">here</a> using:
-```bash
-sudo docker pull timd1/vcfdist
-sudo docker run -it timd1/vcfdist:latest vcfdist --help
 ```
 
 ## Usage
