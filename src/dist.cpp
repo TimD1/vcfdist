@@ -1191,10 +1191,7 @@ void calc_prec_recall(
                         ref_ed, offs, ptrs);
 
                 // this should never happen
-                if (new_ed > old_ed)
-                    WARN("New edit distance exceeds old edit distance at supercluster %d", sc_idx);
-                // this should never happen
-                if (prev_query_var_ptr == query_var_ptr && old_ed != new_ed) {
+                if (prev_query_var_ptr == query_var_ptr && ref_ed != query_ed) {
                     WARN("Non-zero edit distance with no truth variants at ctg %s supercluster %d",
                             ctg.data(), sc_idx);
 
@@ -1257,12 +1254,6 @@ void calc_prec_recall(
                 if (query_ed > ref_ed)
                     WARN("New edit distance exceeds old edit distance at supercluster %d, %s:%d",
                             sc_idx, ctg.data(), query_vars->poss[query_var_ptr]);
-
-                /* if (prev_query_var_ptr == query_var_ptr && */
-                /*         ref_ed != query_ed) { */
-                /*     WARN("Non-zero edit distance with no truth variants at supercluster %d, %s:%d", */
-                /*             sc_idx, ctg.data(), query_vars->poss[query_var_ptr]); */
-                /* } */
 
                 if (print) {
                     printf("  ref[%2d:+%2d] ", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
