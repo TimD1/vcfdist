@@ -566,9 +566,9 @@ void calc_prec_recall_path(
                     }
 
                     // check for tp
-                    bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
-                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+                    bool is_tp = x.hi == qi && ((query_ref_ptrs[i][PTRS][x.qri] != 
+                            query_ref_ptrs[i][PTRS][y.qri]+1) || // INS
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
@@ -607,11 +607,7 @@ void calc_prec_recall_path(
                         // check if mvmt is in variant
                         bool in_truth_var = truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VARIANT;
                         in_truth_var &= !(truth_ref_ptrs[i][FLAGS][x.ti] & PTR_VAR_BEG);
-                        bool in_query_var = (x.hi == ri) ? false : 
-                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VARIANT;
-                        in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
-
-                        // no need to check for TP since we were on REF, not QUERY
+                        bool in_query_var = false;
                         bool is_tp = false;
                         
                         // update score
@@ -654,9 +650,9 @@ void calc_prec_recall_path(
                         in_query_var &= !(query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG);
 
                         // check for tp
-                        bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                                ref_query_ptrs[i][PTRS][x.qri-1]+1) || // INS
-                                ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+                        bool is_tp = x.hi == qi && ((query_ref_ptrs[i][PTRS][x.qri] != 
+                                query_ref_ptrs[i][PTRS][x.qri-1]+1) || // INS
+                                query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                         // update score
                         if (!done[z.hi][z.qri][z.ti] &&
@@ -707,9 +703,9 @@ void calc_prec_recall_path(
                     }
 
                     // check for tp
-                    bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
-                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+                    bool is_tp = x.hi == qi && ((query_ref_ptrs[i][PTRS][x.qri] != 
+                            query_ref_ptrs[i][PTRS][y.qri]+1) || // INS
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
@@ -747,9 +743,9 @@ void calc_prec_recall_path(
                     }
 
                     // check for tp
-                    bool is_tp = x.hi == qi && ((ref_query_ptrs[i][PTRS][x.qri] != 
-                            ref_query_ptrs[i][PTRS][y.qri]+1) || // INS
-                            ref_query_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
+                    bool is_tp = x.hi == qi && ((query_ref_ptrs[i][PTRS][x.qri] != 
+                            query_ref_ptrs[i][PTRS][y.qri]+1) || // INS
+                            query_ref_ptrs[i][FLAGS][x.qri] & PTR_VAR_BEG); // SUB/DEL
 
                     // update score
                     if (!done[y.hi][y.qri][y.ti] &&
@@ -1116,18 +1112,7 @@ void calc_prec_recall(
             }
 
             // mark FPs and record variants within sync group
-            while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // just passed variant(s)
-
-                // in query variant
-                if (prev_hi == qi && query_ref_ptrs[i][FLAGS][prev_qri] & PTR_VARIANT) {
-                    // ignore if in middle of reference deletion
-                    if (hi == ri && !(ref_query_ptrs[i][FLAGS][qri] & PTR_VAR_BEG))
-                        break;
-                    // ignore if didn't move or in middle of query variant
-                    if (hi == qi && (qri == prev_qri ||
-                                !(query_ref_ptrs[i][FLAGS][qri] & PTR_VAR_BEG)))
-                        break;
-                }
+            while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // passed query variant
 
                 if (print)
                     printf("query ref pos: %d, query_var_pos: %d, @%s(%2d,%2d) = REF(%2d,%2d)\n",
@@ -1161,16 +1146,7 @@ void calc_prec_recall(
 
             // count truth variants
             int truth_ref_pos = truth_ref_ptrs[i][PTRS][prev_ti];
-            while (truth_ref_pos < truth_var_pos && truth_var_ptr >= truth_beg_idx) { // passed REF variant
-
-                // in variant and didn't just leave variant
-                if (truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VARIANT && 
-                         !(truth_ref_ptrs[i][FLAGS][ti] & PTR_VAR_BEG)) {
-                    break;
-                }
-                // in variant and no truth movement
-                if (truth_ref_ptrs[i][FLAGS][prev_ti] & PTR_VARIANT && ti == prev_ti)
-                    break;
+            while (truth_ref_pos < truth_var_pos && truth_var_ptr >= truth_beg_idx) { // passed truth variant
 
                 // update to next truth variant to be found
                 truth_var_ptr--;
@@ -1178,7 +1154,7 @@ void calc_prec_recall(
                     truth_vars->poss[truth_var_ptr] - beg;
             }
 
-            // sync point: set TP/PP
+            // sync point: set TP
             if (sync[i][sync_idx]) {
 
                 // calculate edit distance without variants
@@ -1190,11 +1166,30 @@ void calc_prec_recall(
                         truth[i].substr(sync_truth_idx, prev_sync_truth_idx - sync_truth_idx), 
                         ref_ed, offs, ptrs);
 
-                // this should never happen
-                if (prev_query_var_ptr == query_var_ptr && ref_ed != query_ed) {
-                    WARN("Non-zero edit distance with no truth variants at ctg %s supercluster %d",
-                            ctg.data(), sc_idx);
+                // the following cases should never happen
+                bool warn = false;
+                if (prev_truth_var_ptr == truth_var_ptr && ref_ed != 0) {
+                    WARN("Nonzero reference edit distance with no truth variants at ctg %s supercluster %d", ctg.data(), sc_idx);
+                    warn = true;
+                }
+                if (prev_query_var_ptr == query_var_ptr && query_ed != ref_ed) {
+                    WARN("Query edit distance changed with no query variants at ctg %s supercluster %d", ctg.data(), sc_idx);
+                    warn = true;
+                }
+                if (query_ed > ref_ed) {
+                    WARN("Query edit distance exceeds reference edit distance at ctg %s supercluster %d", ctg.data(), sc_idx);
+                    warn = true;
+                }
 
+                // This only happens when the truth VCF contains several variants that, when
+                // combined, are equivalent to no variants. In this case, the truth VCF should
+                // be fixed. Output a warning, and allow the evaluation to continue.
+                if (ref_ed == 0 && truth_var_ptr != prev_truth_var_ptr) {
+                    WARN("Zero edit distance with truth variants at ctg %s supercluster %d", ctg.data(), sc_idx);
+                    ref_ed = 1; // prevent divide-by-zero
+                }
+                
+                if (warn) {
                     printf("\n\nSupercluster: %d\n", sc_idx);
                     std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
                     for (int j = 0; j < CALLSETS*HAPS; j++) {
@@ -1221,7 +1216,9 @@ void calc_prec_recall(
                             }
                         }
                     }
+                }
 
+                if (false) { // debug
                     printf("%s Path:\n", aln_strs[i].data());
                     for (int j = sync[i].size()-1; j >= 0; j--) {
                         if (j == int(sync[i].size())-1)
@@ -1241,21 +1238,7 @@ void calc_prec_recall(
                     print_ref_ptrs(ref_query_ptrs[i]);
                     printf("truth->ref ptrs:\n");
                     print_ref_ptrs(truth_ref_ptrs[i]);
-                }
 
-                // this only happens when the truth VCF contains several variants that, when
-                // combined, are equivalent to no variants. In this case, the truth VCF should
-                // be fixed. Output a warning, and allow the evaluation to continue.
-                if (ref_ed == 0 && truth_var_ptr != prev_truth_var_ptr) {
-                    WARN("Zero edit distance with truth variants at supercluster %d, %s:%d", 
-                            sc_idx, ctg.data(), truth_vars->poss[truth_var_ptr]);
-                    ref_ed = 1; // prevent divide-by-zero
-                }
-                if (query_ed > ref_ed)
-                    WARN("New edit distance exceeds old edit distance at supercluster %d, %s:%d",
-                            sc_idx, ctg.data(), query_vars->poss[query_var_ptr]);
-
-                if (print) {
                     printf("  ref[%2d:+%2d] ", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx);
                     printf("%s\n", ref.substr(sync_ref_idx, 
                                 prev_sync_ref_idx - sync_ref_idx).data());
