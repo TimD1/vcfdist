@@ -998,6 +998,7 @@ variantData::variantData(std::string vcf_fn,
     free(gq);
     free(fgq);
     free(gt);
+    free(PS);
     free(ctgnames);
     bcf_hdr_destroy(hdr);
     bcf_close(vcf);
