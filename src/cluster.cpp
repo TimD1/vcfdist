@@ -253,7 +253,7 @@ void superclusterData::transfer_phase_sets() {
             int query_ps_ct = 0;
             int truth_ps_ct = 0;
             int non_increasing = 0;
-            if (print) printf("supercluster: %d", sci);
+            if (print) printf("supercluster: %d\n", sci);
 
             // check all variants in supercluster for each haplotype
             if (q1v->n)
@@ -550,6 +550,7 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     if (g.verbosity >= 1) INFO("%sClustering %s VCF%s '%s'", 
             COLOR_PURPLE, callset_strs[callset].data(), 
             COLOR_WHITE, vcf->filename.data());
+    bool print = false;
 
     // cluster each contig
     for (std::string ctg : vcf->contigs) {
@@ -558,7 +559,7 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
         for (int hap = 0; hap < HAPS; hap++) {
 
             std::shared_ptr<ctgVariants> vars = vcf->variants[hap][ctg];
-            if (!vars->n) return;
+            if (!vars->n) break;
 
             // mark variant boundary between clusters (hence n+1), 
             // with initially one variant per cluster
@@ -571,9 +572,6 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
             // save temp clustering (generate_str assumes clustered)
             vars->clusters = prev_clusters;
 
-            // set far left/right to avoid OOB for first/last clusters
-            left_reach[0] = vars->poss[0];
-            right_reach[prev_clusters.size()-2] = vars->poss[vars->n-1];
             // set sentinel reaches
             left_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
             right_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
@@ -599,19 +597,14 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
                                     ctg.data(), vars->poss[var]);
                     }
                 }
-
-                // check for no left cluster
-                if (var != 0) {
-                    int l_reach = vars->poss[var] - 
-                            std::max(g.cluster_min_gap, var_size);
-                    left_reach[var] = l_reach;
-                }
-                // check for no right cluster
-                if (var < vars->n - 1) {
-                    int r_reach = vars->poss[var] + vars->rlens[var] +
-                            std::max(g.cluster_min_gap, var_size);
-                    right_reach[var] = r_reach;
-                }
+                left_reach[var] = vars->poss[var] - 
+                        std::max(g.cluster_min_gap, var_size);
+                right_reach[var] = vars->poss[var] + vars->rlens[var] +
+                        std::max(g.cluster_min_gap, var_size);
+                if (print) printf("%s %s:%d hap %d, (%.10s -> %.10s) [%d,%d]\n",
+                        callset_strs[callset].data(), ctg.data(), vars->poss[var], hap, 
+                        vars->refs[var].data(), vars->alts[var].data(), 
+                        left_reach[var], right_reach[var]);
             }
 
             // merge dependent clusters rightwards
@@ -665,8 +658,13 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
             vars->clusters = next_clusters;
             vars->left_reaches = left_reach;
             vars->right_reaches = right_reach;
-        }
-    }
+
+            if (vars->clusters[vars->clusters.size()-1] != vars->n) {
+                ERROR("Mismatch between original and clustered variant count, contig '%s' hap %d",
+                        ctg.data(), hap);
+            }
+        } // hap
+    } // ctg
 }
 
 
@@ -716,9 +714,6 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
         // save temp clustering (generate_str assumes clustered)
         vars->clusters = prev_clusters;
 
-        // set far left/right to avoid OOB for first/last clusters
-        left_reach[0] = vars->poss[0];
-        right_reach[prev_clusters.size()-2] = vars->poss[vars->n-1];
         // set sentinel reaches
         left_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
         right_reach[prev_clusters.size()-1] = std::numeric_limits<int>::max();
@@ -731,11 +726,8 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
             bool right_compute = prev_active[clust];
 
             // no left cluster, or sentinel
-            if (clust == 0 || clust == prev_clusters.size()-1) {
+            if (clust == prev_clusters.size()-1) {
                 left_compute = false;
-            }
-            // no right cluster, or sentinel
-            if (clust >= prev_clusters.size()-2) {
                 right_compute = false;
             }
 
@@ -778,18 +770,6 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
             // LEFT REACH 
             if (left_compute) { // calculate left reach
                 std::string query, ref;
-
-                // error checking
-                if (vars->clusters[clust]-1 < 0)
-                    ERROR("left var_idx < 0");
-                if (vars->clusters[clust]-1 >= vars->n)
-                    ERROR("left var_idx >= nvar");
-                if (clust+1 >= vars->clusters.size())
-                    ERROR("left next clust_idx >= nclust");
-                if (vars->clusters[clust+1]-1 < 0)
-                    ERROR("left next var_idx < 0");
-                if (vars->clusters[clust+1]-1 >= vars->n)
-                    ERROR("left next var_idx >= nvar");
 
                 // just after last variant in this cluster
                 int beg_pos = vars->poss[vars->clusters[clust]]-1;
@@ -848,18 +828,6 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
             // RIGHT REACH
             if (right_compute) { // calculate right reach
                 std::string query, ref;
-
-                // error checking
-                if (vars->clusters[clust] < 0)
-                    ERROR("right var_idx < 0");
-                if (vars->clusters[clust] >= vars->n)
-                    ERROR("right var_idx >= nvar");
-                if (clust+1 >= vars->clusters.size())
-                    ERROR("right next clust_idx >= nclust");
-                if (vars->clusters[clust+1] < 0)
-                    ERROR("right next var_idx < 0");
-                if (vars->clusters[clust+1] >= vars->n)
-                    ERROR("right next var_idx >= nvar");
 
                 // right before current cluster
                 int beg_pos = vars->poss[vars->clusters[clust]]-1;
