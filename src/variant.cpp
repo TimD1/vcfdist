@@ -456,7 +456,6 @@ variantData::variantData(std::string vcf_fn,
     int spanning_del_total = 0;
     int unknown_allele_total = 0;
     int unphased_gt_total = 0;
-    int small_var_total = 0;
     int large_var_total = 0;
     int wrong_ploidy_total = 0;
     int multi_total = 0;
@@ -848,14 +847,6 @@ variantData::variantData(std::string vcf_fn,
                 large_var_total++;
                 continue;
             }
-            if (int(ref.size()) < g.min_size && int(alt.size()) < g.min_size) {
-                if (g.verbosity > 1)
-                    WARN("Small variant of length %d in %s VCF at %s:%lld, skipping",
-                        int(std::max(ref.size(), alt.size())),
-                        callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
-                small_var_total++;
-                continue;
-            }
 
             // skip overlapping variants
             if (prev_end[hap] > pos || // skip overlapping variants
@@ -952,10 +943,6 @@ variantData::variantData(std::string vcf_fn,
     if (large_var_total)
         WARN("%d large (size > %d) variants in %s VCF, skipped", 
                 large_var_total, g.max_size, callset_strs[callset].data());
-
-    if (small_var_total)
-        WARN("%d small (size < %d) variants in %s VCF, skipped", 
-                small_var_total, g.min_size, callset_strs[callset].data());
 
     if (overlapping_var_total)
         WARN("%d overlapping variants in %s VCF, skipped", 

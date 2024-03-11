@@ -25,7 +25,6 @@ public:
     std::vector<int> filter_ids;
     int min_qual = 0;
     int max_qual = 60;
-    int min_size = 1;
     int max_size = 5000;
 
     // clustering

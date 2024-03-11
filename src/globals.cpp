@@ -156,21 +156,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("%s", e.what());
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-s" || 
-                std::string(argv[i]) == "--smallest-variant") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--smallest-variant' used without providing minimum variant size");
-            }
-            try {
-                this->min_size = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid minimum variant size provided");
-            }
-            if (g.min_size < 0) {
-                ERROR("Must provide non-negative minimum variant size");
-            }
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-l" || 
                 std::string(argv[i]) == "--largest-variant") {
             i++;
@@ -459,22 +444,12 @@ void Globals::parse_args(int argc, char ** argv) {
         }
     }
 
-    // final check, independent of order command-line params are set
-    if (g.max_size < g.min_size) {
-        ERROR("Maximum variant size must exceed smallest variant size");
-    }
+    // final checks, independent of order command-line params are set
     if (g.max_qual < g.min_qual) {
         ERROR("Maximum variant quality must exceed minimum variant quality");
     }
 
     // warn about variant size exclusions and categories
-    if (g.min_size > 1) {
-        WARN("No SNPs will be evaluated with --smallest %d", g.min_size);
-    }
-    if (g.min_size >= g.sv_threshold) {
-        WARN("No INDELs will be evaluated, since --smallest %d >= --sv-threshold %d", 
-                g.min_size, g.sv_threshold);
-    }
     if (g.max_size < g.sv_threshold) {
         WARN("No SVs will be evaluated, since --largest %d < --sv-threshold %d", 
                 g.max_size, g.sv_threshold);
@@ -529,8 +504,6 @@ void Globals::print_usage() const
     printf("\n  Variant Filtering/Selection:\n");
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
     printf("      select just variants passing these FILTERs (OR operation)\n");
-    printf("  -s, --smallest-variant <INTEGER> [%d]\n", g.min_size);
-    printf("      minimum variant size, smaller variants ignored (SNPs are size 1)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
     printf("      maximum variant size, larger variants ignored\n");
     printf("  -sv, --sv-threshold <INTEGER> [%d]\n", g.sv_threshold);
