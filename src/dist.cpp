@@ -1034,7 +1034,7 @@ void calc_prec_recall(
         bool swap = (i == QUERY1_TRUTH2 || i == QUERY2_TRUTH1);
 
         int ri = i*2 + REF;   // ref index
-        int qi = i*2 + QUERY; // call index
+        /* int qi = i*2 + QUERY; // call index (unused -> commented) */
         int qhi = i >> 1;     // query hap index
         int thi = i & 1;      // truth hap index
 

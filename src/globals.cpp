@@ -394,11 +394,17 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "-r" ||
                 std::string(argv[i]) == "--max-ram") {
             i++;
+            size_t offset = 0;
             if (i == argc) {
                 ERROR("Option '--max-ram' used without providing max RAM");
             }
             try {
-                this->max_ram = std::stod(argv[i++]);
+                this->max_ram = std::stod(argv[i], &offset);
+                if (offset != std::string(argv[i]).size()) {
+                    WARN("Trailing text '%s' ignored for --max-ram, units are GB",
+                            std::string(argv[i]).substr(offset).data());
+                }
+                i++;
             } catch (const std::exception & e) {
                 ERROR("Invalid max RAM provided");
             }
