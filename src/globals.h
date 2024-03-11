@@ -75,7 +75,7 @@ public:
     void init_timers(std::vector<std::string> timer_strs);
 
     // program data
-    const std::string VERSION = "2.4.0";
+    const std::string VERSION = "2.5.0";
     const std::string PROGRAM = "vcfdist";
     std::vector<timer> timers;
 };
