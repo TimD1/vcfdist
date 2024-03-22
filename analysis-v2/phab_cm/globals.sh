@@ -1,12 +1,12 @@
 #!/bin/bash
 
-data="/home/timdunn/vcfdist/data"
-out="/home/timdunn/vcfdist/analysis-v2/phab_cm"
-parallel="/home/timdunn/parallel-20211222/src/parallel"
-vcfdist="/home/timdunn/vcfdist/src/vcfdist"
-rtg="/home/timdunn/software/rtg-tools-3.12.1/rtg"
-tabix="/home/timdunn/software/htslib-1.16/tabix"
-bgzip="/home/timdunn/software/htslib-1.16/bgzip"
+data="/data-share/timdunn/vcfdist/data"
+out="/data-share/timdunn/vcfdist/analysis-v2/phab_cm"
+parallel="/data-share/timdunn/parallel-20211222/src/parallel"
+vcfdist="/data-share/timdunn/vcfdist/src/vcfdist"
+rtg="/data-share/timdunn/software/rtg-tools-3.12.1/rtg"
+tabix="/data-share/timdunn/software/htslib-1.16/tabix"
+bgzip="/data-share/timdunn/software/htslib-1.16/bgzip"
 timer="/usr/bin/time"
 
 # define reference FASTA

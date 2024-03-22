@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 phab = True
 ds = "pav"
 colors = {"hprc": "Greens", "pav": "Reds", "giab-tr": "Blues"}
+names = {"t2t-q100": "Q100-dipcall", "hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR"}
 if phab: phab_prefix = "phab-"
 else: phab_prefix = ""
 truvari_prefix = f"./{phab_prefix}truvari/{ds}/result_"
@@ -166,7 +167,7 @@ for var in records:
 for size_idx in range(SZ_DIMS):
     fig, ax = plt.subplots(figsize=(2,4))
     ax.matshow(np.log(counts[size_idx] + 0.1), cmap=colors[ds])
-    plt.title(f"{ds.upper()} {sizes[size_idx]} Confusion Matrix", fontsize=7)
+    plt.title(f"{names[ds]}\n{sizes[size_idx]} Confusion Matrix", fontsize=7)
     plt.ylabel("vcfdist", fontsize=7)
     ax.set_yticks(list(range(VD_DIMS-1)))
     ax.set_yticklabels(vd_cats[1:], fontsize=5)

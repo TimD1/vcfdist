@@ -25,7 +25,7 @@ counts = np.zeros((SZ_DIMS, DIMS-1, 2*(DIMS-1)))
 skips = np.zeros((2,2,2), dtype=int)
 
 def record_string(record):
-    return f"{record.CHROM}:{record.POS} {record.REF} {record.ALT[0]} {record.genotype('QUERY')['GT']}"
+    return f"{record.CHROM}:{record.POS}\t{record.REF}\t{record.ALT[0]}\t{record.genotype('QUERY')['GT']}"
 
 def get_size(record):
     ref = record.REF
@@ -169,9 +169,6 @@ for ds in datasets:
 
         loc, ref, alt, gt = var.split()
 
-        if vd_type and not ve_type and not tv_type:
-            print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk}")
-
         if vd_type and ve_type and tv_type: # all tools compare
             i = vd_type-1
             j = (ve_type-1)*2 + tv_type-1
@@ -181,29 +178,29 @@ for ds in datasets:
                     am += 1
                     # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                 else:
-                    # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
+                    # print(f"truvari TP\t{ds}\t{var}\tVD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                     pass
             if i == 0 and j == 2:
                 # vcfeval considers two INSs at same location
-                # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                 pass
+                # print(f"vcfeval TP\t{ds}\t{var}\tVD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
             if i == 0 and j == 3:
                 pass
-                # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
+                # print(f"vcfdist FP\t{ds}\t{var}\tVD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
             if i == 1 and j == 0:
+                # print(f"vcfdist TP\t{ds}\t{var}\tVD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                 pass
-                # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
             if i == 1 and j == 1:
                 if vd_bk == "lm":
                     pp += 1
                 elif vd_bk == "gm" and ve_bk == "am" and tv_bk == "am":
                     am_diff += 1
                 else:
-                    # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
+                    # print(f"vcfeval FP\t{ds}\t{var}\tVD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                     pass
             if i == 1 and j == 2:
+                print(f"truvari FP\t{ds}\t{var}\tVD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
                 pass
-                # print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
 
         elif size == SZ_SNP and vd_type and ve_type and not tv_type: # Truvari skips SNPs
             counts[size][vd_type-1][(ve_type-1)*2] += 1
@@ -214,9 +211,6 @@ for ds in datasets:
             # if len(ref) > len(alt):
             #     dels += 1
             pass
-
-        elif ve_type and tv_type and not vd_type:
-            print(f"{ds} {var} VD={cats[vd_type]}:{vd_bk} VE={cats[ve_type]}:{ve_bk} TV={cats[tv_type]}:{tv_bk}")
 
 
 sum_counts = counts[SZ_INDEL][:][:] + counts[SZ_SV][:][:]
