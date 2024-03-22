@@ -39,44 +39,6 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases) {
 /******************************************************************************/
 
 
-/* Reverse two strings and their associated pointers for reverse alignment. */
-void reverse_ptrs_strs(
-        std::string & query, std::string & ref,
-        std::vector< std::vector<int> > & query_ptrs, 
-        std::vector< std::vector<int> > & ref_ptrs) {
-
-    // reverse strings and vectors
-    std::reverse(query.begin(), query.end());
-    std::reverse(ref.begin(), ref.end());
-    std::reverse(query_ptrs[PTRS].begin(), query_ptrs[PTRS].end());
-    std::reverse(query_ptrs[FLAGS].begin(), query_ptrs[FLAGS].end());
-    std::reverse(ref_ptrs[PTRS].begin(), ref_ptrs[PTRS].end());
-    std::reverse(ref_ptrs[FLAGS].begin(), ref_ptrs[FLAGS].end());
-
-    // update pointers
-    for (int & ptr : query_ptrs[PTRS]) { ptr = ref.size()-1 - ptr; }
-    for (int & ptr : ref_ptrs[PTRS]) { ptr = query.size()-1 - ptr; }
-    for (int & flags : query_ptrs[FLAGS]) { // flip beg/end if only one is set
-        if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
-            flags = PTR_VARIANT | PTR_VAR_END;
-        } else if (flags & PTR_VAR_END && !(flags & PTR_VAR_BEG)) {
-            flags = PTR_VARIANT | PTR_VAR_BEG;
-        }
-    }
-    for (int & flags : ref_ptrs[FLAGS]) { // flip beg/end if only one is set
-        if (flags & PTR_VAR_BEG && !(flags & PTR_VAR_END)) {
-            flags = PTR_VARIANT | PTR_VAR_END;
-        } else if (flags & PTR_VAR_END && !(flags & PTR_VAR_BEG)) {
-            flags = PTR_VARIANT | PTR_VAR_BEG;
-        }
-    }
-    return;
-}
-
-
-/******************************************************************************/
-
-
 /* Generate the new sequence by applying variants to the reference. */
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
