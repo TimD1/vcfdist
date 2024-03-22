@@ -8,7 +8,6 @@
 #include "variant.h"
 #include "cluster.h"
 #include "defs.h"
-#include "edit.h"
 
 
 class idx1 {
@@ -104,12 +103,6 @@ void generate_ptrs_strs(
         size_t query_clust_beg_idx, size_t ref_clust_beg_idx,
         int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, 
         const std::string & ctg
-        );
-
-void reverse_ptrs_strs(
-        std::string & query, std::string & ref,
-        std::vector< std::vector<int> > & query_ptrs, 
-        std::vector< std::vector<int> > & ref_ptrs
         );
 
 std::string generate_str(
@@ -241,7 +234,6 @@ int count_dist(const std::vector<int> & cigar);
 
 /******************************************************************************/
 
-editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr);
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups);

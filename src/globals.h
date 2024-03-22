@@ -47,12 +47,6 @@ public:
     // precision-recall
     double credit_threshold = 0.7;
 
-    // edit distance
-    bool distance = false;
-    int eval_sub = 3;
-    int eval_open = 2;
-    int eval_extend = 1;
-
     // memory params
     int max_threads = 64;
     double max_ram = 64; // GB

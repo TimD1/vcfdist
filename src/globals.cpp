@@ -96,7 +96,7 @@ void Globals::parse_args(int argc, char ** argv) {
     this->ref_fasta_fn = std::string(argv[3]);
     if (g.verbosity >= 1) {
         INFO(" ");
-        INFO("%s[0/8] Loading reference FASTA%s '%s'", COLOR_PURPLE,
+        INFO("%s[0/7] Loading reference FASTA%s '%s'", COLOR_PURPLE,
                 COLOR_WHITE, ref_fasta_fn.data());
     }
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
@@ -266,19 +266,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative mismatch penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ex" || 
-                std::string(argv[i]) == "--eval-mismatch-penalty") {
-            i++;
-            if (i == argc) ERROR("Option '-ex' used without providing mismatch penalty");
-            try {
-                this->eval_sub = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid evaluation mismatch penalty provided");
-            }
-            if (this->eval_sub < 0) {
-                ERROR("Must provide non-negative evaluation mismatch penalty");
-            }
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-o" || 
                 std::string(argv[i]) == "--gap-open-penalty") {
             i++;
@@ -292,19 +279,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-eo" || 
-                std::string(argv[i]) == "--eval-gap-open-penalty") {
-            i++;
-            if (i == argc) ERROR("Option '-eo' used without providing gap-opening penalty");
-            try {
-                this->eval_open = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid eval gap-opening penalty provided");
-            }
-            if (this->eval_open < 0) {
-                ERROR("Must provide non-negative eval gap-opening penalty");
-            }
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-e" || 
                 std::string(argv[i]) == "--gap-extend-penalty") {
             i++;
@@ -316,19 +290,6 @@ void Globals::parse_args(int argc, char ** argv) {
             }
             if (this->extend < 0) {
                 ERROR("Must provide non-negative gap-extension penalty");
-            }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ee" || 
-                std::string(argv[i]) == "--eval-gap-extend-penalty") {
-            i++;
-            if (i == argc) ERROR("Option '-ee' used without providing gap-extension penalty");
-            try {
-                this->eval_extend = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid eval gap-extension penalty provided");
-            }
-            if (this->eval_extend < 0) {
-                ERROR("Must provide non-negative eval gap-extension penalty");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-i" || 
@@ -411,11 +372,6 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->max_ram < 0) {
                 ERROR("Max RAM must be positive");
             }
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-d" || 
-                std::string(argv[i]) == "--distance") {
-            i++;
-            g.distance = true;
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-ro" || 
                 std::string(argv[i]) == "--realign-only") {
@@ -537,10 +493,6 @@ void Globals::print_usage() const
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
     printf("      minimum partial credit to consider variant a true positive\n");
 
-    printf("\n  Distance:\n");
-    printf("  -d, --distance\n");
-    printf("      flag to include alignment distance calculations, skipped by default\n");
-
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
     printf("      maximum threads to use for clustering and precision/recall alignment\n");
@@ -570,15 +522,6 @@ void Globals::print_usage() const
     printf("  -pt, --phasing-threshold <FLOAT> [%.2f]\n", g.phase_threshold);
     printf("      minimum fractional reduction in edit distance over other phasing\n");
     printf("      in order to consider this supercluster phased\n");
-
-    printf("\n  Distance:\n");
-    printf("  -ex, --eval-mismatch-penalty <INTEGER> [%d]\n", g.eval_sub);
-    printf("      mismatch penalty (distance evaluation only)\n");
-    printf("  -eo, --eval-gap-open-penalty <INTEGER> [%d]\n", g.eval_open);
-    printf("      gap opening penalty (distance evaluation only)\n");
-    printf("  -ee, --eval-gap-extend-penalty <INTEGER> [%d]\n", g.eval_extend);
-    printf("      gap extension penalty (distance evaluation only)\n");
-
 }
 
 

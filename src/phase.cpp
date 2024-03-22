@@ -271,7 +271,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
 void phaseblockData::phase()
 {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[7/8] Phasing superclusters%s",
+    if (g.verbosity >= 1) INFO("%s[6/7] Phasing superclusters%s",
             COLOR_PURPLE, COLOR_WHITE);
 
     // phase each contig separately

@@ -397,7 +397,7 @@ void superclusterData::transfer_phase_sets() {
  */
 void superclusterData::supercluster() {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[4/8] Superclustering TRUTH and QUERY variants%s",
+    if (g.verbosity >= 1) INFO("%s[4/7] Superclustering TRUTH and QUERY variants%s",
             COLOR_PURPLE, COLOR_WHITE);
 
     // iterate over each contig

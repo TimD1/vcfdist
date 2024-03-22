@@ -8,7 +8,6 @@
 #include <thread>
 
 #include "dist.h"
-#include "edit.h"
 #include "print.h"
 #include "cluster.h"
 
@@ -1586,7 +1585,7 @@ void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[5/8] Calculating precision and recall%s",
+    if (g.verbosity >= 1) INFO("%s[5/7] Calculating precision and recall%s",
             COLOR_PURPLE, COLOR_WHITE);
 
     if (g.verbosity >= 1 ) 
@@ -1830,171 +1829,6 @@ void precision_recall_wrapper(
                 truth1_ref_ptrs, truth2_ref_ptrs,
                 aln_query_ref_end, false);
     }
-}
-
-/******************************************************************************/
-
-editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[6/8] Calculating edit distance metrics%s",
-            COLOR_PURPLE, COLOR_WHITE);
-
-    // +2 since it's inclusive, but then also needs to include one quality higher
-    // which doesn't contain any variants (to get draft reference edit dist)
-    std::vector<int> all_qual_dists(g.max_qual+2, 0);
-    editData edits;
-    int ctg_id = 0;
-    if (g.verbosity >= 1) INFO("  Contigs:");
-    for (std::string ctg : clusterdata_ptr->contigs) {
-        std::vector<int> ctg_qual_dists(g.max_qual+2,0);
-
-        // set superclusters pointer
-        std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
-
-        // iterate over superclusters
-        for(int sc_idx = 0; sc_idx < sc->n; sc_idx++) {
-
-            /////////////////////////////////////////////////////////////////////
-            // DEBUG PRINTING                                                    
-            /////////////////////////////////////////////////////////////////////
-            if (false) {
-                // print cluster info
-                printf("\n\nSupercluster: %d\n", sc_idx);
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    int callset = i >> 1;
-                    int hap = i % 2;
-                    std::shared_ptr<ctgVariants> vars = sc->ctg_variants[callset][hap];
-                    int cluster_beg = sc->superclusters[callset][hap][sc_idx];
-                    int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
-                    printf("%s%d: %d clusters (%d-%d)\n", 
-                        callset_strs[callset].data(), hap+1,
-                        cluster_end-cluster_beg,
-                        cluster_beg, cluster_end);
-
-                    for (int j = cluster_beg; j < cluster_end; j++) {
-                        int variant_beg = vars->clusters[j];
-                        int variant_end = vars->clusters[j+1];
-                        printf("\tCluster %d: %d variants (%d-%d)\n", j, 
-                            variant_end-variant_beg, variant_beg, variant_end);
-                        for (int k = variant_beg; k < variant_end; k++) {
-                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
-                            vars->refs[k].size() ?  vars->refs[k].data() : "_", 
-                            vars->alts[k].size() ?  vars->alts[k].data() : "_",
-                            vars->var_quals[k]);
-                        }
-                    }
-                }
-            }
-
-            // set pointers between truth1/2 and reference
-            std::string truth1 = "", ref_t1 = ""; 
-            std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
-            generate_ptrs_strs(
-                    truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
-                    sc->ctg_variants[TRUTH][HAP1],
-                    sc->superclusters[TRUTH][HAP1][sc_idx],
-                    sc->superclusters[TRUTH][HAP1][sc_idx+1],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-            std::string truth2 = "", ref_t2 = ""; 
-            std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
-            generate_ptrs_strs(
-                    truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
-                    sc->ctg_variants[TRUTH][HAP2],
-                    sc->superclusters[TRUTH][HAP2][sc_idx],
-                    sc->superclusters[TRUTH][HAP2][sc_idx+1],
-                    sc->begs[sc_idx], sc->ends[sc_idx], clusterdata_ptr->ref, ctg
-            );
-
-            int phase = sc->sc_phase[sc_idx];
-
-            /////////////////////////////////////////////////////////////////////
-            // SMITH-WATERMAN DISTANCE: don't allow skipping called variants     
-            /////////////////////////////////////////////////////////////////////
-            
-            // keep or swap truth haps based on previously decided phasing
-            std::vector<std::string> truth(2);
-            if (phase < 0) {
-                ERROR("Phase never set for supercluster %d on contig '%s'",
-                        sc_idx, ctg.data());
-            } else if (phase == PHASE_SWAP) {
-                truth[HAP1] = truth2; truth[HAP2] = truth1;
-            } else {
-                truth[HAP1] = truth1; truth[HAP2] = truth2;
-            }
-
-            // phasing is known, add scores for each hap
-            std::vector<int> qual_dists(g.max_qual+2, 0);
-            for (int hap = 0; hap < HAPS; hap++) {
-
-                // supercluster start/end indices
-                int beg_idx = sc->ctg_variants[QUERY][hap]->clusters.size() ?
-                    sc->ctg_variants[QUERY][hap]->clusters[
-                        sc->superclusters[QUERY][hap][sc_idx]] : 0;
-                int end_idx = sc->ctg_variants[QUERY][hap]->clusters.size() ?
-                    sc->ctg_variants[QUERY][hap]->clusters[
-                        sc->superclusters[QUERY][hap][sc_idx+1]] : 0;
-
-                // calculate quality thresholds 
-                // (where string would change when including/excluding variants)
-                std::set<int> quals = {};
-                for (int var_idx = beg_idx; var_idx < end_idx; var_idx++) {
-                    quals.insert(sc->ctg_variants[QUERY][hap]->var_quals[var_idx]+1);
-                }
-                quals.insert(g.max_qual+2);
-
-                // sweep through quality thresholds
-                int prev_qual = 0;
-                for (int qual : quals) {
-                    if(false) printf("qual: %d-%d\n", prev_qual, qual-1);
-
-                    // generate query string (only applying variants with Q>=qual)
-                    std::string query = generate_str(
-                            clusterdata_ptr->ref, 
-                            sc->ctg_variants[QUERY][hap], 
-                            ctg, beg_idx, end_idx,
-                            sc->begs[sc_idx], sc->ends[sc_idx], 
-                            prev_qual);
-
-                    // align strings, backtrack, calculate distance
-                    std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
-                    std::vector< std::vector< std::vector<int> > > offs(MATS);
-                    int s = 0;
-                    std::reverse(query.begin(), query.end());
-                    std::reverse(truth[hap].begin(), truth[hap].end());
-                    wf_swg_align(query, truth[hap], ptrs, offs,
-                            s, g.eval_sub, g.eval_open, g.eval_extend, false);
-                    std::vector<int> cigar = wf_swg_backtrack(query, truth[hap], 
-                            ptrs, offs, s, g.eval_sub, g.eval_open, g.eval_extend, false);
-                    std::reverse(query.begin(), query.end());
-                    std::reverse(truth[hap].begin(), truth[hap].end());
-                    std::reverse(cigar.begin(), cigar.end());
-                    int dist = count_dist(cigar);
-
-                    // add distance for range of corresponding quals
-                    for (int q = prev_qual; q < qual; q++) {
-                        all_qual_dists[q] += dist;
-                        ctg_qual_dists[q] += dist;
-                        qual_dists[q] += dist;
-                    }
-                    edits.add_edits(ctg, sc->begs[sc_idx], hap, cigar, sc_idx, prev_qual, qual);
-                    prev_qual = qual;
-                }
-            }
-
-        } // each cluster
-
-        if (g.verbosity >= 1) {
-            INFO("    [%2d] %s: %d", ctg_id, ctg.data(), 
-                *std::min_element(ctg_qual_dists.begin(), ctg_qual_dists.end()));
-        }
-        ctg_id++;
-
-    } // each contig
-    INFO(" ");
-    if (g.verbosity >= 1) INFO("  Total edit distance: %d", 
-                *std::min_element(all_qual_dists.begin(), all_qual_dists.end()));
-    return edits;
 }
 
 
@@ -2420,7 +2254,7 @@ std::shared_ptr<variantData> wf_swg_realign(
         std::shared_ptr<fastaData> ref_fasta, 
         int sub, int open, int extend, int callset, bool print /* = false */) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%s 2/8] Realigning %s VCF%s '%s'", COLOR_PURPLE,
+    if (g.verbosity >= 1) INFO("%s[%s 2/7] Realigning %s VCF%s '%s'", COLOR_PURPLE,
             callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
             COLOR_WHITE, vcf->filename.data());
 

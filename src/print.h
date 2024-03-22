@@ -5,7 +5,6 @@
 
 #include "globals.h"
 #include "phase.h"
-#include "edit.h"
 #include "defs.h"
 
 std::string GREEN(int i);
@@ -24,6 +23,7 @@ std::string PURPLE(int i);
 std::string PURPLE(char c);
 std::string PURPLE(std::string str);
 
+float qscore(double p_error);
 void print_ref_ptrs(std::vector< std::vector<int> > ptrs);
 void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs, 
         const std::string & alt_str, const std::string & ref_str);

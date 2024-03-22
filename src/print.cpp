@@ -4,7 +4,6 @@
 
 #include "print.h"
 #include "dist.h"
-#include "edit.h"
 
 std::string GREEN(int i) { return "\033[32m" + std::to_string(i) + "\033[0m"; }
 std::string GREEN(char c) { return "\033[32m" + std::string(1,c) + "\033[0m"; }
@@ -25,6 +24,10 @@ std::string PURPLE(std::string str) { return "\033[35m" + str + "\033[0m"; }
 
 /*******************************************************************************/
 
+float qscore(double p_error) {
+    return std::min(100.0, std::max(0.0, -10 * std::log10(p_error)));
+}
+
 inline std::string b2s(bool b) { return b ? "true" : "false"; }
 
 void write_params() {
@@ -44,14 +47,14 @@ void write_params() {
         "phase_threshold = %f\ncredit_threshold = %f\nrealign_truth = %s\nrealign_query = %s\n"
         "realign_only = %s\ncluster_method = '%s'\ncluster_min_gap = %d\n"
         "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
-        "sub = %d\nopen = %d\nextend = %d\neval_sub = %d\neval_open = %d\neval_extend = %d\ndistance = %s",
+        "sub = %d\nopen = %d\nextend = %d\n",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.max_size, g.sv_threshold,
         g.phase_threshold, g.credit_threshold, b2s(g.realign_truth).data(), b2s(g.realign_query).data(),
         b2s(g.realign_only).data(), g.cluster_method.data(), g.cluster_min_gap,
         g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
-        g.sub, g.open, g.extend, g.eval_sub, g.eval_open, g.eval_extend, b2s(g.distance).data());
+        g.sub, g.open, g.extend);
     fclose(out_params);
 }
 
@@ -574,12 +577,11 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[8/8] Writing results%s", COLOR_PURPLE, COLOR_WHITE);
+    if (g.verbosity >= 1) INFO("%s[7/7] Writing results%s", COLOR_PURPLE, COLOR_WHITE);
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
 
-    // print edit information
     if (g.write) {
 
         // print phasing information

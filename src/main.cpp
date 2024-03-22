@@ -22,7 +22,7 @@ std::vector<std::string> aln_strs = {"QUERY1-TRUTH1", "QUERY1-TRUTH2", "QUERY2-T
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> phase_strs = {"=", "X", "?"};
 std::vector<std::string> timer_strs = {"reading", "clustering", "realigning", 
-    "reclustering", "superclustering", "precision/recall", "edit distance", "phasing", "writing", "total"};
+    "reclustering", "superclustering", "precision/recall", "phasing", "writing", "total"};
 std::vector<std::string> switch_strs = {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
  
 int main(int argc, char **argv) {
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
             simple_cluster(query_ptr, QUERY);
         } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[Q 1/8] Wavefront clustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[Q 1/7] Wavefront clustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
             simple_cluster(query_ptr, QUERY);
         } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[Q 3/8] Wavefront %sclustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[Q 3/7] Wavefront %sclustering %s VCF%s '%s'", 
                     COLOR_PURPLE, g.realign_query ? "re":"", callset_strs[QUERY].data(), 
                     COLOR_WHITE, query_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
             simple_cluster(truth_ptr, TRUTH);
         } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[T 1/8] Wavefront clustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[T 1/7] Wavefront clustering %s VCF%s '%s'", 
                     COLOR_PURPLE, callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
             simple_cluster(truth_ptr, TRUTH); 
         } else if (g.cluster_method == "biwfa") {
             if (g.verbosity >= 1) INFO(" ");
-            if (g.verbosity >= 1) INFO("%s[T 3/8] Wavefront %sclustering %s VCF%s '%s'", 
+            if (g.verbosity >= 1) INFO("%s[T 3/7] Wavefront %sclustering %s VCF%s '%s'", 
                     COLOR_PURPLE, g.realign_truth ? "re":"", callset_strs[TRUTH].data(), 
                     COLOR_WHITE, truth_ptr->filename.data());
             std::vector<std::thread> threads;
@@ -217,23 +217,6 @@ int main(int argc, char **argv) {
     precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
     INFO("    done with precision-recall");
     g.timers[TIME_PR_ALN].stop();
-
-    // calculate edit distance
-    editData edits;
-    if (g.distance) {
-        g.timers[TIME_EDITS].start();
-        editData edits = edits_wrapper(clusterdata_ptr);
-        g.timers[TIME_EDITS].stop();
-
-        g.timers[TIME_WRITE].start();
-        edits.write_distance();
-        if (g.write) edits.write_edits();
-        g.timers[TIME_WRITE].stop();
-    } else {
-        if (g.verbosity >= 1) INFO(" ");
-        if (g.verbosity >= 1) INFO("%s[6/8] Skipping distance metrics%s",
-                COLOR_PURPLE, COLOR_WHITE);
-    }
 
     // calculate global phasings
     g.timers[TIME_PHASE].start();
