@@ -1,12 +1,13 @@
 #!/bin/bash
 
-data="/home/timdunn/vcfdist/data"
-dir="/home/timdunn/vcfdist/analysis-v2/small_sv_all"
-parallel="/home/timdunn/parallel-20211222/src/parallel"
-vcfdist="/home/timdunn/vcfdist/src/vcfdist"
-rtg="/home/timdunn/software/rtg-tools-3.12.1/rtg"
-tabix="/home/timdunn/software/htslib-1.16/tabix"
-bgzip="/home/timdunn/software/htslib-1.16/bgzip"
+home="/data-share/timdunn"
+data="$home/vcfdist/data"
+dir="$home/vcfdist/analysis-v2/small_sv_all"
+parallel="$home/parallel-20211222/src/parallel"
+vcfdist="$home/vcfdist/src/vcfdist"
+rtg="$home/software/rtg-tools-3.12.1/rtg"
+tabix="$home/software/htslib-1.16/tabix"
+bgzip="$home/software/htslib-1.16/bgzip"
 timer="/usr/bin/time"
 
 # define reference FASTA
@@ -26,11 +27,11 @@ ds_versions=(
     "v4.20"
 )
 splits=(
-    "snp"
-    "indel"
+    # "snp"
+    # "indel"
     "sv"
     "small"
-    "large"
+    # "large"
     "all"
 )
 bednames=(
