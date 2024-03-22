@@ -5,9 +5,17 @@ import matplotlib.patches as mpatches
 import numpy as np
 
 datasets = ["hprc", "pav", "giab-tr"]
-names = {"hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR", "t2t-q100": "Q100-dipcall"}
-tools = ["vcfdist", "vcfeval", "truvari", "truvari-wfa", "truvari-mafft"]
-colors = {"vcfdist": "#73c375", "vcfeval": "#fa6949", "truvari": "#6aadd5", "truvari-wfa": "#9e9ac8", "truvari-mafft": "#959595"}
+ds_names = {"hprc": "hifiasm-dipcall", "pav": "Q100-PAV", "giab-tr": "hifiasm-GIAB-TR", "t2t-q100": "Q100-dipcall"}
+tools = ["vcfdist", "vcfeval", "truvari", "truvari-wfa", "truvari-mafft", "truvari-poa"]
+tool_names = {"vcfdist": "vcfdist", "vcfeval": "vcfeval", "truvari": "Truvari bench", "truvari-wfa": "Truvari refine (WFA)", "truvari-mafft": "Truvari refine (MAFFT)", "truvari-poa": "Truvari refine (POA)"}
+widths = [0.15, 0.15, 0.15, 0.1, 0.1, 0.1]
+offsets = [-.3, -.15, 0, 0.125, 0.225, 0.325]
+colors = {"vcfdist": "#73c375", "vcfeval": "#fa6949", "truvari": "#595959", "truvari-wfa": "#9e9ac8", "truvari-mafft": "#6aadd5", "truvari-poa": "#959595"}
+
+# only plot published work
+tools = ["vcfdist", "vcfeval", "truvari"]
+widths = [0.25, 0.25, 0.25]
+offsets = [-.25, 0, .25]
 
 sizes = ["snp", "indel", "sv"]
 SZ_SNP   = 0
@@ -53,8 +61,9 @@ for ds_idx, ds in enumerate(datasets):
                 for line in results_file:
                     try:
                         line = next(results_file)
-                        var_size, minq, t_tp, q_tp, t_fn, q_fp, prec, recall, f1, f1q = \
+                        var_size, thresh, minq, t_tp, q_tp, t_fn, q_fp, prec, recall, f1, f1q = \
                                 line.strip().split()
+                        if var_size.lower() == "all": continue
                         var_size_idx = sizes.index(var_size.lower())
                         counts[var_size_idx][tool_idx][ds_idx][T_TP] = int(t_tp)
                         counts[var_size_idx][tool_idx][ds_idx][Q_TP] = int(q_tp)
@@ -134,7 +143,7 @@ for ds_idx, ds in enumerate(datasets):
                             else:
                                 print(f"ERROR: bd = {bd}, fields = {fields}")
 
-        else: # truvari refine wfa/mafft
+        else: # truvari refine wfa/mafft/poa
             for output in ["phab_bench", "no_phab_bench"]:
                 for callset in ["query", "truth"]:
                     vcf = open(f"{tool}/{ds}/{output}/result_{callset}.vcf", 'r')
@@ -195,12 +204,8 @@ for size_idx, size in enumerate(sizes):
 
 fig, ax = plt.subplots(1, 3, figsize=(7,2.5))
 indices = np.arange(len(datasets))
-width = 0.15
-yquals = [0, 3.01, 6.99, 10, 13.01, 16.99, 20, 23.01, 26.99, 30, # 33.01, 36.99, 40, 43.01, 46.99, 50
-        ]
-ylabels = ["0%", "50%", "80%", "90%", "95%", "98%", "99%", "99.5%", "99.8%", "99.9%", # "99.95%", "99.98%", "99.99%", "99.995%", "99.998%", "99.999%"
-        ]
-yquals2 = [0, 3.01, 6.99, 10, 13.01, 16.99, 20, 23.01, 26.99, 30] 
+yquals = [0, 3.01, 6.99, 10, 13.01, 16.99, 20, 23.01, 26.99, 30] 
+ylabels = ["0%", "50%", "80%", "90%", "95%", "98%", "99%", "99.5%", "99.8%", "99.9%"]
 ylabels2 = ["0.1%", "0.2%", "0.5%", "1%", "2%", "5%", "10%", "20%", "50%", "100%"]
 for var_size_idx, var_size in enumerate(sizes):
     for tool_idx, t in enumerate(tools):
@@ -210,20 +215,20 @@ for var_size_idx, var_size in enumerate(sizes):
                         counts[var_size_idx][tool_idx][ds_idx][T_FN]) for ds_idx in range(len(datasets))]
         fnr_qscores = [30 if frac == 0 else -10*np.log10(frac) for frac in fnr_fracs]
 
-        ax[var_size_idx].bar(indices - 2*width + tool_idx*width, 
-                [30-x for x in fnr_qscores], width, color=colors[t])
+        ax[var_size_idx].bar(indices + offsets[tool_idx], 
+                [30-x for x in fnr_qscores], widths[tool_idx], color=colors[t])
     for yqual in yquals:
         ax[var_size_idx].axhline(y=yqual, color='k', alpha=0.5, linestyle=':', ms=0.5, zorder=-1)
     ax[var_size_idx].set_title(f"{var_size.upper()} evaluation", fontsize=7)
     ax[var_size_idx].set_xticks(range(len(datasets)))
     ax[var_size_idx].tick_params(axis='x')
-    ax[var_size_idx].set_xticklabels([names[ds] for ds in datasets], fontsize=5)
-    ax[var_size_idx].set_yticks(yquals2)
+    ax[var_size_idx].set_xticklabels([ds_names[ds] for ds in datasets], fontsize=5)
+    ax[var_size_idx].set_yticks(yquals)
     ax[var_size_idx].set_yticklabels(ylabels2, fontsize=5)
     ax[var_size_idx].set_ylim(0,30)
-patches = [mpatches.Patch(color=colors[t], label=t.upper()) for t in tools]
+patches = [mpatches.Patch(color=colors[t], label=tool_names[t]) for t in tools]
 ax[0].legend(handles=patches, loc='upper left', fontsize=5)
-ax[0].set_ylabel("Whole Genome\nFalse Negative Rate", fontsize=7)
+ax[0].set_ylabel("False Negative Rate", fontsize=7)
 plt.tight_layout()
 plt.savefig(f"./img/fnr.pdf", format='pdf')
 
@@ -231,24 +236,24 @@ fig, ax = plt.subplots(1, 3, figsize=(7,2.5))
 for var_size_idx, var_size in enumerate(sizes):
     for tool_idx, t in enumerate(tools):
 
-        fpr_fracs = [counts[var_size_idx][tool_idx][ds_idx][Q_FP] / 
+        fdr_fracs = [counts[var_size_idx][tool_idx][ds_idx][Q_FP] / 
                 max(1, counts[var_size_idx][tool_idx][ds_idx][Q_FP] + \
                         counts[var_size_idx][tool_idx][ds_idx][Q_TP]) for ds_idx in range(len(datasets))]
-        fpr_qscores = [50 if not frac else -10*np.log10(frac) for frac in fpr_fracs]
+        fdr_qscores = [50 if not frac else -10*np.log10(frac) for frac in fdr_fracs]
 
-        ax[var_size_idx].bar(indices - 2*width + tool_idx*width, 
-                [30-x for x in fpr_qscores], width, color=colors[t])
-    for yqual in yquals2:
+        ax[var_size_idx].bar(indices + offsets[tool_idx],
+                [30-x for x in fdr_qscores], widths[tool_idx], color=colors[t])
+    for yqual in yquals:
         ax[var_size_idx].axhline(y=yqual, color='k', alpha=0.5, linestyle=':', ms=0.5, zorder=-1)
     ax[var_size_idx].set_title(f"{var_size.upper()} evaluation", fontsize=7)
     ax[var_size_idx].set_xticks(range(len(datasets)))
     ax[var_size_idx].tick_params(axis='x')
-    ax[var_size_idx].set_xticklabels([names[ds] for ds in datasets], fontsize=5)
-    ax[var_size_idx].set_yticks(yquals2)
+    ax[var_size_idx].set_xticklabels([ds_names[ds] for ds in datasets], fontsize=5)
+    ax[var_size_idx].set_yticks(yquals)
     ax[var_size_idx].set_yticklabels(ylabels2, fontsize=5)
     ax[var_size_idx].set_ylim(0,30)
-patches = [mpatches.Patch(color=colors[t], label=t.upper()) for t in tools]
+patches = [mpatches.Patch(color=colors[t], label=tool_names[t]) for t in tools]
 ax[0].legend(handles=patches, loc='upper left', fontsize=5)
-ax[0].set_ylabel("Whole Genome\nFalse Positive Rate", fontsize=7)
+ax[0].set_ylabel("False Discovery Rate", fontsize=7)
 plt.tight_layout()
-plt.savefig(f"./img/fpr.pdf", format='pdf')
+plt.savefig(f"./img/fdr.pdf", format='pdf')
