@@ -54,7 +54,9 @@ int main(int argc, char **argv) {
             if (g.verbosity >= 1) INFO("  Writing original query VCF to '%s'", 
                     std::string(g.out_prefix + "orig-query.vcf").data());
             query_ptr->write_vcf(g.out_prefix + "orig-query.vcf");
-        } else if (g.realign_truth) {
+            g.timers[TIME_WRITE].stop();
+        } if (g.realign_truth) {
+            g.timers[TIME_WRITE].start();
             if (g.verbosity >= 1) INFO("  Writing original truth VCF to '%s'", 
                     std::string(g.out_prefix + "orig-truth.vcf").data());
             truth_ptr->write_vcf(g.out_prefix + "orig-truth.vcf");
