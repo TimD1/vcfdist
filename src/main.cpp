@@ -212,8 +212,11 @@ int main(int argc, char **argv) {
     auto sc_groups = sort_superclusters(clusterdata_ptr);
     g.timers[TIME_SUPCLUST].stop();
 
-    // calculate precision/recall and local phasing
+    // duplicate data for precision/recall calculation
     g.timers[TIME_PR_ALN].start();
+    duplicate_variant_info(clusterdata_ptr);
+
+    // calculate precision/recall and local phasing
     precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
     INFO("    done with precision-recall");
     g.timers[TIME_PR_ALN].stop();

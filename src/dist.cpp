@@ -1608,12 +1608,12 @@ void precision_recall_threads_wrapper(
         if (nscs >= nthreads) {
 
             // distribute many subproblems evenly among threads
-            bool thread4 = thread_step >= 2; // max_threads/4+
+            bool thread2 = thread_step != 0; // max_threads/2+
             for (int t = 0; t < nthreads; t++) {
                 int size = nscs / nthreads;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+size, thread4));
+                            thread_step, start, start+size, thread2));
                 start += size;
             }
             for (std::thread & t : threads)
@@ -1635,11 +1635,11 @@ void precision_recall_threads_wrapper(
                     thread_step--;
                     if (thread_step < 0) break;
                 }
-                bool thread4 = thread_step >= 2; // max_threads/4+
+                bool thread2 = thread_step != 0; // max_threads/2+
                 if (thread_step < 0) break;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+1, thread4));
+                            thread_step, start, start+1, thread2));
                 start++;
                 total_ram += g.ram_steps[thread_step];
                 if (start >= int(sc_groups[thread_step][SC_IDX].size())) {
@@ -1659,7 +1659,7 @@ void precision_recall_threads_wrapper(
 void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
-        int thread_step, int start, int stop, bool thread4) {
+        int thread_step, int start, int stop, bool thread2) {
 
     if (stop == start) return;
 
@@ -1708,10 +1708,7 @@ void precision_recall_wrapper(
         // PRECISION-RECALL: allow skipping called variants                  
         /////////////////////////////////////////////////////////////////////
         
-        // set pointers between each hap (query1/2, truth1/2) and reference
-        std::string query1 = "", ref_q1 = ""; 
-        std::vector< std::vector<int> > query1_ref_ptrs, ref_query1_ptrs;
-        generate_ptrs_strs(
+        generate_graph(
                 query1, ref_q1, query1_ref_ptrs, ref_query1_ptrs, 
                 sc->ctg_variants[QUERY][HAP1], 
                 sc->superclusters[QUERY][HAP1][sc_idx],
@@ -1719,16 +1716,7 @@ void precision_recall_wrapper(
                 sc->begs[sc_idx], sc->ends[sc_idx], 
                 clusterdata_ptr->ref, ctg);
 
-        std::string query2 = "", ref_q2 = ""; 
-        std::vector< std::vector<int> > query2_ref_ptrs, ref_query2_ptrs;
-        generate_ptrs_strs(
-                query2, ref_q2, query2_ref_ptrs, ref_query2_ptrs, 
-                sc->ctg_variants[QUERY][HAP2],
-                sc->superclusters[QUERY][HAP2][sc_idx],
-                sc->superclusters[QUERY][HAP2][sc_idx+1],
-                sc->begs[sc_idx], sc->ends[sc_idx], 
-                clusterdata_ptr->ref, ctg);
-
+        // set truth string and truth->reference pointers
         std::string truth1 = "", ref_t1 = ""; 
         std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
         generate_ptrs_strs(
@@ -1749,56 +1737,36 @@ void precision_recall_wrapper(
                 sc->begs[sc_idx], sc->ends[sc_idx], 
                 clusterdata_ptr->ref, ctg);
 
-        // calculate four forward-pass alignment edit dists
-        // query1-truth2, query1-truth1, query2-truth1, query2-truth2
-        std::vector<int> aln_score(HAPS*CALLSETS);
-        std::vector<int> aln_query_ref_end(HAPS*CALLSETS);
-        std::vector< std::vector< std::vector<uint8_t> > > aln_ptrs;
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query1.size(), // Q1T1
-                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q1.size(),
-                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query1.size(), // Q1T2
-                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q1.size(),
-                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query2.size(), // Q2T1
-                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q2.size(),
-                    std::vector<uint8_t>(truth1.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(query2.size(), // Q2T2
-                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
-        aln_ptrs.push_back(std::vector< std::vector<uint8_t> >(ref_q2.size(),
-                    std::vector<uint8_t>(truth2.size(), PTR_NONE)));
-        std::vector< std::shared_ptr< std::unordered_map<idx1, idx1> > > swap_pred_maps; 
-        for (int i = 0; i < CALLSETS*HAPS; i++)
-            swap_pred_maps.push_back(std::shared_ptr< std::unordered_map<idx1, idx1> >(new std::unordered_map<idx1, idx1>()));
+        // calculate two forward-pass alignments, saving path
+        // query1/query2 graph to truth1, query1/query2 graph to truth2
+        std::vector<int> aln_score(HAPS);
+        std::vector< std::shared_ptr< std::unordered_map<idx1, idx1> > > preds; 
+        for (int i = 0; i < HAPS; i++)
+            preds.push_back(std::shared_ptr< std::unordered_map<idx1, idx1> >(
+                        new std::unordered_map<idx1, idx1>()));
 
         // if memory-limited and each subproblem is large, 
-        // spawn a new thread for each of the 4 alignments
-        if (thread4) {
+        // spawn a new thread for each of the 2 alignments
+        if (thread2) {
             std::vector<std::thread> threads;
-            for (int ti = 0; ti < CALLSETS*HAPS; ti++) {
+            for (int ti = 0; ti < HAPS; ti++) {
                 threads.push_back(std::thread( calc_prec_recall_aln,
                     std::cref(query1), std::cref(query2), 
                     std::cref(truth1), std::cref(truth2), std::cref(ref_q1),
                     std::cref(query1_ref_ptrs), std::cref(ref_query1_ptrs), 
                     std::cref(query2_ref_ptrs), std::cref(ref_query2_ptrs),
                     std::cref(truth1_ref_ptrs), std::cref(truth2_ref_ptrs),
-                    std::ref(aln_score), std::ref(aln_ptrs), 
-                    std::ref(swap_pred_maps), std::ref(aln_query_ref_end), 
-                    ti, ti+1, false));
+                    std::ref(aln_score), std::ref(preds), ti, ti+1, false));
             }
             for (std::thread & t : threads)
                 t.join();
-        } else { // calculate 4 alignments in this thread
+        } else { // calculate 2 alignments in this thread
             calc_prec_recall_aln(
                     query1, query2, truth1, truth2, ref_q1,
                     query1_ref_ptrs, ref_query1_ptrs, 
                     query2_ref_ptrs, ref_query2_ptrs,
                     truth1_ref_ptrs, truth2_ref_ptrs,
-                    aln_score, aln_ptrs, swap_pred_maps,
-                    aln_query_ref_end, 0, CALLSETS*HAPS, false);
+                    aln_score, preds, 0, HAPS, false);
         }
 
         // store optimal phasing for each supercluster

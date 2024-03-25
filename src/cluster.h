@@ -68,5 +68,6 @@ void wf_swg_cluster(variantData * vcf, std::string ctg, int hap,
         int sub, int open, int extend);
 std::vector< std::vector< std::vector<int> > > 
         sort_superclusters(std::shared_ptr<superclusterData>);
+void duplicate_variant_info(std::shared_ptr<superclusterData>);
 
 #endif
