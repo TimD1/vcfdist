@@ -149,7 +149,8 @@ void generate_ptrs_strs(
         std::shared_ptr<ctgVariants> query_vars,
         size_t query_clust_beg_idx, size_t query_clust_end_idx,
         int beg_pos, int end_pos, 
-        std::shared_ptr<fastaData> ref, const std::string & ctg
+        std::shared_ptr<fastaData> ref, const std::string & ctg,
+        int min_qual /* = 0 */
         ) {
 
     // generate query and ref strings and pointers
@@ -163,40 +164,42 @@ void generate_ptrs_strs(
 
         if (query_var_idx < query_end_idx && 
                 ref_pos == query_vars->poss[query_var_idx]) { // start query variant
-            switch (query_vars->types[query_var_idx]) {
-                case TYPE_INS:
-                    query_ptrs[PTRS].insert(query_ptrs[PTRS].end(), 
-                            query_vars->alts[query_var_idx].size(), ref_str.size()-1);
-                    query_ptrs[FLAGS].insert(query_ptrs[FLAGS].end(),
-                            query_vars->alts[query_var_idx].size(), PTR_VARIANT);
-                    query_ptrs[FLAGS][query_ptrs[FLAGS].size()-1] |= PTR_VAR_END;
-                    query_ptrs[FLAGS][query_ptrs[FLAGS].size() - 
-                        query_vars->alts[query_var_idx].size()] |= PTR_VAR_BEG | PTR_INS_LOC;
-                    query_str += query_vars->alts[query_var_idx];
-                    break;
-                case TYPE_DEL:
-                    ref_ptrs[PTRS].insert(ref_ptrs[PTRS].end(),
-                            query_vars->refs[query_var_idx].size(), query_str.size()-1);
-                    ref_ptrs[FLAGS].insert(ref_ptrs[FLAGS].end(),
-                            query_vars->refs[query_var_idx].size(), PTR_VARIANT);
-                    ref_ptrs[FLAGS][ref_ptrs[FLAGS].size()-1] |= PTR_VAR_END;
-                    ref_ptrs[FLAGS][ref_ptrs[FLAGS].size() - 
-                        query_vars->refs[query_var_idx].size()] |= PTR_VAR_BEG;
-                    ref_str += query_vars->refs[query_var_idx];
-                    ref_pos += query_vars->refs[query_var_idx].size();
-                    break;
-                case TYPE_SUB:
-                    ref_ptrs[PTRS].push_back(query_str.size());
-                    ref_ptrs[FLAGS].push_back(PTR_VARIANT|PTR_VAR_BEG|PTR_VAR_END);
-                    query_ptrs[PTRS].push_back(ref_str.size());
-                    query_ptrs[FLAGS].push_back(PTR_VARIANT|PTR_VAR_BEG|PTR_VAR_END);
-                    ref_str += query_vars->refs[query_var_idx];
-                    query_str += query_vars->alts[query_var_idx];
-                    ref_pos++;
-                    break;
-                default:
-                    ERROR("Unexpected variant type '%d' in generate_ptrs_strs()",
-                            query_vars->types[query_var_idx]);
+            if (query_vars->var_quals[query_var_idx] >= min_qual) {
+                switch (query_vars->types[query_var_idx]) {
+                    case TYPE_INS:
+                        query_ptrs[PTRS].insert(query_ptrs[PTRS].end(), 
+                                query_vars->alts[query_var_idx].size(), ref_str.size()-1);
+                        query_ptrs[FLAGS].insert(query_ptrs[FLAGS].end(),
+                                query_vars->alts[query_var_idx].size(), PTR_VARIANT);
+                        query_ptrs[FLAGS][query_ptrs[FLAGS].size()-1] |= PTR_VAR_END;
+                        query_ptrs[FLAGS][query_ptrs[FLAGS].size() - 
+                            query_vars->alts[query_var_idx].size()] |= PTR_VAR_BEG | PTR_INS_LOC;
+                        query_str += query_vars->alts[query_var_idx];
+                        break;
+                    case TYPE_DEL:
+                        ref_ptrs[PTRS].insert(ref_ptrs[PTRS].end(),
+                                query_vars->refs[query_var_idx].size(), query_str.size()-1);
+                        ref_ptrs[FLAGS].insert(ref_ptrs[FLAGS].end(),
+                                query_vars->refs[query_var_idx].size(), PTR_VARIANT);
+                        ref_ptrs[FLAGS][ref_ptrs[FLAGS].size()-1] |= PTR_VAR_END;
+                        ref_ptrs[FLAGS][ref_ptrs[FLAGS].size() - 
+                            query_vars->refs[query_var_idx].size()] |= PTR_VAR_BEG;
+                        ref_str += query_vars->refs[query_var_idx];
+                        ref_pos += query_vars->refs[query_var_idx].size();
+                        break;
+                    case TYPE_SUB:
+                        ref_ptrs[PTRS].push_back(query_str.size());
+                        ref_ptrs[FLAGS].push_back(PTR_VARIANT|PTR_VAR_BEG|PTR_VAR_END);
+                        query_ptrs[PTRS].push_back(ref_str.size());
+                        query_ptrs[FLAGS].push_back(PTR_VARIANT|PTR_VAR_BEG|PTR_VAR_END);
+                        ref_str += query_vars->refs[query_var_idx];
+                        query_str += query_vars->alts[query_var_idx];
+                        ref_pos++;
+                        break;
+                    default:
+                        ERROR("Unexpected variant type '%d' in generate_ptrs_strs()",
+                                query_vars->types[query_var_idx]);
+                }
             }
             query_var_idx++; // next variant
 
@@ -1987,12 +1990,14 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     if(false) printf("qual: %d-%d\n", prev_qual, qual-1);
 
                     // generate query string (only applying variants with Q>=qual)
-                    std::string query = generate_str(
-                            clusterdata_ptr->ref, 
+                    std::string query, ref;
+                    std::vector< std::vector<int> > query_ref_ptrs, ref_query_ptrs;
+                    generate_ptrs_strs(
+                            query, ref, query_ref_ptrs, ref_query_ptrs,
                             sc->ctg_variants[QUERY][hap], 
-                            ctg, beg_idx, end_idx,
+                            beg_idx, end_idx,
                             sc->begs[sc_idx], sc->ends[sc_idx], 
-                            prev_qual);
+                            clusterdata_ptr->ref, ctg, prev_qual);
 
                     // align strings, backtrack, calculate distance
                     std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);

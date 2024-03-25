@@ -103,7 +103,7 @@ void generate_ptrs_strs(
         std::shared_ptr<ctgVariants> query_vars,
         size_t query_clust_beg_idx, size_t ref_clust_beg_idx,
         int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, 
-        const std::string & ctg
+        const std::string & ctg, int min_qual = 0
         );
 
 void reverse_ptrs_strs(

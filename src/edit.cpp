@@ -205,7 +205,7 @@ void editData::write_distance() {
         dists_summ = fopen(dist_summ_fn.data(), "w");
         if (g.verbosity >= 1) 
             INFO("  Writing distance summary to '%s'", dist_summ_fn.data());
-        fprintf(dists_summ, "VAR_TYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
+        fprintf(dists_summ, "VAR_TYPE\tTHRESHOLD\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE\n");
     }
     INFO(" ");
     INFO("%sALIGNMENT DISTANCE SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
@@ -219,16 +219,18 @@ void editData::write_distance() {
 
         INFO(" ");
         if (type == TYPE_ALL) {
-            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE%s",
+            INFO("%sTYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE\tALN_QSCORE%s",
                     COLOR_BLUE, COLOR_WHITE);
         } else {
-            INFO("%sTYPE\tMIN_QUAL\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE%s",
+            INFO("%sTYPE\tTHRESHOLD\tEDIT_DIST\tDISTINCT_EDITS\tED_QSCORE\tDE_QSCORE%s",
                     COLOR_BLUE, COLOR_WHITE);
         }
         std::vector<int> quals = {g.min_qual, best_qual[type], g.max_qual+1};
-        for (int q : quals) {
+        std::vector<std::string> thresholds = {"NONE", "BEST", "REF "};
+        for (int i = 0; i < int(quals.size()); i++) {
 
             // fill out ED/DE for selected quals
+            int q = quals[i];
             std::vector<int> edit_dists(TYPES, 0);
             std::vector<int> distinct_edits(TYPES, 0);
             for (int type = 0; type < TYPES; type++) {
@@ -241,13 +243,16 @@ void editData::write_distance() {
             float all_qscore = type == TYPE_ALL ? qscore(double(this->get_score(q)) / orig_score) : 0;
 
             // print summary
-            if (g.write) fprintf(dists_summ, "%s\t%d\t%d\t%d\t%f\t%f\t%f\n", type_strs2[type].data(),
+            if (g.write) fprintf(dists_summ, "%s\t%s\t%d\t%d\t%d\t%f\t%f\t%f\n", 
+                    type_strs2[type].data(), thresholds[i].data(),
                     q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore);
             if (type == TYPE_ALL) {
-                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
+                INFO("%s%s\t%s Q >= %d\t%-16d%-16d%f\t%f\t%f%s", 
+                    COLOR_BLUE, type_strs2[type].data(), thresholds[i].data(),
                     q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, all_qscore, COLOR_WHITE);
             } else {
-                INFO("%s%s\tQ >= %d\t\t%-16d%-16d%f\t%f%s", COLOR_BLUE, type_strs2[type].data(),
+                INFO("%s%s\t%s Q >= %d\t%-16d%-16d%f\t%f%s", 
+                    COLOR_BLUE, type_strs2[type].data(), thresholds[i].data(),
                     q, edit_dists[type], distinct_edits[type], ed_qscore, de_qscore, COLOR_WHITE);
             }
         }
