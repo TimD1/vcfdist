@@ -9,7 +9,7 @@ names = {"t2t-q100": "Q100-dipcall", "hprc": "hifiasm-dipcall", "pav": "Q100-PAV
 variant_types = ["snp", "indel", "sv"]
 vcf_types = ["sv", "small", "all"]
 regions = ["summary"]
-colors = ["#fa6949", "#fc8c3b", "#73c375"]
+colors = ["#fa6949", "#9e9ac8", "#73c375"]
 
 # initialize counters
 for region in regions:

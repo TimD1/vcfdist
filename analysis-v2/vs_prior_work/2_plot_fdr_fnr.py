@@ -12,10 +12,10 @@ widths = [0.15, 0.15, 0.15, 0.1, 0.1, 0.1]
 offsets = [-.3, -.15, 0, 0.125, 0.225, 0.325]
 colors = {"vcfdist": "#73c375", "vcfeval": "#fa6949", "truvari": "#595959", "truvari-wfa": "#9e9ac8", "truvari-mafft": "#6aadd5", "truvari-poa": "#959595"}
 
-# only plot published work
-tools = ["vcfdist", "vcfeval", "truvari"]
-widths = [0.25, 0.25, 0.25]
-offsets = [-.25, 0, .25]
+# # only plot published work
+# tools = ["vcfdist", "vcfeval", "truvari"]
+# widths = [0.25, 0.25, 0.25]
+# offsets = [-.25, 0, .25]
 
 sizes = ["snp", "indel", "sv"]
 SZ_SNP   = 0
@@ -213,7 +213,13 @@ for var_size_idx, var_size in enumerate(sizes):
         fnr_fracs = [1 - counts[var_size_idx][tool_idx][ds_idx][T_TP] / 
                 max(1, counts[var_size_idx][tool_idx][ds_idx][T_TP] + \
                         counts[var_size_idx][tool_idx][ds_idx][T_FN]) for ds_idx in range(len(datasets))]
-        fnr_qscores = [30 if frac == 0 else -10*np.log10(frac) for frac in fnr_fracs]
+        fnr_qscores = [30 if frac < 0.001 else -10*np.log10(frac) for frac in fnr_fracs]
+
+        # Truvari doesn't evaluate SNPs, don't count as FN
+        if fnr_qscores[0] == 0:
+            fnr_qscores[0] = 30
+            fnr_qscores[1] = 30
+            fnr_qscores[2] = 30
 
         ax[var_size_idx].bar(indices + offsets[tool_idx], 
                 [30-x for x in fnr_qscores], widths[tool_idx], color=colors[t])
