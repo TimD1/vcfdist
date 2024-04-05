@@ -7,16 +7,14 @@
 #include "print.h"
 
 ctgSuperclusters::ctgSuperclusters() {
-    this->superclusters = std::vector< std::vector< std::vector<int> > > (2,
-            std::vector< std::vector<int> > (2, std::vector<int>()));
-    this->ctg_variants = std::vector< std::vector< std::shared_ptr<ctgVariants> > > (2, 
-            std::vector< std::shared_ptr<ctgVariants> >(2, nullptr));
+    this->superclusters = std::vector< std::vector<int> > (CALLSETS, std::vector<int>());
+    this->callset_vars = std::vector< std::shared_ptr<ctgVariants> > (CALLSETS, nullptr);
 }
 
 void ctgSuperclusters::add_supercluster(
            std::vector<int> brks, int beg, int end) {
-    for (int i = 0; i < CALLSETS*HAPS; i++)
-        this->superclusters[i>>1][i&1].push_back(brks[i]);
+    for (int c = 0; c < CALLSETS; c++)
+        this->superclusters[c].push_back(brks[c]);
     this->begs.push_back(beg);
     this->ends.push_back(end);
     this->sc_phase.push_back(PHASE_NONE);
@@ -35,7 +33,9 @@ void ctgSuperclusters::set_phase(
     this->swap_phase_dist[sc_idx] = swap_phase_dist;
 }
 
+
 /******************************************************************************/
+
 
 std::vector< std::vector< std::vector<int> > > 
 sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
@@ -49,44 +49,24 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
         std::string ctg = sc_data->contigs[ctg_idx];
         std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
         for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
-            int max_query_len = 0;
-            // get max query length
-            for (int hap = 0; hap < HAPS; hap++) {
-                // get range of included variants
-                /* printf("QUERY hap=%d\n", hap); */
-                if (ctg_scs->ctg_variants[QUERY][hap]->clusters.size() == 0) continue;
+
+            std::vector<size_t> max_lens(CALLSETS, 0);
+            for (int c = 0; c < CALLSETS; c++) {
+                auto vars = ctg_scs->callset_vars[c];
+                /* printf("%s\n", callset_strs[c].data()); */
+                if (ctg_scs->callset_vars[c]->nc == 0) continue;
                 /* printf("nscs=%d, sc_size=%d, sc_idx=%d\n", ctg_scs->n, int(scs.size()), sc_idx); */
                 /* printf("clust_beg=%d, clust_end=%d, clust_size=%d\n", scs[sc_idx], scs[sc_idx+1], int(vars->clusters.size())); */
-                int var_beg = ctg_scs->ctg_variants[QUERY][hap]->clusters[
-                        ctg_scs->superclusters[QUERY][hap][sc_idx]];
-                int var_end = ctg_scs->ctg_variants[QUERY][hap]->clusters[
-                        ctg_scs->superclusters[QUERY][hap][sc_idx+1]];
+                int var_beg = vars->clusters[ctg_scs->superclusters[c][sc_idx]];
+                int var_end = vars->clusters[ctg_scs->superclusters[c][sc_idx+1]];
                 /* printf("var_beg=%d, var_end=%d, nvar=%d, var_size=%d\n", var_beg, var_end, vars->n, int(vars->poss.size())); */
                 // calculate query len after applying variants
-                int query_len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
+                int len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
                 for (int var = var_beg; var < var_end; var++) {
-                    query_len += (ctg_scs->ctg_variants[QUERY][hap]->alts[var].size() - 
-                            ctg_scs->ctg_variants[QUERY][hap]->refs[var].size());
+                    len += (vars->alts[var].size() - 
+                            vars->refs[var].size());
                 }
-                max_query_len = std::max(max_query_len, query_len);
-            }
-            
-            // get max truth length
-            int max_truth_len = 0;
-            for (int hap = 0; hap < HAPS; hap++) {
-                // get range of included variants
-                if (ctg_scs->ctg_variants[TRUTH][hap]->clusters.size() == 0) continue;
-                int var_beg = ctg_scs->ctg_variants[TRUTH][hap]->clusters[
-                        ctg_scs->superclusters[TRUTH][hap][sc_idx]];
-                int var_end = ctg_scs->ctg_variants[TRUTH][hap]->clusters[
-                        ctg_scs->superclusters[TRUTH][hap][sc_idx+1]];
-                // calculate truth len after applying variants
-                int truth_len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
-                for (int var = var_beg; var < var_end; var++) {
-                    truth_len += (ctg_scs->ctg_variants[TRUTH][hap]->alts[var].size() - 
-                            ctg_scs->ctg_variants[TRUTH][hap]->refs[var].size());
-                }
-                max_truth_len = std::max(max_truth_len, truth_len);
+                max_lens[c] = std::max(max_lens[c], size_t(len));
             }
 
             // calculate memory usage
@@ -95,7 +75,7 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             // (2) path_ptrs   = 1 byte * 2 haps
             // (4) path_scores = 2 byte * 2 haps
             // 2 is a fudge factor that I'm adding for now (fragmentation)
-            size_t mem = size_t(max_query_len) * size_t(max_truth_len) * 10 * 2;
+            size_t mem = max_lens[QUERY] * max_lens[TRUTH]* 10 * 2;
             double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
             if (mem_gb > g.max_ram) {
                 WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %s:%d-%d, running anyways", 
@@ -117,6 +97,235 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
     }
 
     return sc_groups;
+}
+
+/******************************************************************************/
+
+void superclusterData::add_callset_vars(int callset,
+        std::vector< std::unordered_map< std::string, 
+        std::shared_ptr<ctgVariants> > > vars) {
+
+    for (int ctg_idx = 0; ctg_idx < int(this->contigs.size()); ctg_idx++) {
+        std::string ctg = contigs[ctg_idx];
+
+        // skip empty contigs
+        int nvars = 0;
+        for (int h = 0; h < HAPS; h++) nvars += vars[h][ctg]->n;
+        if (!nvars) continue;
+
+        // merge variants from each haplotype for this ctg/callset
+        std::shared_ptr<ctgVariants> merged_vars(new ctgVariants());
+
+        // initialize with leftmost cluster info
+        int curr_left_reach = std::numeric_limits<int>::max();
+        int curr_right_reach = std::numeric_limits<int>::min();
+        if (vars[HAP1][ctg]->n && vars[HAP2][ctg]->n) {
+            if (vars[HAP1][ctg]->left_reaches[0] < vars[HAP2][ctg]->left_reaches[0]) {
+                curr_left_reach = vars[HAP1][ctg]->left_reaches[0];
+                curr_right_reach = vars[HAP1][ctg]->right_reaches[0];
+            } else {
+                curr_left_reach = vars[HAP2][ctg]->left_reaches[0];
+                curr_right_reach = vars[HAP2][ctg]->right_reaches[0];
+            }
+        } else if (vars[HAP1][ctg]->n) {
+            curr_left_reach = vars[HAP1][ctg]->left_reaches[0];
+            curr_right_reach = vars[HAP1][ctg]->right_reaches[0];
+        } else if (vars[HAP2][ctg]->n) {
+            curr_left_reach = vars[HAP2][ctg]->left_reaches[0];
+            curr_right_reach = vars[HAP2][ctg]->right_reaches[0];
+        }
+
+        // initialize indices
+        std::vector<int> var_idx(HAPS, 0);
+        std::vector<int> clust_idx(HAPS, 0);
+        int curr_var_idx = 0;
+        int next_left_reach = std::numeric_limits<int>::max();
+        int next_right_reach = std::numeric_limits<int>::min();
+        while (var_idx[HAP1] < vars[HAP1][ctg]->n ||
+                var_idx[HAP2] < vars[HAP2][ctg]->n) {
+
+            //////////////////
+            // ADD VARIANTS //
+            //////////////////
+            std::vector<bool> updated(HAPS, false);
+
+            if (var_idx[HAP1] < vars[HAP1][ctg]->n &&
+                    var_idx[HAP2] < vars[HAP2][ctg]->n) {
+
+                // variants are same, add homozygous
+                if (vars[HAP1][ctg]->poss[var_idx[HAP1]] == 
+                        vars[HAP2][ctg]->poss[var_idx[HAP2]] && 
+                        vars[HAP1][ctg]->refs[var_idx[HAP1]] ==
+                        vars[HAP2][ctg]->refs[var_idx[HAP2]] &&
+                        vars[HAP1][ctg]->alts[var_idx[HAP1]] ==
+                        vars[HAP2][ctg]->alts[var_idx[HAP2]]) {
+                    merged_vars->add_var(
+                            vars[HAP1][ctg]->poss[var_idx[HAP1]],
+                            vars[HAP1][ctg]->rlens[var_idx[HAP1]],
+                            vars[HAP1][ctg]->types[var_idx[HAP1]],
+                            vars[HAP1][ctg]->locs[var_idx[HAP1]],
+                            vars[HAP1][ctg]->refs[var_idx[HAP1]],
+                            vars[HAP1][ctg]->alts[var_idx[HAP1]],
+                            GT_ALT1_ALT1,
+                            vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
+                            vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
+                            vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
+                    /* printf("adding 1|1 var= %s:%d\t%s\t%s\t%s\n", */
+                    /*         ctg.data(), */ 
+                    /*         vars[HAP1][ctg]->poss[var_idx[HAP1]], */
+                    /*         vars[HAP1][ctg]->refs[var_idx[HAP1]].data(), */
+                    /*         vars[HAP1][ctg]->alts[var_idx[HAP1]].data(), */
+                    /*         gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data() */
+                    /*         ); */
+                    var_idx[HAP1]++; var_idx[HAP2]++;
+                    updated[HAP1] = true; updated[HAP2] = true;
+
+                } else { // heterozygous, add first-occurring variant
+                    int hap_idx = HAP1;
+                    if (vars[HAP2][ctg]->poss[var_idx[HAP2]] <
+                            vars[HAP1][ctg]->poss[var_idx[HAP1]]) {
+                        hap_idx = HAP2;
+                    }
+                    merged_vars->add_var(
+                            vars[hap_idx][ctg]->poss[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->rlens[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->types[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->locs[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->refs[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->alts[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->orig_gts[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->gt_quals[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->var_quals[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->phase_sets[var_idx[hap_idx]]);
+                    /* printf("adding %s var= %s:%d\t%s\t%s\t%s\n", */
+                    /*         hap_idx == 0 ? "1|0" : "0|1", */
+                    /*         ctg.data(), */ 
+                    /*         vars[hap_idx][ctg]->poss[var_idx[hap_idx]], */
+                    /*         vars[hap_idx][ctg]->refs[var_idx[hap_idx]].data(), */
+                    /*         vars[hap_idx][ctg]->alts[var_idx[hap_idx]].data(), */
+                    /*         gt_strs[vars[hap_idx][ctg]->orig_gts[var_idx[hap_idx]]].data() */
+                    /*             ); */
+                    var_idx[hap_idx]++;
+                    updated[hap_idx] = true;
+                }
+            } else if (var_idx[HAP1] < vars[HAP1][ctg]->n) { // only hap1 vars left
+                    merged_vars->add_var(
+                            vars[HAP1][ctg]->poss[var_idx[HAP1]],
+                            vars[HAP1][ctg]->rlens[var_idx[HAP1]],
+                            vars[HAP1][ctg]->types[var_idx[HAP1]],
+                            vars[HAP1][ctg]->locs[var_idx[HAP1]],
+                            vars[HAP1][ctg]->refs[var_idx[HAP1]],
+                            vars[HAP1][ctg]->alts[var_idx[HAP1]],
+                            vars[HAP1][ctg]->orig_gts[var_idx[HAP1]],
+                            vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
+                            vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
+                            vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
+                    /* printf("adding 1|0 var= %s:%d\t%s\t%s\t%s\n", */
+                    /*         ctg.data(), */ 
+                    /*         vars[HAP1][ctg]->poss[var_idx[HAP1]], */
+                    /*         vars[HAP1][ctg]->refs[var_idx[HAP1]].data(), */
+                    /*         vars[HAP1][ctg]->alts[var_idx[HAP1]].data(), */
+                    /*         gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data() */
+                    /*             ); */
+                    var_idx[HAP1]++;
+                    updated[HAP1] = true;
+            } else if (var_idx[HAP2] < vars[HAP2][ctg]->n) { // only hap2 vars left
+                    merged_vars->add_var(
+                            vars[HAP2][ctg]->poss[var_idx[HAP2]],
+                            vars[HAP2][ctg]->rlens[var_idx[HAP2]],
+                            vars[HAP2][ctg]->types[var_idx[HAP2]],
+                            vars[HAP2][ctg]->locs[var_idx[HAP2]],
+                            vars[HAP2][ctg]->refs[var_idx[HAP2]],
+                            vars[HAP2][ctg]->alts[var_idx[HAP2]],
+                            vars[HAP2][ctg]->orig_gts[var_idx[HAP2]],
+                            vars[HAP2][ctg]->gt_quals[var_idx[HAP2]],
+                            vars[HAP2][ctg]->var_quals[var_idx[HAP2]],
+                            vars[HAP2][ctg]->phase_sets[var_idx[HAP2]]);
+                    /* printf("adding 0|1 var= %s:%d\t%s\t%s\t%s\n", */
+                    /*         ctg.data(), */ 
+                    /*         vars[HAP2][ctg]->poss[var_idx[HAP2]], */
+                    /*         vars[HAP2][ctg]->refs[var_idx[HAP2]].data(), */
+                    /*         vars[HAP2][ctg]->alts[var_idx[HAP2]].data(), */
+                    /*         gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data() */
+                    /*             ); */
+                    var_idx[HAP2]++;
+                    updated[HAP2] = true;
+            }
+
+            /////////////////////
+            // UPDATE CLUSTERS //
+            /////////////////////
+
+            // update cluster indices before checking reaches
+            for (int h = 0; h < HAPS; h++) {
+                if (updated[h] && clust_idx[h] < vars[h][ctg]->nc) {
+                    if (var_idx[h] >= vars[h][ctg]->clusters[clust_idx[h]+1]) {
+                        clust_idx[h]++;
+                    }
+                }
+            }
+
+            // update reaches
+            for (int h = 0; h < HAPS; h++) {
+                if (clust_idx[h] < vars[h][ctg]->nc) {
+                    if (vars[h][ctg]->left_reaches[clust_idx[h]] <= 
+                            vars[h^1][ctg]->left_reaches[clust_idx[h^1]]) {
+                        next_left_reach = vars[h][ctg]->left_reaches[clust_idx[h]];
+                        next_right_reach = std::max(next_right_reach,
+                            vars[h][ctg]->right_reaches[clust_idx[h]]);
+                    }
+                }
+            }
+            /* printf("curr = (%d, %d)\tnext = (%d, %d)\n", */
+            /*         curr_left_reach, curr_right_reach, */
+            /*         next_left_reach, next_right_reach); */
+
+            // starting new supercluster
+            if (next_left_reach > curr_right_reach) {
+                /* printf("new supercluster, adding curr = %d (%d, %d)\n\n", */
+                /*         curr_var_idx, curr_left_reach, curr_right_reach); */
+
+                // save reaches of prev cluster
+                merged_vars->clusters.push_back(curr_var_idx);
+                merged_vars->left_reaches.push_back(curr_left_reach);
+                merged_vars->right_reaches.push_back(curr_right_reach);
+                merged_vars->nc++;
+
+                // set reaches of this cluster
+                curr_var_idx = merged_vars->n;
+                curr_left_reach  = next_left_reach;
+                curr_right_reach = next_right_reach;
+
+                // init reaches of next cluster
+                next_left_reach  = std::numeric_limits<int>::max();
+                next_right_reach = std::numeric_limits<int>::min();
+                for (int h = 0; h < HAPS; h++) {
+                    if (clust_idx[h] < vars[h][ctg]->nc &&
+                            vars[h][ctg]->left_reaches[clust_idx[h]] <=
+                            vars[h^1][ctg]->left_reaches[clust_idx[h^1]]) {
+                        next_left_reach  = std::min(next_left_reach,
+                                vars[h][ctg]->left_reaches[clust_idx[h]]);
+                        next_right_reach = std::max(next_right_reach,
+                                vars[h][ctg]->right_reaches[clust_idx[h]]);
+                    }
+                }
+
+            } else { // same supercluster
+                /* printf("same supercluster\n"); */
+                curr_left_reach = std::min(curr_left_reach, next_left_reach);
+                curr_right_reach = std::max(curr_right_reach, next_right_reach);
+            }
+
+        } // while variants remain
+
+        // add sentinel cluster and save contig variants
+        merged_vars->clusters.push_back(merged_vars->n);
+        merged_vars->left_reaches.push_back(std::numeric_limits<int>::max());
+        merged_vars->right_reaches.push_back(std::numeric_limits<int>::max());
+        merged_vars->nc++;
+        this->superclusters[ctg]->callset_vars[callset] = merged_vars;
+
+    } // for each contig
 }
 
 /******************************************************************************/
@@ -151,27 +360,13 @@ superclusterData::superclusterData(
             this->superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }
-    }
+   }
 
-    // set pointers to variant lists (per contig)
-    for (std::string ctg : this->contigs) {
-        try {
-            this->superclusters[ctg]->ctg_variants[QUERY][HAP1] = 
-                    query_ptr->variants[HAP1][ctg];
-            this->superclusters[ctg]->ctg_variants[QUERY][HAP2] = 
-                    query_ptr->variants[HAP2][ctg];
-        } catch (const std::exception & e) {
-            ERROR("Query VCF does not contain contig '%s'", ctg.data());
-        }
-        try {
-            this->superclusters[ctg]->ctg_variants[TRUTH][HAP1] = 
-                    truth_ptr->variants[HAP1][ctg];
-            this->superclusters[ctg]->ctg_variants[TRUTH][HAP2] = 
-                    truth_ptr->variants[HAP2][ctg];
-        } catch (const std::exception & e) {
-            ERROR("Truth VCF does not contain contig '%s'", ctg.data());
-        }
-    }
+    // for each contig, merge variants and clusters across haplotypes
+    this->add_callset_vars(QUERY, query_ptr->variants);
+    this->add_callset_vars(TRUTH, truth_ptr->variants);
+
+    // supercluster
     this->supercluster();
     this->transfer_phase_sets();
 }
@@ -197,47 +392,27 @@ void superclusterData::transfer_phase_sets() {
         if (!ctg_scs->n) continue;
 
         // set convenience variables
-        int q1i = 0; int q2i = 0; int t1i = 0; int t2i = 0; // indices
-        std::shared_ptr<ctgVariants> q1v = ctg_scs->ctg_variants[QUERY][HAP1]; // vars
-        std::shared_ptr<ctgVariants> q2v = ctg_scs->ctg_variants[QUERY][HAP2];
-        std::shared_ptr<ctgVariants> t1v = ctg_scs->ctg_variants[TRUTH][HAP1];
-        std::shared_ptr<ctgVariants> t2v = ctg_scs->ctg_variants[TRUTH][HAP2];
-        std::vector<int> & q1sc = ctg_scs->superclusters[QUERY][HAP1]; // superclusters
-        std::vector<int> & q2sc = ctg_scs->superclusters[QUERY][HAP2];
-        std::vector<int> & t1sc = ctg_scs->superclusters[TRUTH][HAP1];
-        std::vector<int> & t2sc = ctg_scs->superclusters[TRUTH][HAP2];
+        int qi = 0; int ti = 0; // query and truth indices
+        std::shared_ptr<ctgVariants> qv = ctg_scs->callset_vars[QUERY]; // vars
+        std::shared_ptr<ctgVariants> tv = ctg_scs->callset_vars[TRUTH];
+        std::vector<int> & qsc = ctg_scs->superclusters[QUERY]; // superclusters
+        std::vector<int> & tsc = ctg_scs->superclusters[TRUTH];
 
         // get first phase set (to backfill all preceding zeros)
         int first_pos = std::numeric_limits<int>::max();
         int phase_set = 0;
-        for (; q1i < q1v->n; q1i++) {
-            if (q1v->phase_sets[q1i] != 0) {
-                if (q1v->poss[q1i] < first_pos) {
-                    first_pos = q1v->poss[q1i]; phase_set = q1v->phase_sets[q1i];
+        for (; qi < qv->n; qi++) {
+            if (qv->phase_sets[qi] != 0) {
+                if (qv->poss[qi] < first_pos) {
+                    first_pos = qv->poss[qi]; phase_set = qv->phase_sets[qi];
                 }
                 break;
             }
         }
-        for (; q2i < q2v->n; q2i++) {
-            if (q2v->phase_sets[q2i] != 0) {
-                if (q2v->poss[q2i] < first_pos) {
-                    first_pos = q2v->poss[q2i]; phase_set = q2v->phase_sets[q2i];
-                }
-                break;
-            }
-        }
-        for (; t1i < t1v->n; t1i++) {
-            if (t1v->phase_sets[t1i] != 0) {
-                if (t1v->poss[t1i] < first_pos) {
-                    first_pos = t1v->poss[t1i]; phase_set = t1v->phase_sets[t1i];
-                }
-                break;
-            }
-        }
-        for (; t2i < t2v->n; t2i++) {
-            if (t2v->phase_sets[t2i] != 0) {
-                if (t2v->poss[t2i] < first_pos) {
-                    first_pos = t2v->poss[t2i]; phase_set = t2v->phase_sets[t2i];
+        for (; ti < tv->n; ti++) {
+            if (tv->phase_sets[ti] != 0) {
+                if (tv->poss[ti] < first_pos) {
+                    first_pos = tv->poss[ti]; phase_set = tv->phase_sets[ti];
                 }
                 break;
             }
@@ -256,80 +431,40 @@ void superclusterData::transfer_phase_sets() {
             if (print) printf("supercluster: %d\n", sci);
 
             // check all variants in supercluster for each haplotype
-            if (q1v->n)
-            for (q1i = q1v->clusters[q1sc[sci]]; // QUERY HAP 1
-                    q1i < q1v->clusters[q1sc[sci+1]]; q1i++) {
-                if (q1v->phase_sets[q1i]) { // non-zero, has PS tag
-                    if (q1v->phase_sets[q1i] > query_phase_set) { // new PS
+            if (qv->n)
+            for (qi = qv->clusters[qsc[sci]]; // QUERY HAP 1
+                    qi < qv->clusters[qsc[sci+1]]; qi++) {
+                if (qv->phase_sets[qi]) { // non-zero, has PS tag
+                    if (qv->phase_sets[qi] > query_phase_set) { // new PS
                         if (query_phase_set) query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
-                        phase_set = query_phase_set = q1v->phase_sets[q1i];
+                        phase_set = query_phase_set = qv->phase_sets[qi];
                         total_query_phase_sets++; query_ps_ct++;
-                        if (print) printf(" Q1 PS:%d %d-%d", phase_set, query_ps_beg, query_ps_end);
-                        query_ps_beg = q1v->poss[q1i];
-                        query_ps_end = q1v->poss[q1i] + q1v->rlens[q1i];
-                    } else if (q1v->phase_sets[q1i] == query_phase_set) { // same 
+                        if (print) printf(" Q PS:%d %d-%d", phase_set, query_ps_beg, query_ps_end);
+                        query_ps_beg = qv->poss[qi];
+                        query_ps_end = qv->poss[qi] + qv->rlens[qi];
+                    } else if (qv->phase_sets[qi] == query_phase_set) { // same 
                         if (!query_ps_ct) { query_ps_ct++; }
-                        query_ps_end = std::max(query_ps_end, q1v->poss[q1i] + q1v->rlens[q1i]);
+                        query_ps_end = std::max(query_ps_end, qv->poss[qi] + qv->rlens[qi]);
                     } else {
                         query_ps_ct++;
                         non_increasing++;
                     }
                 }
             }
-            if (q2v->n)
-            for (q2i = q2v->clusters[q2sc[sci]]; // QUERY HAP 2
-                    q2i < q2v->clusters[q2sc[sci+1]]; q2i++) {
-                if (q2v->phase_sets[q2i]) { // non-zero, has PS tag
-                    if (q2v->phase_sets[q2i] > query_phase_set) { // new
-                        if (query_phase_set) query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
-                        phase_set = query_phase_set = q2v->phase_sets[q2i];
-                        total_query_phase_sets++; query_ps_ct++;
-                        if (print) printf(" Q2 PS:%d %d-%d", phase_set, query_ps_beg, query_ps_end);
-                        query_ps_beg = q2v->poss[q2i];
-                        query_ps_end = q2v->poss[q2i] + q2v->rlens[q2i];
-                    } else if (q2v->phase_sets[q2i] == query_phase_set) { // same 
-                        if (!query_ps_ct) { query_ps_ct++; }
-                        query_ps_end = std::max(query_ps_end, q2v->poss[q2i] + q2v->rlens[q2i]);
-                    } else {
-                        query_ps_ct++;
-                        non_increasing++;
-                    }
-                }
-            }
-            if (t1v->n)
-            for (t1i = t1v->clusters[t1sc[sci]]; // TRUTH HAP 1
-                    t1i < t1v->clusters[t1sc[sci+1]]; t1i++) {
-                if (t1v->phase_sets[t1i]) { // non-zero, has PS tag
-                    if (t1v->phase_sets[t1i] > truth_phase_set) { // new
+            if (tv->n)
+            for (ti = tv->clusters[tsc[sci]]; // TRUTH HAP 1
+                    ti < tv->clusters[tsc[sci+1]]; ti++) {
+                if (tv->phase_sets[ti]) { // non-zero, has PS tag
+                    if (tv->phase_sets[ti] > truth_phase_set) { // new
                         if (truth_phase_set) truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
-                        phase_set = truth_phase_set = t1v->phase_sets[t1i];
+                        phase_set = truth_phase_set = tv->phase_sets[ti];
                         total_truth_phase_sets++; truth_ps_ct++;
-                        if (print) printf(" T1 PS:%d %d-%d", phase_set, truth_ps_beg, truth_ps_end);
-                        truth_ps_beg = t1v->poss[t1i];
-                        truth_ps_end = t1v->poss[t1i] + t1v->rlens[t1i];
-                    } else if (t1v->phase_sets[t1i] == truth_phase_set) { // same 
+                        if (print) printf(" T PS:%d %d-%d", phase_set, truth_ps_beg, truth_ps_end);
+                        truth_ps_beg = tv->poss[ti];
+                        truth_ps_end = tv->poss[ti] + tv->rlens[ti];
+                    } else if (tv->phase_sets[ti] == truth_phase_set) { // same 
                         if (!truth_ps_ct) { truth_ps_ct++; }
-                        truth_ps_end = std::max(truth_ps_end, t1v->poss[t1i] + t1v->rlens[t1i]);
-                    } else {
-                        truth_ps_ct++;
-                        non_increasing++;
-                    }
-                }
-            }
-            if (t2v->n)
-            for (t2i = t2v->clusters[t2sc[sci]]; // TRUTH HAP 2
-                    t2i < t2v->clusters[t2sc[sci+1]]; t2i++) {
-                if (t2v->phase_sets[t2i]) { // non-zero, has PS tag
-                    if (t2v->phase_sets[t2i] > truth_phase_set) { // new
-                        if (truth_phase_set) truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
-                        phase_set = truth_phase_set = t2v->phase_sets[t2i];
-                        total_truth_phase_sets++; truth_ps_ct++;
-                        if (print) printf(" T2 PS:%d %d-%d", phase_set, truth_ps_beg, truth_ps_end);
-                        truth_ps_beg = t2v->poss[t2i];
-                        truth_ps_end = t2v->poss[t2i] + t2v->rlens[t2i];
-                    } else if (t2v->phase_sets[t2i] == truth_phase_set) { // same 
-                        if (!truth_ps_ct) { truth_ps_ct++; }
-                        truth_ps_end = std::max(truth_ps_end, t2v->poss[t2i] + t2v->rlens[t2i]);
+                        truth_ps_end = std::max(truth_ps_end, tv->poss[ti] + tv->rlens[ti]);
                     } else {
                         truth_ps_ct++;
                         non_increasing++;
@@ -410,48 +545,48 @@ void superclusterData::supercluster() {
 
         // skip empty contigs
         int nvars = 0;
-        for (int i = 0; i < CALLSETS*HAPS; i++) {
-            nvars += this->superclusters[ctg]->ctg_variants[i>>1][i&1]->n;
+        for (int c = 0; c < CALLSETS; c++) {
+            nvars += this->superclusters[ctg]->callset_vars[c]->n;
         }
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
-        auto & vars = this->superclusters[ctg]->ctg_variants;
-        std::vector<int> brks = {0, 0, 0, 0}; // start of current supercluster
+        auto & vars = this->superclusters[ctg]->callset_vars;
+        std::vector<int> brks(CALLSETS, 0); // start of current supercluster
         while (true) {
 
             // init: empty supercluster
             std::vector<int> next_brks = brks; // end of current supercluster
-            std::vector<int> lefts(4, std::numeric_limits<int>::max());
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                if (brks[i] < int(vars[i>>1][i&1]->clusters.size())-1) {
-                    lefts[i] = vars[i>>1][i&1]->left_reaches[ next_brks[i] ];
+            std::vector<int> lefts(CALLSETS, std::numeric_limits<int>::max());
+            for (int c = 0; c < CALLSETS; c++) {
+                if (brks[c] < vars[c]->nc) {
+                    lefts[c] = vars[c]->left_reaches[ next_brks[c] ];
                 }
             }
 
             // get first cluster, end if all haps are off end
-            int idx = std::distance(lefts.begin(),
+            int c = std::distance(lefts.begin(),
                     std::min_element(lefts.begin(), lefts.end()));
-            if (lefts[idx] == std::numeric_limits<int>::max()) break;
+            if (lefts[c] == std::numeric_limits<int>::max()) break;
 
             // initialize cluster merging with first to start
-            int curr_right = vars[idx>>1][idx&1]->right_reaches[ next_brks[idx] ];
-            next_brks[idx]++;
-            lefts[idx] = next_brks[idx] < int(vars[idx>>1][idx&1]->clusters.size())-1 ?
-                    vars[idx>>1][idx&1]->left_reaches[ next_brks[idx] ] :
+            int curr_right = vars[c]->right_reaches[ next_brks[c] ];
+            next_brks[c]++;
+            lefts[c] = next_brks[c] < vars[c]->nc ?
+                    vars[c]->left_reaches[ next_brks[c] ] :
                     std::numeric_limits<int>::max();
 
             // keep expanding cluster while possible
             bool just_active = true;
             while (just_active) {
                 just_active = false;
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    while (lefts[i] <= curr_right) {
+                for (int c = 0; c < CALLSETS; c++) {
+                    while (lefts[c] <= curr_right) {
                         curr_right = std::max(curr_right,
-                            vars[i>>1][i&1]->right_reaches[ next_brks[i] ]);
-                        next_brks[i]++;
-                        lefts[i] = next_brks[i] < int(vars[i>>1][i&1]->clusters.size())-1 ?
-                            vars[i>>1][i&1]->left_reaches[ next_brks[i] ] :
+                            vars[c]->right_reaches[ next_brks[c] ]);
+                        next_brks[c]++;
+                        lefts[c] = next_brks[c] < vars[c]->nc ?
+                            vars[c]->left_reaches[ next_brks[c] ] :
                             std::numeric_limits<int>::max();
                         just_active = true;
                     }
@@ -461,16 +596,16 @@ void superclusterData::supercluster() {
             // get supercluster start/end positions (allowing empty haps)
             int beg_pos = std::numeric_limits<int>::max();
             int end_pos = -1;
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                if (next_brks[i] - brks[i]) {
+            for (int c = 0; c < CALLSETS; c++) {
+                if (next_brks[c] - brks[c]) {
                     beg_pos = std::min(beg_pos,
-                        vars[i>>1][i&1]->poss[
-                            vars[i>>1][i&1]->clusters[brks[i]]]-1);
+                        vars[c]->poss[
+                            vars[c]->clusters[brks[c]]]-1);
                     end_pos = std::max(end_pos,
-                            vars[i>>1][i&1]->poss[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]-1] +
-                            vars[i>>1][i&1]->rlens[
-                                vars[i>>1][i&1]->clusters[next_brks[i]]-1] + 1);
+                            vars[c]->poss[
+                                vars[c]->clusters[next_brks[c]]-1] +
+                            vars[c]->rlens[
+                                vars[c]->clusters[next_brks[c]]-1] + 1);
                 }
             }
 
@@ -478,10 +613,10 @@ void superclusterData::supercluster() {
             largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
             total_bases += end_pos-beg_pos;
             int this_vars = 0;
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                if (vars[i>>1][i&1]->clusters.size())
-                    this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
-                        vars[i>>1][i&1]->clusters[ brks[i] ];
+            for (int c = 0; c < CALLSETS; c++) {
+                if (vars[c]->nc)
+                    this_vars += vars[c]->clusters[ next_brks[c] ] - 
+                        vars[c]->clusters[ brks[c] ];
             }
             most_vars = std::max(most_vars, this_vars);
             total_vars += this_vars;
@@ -491,25 +626,25 @@ void superclusterData::supercluster() {
                 printf("\nSUPERCLUSTER: %d\n", this->superclusters[ctg]->n);
                 printf("POS: %s:%d-%d\n", ctg.data(), beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
-                for (int i = 0; i < CALLSETS*HAPS; i++) {
-                    printf("%s%d: clusters %d-%d of %d\n",
-                            callset_strs[i>>1].data(), (i&1)+1,
-                            brks[i], next_brks[i], 
-                            std::max(int(vars[i>>1][i&1]->clusters.size())-1, 0));
-                    if (vars[i>>1][i&1]->clusters.size())
-                    for (int v = vars[i>>1][i&1]->clusters[ brks[i]]; v < vars[i>>1][i&1]->clusters[ next_brks[i] ]; v++) {
-                        printf("    var %d = %s:%d\t%s\t%s\n", v, ctg.data(),
-                                vars[i>>1][i&1]->poss[v], 
-                                vars[i>>1][i&1]->refs[v].data(),
-                                vars[i>>1][i&1]->alts[v].data());
+                for (int c = 0; c < CALLSETS; c++) {
+                    printf("%s: clusters %d-%d of %d\n",
+                            callset_strs[c].data(),
+                            brks[c], next_brks[c], vars[c]->nc);
+                    if (vars[c]->nc)
+                    for (int v = vars[c]->clusters[ brks[c]]; 
+                            v < vars[c]->clusters[ next_brks[c] ]; v++) {
+                        printf("    var %d = %s:%d\t%s\t%s\t%s\n", v, ctg.data(),
+                                vars[c]->poss[v], 
+                                vars[c]->refs[v].data(),
+                                vars[c]->alts[v].data(),
+                                gt_strs[vars[c]->orig_gts[v]].data());
                     }
                 }
-                printf("curr_right: %d, lefts: %d %d %d %d\n",
-                    curr_right, lefts[0], lefts[1], lefts[2], lefts[3]);
+                printf("curr_right: %d, lefts: %d %d\n", curr_right, lefts[0], lefts[1]);
                 printf("variants: %d, bases: %d\n", this_vars, end_pos-beg_pos);
             }
 
-            // save alignment information
+            // save supercluster information
             this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
 
             // reset for next active cluster
@@ -656,10 +791,11 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
 
             // save final clustering
             vars->clusters = next_clusters;
+            vars->nc = int(vars->clusters.size())-1;
             vars->left_reaches = left_reach;
             vars->right_reaches = right_reach;
 
-            if (vars->clusters[vars->clusters.size()-1] != vars->n) {
+            if (vars->clusters[vars->nc] != vars->n) {
                 ERROR("Mismatch between original and clustered variant count, contig '%s' hap %d",
                         ctg.data(), hap);
             }
@@ -973,6 +1109,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
 
     // save final clustering
     vars->clusters = prev_clusters;
+    vars->nc = int(vars->clusters.size())-1;
     vars->left_reaches = left_reach;
     vars->right_reaches = right_reach;
 }

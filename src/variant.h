@@ -18,8 +18,7 @@ public:
     ctgVariants();
 
     // helper functions
-    void add_cluster(int g);
-    void add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
+    void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
             std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps);
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
             std::string ctg, int idx);
@@ -27,10 +26,9 @@ public:
     void print_var_sample(FILE* out_vcf, int idx, std::string gt, int sc_idx, 
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
 
-    // data (all of size n)
+    // originally parsed data (size n)
     std::vector<int> poss;          // variant start positions (0-based)
     std::vector<int> rlens;         // reference lengths
-    std::vector<uint8_t> haps;      // variant haplotype
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, CPX
     std::vector<uint8_t> locs;      // BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  // variant reference allele
@@ -41,23 +39,19 @@ public:
     std::vector<int> phase_sets;    // integer representing variant phase set (0 = missing)
     int n = 0;
 
-    // set during clustering
+    // set during clustering (size nc+1)
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
     std::vector<int> left_reaches;  // cluster leftmost reach
     std::vector<int> right_reaches; // cluster rightmost reach
+    int nc = 0;
 
     // set during prec_recall_aln()
-    // error type: TP, FP, FN
-    std::vector< std::vector<uint8_t> > errtypes;  
-    // group of variants that participate in credit
-    std::vector< std::vector<int> > sync_group;    
-    // call quality (for truth, of associated call)
-    // or for call, min quality in sync group
-    std::vector< std::vector<float> > callq;   
-    // percentage reduction in edit dist of sync group with variants
-    std::vector< std::vector<int> > ref_ed;  
-    std::vector< std::vector<int> > query_ed;  
-    std::vector< std::vector<float> > credit;  
+    std::vector< std::vector<uint8_t> > errtypes;  // error type: TP, FP, FN
+    std::vector< std::vector<int> > sync_group;    // group of variants that participate in credit
+    std::vector< std::vector<float> > callq;   // min call quality in sync group (for truth, of associated call)
+    std::vector< std::vector<int> > ref_ed;    // reference edit distance in sync group
+    std::vector< std::vector<int> > query_ed;  // query edit distance in sync group
+    std::vector< std::vector<float> > credit;  // percentage reduction in edit dist (ref->query)
 };
 
 class variantData {
@@ -72,7 +66,7 @@ public:
     void print_variant(FILE* out_fp, std::string ctg, int pos, int type,
         std::string ref, std::string alt, float qual, std::string gt);
     void set_header(const std::shared_ptr<variantData> vcf);
-    void add_variants( const std::vector<int> & cigar, int hap, 
+    void add_variants( const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query, 
             const std::string & ref, int qual, int phase_set);
     void left_shift();

@@ -26,12 +26,12 @@ public:
            int swap_phase_dist);
 
     // stores variant info for each contig
-    // ctg_variants[truth/query][hap]
-    std::vector< std::vector< std::shared_ptr<ctgVariants> > > ctg_variants;
+    // callset_vars[truth|query]
+    std::vector< std::shared_ptr<ctgVariants> > callset_vars;
 
-    // cluster indices of superclusters (not variant indices!)
-    // superclusters[truth/query][hap] = n+1
-    std::vector< std::vector< std::vector<int> > > superclusters;
+    // variant indices of superclusters
+    // superclusters[truth|query] = n+1
+    std::vector< std::vector<int> > superclusters;
 
     // data (length n)
     int n = 0;                                         // number of superclusters
@@ -49,6 +49,8 @@ public:
             std::shared_ptr<variantData> truth_ptr,
             std::shared_ptr<fastaData> ref_ptr);
 
+    void add_callset_vars(int callset, std::vector< std::unordered_map< std::string,
+            std::shared_ptr<ctgVariants> > > vars);
     void supercluster();
     void transfer_phase_sets();
 

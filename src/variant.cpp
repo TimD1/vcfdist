@@ -23,13 +23,10 @@ ctgVariants::ctgVariants() {
     }
 }
 
-void ctgVariants::add_cluster(int g) { this->clusters.push_back(g); }
-
-void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
+void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps) {
     this->poss.push_back(pos);
     this->rlens.push_back(rlen);
-    this->haps.push_back(hap);
     this->types.push_back(type);
     this->locs.push_back(loc);
     this->refs.push_back(ref);
@@ -112,7 +109,6 @@ void variantData::left_shift() {
                 if (vars->refs[i].size() && i+1 < vars->n && 
                             vars->poss[i+1] == vars->poss[i]) {
                     std::swap(vars->rlens[i], vars->rlens[i+1]);
-                    std::swap(vars->haps[i],  vars->haps[i+1]);
                     std::swap(vars->types[i], vars->types[i+1]);
                     std::swap(vars->locs[i],  vars->locs[i+1]);
                     std::swap(vars->refs[i],  vars->refs[i+1]);
@@ -350,7 +346,7 @@ void variantData::add_variants(
 
             case PTR_SUB: // substitution
                 cig_idx += 2;
-                this->variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, hap, 
+                this->variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, 
                         TYPE_SUB, BED_INSIDE, std::string(1,ref[ref_idx]), 
                         std::string(1,query[query_idx]), 
                         GT_REF_REF, g.max_qual, qual, phase_set);
@@ -366,7 +362,7 @@ void variantData::add_variants(
                     cig_idx++; indel_len++;
                 }
                 this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
-                        indel_len, hap, TYPE_DEL, BED_INSIDE,
+                        indel_len, TYPE_DEL, BED_INSIDE,
                         ref.substr(ref_idx, indel_len),
                         "", GT_REF_REF, g.max_qual, qual, phase_set);
                 ref_idx += indel_len;
@@ -380,7 +376,7 @@ void variantData::add_variants(
                     cig_idx++; indel_len++;
                 }
                 this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
-                        0, hap, TYPE_INS, BED_INSIDE, "", 
+                        0, TYPE_INS, BED_INSIDE, "", 
                         query.substr(query_idx, indel_len), 
                         GT_REF_REF, g.max_qual, qual, phase_set);
                 query_idx += indel_len;
@@ -862,13 +858,13 @@ variantData::variantData(std::string vcf_fn,
             // add to haplotype-specific query info
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 this->variants[hap][ctg]->add_var(pos, 0, // INS
-                    hap, TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
                 this->variants[hap][ctg]->add_var(pos, rlen, // DEL
-                    hap, TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
                 complex_total++;
             } else {
                 this->variants[hap][ctg]->add_var(pos, rlen,
-                        hap, type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                        type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
             }
 
             prev_end[hap] = pos + rlen;

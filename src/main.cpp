@@ -212,34 +212,31 @@ int main(int argc, char **argv) {
     auto sc_groups = sort_superclusters(clusterdata_ptr);
     g.timers[TIME_SUPCLUST].stop();
 
-    // duplicate data for precision/recall calculation
-    g.timers[TIME_PR_ALN].start();
-    duplicate_variant_info(clusterdata_ptr);
+    /* // calculate precision/recall and local phasing */
+    /* g.timers[TIME_PR_ALN].start(); */
+    /* precision_recall_threads_wrapper(clusterdata_ptr, sc_groups); */
+    /* INFO("    done with precision-recall"); */
+    /* g.timers[TIME_PR_ALN].stop(); */
 
-    // calculate precision/recall and local phasing
-    precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
-    INFO("    done with precision-recall");
-    g.timers[TIME_PR_ALN].stop();
+    /* // calculate global phasings */
+    /* g.timers[TIME_PHASE].start(); */
+    /* std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr)); */
+    /* g.timers[TIME_PHASE].stop(); */
 
-    // calculate global phasings
-    g.timers[TIME_PHASE].start();
-    std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr));
-    g.timers[TIME_PHASE].stop();
+    /* // write supercluster/phaseblock results in CSV format */
+    /* g.timers[TIME_WRITE].start(); */
+    /* if (g.write) phasedata_ptr->write_switchflips(); */
+    /* write_results(phasedata_ptr); */
 
-    // write supercluster/phaseblock results in CSV format
-    g.timers[TIME_WRITE].start();
-    if (g.write) phasedata_ptr->write_switchflips();
-    write_results(phasedata_ptr);
-
-    // save new VCF
-    if (g.write) {
-        if (g.realign_query)
-            query_ptr->write_vcf(g.out_prefix + "query.vcf");
-        if (g.realign_truth)
-            truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
-        phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
-    }
-    g.timers[TIME_WRITE].stop();
+    /* // save new VCF */
+    /* if (g.write) { */
+    /*     if (g.realign_query) */
+    /*         query_ptr->write_vcf(g.out_prefix + "query.vcf"); */
+    /*     if (g.realign_truth) */
+    /*         truth_ptr->write_vcf(g.out_prefix + "truth.vcf"); */
+    /*     phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf"); */
+    /* } */
+    /* g.timers[TIME_WRITE].stop(); */
 
     // report timing results
     g.timers[TIME_TOTAL].stop();
