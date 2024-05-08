@@ -1967,6 +1967,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
             // phasing is known, add scores for each hap
             std::vector<int> qual_dists(g.max_qual+2, 0);
             for (int hap = 0; hap < HAPS; hap++) {
+				if (false) printf("truth/query haplotype %d\n", hap);
 
                 // supercluster start/end indices
                 int beg_idx = sc->ctg_variants[QUERY][hap]->clusters.size() ?
@@ -1987,7 +1988,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                 // sweep through quality thresholds
                 int prev_qual = 0;
                 for (int qual : quals) {
-                    if(false) printf("qual: %d-%d\n", prev_qual, qual-1);
+                    if (false) printf("qual: %d-%d\n", prev_qual, qual-1);
 
                     // generate query string (only applying variants with Q>=qual)
                     std::string query, ref;
@@ -1995,9 +1996,13 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     generate_ptrs_strs(
                             query, ref, query_ref_ptrs, ref_query_ptrs,
                             sc->ctg_variants[QUERY][hap], 
-                            beg_idx, end_idx,
+							sc->superclusters[QUERY][hap][sc_idx],
+							sc->superclusters[QUERY][hap][sc_idx+1],
                             sc->begs[sc_idx], sc->ends[sc_idx], 
                             clusterdata_ptr->ref, ctg, prev_qual);
+					if (false) printf("query: %s\n", query.data());
+					if (false) printf("truth: %s\n", truth[hap].data());
+					if (false) printf("ref: %s\n", ref.data());
 
                     // align strings, backtrack, calculate distance
                     std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
@@ -2013,6 +2018,7 @@ editData edits_wrapper(std::shared_ptr<superclusterData> clusterdata_ptr) {
                     std::reverse(truth[hap].begin(), truth[hap].end());
                     std::reverse(cigar.begin(), cigar.end());
                     int dist = count_dist(cigar);
+					if (false) printf("distance: %d\n", dist);
 
                     // add distance for range of corresponding quals
                     for (int q = prev_qual; q < qual; q++) {
