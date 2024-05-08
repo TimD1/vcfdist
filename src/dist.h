@@ -9,6 +9,30 @@
 #include "cluster.h"
 #include "defs.h"
 
+class Graph {
+public:
+
+    // data for each node (all size n)
+    int n;
+    std::vector<std::string> seqs;         // seq data for each node (e.g. "ACCCGT")
+    std::vector<int> offs;                 // offset of seq in reference
+    std::vector<int> types;                // sequence types (REF, INS, SUB, DEL)
+    std::vector< std::vector<int> > prevs; // directed pointers to previous nodes
+    std::vector< std::vector<int> > nexts; // directed pointers to next nodes
+
+    // data specific to each variant is stored in 
+    // sc->callset_vars[QUERY]->info[vars]
+    std::shared_ptr<ctgSuperclusters> sc;
+	int sc_idx;
+
+	Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
+			std::shared_ptr<fastaData> ref, std::string ctg);
+
+private:
+};
+
+/******************************************************************************/
+
 
 class idx1 {
 public:

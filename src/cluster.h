@@ -30,7 +30,7 @@ public:
     std::vector< std::shared_ptr<ctgVariants> > callset_vars;
 
     // variant indices of superclusters
-    // superclusters[truth|query] = n+1
+    // superclusters[truth|query] (size (2, n+1))
     std::vector< std::vector<int> > superclusters;
 
     // data (length n)

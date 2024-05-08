@@ -1654,6 +1654,21 @@ void precision_recall_threads_wrapper(
     }
 }
 
+
+/******************************************************************************/
+
+
+Graph::Graph(
+		std::shared_ptr<ctgSuperclusters> sc, int sc_idx, 
+        std::shared_ptr<fastaData> ref, std::string ctg) {
+    auto qvars = sc->callset_vars[QUERY];
+    int qvar_beg = sc->superclusters[QUERY][sc_idx];
+    int qvar_end = sc->superclusters[QUERY][sc_idx+1];
+    int beg = sc->begs[sc_idx];
+    int end = sc->ends[sc_idx];
+}
+
+
 /******************************************************************************/
 
 void precision_recall_wrapper(
@@ -1661,8 +1676,8 @@ void precision_recall_wrapper(
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
         int thread_step, int start, int stop, bool thread2) {
 
+	// parse sc_idx from grouped superclusters
     if (stop == start) return;
-
     for (int idx = start; idx < stop; idx++) {
         std::string ctg = clusterdata_ptr->contigs[
             sc_groups[thread_step][CTG_IDX][idx]];
@@ -1700,32 +1715,33 @@ void precision_recall_wrapper(
             }
         }
 
-        /////////////////////////////////////////////////////////////////////
-        // PRECISION-RECALL: allow skipping called variants                  
-        /////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////
+        // PRECISION-RECALL: allow skipping called variants //
+        //////////////////////////////////////////////////////
         
-        /* generate_graph(sc, sc_idx, clusterdata_ptr->ref, ctg); */
+		std::shared_ptr<Graph> query_graph(
+				new Graph(sc, sc_idx, clusterdata_ptr->ref, ctg));
 
-        /* // set truth string and truth->reference pointers */
-        /* std::string truth1 = "", ref_t1 = ""; */ 
-        /* std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs; */
-        /* generate_ptrs_strs( */
-        /*         truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, */ 
-        /*         sc->ctg_variants[TRUTH][HAP1], */
-        /*         sc->superclusters[TRUTH][HAP1][sc_idx], */
-        /*         sc->superclusters[TRUTH][HAP1][sc_idx+1], */
-        /*         sc->begs[sc_idx], sc->ends[sc_idx], */ 
-        /*         clusterdata_ptr->ref, ctg); */
+        // set truth string and truth->reference pointers
+        std::string truth1 = "", ref_t1 = ""; 
+        std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
+        generate_ptrs_strs(
+                truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
+                sc->ctg_variants[TRUTH][HAP1],
+                sc->superclusters[TRUTH][HAP1][sc_idx],
+                sc->superclusters[TRUTH][HAP1][sc_idx+1],
+                sc->begs[sc_idx], sc->ends[sc_idx], 
+                clusterdata_ptr->ref, ctg);
 
-        /* std::string truth2 = "", ref_t2 = ""; */ 
-        /* std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs; */
-        /* generate_ptrs_strs( */
-        /*         truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, */ 
-        /*         sc->ctg_variants[TRUTH][HAP2], */
-        /*         sc->superclusters[TRUTH][HAP2][sc_idx], */
-        /*         sc->superclusters[TRUTH][HAP2][sc_idx+1], */
-        /*         sc->begs[sc_idx], sc->ends[sc_idx], */ 
-        /*         clusterdata_ptr->ref, ctg); */
+        std::string truth2 = "", ref_t2 = ""; 
+        std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
+        generate_ptrs_strs(
+                truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
+                sc->ctg_variants[TRUTH][HAP2],
+                sc->superclusters[TRUTH][HAP2][sc_idx],
+                sc->superclusters[TRUTH][HAP2][sc_idx+1],
+                sc->begs[sc_idx], sc->ends[sc_idx], 
+                clusterdata_ptr->ref, ctg);
 
         /* // calculate two forward-pass alignments, saving path */
         /* // query1/query2 graph to truth1, query1/query2 graph to truth2 */

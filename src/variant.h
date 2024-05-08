@@ -46,6 +46,7 @@ public:
     int nc = 0;
 
     // set during prec_recall_aln()
+    std::vector<uint8_t> calc_gts;  // calculated genotype (0|1, 1|0, or 1|1)
     std::vector< std::vector<uint8_t> > errtypes;  // error type: TP, FP, FN
     std::vector< std::vector<int> > sync_group;    // group of variants that participate in credit
     std::vector< std::vector<float> > callq;   // min call quality in sync group (for truth, of associated call)
