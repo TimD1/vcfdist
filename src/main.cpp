@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
+                            query_ptr.get(), t/2 /* contig */, t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (std::thread & thread : threads) thread.join();
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            query_ptr.get(), query_ptr->contigs[t/2], t%2, /* hap */
+                            query_ptr.get(), t/2 /* contig */, t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (std::thread & thread : threads) thread.join();
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
+                            truth_ptr.get(), t/2 /* contig */, t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (std::thread & thread : threads) thread.join();
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
             std::vector<std::thread> threads;
             for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
                 threads.push_back(std::thread( wf_swg_cluster, 
-                            truth_ptr.get(), truth_ptr->contigs[t/2], t%2, /* hap */
+                            truth_ptr.get(), t/2 /* contig */, t%2, /* hap */
                             g.sub, g.open, g.extend)); 
                 if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
                     for (std::thread & thread : threads) thread.join();

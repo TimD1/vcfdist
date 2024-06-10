@@ -674,9 +674,10 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
 /* Add single-VCF cluster indices to `variantData`. This version assumes that
  * all variant calls are true positives (doesn't allow skipping)
  */
-void wf_swg_cluster(variantData * vcf, std::string ctg, 
+void wf_swg_cluster(variantData * vcf, int ctg_idx, 
         int hap, int sub, int open, int extend) {
     bool print = false;
+	std::string ctg = vcf->contigs[ctg_idx];
 
     // allocate this memory once, use on each cluster
     std::vector<int> offs_buffer(MATS * g.max_size*2 * 
@@ -753,12 +754,13 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
                 }
             }
 
+			// calculate alignment score
             int l_reach = 0, r_reach = 0, score = 0;
             if (left_compute || right_compute) {
                 int beg_idx = vars->clusters[clust];
                 int end_idx = vars->clusters[clust+1];
-                int beg = vars->poss[beg_idx] - 1;
-                int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1] + 1;
+                int beg = std::max(0, vars->poss[beg_idx] - 1);
+                int end = std::min(vcf->lengths[ctg_idx], vars->poss[end_idx-1] + vars->rlens[end_idx-1] + 1);
                 std::string query = generate_str(vcf->ref, vars, ctg, beg_idx, end_idx, beg, end);
                 std::string ref = vcf->ref->fasta.at(ctg).substr(beg, end-beg);
                 std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
@@ -789,7 +791,7 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
                 int reach = ref_len - 1;
                 while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;
-                    beg_pos = end_pos - ref_len - std::abs(main_diag) - score/extend - 3; // ensure query is longer
+                    beg_pos = std::max(0, end_pos - ref_len - std::abs(main_diag) - score/extend - 3); // ensure query is longer
                     query = generate_str(vcf->ref, vars, ctg, 
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 
@@ -810,6 +812,8 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
                     // reset buffer
                     for (size_t i = 0; i < offs_size; i++)
                         offs_buffer[i] = -2;
+					// exit if we've reached the start of the contig
+					if (beg_pos == 0) break;
                 }
                 if (print) printf("    left reach: %d\n", reach);
                 l_reach = end_pos - reach;
@@ -849,7 +853,8 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
                 int reach = ref_len - 1;
                 while (reach == ref_len-1) { // iterative doubling
                     ref_len *= 2;
-                    end_pos = beg_pos + ref_len + std::abs(main_diag) + score/extend + 3;
+                    end_pos = std::min(vcf->lengths[ctg_idx], 
+							beg_pos + ref_len + std::abs(main_diag) + score/extend + 3);
                     query = generate_str(vcf->ref, vars, ctg, 
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 
@@ -868,6 +873,9 @@ void wf_swg_cluster(variantData * vcf, std::string ctg,
                     // reset buffer
                     for (size_t i = 0; i < offs_size; i++)
                         offs_buffer[i] = -2;
+					// exit if we've reached the end of the contig
+					if (end_pos == vcf->lengths[ctg_idx]) break;
+
                 }
                 if (print) printf("   right reach: %d\n", reach);
                 r_reach = beg_pos + reach + 1;
