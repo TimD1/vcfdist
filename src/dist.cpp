@@ -6,6 +6,7 @@
 #include <utility>
 #include <queue>
 #include <thread>
+#include <cassert>
 
 #include "dist.h"
 #include "print.h"
@@ -1657,15 +1658,128 @@ void precision_recall_threads_wrapper(
 
 /******************************************************************************/
 
+void Graph::print() {
+    for (int n1 = 0; n1 < this->n; n1++) {
+        printf("Node %d = %s (%d-%d) %s\n",
+                n1, 
+                this->seqs[n1].data(),
+                this->begs[n1], this->ends[n1],
+                type_strs[this->types[n1]].data());
 
+        printf("\tprev nodes: ");
+        for (int n2 : this->prevs[n1]) printf("%d, ", n2);
+        printf("\n");
+        printf("\tnext nodes: ");
+        for (int n2 : this->nexts[n1]) printf("%d, ", n2);
+        printf("\n");
+    }
+}
+
+/******************************************************************************/
+
+/* Build a query graph containing all possible paths through 
+   NOTE: start off simple O(V*V) and make sure it's correct (worry about efficiency later)
+ */
 Graph::Graph(
 		std::shared_ptr<ctgSuperclusters> sc, int sc_idx, 
         std::shared_ptr<fastaData> ref, std::string ctg) {
+
+    // initialize helper variables
     auto qvars = sc->callset_vars[QUERY];
-    int qvar_beg = sc->superclusters[QUERY][sc_idx];
-    int qvar_end = sc->superclusters[QUERY][sc_idx+1];
-    int beg = sc->begs[sc_idx];
-    int end = sc->ends[sc_idx];
+    int qvar_beg = qvars->clusters[sc->superclusters[QUERY][sc_idx]];
+    int qvar_end = qvars->clusters[sc->superclusters[QUERY][sc_idx+1]];
+    int ref_beg = sc->begs[sc_idx];
+    int ref_end = sc->ends[sc_idx];
+
+    //////////////////////////
+    // STEP 1: CREATE NODES //
+    //////////////////////////
+
+    int ref_pos = ref_beg;
+    // keep track of all node ends. variants are already sorted in order of their starts, so
+    // to create the correct reference substrings we need to know where the next end is too
+    std::priority_queue<int, std::vector<int>, std::greater<int> > node_ends;
+
+    // iterate through all the variants
+    this->n = 0;
+    this->sc = sc;
+    this->sc_idx = sc_idx;
+    for (int var_idx = qvar_beg; var_idx < qvar_end; var_idx++) {
+        
+        // prior to adding the next variant, add as many reference substrings as necessary
+        // due to earlier variants that end before it starts
+        int var_pos = qvars->poss[var_idx];
+        while (ref_pos < var_pos) {
+            // get length of this reference segment
+            int next_ref_pos; 
+            if (!node_ends.empty() && node_ends.top() < var_pos) { // prev var ends before next starts
+                next_ref_pos = node_ends.top();
+                // multiple vars may end at same location; remove all from node_ends
+                while (!node_ends.empty() && node_ends.top() == next_ref_pos) node_ends.pop();
+            } else {
+                next_ref_pos = var_pos;
+            }
+            // add reference node
+            assert(next_ref_pos <= var_pos);
+            this->n++;
+            this->seqs.push_back(ref->fasta.at(ctg).substr(ref_pos, next_ref_pos-ref_pos));
+            this->begs.push_back(ref_pos - ref_beg);
+            this->ends.push_back(next_ref_pos - ref_beg);
+            this->types.push_back(TYPE_REF);
+            this->idxs.push_back(-1);
+            ref_pos = next_ref_pos;
+        }
+
+        // add the variant
+        assert(ref_pos == var_pos);
+        this->n++;
+        this->seqs.push_back(qvars->alts[var_idx]);
+        this->begs.push_back(qvars->poss[var_idx] - ref_beg);
+        this->ends.push_back(qvars->poss[var_idx] + qvars->rlens[var_idx] - ref_beg);
+        this->types.push_back(qvars->types[var_idx]);
+        this->idxs.push_back(var_idx);
+        if (qvars->rlens[var_idx]) 
+            node_ends.push(qvars->poss[var_idx] + qvars->rlens[var_idx]);
+    }
+
+    // all variants added, add the remainder of the reference
+    while (ref_pos < ref_end) {
+        // get the length of this reference segment
+        int next_ref_pos; 
+        if (!node_ends.empty() && node_ends.top() < ref_end) { // stop at variant end
+            next_ref_pos = node_ends.top();
+            // multiple vars may end at same location; remove all from node_ends
+            while (!node_ends.empty() && node_ends.top() == next_ref_pos) node_ends.pop();
+        } else {
+            next_ref_pos = ref_end; // add remainder of reference in this supercluster
+        }
+        assert(next_ref_pos <= ref_end);
+        this->n++;
+        this->seqs.push_back(ref->fasta.at(ctg).substr(ref_pos, next_ref_pos-ref_pos));
+        this->begs.push_back(ref_pos - ref_beg);
+        this->ends.push_back(next_ref_pos - ref_beg);
+        this->types.push_back(TYPE_REF);
+        this->idxs.push_back(-1);
+        ref_pos = next_ref_pos;
+    }
+
+    ///////////////////////////////
+    // STEP 2: SET NODE POINTERS //
+    ///////////////////////////////
+    this->prevs.resize(this->n);
+    this->nexts.resize(this->n);
+
+    for (int n1 = 0; n1 < this->n; n1++) {
+        for (int n2 = 0; n2 < this->n; n2++) {
+            if (n2 == n1) continue; // don't compare node to itself
+            // add predecessor of current node
+            if (this->begs[n1] == this->ends[n2])
+                this->prevs[n1].push_back(n2);
+            // add successor of current node
+            if (this->ends[n1] == this->begs[n2])
+                this->nexts[n1].push_back(n2);
+        }
+    }
 }
 
 
@@ -1690,7 +1804,7 @@ void precision_recall_wrapper(
         ////////////////////
         // DEBUG PRINTING //
         ////////////////////
-        if (false) {
+        if (true) {
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
             for (int c = 0; c < CALLSETS; c++) {
@@ -1721,27 +1835,28 @@ void precision_recall_wrapper(
         
 		std::shared_ptr<Graph> query_graph(
 				new Graph(sc, sc_idx, clusterdata_ptr->ref, ctg));
+        query_graph->print();
 
-        // set truth string and truth->reference pointers
-        std::string truth1 = "", ref_t1 = ""; 
-        std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs;
-        generate_ptrs_strs(
-                truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, 
-                sc->ctg_variants[TRUTH][HAP1],
-                sc->superclusters[TRUTH][HAP1][sc_idx],
-                sc->superclusters[TRUTH][HAP1][sc_idx+1],
-                sc->begs[sc_idx], sc->ends[sc_idx], 
-                clusterdata_ptr->ref, ctg);
+        /* // set truth string and truth->reference pointers */
+        /* std::string truth1 = "", ref_t1 = ""; */ 
+        /* std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs; */
+        /* generate_ptrs_strs( */
+        /*         truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, */ 
+        /*         sc->ctg_variants[TRUTH][HAP1], */
+        /*         sc->superclusters[TRUTH][HAP1][sc_idx], */
+        /*         sc->superclusters[TRUTH][HAP1][sc_idx+1], */
+        /*         sc->begs[sc_idx], sc->ends[sc_idx], */ 
+        /*         clusterdata_ptr->ref, ctg); */
 
-        std::string truth2 = "", ref_t2 = ""; 
-        std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs;
-        generate_ptrs_strs(
-                truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, 
-                sc->ctg_variants[TRUTH][HAP2],
-                sc->superclusters[TRUTH][HAP2][sc_idx],
-                sc->superclusters[TRUTH][HAP2][sc_idx+1],
-                sc->begs[sc_idx], sc->ends[sc_idx], 
-                clusterdata_ptr->ref, ctg);
+        /* std::string truth2 = "", ref_t2 = ""; */ 
+        /* std::vector< std::vector<int> > truth2_ref_ptrs, ref_truth2_ptrs; */
+        /* generate_ptrs_strs( */
+        /*         truth2, ref_t2, truth2_ref_ptrs, ref_truth2_ptrs, */ 
+        /*         sc->ctg_variants[TRUTH][HAP2], */
+        /*         sc->superclusters[TRUTH][HAP2][sc_idx], */
+        /*         sc->superclusters[TRUTH][HAP2][sc_idx+1], */
+        /*         sc->begs[sc_idx], sc->ends[sc_idx], */ 
+        /*         clusterdata_ptr->ref, ctg); */
 
         /* // calculate two forward-pass alignments, saving path */
         /* // query1/query2 graph to truth1, query1/query2 graph to truth2 */

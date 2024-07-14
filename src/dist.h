@@ -12,23 +12,30 @@
 class Graph {
 public:
 
-    // data for each node (all size n)
-    int n;
-    std::vector<std::string> seqs;         // seq data for each node (e.g. "ACCCGT")
-    std::vector<int> offs;                 // offset of seq in reference
-    std::vector<int> types;                // sequence types (REF, INS, SUB, DEL)
-    std::vector< std::vector<int> > prevs; // directed pointers to previous nodes
-    std::vector< std::vector<int> > nexts; // directed pointers to next nodes
-
-    // data specific to each variant is stored in 
-    // sc->callset_vars[QUERY]->info[vars]
+    // information about this graph (generated for a supercluster)
     std::shared_ptr<ctgSuperclusters> sc;
 	int sc_idx;
 
+    // data for each node (all size n)
+    int n;
+    // NOTE: some of this information is unnecessarily duplicated, since most can be accessed 
+    // through idxs sc->callset_vars[QUERY]->{fieldname}[this->idxs[i]]
+    std::vector<std::string> seqs;         // seq data for each node (e.g. "ACCCGT")
+    std::vector<int> begs;                 // node reference start positions (relative to sc->begs[sc_idx])
+    std::vector<int> ends;                 // node reference end positions (relative to sc->begs[sc_idx])
+    std::vector<int> types;                // node TYPE_(REF, INS, SUB, DEL)
+    // for TYPE_REF, idxs is -1
+    std::vector<int> idxs;                 // store variant indices for checking per-variant data
+    // set during second pass of graph init
+    std::vector< std::vector<int> > prevs; // directed pointers to previous nodes
+    std::vector< std::vector<int> > nexts; // directed pointers to next nodes
+
+    // constructors
 	Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
 			std::shared_ptr<fastaData> ref, std::string ctg);
 
-private:
+    // methods
+    void print();
 };
 
 /******************************************************************************/

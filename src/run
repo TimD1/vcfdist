@@ -9,7 +9,8 @@
 ./vcfdist \
     ../test/query20.vcf.gz \
     ../test/truth20.vcf.gz \
-    /home/timdunn/vcfdist/data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
+    ../data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../test/bench20.bed \
+    -t 1 \
     -l 1000 \
     -p ../out/dev.

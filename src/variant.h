@@ -40,7 +40,7 @@ public:
     int n = 0;
 
     // set during clustering (size nc+1)
-    std::vector<int> clusters;      // indices of clusters in this struct's vectors
+    std::vector<int> clusters;      // variant indices of clusters in this struct's vectors
     std::vector<int> left_reaches;  // cluster leftmost reach
     std::vector<int> right_reaches; // cluster rightmost reach
     int nc = 0;

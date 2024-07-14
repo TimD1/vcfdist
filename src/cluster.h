@@ -25,11 +25,11 @@ public:
            int orig_phase_dist, 
            int swap_phase_dist);
 
-    // stores variant info for each contig
+    // stores variant info for each callset
     // callset_vars[truth|query]
     std::vector< std::shared_ptr<ctgVariants> > callset_vars;
 
-    // variant indices of superclusters
+    // cluster indices of superclusters (not variant indices!)
     // superclusters[truth|query] (size (2, n+1))
     std::vector< std::vector<int> > superclusters;
 
