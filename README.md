@@ -85,6 +85,7 @@ sudo docker run -it timd1/vcfdist:latest vcfdist --help
 ### Option 3: GitHub source
 vcfdist is developed for Linux and its only dependencies are GCC v9.1+ and HTSlib v1.17. If you don't have HTSlib already, please set it up as follows:
 ```bash
+> sudo apt install wget bzip2 g++ zlib1g-dev libbz2-dev liblzma-dev
 > wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
 > tar -xvf htslib-1.17.tar.bz2
 > cd htslib-1.17
