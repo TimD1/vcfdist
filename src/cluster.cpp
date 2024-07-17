@@ -181,8 +181,14 @@ void superclusterData::add_callset_vars(int callset,
                     updated[HAP1] = true; updated[HAP2] = true;
 
                 } else { // heterozygous, add first-occurring variant
-                    int hap_idx = HAP1;
-                    if (vars[HAP2][ctg]->poss[var_idx[HAP2]] <
+                    int hap_idx = HAP1; // default to HAP1
+                    // if location is same, default to INS first
+                    if (vars[HAP1][ctg]->poss[var_idx[HAP1]] ==
+                            vars[HAP2][ctg]->poss[var_idx[HAP2]] &&
+                            vars[HAP2][ctg]->types[var_idx[HAP2]] == TYPE_INS) {
+                        hap_idx = HAP2;
+                    // otherwise, choose first variant
+                    } else if (vars[HAP2][ctg]->poss[var_idx[HAP2]] <
                             vars[HAP1][ctg]->poss[var_idx[HAP1]]) {
                         hap_idx = HAP2;
                     }
