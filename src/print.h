@@ -6,6 +6,7 @@
 #include "globals.h"
 #include "phase.h"
 #include "defs.h"
+#include "dist.h"
 
 std::string GREEN(int i);
 std::string GREEN(char c);
@@ -29,6 +30,11 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
         const std::string & alt_str, const std::string & ref_str);
 
 void print_cigar(std::vector<int> cigar); 
+
+std::string get_ptr_repr(idx cell, const std::unordered_map<idx,idx> & ptrs);
+void print_graph_ptrs(const std::shared_ptr<Graph> query_graph,
+        const std::string & truth,
+        const std::unordered_map<idx,idx> & ptrs);
 
 void print_wfa_ptrs(
         const std::string & query,

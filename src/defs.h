@@ -7,8 +7,7 @@
 #include <unordered_map>
 
 class timer;
-class idx1;
-class idx2;
+class idx;
 
 // misc
 #define FAIL 0

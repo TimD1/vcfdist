@@ -25,6 +25,7 @@ public:
     void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);
     void print_var_sample(FILE* out_vcf, int idx, std::string gt, int sc_idx, 
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
+    bool var_on_hap(int var_idx, int hap) const;
 
     // originally parsed data (size n)
     std::vector<int> poss;          // variant start positions (0-based)

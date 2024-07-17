@@ -220,6 +220,21 @@ void variantData::write_vcf(std::string out_vcf_fn) {
 
 /*******************************************************************************/
 
+bool ctgVariants::var_on_hap(int var_idx, int hap) const {
+    int gt = this->orig_gts[var_idx]; // simple gt, always (0|1, 1|0, or 1|1)
+    if (hap == 0 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
+        return true;
+    if (hap == 1 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
+        return true;
+    if (hap > 1)
+        ERROR("Unexpected haplotype %d for variant (%s -> %s) at pos %d", int(hap), 
+                this->refs[var_idx].data(),
+                this->alts[var_idx].data(),
+                this->poss[var_idx]);
+    return false;
+}
+
+/*******************************************************************************/
 
 void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref, 
         std::string ctg, int idx) {

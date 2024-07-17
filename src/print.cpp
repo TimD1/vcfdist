@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <iomanip>
 
 #include "print.h"
 #include "dist.h"
@@ -800,4 +801,63 @@ void print_cigar(std::vector<int> cigar) {
         }
     }
     printf("\n");
+}
+
+
+/*******************************************************************************/
+
+/* Helper function for printing a query graph alignment.
+ */ 
+std::string get_ptr_repr(idx cell, const std::unordered_map<idx,idx> & ptrs) {
+    if (ptrs.find(cell) == ptrs.end()) return " .";
+    idx prev = ptrs.at(cell);
+    if (cell.mi == prev.mi) { // same matrix
+        if (cell.qi == prev.qi+1 && cell.ri == prev.ri) { return " |"; }
+        else if (cell.qi == prev.qi && cell.ri == prev.ri+1) { return " _"; }
+        else if (cell.qi == prev.qi+1 && cell.ri == prev.ri+1) { return " \\"; }
+        else { return "?1"; } // invalid
+    } else if (cell.qi == 0) { // different matrix, print node id
+        std::ostringstream ostr;
+        ostr << std::setfill(' ') << std::setw(2) << (prev.mi);
+        return ostr.str();
+    } else { return "?2"; } // invalid
+}
+
+void print_graph_ptrs(const std::shared_ptr<Graph> query_graph,
+        const std::string & truth,
+        const std::unordered_map<idx,idx> & ptrs) {
+
+    // print truth header row
+    printf(" QUERY    ");
+    for (int ti = 0; ti < int(truth.length()); ti++) {
+        printf(" %c", truth[ti]);   
+    }
+    printf("  TRUTH\n");
+
+    int ni = 0;
+    int qi = 0;
+    while (ni < query_graph->n && qi < int(query_graph->seqs[ni].size())) {
+        // print each query row of matrix
+        for (int ti = -1; ti < int(truth.length()); ti++) {
+            if (ti < 0) {
+                std::ostringstream ostr;
+                ostr << std::setfill(' ') << std::setw(2) << (ni);
+                printf("%s %s %c  ", 
+                        ostr.str().data(),
+                        type_strs[query_graph->types[ni]].data(),
+                        query_graph->seqs[ni][qi]);
+            } else {
+                idx cell(ni,qi,ti);
+                std::string s = get_ptr_repr(cell, ptrs);
+                printf("%s", s.data());
+            }
+        }
+        printf("\n");
+        qi++;
+        if (qi == int(query_graph->seqs[ni].size())) {
+            qi = 0;
+            ni++;
+            printf("\n");
+        }
+    }
 }
