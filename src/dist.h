@@ -12,23 +12,27 @@
 class Graph {
 public:
 
-    // information about this graph (generated for a supercluster)
+    // supercluster data used to generate this graph
+    // query variant data is at sc->callset_vars[QUERY]->{fieldname}[this->qidxs[qni]]
+    // query variant data is at sc->callset_vars[TRUTH]->{fieldname}[this->tidxs[tni]]
     std::shared_ptr<ctgSuperclusters> sc;
 	int sc_idx;
 
-    // data for each node (all size n)
-    int n;
-    // NOTE: some of this information is unnecessarily duplicated, since most can be accessed 
-    // through idxs sc->callset_vars[QUERY]->{fieldname}[this->idxs[i]]
-    std::vector<std::string> seqs;         // seq data for each node (e.g. "ACCCGT")
-    std::vector<int> begs;                 // node reference start positions (relative to sc->begs[sc_idx])
-    std::vector<int> ends;                 // node reference end positions (relative to sc->begs[sc_idx])
-    std::vector<int> types;                // node TYPE_(REF, INS, SUB, DEL)
-    // for TYPE_REF, idxs is -1
-    std::vector<int> idxs;                 // store variant indices for checking per-variant data
+    // graph data for each node
+    int qnodes;                     // each qvector is of size qnodes
+    std::vector<std::string> qseqs; // seq data for each query node (e.g. "ACCCGT")
+    std::vector<int> qtypes;        // query node TYPE_(REF, INS, SUB, DEL)
+    std::vector<int> qidxs;         // store query variant indices (-1 for TYPE_REF)
+    int tnodes;                     // each tvector is of size tnodes
+    std::vector<std::string> tseqs; // seq data for each truth node (e.g. "ACCCGT")
+    std::vector<int> ttypes;        // truth node TYPE_(REF, INS, SUB, DEL)
+    std::vector<int> tidxs;         // store truth variant indices (-1 for TYPE_REF)
+
     // set during second pass of graph init
-    std::vector< std::vector<int> > prevs; // directed pointers to previous nodes
-    std::vector< std::vector<int> > nexts; // directed pointers to next nodes
+    std::vector< std::vector<int> > qprevs; // directed pointers to prev query nodes
+    std::vector< std::vector<int> > qnexts; // directed pointers to next query nodes
+    std::vector< std::vector<int> > tprevs; // directed pointers to prev truth nodes
+    std::vector< std::vector<int> > tnexts; // directed pointers to next truth nodes
 
     // constructors
 	Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
