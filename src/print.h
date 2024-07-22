@@ -31,10 +31,9 @@ void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs,
 
 void print_cigar(std::vector<int> cigar); 
 
-std::string get_ptr_repr(idx cell, const std::unordered_map<idx,idx> & ptrs);
+std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs);
 void print_graph_ptrs(const std::shared_ptr<Graph> query_graph,
-        const std::string & truth,
-        const std::unordered_map<idx,idx> & ptrs);
+        const std::unordered_map<idx4,idx4> & ptrs);
 
 void print_wfa_ptrs(
         const std::string & query,

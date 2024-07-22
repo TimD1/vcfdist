@@ -21,8 +21,11 @@ public:
     // graph data for each node
     int qnodes;                     // each qvector is of size qnodes
     std::vector<std::string> qseqs; // seq data for each query node (e.g. "ACCCGT")
+    std::vector<int> qbegs;         // reference start position
+    std::vector<int> qends;         // reference end position
     std::vector<int> qtypes;        // query node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> qidxs;         // store query variant indices (-1 for TYPE_REF)
+
     int tnodes;                     // each tvector is of size tnodes
     std::vector<std::string> tseqs; // seq data for each truth node (e.g. "ACCCGT")
     std::vector<int> ttypes;        // truth node TYPE_(REF, INS, SUB, DEL)
@@ -36,7 +39,7 @@ public:
 
     // constructors
 	Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-			std::shared_ptr<fastaData> ref, std::string ctg);
+			std::shared_ptr<fastaData> ref, std::string ctg, int truth_hi);
 
     // methods
     void print();
@@ -51,27 +54,27 @@ bool contains(const std::unordered_set<T> & wave, const T & idx);
 template <typename T, typename U>
 bool contains(const std::unordered_map<T,U> & wave, const T & idx);
 
-class idx {
+class idx3 { // three indices for alignment cell
 public:
     int mi;  // matrix idx
     int qi;  // query idx
     int ri;  // ref idx
 
-    idx() : mi(0), qi(0), ri(0) {};
-    idx(int q, int r) : mi(0), qi(q), ri(r) {};
-    idx(int m, int q, int r) : mi(m), qi(q), ri(r) {};
-    idx(const idx & i2) : mi(i2.mi), qi(i2.qi), ri(i2.ri) {};
+    idx3() : mi(0), qi(0), ri(0) {};
+    idx3(int q, int r) : mi(0), qi(q), ri(r) {};
+    idx3(int m, int q, int r) : mi(m), qi(q), ri(r) {};
+    idx3(const idx3 & i2) : mi(i2.mi), qi(i2.qi), ri(i2.ri) {};
 
-    bool operator<(const idx & other) const {
+    bool operator<(const idx3 & other) const {
         if (this->mi < other.mi) return true;
         else if (this->mi == other.mi && this->qi < other.qi) return true;
         else if (this->mi == other.mi && this->qi == other.qi && this->ri < other.ri) return true;
         return false;
     }
-    bool operator==(const idx & other) const {
+    bool operator==(const idx3 & other) const {
         return this->mi == other.mi && this->qi == other.qi && this->ri == other.ri;
     }
-    idx & operator=(const idx & other) {
+    idx3 & operator=(const idx3 & other) {
         if (this == &other) return *this;
         this->mi = other.mi;
         this->qi = other.qi;
@@ -81,11 +84,56 @@ public:
 };
 
 namespace std {
-    template<> struct hash<idx> {
-        uint64_t operator()(const idx& x) const noexcept {
+    template<> struct hash<idx3> {
+        uint64_t operator()(const idx3& x) const noexcept {
             return (uint64_t(x.mi) *73856093 + 0x517cc1b727220a95) ^ 
                    (uint64_t(x.qi) *19349669 + 0xd15f392b3d4704a2) ^ 
                    (uint64_t(x.ri) *83492791);
+        }
+    };
+}
+
+/******************************************************************************/
+
+class idx4 { // four indices for graph cell
+public:
+    int qni; // query node idx
+    int tni; // truth node idx
+    int qi;  // query idx
+    int ti;  // truth idx
+
+    idx4() : qni(0), tni(0), qi(0), ti(0) {};
+    idx4(int qn, int tn, int q, int t) : qni(qn), tni(tn), qi(q), ti(t) {};
+    idx4(const idx4 & i2) : qni(i2.qni), tni(i2.tni), qi(i2.qi), ti(i2.ti) {};
+
+    bool operator<(const idx4 & other) const {
+        if (this->qni < other.qni) return true;
+        if (this->tni < other.tni) return true;
+        if (this->qi < other.qi) return true;
+        if (this->ti < other.ti) return true;
+        return false;
+    }
+    bool operator==(const idx4 & other) const {
+        return this->qni == other.qni && this->tni == other.tni && 
+            this->qi == other.qi && this->ti == other.ti;
+    }
+    idx4 & operator=(const idx4 & other) {
+        if (this == &other) return *this;
+        this->qni = other.qni;
+        this->tni = other.tni;
+        this->qi = other.qi;
+        this->ti = other.ti;
+        return *this;
+    }
+};
+
+namespace std {
+    template<> struct hash<idx4> {
+        uint64_t operator()(const idx4& x) const noexcept {
+            return (uint64_t(x.qni) *73856093 + 0x517cc1b727220a95) ^ 
+                   (uint64_t(x.tni) *19349669 + 0xd15f392b3d4704a2) ^ 
+                   (uint64_t(x.qi)  *83492791 + 0xc8e13219ab9ab236) ^
+                   (uint64_t(x.ti)  *27385201);
         }
     };
 }
@@ -117,42 +165,8 @@ int calc_prec_recall_aln(
         const std::shared_ptr<Graph> query_graph,
         const std::string & truth,
         const std::string & ref,
-        std::unordered_map<idx, idx> & ptrs,
+        std::unordered_map<idx4, idx4> & ptrs,
         bool print
-        );
-
-void calc_prec_recall_path(
-        const std::string & ref,
-        const std::string & query1, const std::string & query2, 
-        const std::string & truth1, const std::string & truth2, 
-        std::vector< std::vector<idx> > & path, 
-        std::vector< std::vector<bool> > & sync, 
-        std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
-        std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
-        std::vector< std::vector< std::vector<int16_t> > > & path_scores, 
-        const std::vector< std::vector<int> > & ref_query1_ptrs,
-        const std::vector< std::vector<int> > & query2_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query2_ptrs,
-        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
-        const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector< std::shared_ptr< std::unordered_map<idx,idx> > > & swap_pred_maps,
-        const std::vector<int> & pr_query_ref_end, bool print
-        );
-
-void get_prec_recall_path_sync(
-        std::vector< std::vector<idx> > & path, 
-        std::vector< std::vector<bool> > & sync, 
-        std::vector< std::vector<bool> > & edits, 
-        std::vector< std::vector< std::vector<uint8_t> > > & aln_ptrs, 
-        std::vector< std::vector< std::vector<uint8_t> > > & path_ptrs, 
-        const std::vector< std::vector<int> > & query1_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query1_ptrs,
-        const std::vector< std::vector<int> > & query2_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query2_ptrs,
-        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
-        const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_beg, bool print
         );
 
 void calc_prec_recall(
@@ -161,7 +175,7 @@ void calc_prec_recall(
         const std::string & ref,
         const std::string & query1, const std::string & query2, 
         const std::string & truth1, const std::string & truth2, 
-        const std::vector< std::vector<idx> > & path,
+        const std::vector< std::vector<idx3> > & path,
         const std::vector< std::vector<bool> > & sync,
         const std::vector< std::vector<bool> > & edits,
         const std::vector< std::vector<int> > & query1_ref_ptrs, 

@@ -808,55 +808,85 @@ void print_cigar(std::vector<int> cigar) {
 
 /* Helper function for printing a query graph alignment.
  */ 
-std::string get_ptr_repr(idx cell, const std::unordered_map<idx,idx> & ptrs) {
-    if (ptrs.find(cell) == ptrs.end()) return " .";
-    idx prev = ptrs.at(cell);
-    if (cell.mi == prev.mi) { // same matrix
-        if (cell.qi == prev.qi+1 && cell.ri == prev.ri) { return " |"; }
-        else if (cell.qi == prev.qi && cell.ri == prev.ri+1) { return " _"; }
-        else if (cell.qi == prev.qi+1 && cell.ri == prev.ri+1) { return " \\"; }
+std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs) {
+    if (ptrs.find(cell) == ptrs.end()) return "  .";
+    idx4 prev = ptrs.at(cell);
+    if (cell.qni == prev.qni && cell.tni == prev.tni) { // same matrix
+        if (cell.qi == prev.qi+1 && cell.ti == prev.ti) { return "  |"; }
+        else if (cell.qi == prev.qi && cell.ti == prev.ti+1) { return "  _"; }
+        else if (cell.qi == prev.qi+1 && cell.ti == prev.ti+1) { return "  \\"; }
         else { return "?1"; } // invalid
-    } else if (cell.qi == 0) { // different matrix, print node id
+    } else if (cell.qi == 0 && prev.qni < cell.qni) { // different query node, print node id
         std::ostringstream ostr;
-        ostr << std::setfill(' ') << std::setw(2) << (prev.mi);
-        return ostr.str();
+        ostr << std::setfill('0') << std::setw(2) << (prev.qni);
+        return "^" + ostr.str();
+    } else if (cell.ti == 0 && prev.tni < cell.tni) { // different truth node, print node id
+        std::ostringstream ostr;
+        ostr << std::setfill('0') << std::setw(2) << (prev.tni);
+        return "<" + ostr.str();
     } else { return "?2"; } // invalid
 }
 
-void print_graph_ptrs(const std::shared_ptr<Graph> query_graph,
-        const std::string & truth,
-        const std::unordered_map<idx,idx> & ptrs) {
+void print_graph_ptrs(const std::shared_ptr<Graph> graph,
+        const std::unordered_map<idx4,idx4> & ptrs) {
+    printf("    TRUTH");
 
-    // print truth header row
-    printf(" QUERY    ");
-    for (int ti = 0; ti < int(truth.length()); ti++) {
-        printf(" %c", truth[ti]);   
+    // print truth node indices
+    int tni = 0;
+    while (tni < graph->tnodes) {
+        for (int ti = 0; ti < int(graph->tseqs[tni].length()); ti++) {
+            if (ti == 0) {
+                    std::ostringstream ostr;
+                    ostr << std::setfill(' ') << std::setw(2) << tni;
+                    printf("%s %s", ostr.str().data(), type_strs[graph->ttypes[tni]].data());
+            } else {
+                printf("   ");
+            }
+        }
+        tni++;
     }
-    printf("  TRUTH\n");
+    printf("\n");
 
-    int ni = 0;
+    // print truth graph sequence
+    printf(" QUERY    ");
+    tni = 0;
+    while (tni < graph->tnodes) {
+        for (int ti = 0; ti < int(graph->tseqs[tni].length()); ti++) {
+            printf("  %c", graph->tseqs[tni][ti]);   
+        }
+        printf("   ");
+        tni++;
+    }
+    printf("\n");
+
+    // print matrix
+    int qni = 0;
     int qi = 0;
-    while (ni < query_graph->n && qi < int(query_graph->seqs[ni].size())) {
-        // print each query row of matrix
-        for (int ti = -1; ti < int(truth.length()); ti++) {
-            if (ti < 0) {
+    while (qni < graph->qnodes) {
+        tni = -1;
+        while (tni < graph->tnodes) {
+            if (tni < 0) { // print query seqeunce
                 std::ostringstream ostr;
-                ostr << std::setfill(' ') << std::setw(2) << (ni);
+                ostr << std::setfill(' ') << std::setw(2) << qni;
                 printf("%s %s %c  ", 
                         ostr.str().data(),
-                        type_strs[query_graph->types[ni]].data(),
-                        query_graph->seqs[ni][qi]);
-            } else {
-                idx cell(ni,qi,ti);
-                std::string s = get_ptr_repr(cell, ptrs);
-                printf("%s", s.data());
+                        type_strs[graph->qtypes[qni]].data(),
+                        graph->qseqs[qni][qi]);
+            } else { // print cell
+                for (int ti = 0; ti < int(graph->tseqs[tni].length()); ti++) {
+                    idx4 cell(qni,tni,qi,ti);
+                    std::string s = get_ptr_repr(cell, ptrs);
+                    printf("%s", s.data());
+                }
+                printf("   ");
             }
+            tni++;
         }
         printf("\n");
         qi++;
-        if (qi == int(query_graph->seqs[ni].size())) {
+        if (qi == int(graph->qseqs[qni].size())) { // start next query node
             qi = 0;
-            ni++;
+            qni++;
             printf("\n");
         }
     }
