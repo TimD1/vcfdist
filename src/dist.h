@@ -28,6 +28,7 @@ public:
 
     int tnodes;                     // each tvector is of size tnodes
     std::vector<std::string> tseqs; // seq data for each truth node (e.g. "ACCCGT")
+    std::vector<int> tbegs;         // reference start position
     std::vector<int> ttypes;        // truth node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> tidxs;         // store truth variant indices (-1 for TYPE_REF)
 
@@ -117,6 +118,9 @@ public:
         return this->qni == other.qni && this->tni == other.tni && 
             this->qi == other.qi && this->ti == other.ti;
     }
+    bool operator!=(const idx4 & other) const {
+        return !(*this == other);
+    }
     idx4 & operator=(const idx4 & other) {
         if (this == &other) return *this;
         this->qni = other.qni;
@@ -163,30 +167,16 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases);
 
 int calc_prec_recall_aln(
         const std::shared_ptr<Graph> query_graph,
-        const std::string & truth,
-        const std::string & ref,
         std::unordered_map<idx4, idx4> & ptrs,
-        bool print
+        bool print = false
         );
 
 void calc_prec_recall(
-        superclusterData * clusterdata_ptr, int sc_idx, 
-        const std::string & ctg, 
-        const std::string & ref,
-        const std::string & query1, const std::string & query2, 
-        const std::string & truth1, const std::string & truth2, 
-        const std::vector< std::vector<idx3> > & path,
-        const std::vector< std::vector<bool> > & sync,
-        const std::vector< std::vector<bool> > & edits,
-        const std::vector< std::vector<int> > & query1_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query1_ptrs,
-        const std::vector< std::vector<int> > & query2_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query2_ptrs,
-        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
-        const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_end, bool print
+        const std::shared_ptr<Graph> query_graph,
+        std::unordered_map<idx4, idx4> & ptrs,
+        int truth_hap,
+        bool print = false
         );
-
 
 /******************************************************************************/
 

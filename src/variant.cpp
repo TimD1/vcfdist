@@ -11,7 +11,8 @@
 
 /******************************************************************************/
 
-ctgVariants::ctgVariants() { 
+ctgVariants::ctgVariants(std::string ctg) { 
+    this->ctg = ctg;
     this->n = 0; 
     for (int i = 0; i < PHASES; i++) {
         this->errtypes.push_back(std::vector<uint8_t>());
@@ -38,6 +39,7 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->n++;
 
     // added during precision/recall backtrack
+    this->calc_gts.push_back(GT_REF_REF);
     for (int i = 0; i < PHASES; i++) {
         this->errtypes[i].push_back(ERRTYPE_UN);
         this->sync_group[i].push_back(0);
@@ -236,6 +238,30 @@ bool ctgVariants::var_on_hap(int var_idx, int hap) const {
 
 /*******************************************************************************/
 
+void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap) {
+    if (hap > 1) ERROR("Unexpected hap idx %d in set_var_calcgt_on_hap()", hap);
+
+    if (this->calc_gts[var_idx] == GT_REF_REF) {
+        this->calc_gts[var_idx] = hap == 0 ? GT_ALT1_REF : GT_REF_ALT1;
+
+    } else if (this->calc_gts[var_idx] == GT_REF_ALT1) {
+        if (hap == 1) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+                var_idx, this->ctg.data(), this->poss[var_idx], hap);
+        this->calc_gts[var_idx] = GT_ALT1_ALT1;
+
+    } else if (this->calc_gts[var_idx] == GT_ALT1_REF) {
+        if (hap == 0) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+                var_idx, this->ctg.data(), this->poss[var_idx], hap);
+        this->calc_gts[var_idx] = GT_ALT1_ALT1;
+
+    } else {
+        ERROR("Unexpected calc_gts value '%s' in set_var_calcgt_on_hap() for variant %d at %s:%d", 
+            type_strs[this->calc_gts[var_idx]].data(), var_idx, this->ctg.data(), this->poss[var_idx]);
+    }
+}
+
+/*******************************************************************************/
+
 void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref, 
         std::string ctg, int idx) {
     char ref_base;
@@ -334,7 +360,7 @@ void variantData::set_header(const std::shared_ptr<variantData> vcf) {
     for (std::string ctg : this->contigs)
         for (int hap = 0; hap < 2; hap++)
             this->variants[hap][ctg] = 
-                std::shared_ptr<ctgVariants>(new ctgVariants());
+                std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
 }
 
 
@@ -551,9 +577,9 @@ variantData::variantData(std::string vcf_fn,
     }
     for(int i = 0; i < nctg; i++) {
         this->variants[HAP1][ctgnames[i]] = 
-                std::shared_ptr<ctgVariants>(new ctgVariants());
+                std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
         this->variants[HAP2][ctgnames[i]] = 
-                std::shared_ptr<ctgVariants>(new ctgVariants());
+                std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
     }
 
     // struct for storing each record

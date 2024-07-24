@@ -354,371 +354,129 @@ int store_phase(
 
 
 void calc_prec_recall(
-        superclusterData * clusterdata_ptr, int sc_idx, 
-        const std::string & ctg, 
-        const std::string & ref,
-        const std::string & query1, const std::string & query2, 
-        const std::string & truth1, const std::string & truth2, 
-        const std::vector< std::vector<idx3> > & path,
-        const std::vector< std::vector<bool> > & sync,
-        const std::vector< std::vector<bool> > & edits,
-        const std::vector< std::vector<int> > & query1_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query1_ptrs,
-        const std::vector< std::vector<int> > & query2_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query2_ptrs,
-        const std::vector< std::vector<int> > & truth1_ref_ptrs, 
-        const std::vector< std::vector<int> > & truth2_ref_ptrs,
-        const std::vector<int> & pr_query_ref_end, bool print
+        const std::shared_ptr<Graph> graph,
+        std::unordered_map<idx4, idx4> & ptrs,
+        int truth_hap, bool print
         ) {
 
-    /* // set query/truth strings and pointers */
-    /* int beg = clusterdata_ptr->superclusters[ctg]->begs[sc_idx]; */
-    /* std::vector<std::string> query = {query1, query1, query2, query2}; */
-    /* std::vector<std::string> truth = {truth1, truth2, truth1, truth2}; */
-    /* std::vector< std::vector< std::vector<int> > > query_ref_ptrs = { */ 
-    /*         query1_ref_ptrs, query1_ref_ptrs, query2_ref_ptrs, query2_ref_ptrs }; */
-    /* std::vector< std::vector< std::vector<int> > > ref_query_ptrs = { */ 
-    /*         ref_query1_ptrs, ref_query1_ptrs, ref_query2_ptrs, ref_query2_ptrs }; */
-    /* std::vector< std::vector< std::vector<int> > > truth_ref_ptrs = { */ 
-    /*         truth1_ref_ptrs, truth2_ref_ptrs, truth1_ref_ptrs, truth2_ref_ptrs }; */
+    idx4 end(graph->qnodes-1, graph->tnodes-1, 
+            graph->qseqs[graph->qnodes-1].length()-1,
+            graph->tseqs[graph->tnodes-1].length()-1);
+    idx4 curr = end;
+    int sync_group = 0;
+    int ref_dist = 0;
+    int query_dist = 0;
+    std::vector<int> sync_tvars;
+    std::vector<int> sync_qvars;
+    std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
+    std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
 
-    /* // for only the selected phasing */
-    /* for (int i = 0; i < CALLSETS*HAPS; i++) { */
+    // all query variants default to FP unless path chosen
+    for (int qni = 0; qni < graph->qnodes; qni++) {
+        if (graph->qtypes[qni] != TYPE_REF) {
+            int qvar_idx = graph->qidxs[qni];
+            qvars->errtypes[truth_hap][qvar_idx] = ERRTYPE_FP;
+        }
+    }
 
-    /*     bool swap = (i == QUERY1_TRUTH2 || i == QUERY2_TRUTH1); */
+    while (curr != idx4(0,0,0,0)) {
 
-    /*     int ri = i*2 + REF;   // ref index */
-    /*     /1* int qi = i*2 + QUERY; // call index (unused -> commented) *1/ */
-    /*     int qhi = i >> 1;     // query hap index */
-    /*     int thi = i & 1;      // truth hap index */
+        idx4 prev = ptrs.at(curr);
 
-    /*     // set variant ranges */
-    /*     std::shared_ptr<ctgVariants> query_vars = */ 
-    /*             clusterdata_ptr->superclusters[ctg]->ctg_variants[QUERY][qhi]; */
-    /*     std::shared_ptr<ctgVariants> truth_vars = */ 
-    /*             clusterdata_ptr->superclusters[ctg]->ctg_variants[TRUTH][thi]; */
-    /*     int query_beg_idx = query_vars->clusters.size() ? query_vars->clusters[ */
-    /*         clusterdata_ptr->superclusters[ctg]->superclusters[QUERY][qhi][sc_idx]] : 0; */
-    /*     int query_end_idx = query_vars->clusters.size() ? query_vars->clusters[ */
-    /*         clusterdata_ptr->superclusters[ctg]->superclusters[QUERY][qhi][sc_idx+1]] : 0; */
-    /*     int truth_beg_idx = truth_vars->clusters.size() ? truth_vars->clusters[ */
-    /*         clusterdata_ptr->superclusters[ctg]->superclusters[TRUTH][thi][sc_idx]] : 0; */
-    /*     int truth_end_idx = truth_vars->clusters.size() ? truth_vars->clusters[ */
-    /*         clusterdata_ptr->superclusters[ctg]->superclusters[TRUTH][thi][sc_idx+1]] : 0; */
+        if (print) printf("curr = node (%d, %d) cell (%d, %d)",
+                curr.qni, curr.tni, curr.qi, curr.ti);
+        if (print) printf("\tprev = node (%d, %d) cell (%d, %d)\n",
+                prev.qni, prev.tni, prev.qi, prev.ti);
 
-    /*     // init */
-    /*     int sync_group = 0; */
-    /*     int ti_size = truth_ref_ptrs[i][PTRS].size(); */
-    /*     int hi = pr_query_ref_end[i]; */
-    /*     int qri_size = (hi % 2 == QUERY) ? query_ref_ptrs[i][PTRS].size() : */
-    /*             ref_query_ptrs[i][PTRS].size(); */
-    /*     int prev_hi = hi; */
-    /*     int qri = qri_size-1; */
-    /*     int sync_ref_idx = ref_query_ptrs[i][PTRS].size(); */
-    /*     int prev_sync_ref_idx = sync_ref_idx; */
-    /*     int prev_qri = qri; */
-    /*     int ti = ti_size-1; */
-    /*     int prev_ti = ti; */
-    /*     int sync_truth_idx = ti_size; */
-    /*     int prev_sync_truth_idx = ti_size; */
-    /*     int query_ed = 0; */
-    /*     int query_var_ptr = query_end_idx-1; */
-    /*     int query_var_pos = query_vars->poss.size() && query_var_ptr >= 0 ? */ 
-    /*             query_vars->poss[query_var_ptr] - beg : 0; */
-    /*     int prev_query_var_ptr = query_var_ptr; */
-    /*     int truth_var_ptr = truth_end_idx-1; */
-    /*     int truth_var_pos = truth_vars->poss.size() && truth_var_ptr >= 0 ? */ 
-    /*             truth_vars->poss[truth_var_ptr] - beg : 0; */
-    /*     int prev_truth_var_ptr = truth_var_ptr; */
-    /*     int sync_idx = sync[i].size()-1; */
+        // if we move into a new query variant, mark it as included
+        if (prev.qni != curr.qni && // new query node
+                graph->qtypes[prev.qni] != TYPE_REF) { // node is variant
+            if (print) printf("new query variant\n");
+            int qvar_idx = graph->qidxs[prev.qni];
+            qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap);
+            sync_qvars.push_back(qvar_idx);
+        }
+        // if we move into a query variant, include it in sync group and ref dist calc
+        else if (prev.tni != curr.tni && // new truth node
+                graph->ttypes[prev.tni] != TYPE_REF) { // node is variant
+            if (print) printf("new truth variant\n");
+            int tvar_idx = graph->tidxs[prev.tni];
+            sync_tvars.push_back(tvar_idx);
+            switch (graph->ttypes[prev.tni]) {
+                case TYPE_INS:
+                    ref_dist += tvars->alts[tvar_idx].size();
+                    break;
+                case TYPE_DEL:
+                    ref_dist += tvars->refs[tvar_idx].size();
+                    break;
+                case TYPE_SUB:
+                    ref_dist += 1;
+                    break;
+                default:
+                    ERROR("Unexpected truth var type '%s' in calc_prec_recall() at %s:%d",
+                        type_strs[graph->ttypes[prev.tni]].data(), 
+                        tvars->ctg.data(), tvars->poss[tvar_idx]);
+                    break;
+            }
+        } 
+        // if the alignment is a substitution, insertion, or deletion
+        else if (prev.qni == curr.qni && prev.tni == curr.tni && // same matrix
+                (prev.qi == curr.qi || prev.ti == curr.ti || // insertion or deletion
+                 graph->tseqs[curr.tni][curr.ti] != graph->qseqs[curr.qni][curr.qi]) // substitution
+                ) {
+            if (print) printf("non-match step\n");
+            query_dist += 1;
+        }
+        // check if this movement is a sync point
+        else if (prev.qni == curr.qni && prev.tni == curr.tni && // same submatrix
+                prev.qi+1 == curr.qi && prev.ti+1 == curr.ti && // diagonal movement
+                graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
+                graph->qtypes[curr.qni] == TYPE_REF && // not in query var
+                graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) { // main diag
+            if (print) printf("potential sync point\n");
 
-    /*     if (print) { */
-    /*         printf("%s Path:\n", aln_strs[i].data()); */
-    /*         for (int j = sync_idx; j >= 0; j--) { */
-    /*             if (j == sync_idx) */
-    /*                 printf("%s %s\n", sync[i][j] ? "*" : ".", edits[i][j] ? "X" : "="); */
-    /*             else */
-    /*                 printf("(%s,%d,%d)\n%s %s\n", path[i][j].mi % 2 ? "REF" : "QRY", */ 
-    /*                         path[i][j].qi, path[i][j].ri, */ 
-    /*                         sync[i][j] ? "*" : ".", edits[i][j] ? "X" : "="); */
-    /*         } */
-    /*         printf("\n%s: %d\n", aln_strs[i].data(), beg); */
-    /*         printf("  ref: %2d %s\n", int(ref.size()), ref.data()); */
-    /*         printf("query: %2d %s\n", int(query[i].size()), query[i].data()); */
-    /*         printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data()); */
-    /*         printf("query->ref ptrs:\n"); */
-    /*         print_ref_ptrs(query_ref_ptrs[i]); */
-    /*         printf("ref->query ptrs:\n"); */
-    /*         print_ref_ptrs(ref_query_ptrs[i]); */
-    /*         printf("truth->ref ptrs:\n"); */
-    /*         print_ref_ptrs(truth_ref_ptrs[i]); */
-    /*     } */
+            // add sync point
+            if (sync_tvars.size() || sync_qvars.size()) {
+            if (print) printf("syncing\n");
+                float credit = 0;
+                if (ref_dist == 0) {
+                    WARN("Sync group with zero edit distance.");
+                } else {
+                    credit = 1 - float(query_dist) / ref_dist;
+                }
+                uint8_t errtype = (credit >= g.credit_threshold) ? ERRTYPE_TP : ERRTYPE_FP;
+                float qual = 1000;
+                for (int qvar_idx : sync_qvars) {
+                    qual = std::min(qual, qvars->var_quals[qvar_idx]);
+                }
+                for (int qvar_idx : sync_qvars) {
+                    qvars->errtypes[truth_hap][qvar_idx] = errtype;
+                    qvars->callq[truth_hap][qvar_idx] = qual;
+                    qvars->sync_group[truth_hap][qvar_idx] = sync_group;
+                    qvars->ref_ed[truth_hap][qvar_idx] = ref_dist;
+                    qvars->query_ed[truth_hap][qvar_idx] = query_dist;
+                    qvars->credit[truth_hap][qvar_idx] = credit;
+                }
+                if (errtype == ERRTYPE_FP) errtype = ERRTYPE_FN;
+                for (int tvar_idx : sync_tvars) {
+                    tvars->errtypes[truth_hap][tvar_idx] = errtype;
+                    tvars->callq[truth_hap][tvar_idx] = qual;
+                    tvars->sync_group[truth_hap][tvar_idx] = sync_group;
+                    tvars->ref_ed[truth_hap][tvar_idx] = ref_dist;
+                    tvars->query_ed[truth_hap][tvar_idx] = query_dist;
+                    tvars->credit[truth_hap][tvar_idx] = credit;
+                }
 
-    /*     // sync occurs between prev_var and var */
-    /*     while (sync_idx >= 0) { */
-
-    /*         // set corresponding REF position */
-    /*         int query_ref_pos = 0; */
-    /*         if (prev_hi == ri) { // REF, no variants */
-    /*             query_ref_pos = prev_qri; */
-    /*         } else { // hi == qi, QUERY */
-    /*             query_ref_pos = query_ref_ptrs[i][PTRS][prev_qri]; */
-    /*         } */
-
-    /*         // mark FPs and record variants within sync group */
-    /*         while (query_ref_pos < query_var_pos && query_var_ptr >= query_beg_idx) { // passed query variant */
-
-    /*             if (print) */
-    /*                 printf("query ref pos: %d, query_var_pos: %d, @%s(%2d,%2d) = REF(%2d,%2d)\n", */
-    /*                     query_ref_pos, query_var_pos, */ 
-    /*                     (hi == ri) ? "REF" : "QRY", qri, ti, */ 
-    /*                     (hi == ri) ? qri : query_ref_ptrs[i][PTRS][qri], */
-    /*                     truth_ref_ptrs[i][PTRS][ti]); */
-
-    /*             // FP if we passed a query variant when aligning on REF */
-    /*             if (hi == ri) { */
-    /*                 query_vars->errtypes[swap][query_var_ptr] = ERRTYPE_FP; */
-    /*                 query_vars->sync_group[swap][query_var_ptr] = sync_group++; */
-    /*                 query_vars->credit[swap][query_var_ptr] = 0; */
-    /*                 query_vars->ref_ed[swap][query_var_ptr] = 0; */
-    /*                 query_vars->query_ed[swap][query_var_ptr] = 0; */
-    /*                 query_vars->callq[swap][query_var_ptr] = */ 
-    /*                     query_vars->var_quals[query_var_ptr]; */
-    /*                 if (print) printf("%s: QUERY REF='%s'\tALT='%s'\t%s\t%f\n", ctg.data(), */
-    /*                         query_vars->refs[query_var_ptr].data(), */
-    /*                         query_vars->alts[query_var_ptr].data(), "FP", 0.0f); */
-    /*                 query_var_ptr--; */
-
-    /*             } else { // we passed the query variant when aligning on QUERY, calc status below */
-    /*                 query_var_ptr--; */
-    /*             } */
-
-    /*             // update to next query variant to be found */
-    /*             query_var_pos = (query_var_ptr < query_beg_idx) ? -1 : */
-    /*                     query_vars->poss[query_var_ptr] - beg; */
-    /*         } */
-
-    /*         // count truth variants */
-    /*         int truth_ref_pos = truth_ref_ptrs[i][PTRS][prev_ti]; */
-    /*         while (truth_ref_pos < truth_var_pos && truth_var_ptr >= truth_beg_idx) { // passed truth variant */
-
-    /*             // update to next truth variant to be found */
-    /*             truth_var_ptr--; */
-    /*             truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 : */
-    /*                 truth_vars->poss[truth_var_ptr] - beg; */
-    /*         } */
-
-    /*         // sync point: set TP */
-    /*         if (sync[i][sync_idx]) { */
-
-    /*             // calculate edit distance without variants */
-    /*             int ref_ed = 0; */
-    /*             sync_ref_idx = (prev_hi == ri) ? prev_qri+1 : query_ref_ptrs[i][PTRS][prev_qri]+1; */
-    /*             sync_truth_idx = prev_ti+1; */
-    /*             std::vector< std::vector<int> > offs, ptrs; */
-    /*             wf_ed(ref.substr(sync_ref_idx, prev_sync_ref_idx - sync_ref_idx), */ 
-    /*                     truth[i].substr(sync_truth_idx, prev_sync_truth_idx - sync_truth_idx), */ 
-    /*                     ref_ed, offs, ptrs); */
-
-    /*             // the following cases should never happen */
-    /*             bool warn = false; */
-    /*             if (prev_truth_var_ptr == truth_var_ptr && ref_ed != 0) { */
-    /*                 WARN("Nonzero reference edit distance with no truth variants at ctg %s supercluster %d", ctg.data(), sc_idx); */
-    /*                 warn = true; */
-    /*             } */
-    /*             if (prev_query_var_ptr == query_var_ptr && query_ed != ref_ed) { */
-    /*                 WARN("Query edit distance changed with no query variants at ctg %s supercluster %d", ctg.data(), sc_idx); */
-    /*                 warn = true; */
-    /*             } */
-    /*             if (query_ed > ref_ed) { */
-    /*                 WARN("Query edit distance exceeds reference edit distance at ctg %s supercluster %d", ctg.data(), sc_idx); */
-    /*                 warn = true; */
-    /*             } */
-
-    /*             // This only happens when the truth VCF contains several variants that, when */
-    /*             // combined, are equivalent to no variants. In this case, the truth VCF should */
-    /*             // be fixed. Output a warning, and allow the evaluation to continue. */
-    /*             if (ref_ed == 0 && truth_var_ptr != prev_truth_var_ptr) { */
-    /*                 WARN("Zero edit distance with truth variants at ctg %s supercluster %d", ctg.data(), sc_idx); */
-    /*                 ref_ed = 1; // prevent divide-by-zero */
-    /*             } */
-                
-    /*             if (warn) { */
-    /*                 printf("\n\nSupercluster: %d\n", sc_idx); */
-    /*                 std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg]; */
-    /*                 for (int j = 0; j < CALLSETS*HAPS; j++) { */
-    /*                     int callset = j >> 1; */
-    /*                     int hap = j % 2; */
-    /*                     int cluster_beg = sc->superclusters[callset][hap][sc_idx]; */
-    /*                     int cluster_end = sc->superclusters[callset][hap][sc_idx+1]; */
-    /*                     printf("%s%d: %d clusters (%d-%d)\n", */ 
-    /*                         callset_strs[callset].data(), hap+1, */
-    /*                         cluster_end-cluster_beg, */
-    /*                         cluster_beg, cluster_end); */
-
-    /*                     for (int k = cluster_beg; k < cluster_end; k++) { */
-    /*                         std::shared_ptr<ctgVariants> vars = sc->ctg_variants[callset][hap]; */
-    /*                         int variant_beg = vars->clusters[k]; */
-    /*                         int variant_end = vars->clusters[k+1]; */
-    /*                         printf("\tCluster %d: %d variants (%d-%d)\n", k, */ 
-    /*                             variant_end-variant_beg, variant_beg, variant_end); */
-    /*                         for (int l = variant_beg; l < variant_end; l++) { */
-    /*                             printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[l], */ 
-    /*                             vars->refs[l].size() ?  vars->refs[l].data() : "_", */ 
-    /*                             vars->alts[l].size() ?  vars->alts[l].data() : "_", */
-    /*                             vars->var_quals[l]); */
-    /*                         } */
-    /*                     } */
-    /*                 } */
-    /*             } */
-
-    /*             if (false) { // debug */
-    /*                 printf("%s Path:\n", aln_strs[i].data()); */
-    /*                 for (int j = sync[i].size()-1; j >= 0; j--) { */
-    /*                     if (j == int(sync[i].size())-1) */
-    /*                         printf("%s %s\n", sync[i][j] ? "*" : ".", edits[i][j] ? "X" : "="); */
-    /*                     else */
-    /*                         printf("(%s,%d,%d)\n%s %s\n", path[i][j].mi % 2 ? "REF" : "QRY", */ 
-    /*                                 path[i][j].qi, path[i][j].ri, */ 
-    /*                                 sync[i][j] ? "*" : ".", edits[i][j] ? "X" : "="); */
-    /*                 } */
-    /*                 printf("\n%s: %d\n", aln_strs[i].data(), beg); */
-    /*                 printf("  ref: %2d %s\n", int(ref.size()), ref.data()); */
-    /*                 printf("query: %2d %s\n", int(query[i].size()), query[i].data()); */
-    /*                 printf("truth: %2d %s\n", int(truth[i].size()), truth[i].data()); */
-    /*                 printf("query->ref ptrs:\n"); */
-    /*                 print_ref_ptrs(query_ref_ptrs[i]); */
-    /*                 printf("ref->query ptrs:\n"); */
-    /*                 print_ref_ptrs(ref_query_ptrs[i]); */
-    /*                 printf("truth->ref ptrs:\n"); */
-    /*                 print_ref_ptrs(truth_ref_ptrs[i]); */
-
-    /*                 printf("  ref[%2d:+%2d] ", sync_ref_idx, prev_sync_ref_idx-sync_ref_idx); */
-    /*                 printf("%s\n", ref.substr(sync_ref_idx, */ 
-    /*                             prev_sync_ref_idx - sync_ref_idx).data()); */
-    /*                 printf("truth[%2d:+%2d] ", sync_truth_idx, prev_sync_truth_idx-sync_truth_idx); */
-    /*                 printf("%s\n", truth[i].substr(sync_truth_idx, */ 
-    /*                             prev_sync_truth_idx - sync_truth_idx).data()); */
-    /*             } */
-
-    /*             // get min query var qual in sync section (for truth/query) */
-    /*             float callq = g.max_qual; */
-    /*             for (int query_var_idx = prev_query_var_ptr; */ 
-    /*                     query_var_idx > query_var_ptr; query_var_idx--) { */
-    /*                 callq = std::min(callq, query_vars->var_quals[query_var_idx]); */
-    /*             } */
-
-    /*             // process QUERY variants */
-    /*             for (int query_var_idx = prev_query_var_ptr; */ 
-    /*                     query_var_idx > query_var_ptr; query_var_idx--) { */
-    /*                 float credit = 1 - float(query_ed)/ref_ed; */
-    /*                 // don't overwrite FPs */
-    /*                 if (query_vars->errtypes[swap][query_var_idx] == ERRTYPE_UN) { */
-    /*                     if (credit >= g.credit_threshold) { // TP */
-    /*                         query_vars->errtypes[swap][query_var_idx] = ERRTYPE_TP; */
-    /*                         query_vars->sync_group[swap][query_var_idx] = sync_group; */
-    /*                         query_vars->credit[swap][query_var_idx] = credit; */
-    /*                         query_vars->ref_ed[swap][query_var_idx] = ref_ed; */
-    /*                         query_vars->query_ed[swap][query_var_idx] = query_ed; */
-    /*                         query_vars->callq[swap][query_var_idx] = callq; */
-    /*                         if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", */ 
-    /*                                 ctg.data(), query_vars->poss[query_var_idx], */
-    /*                                 query_vars->refs[query_var_idx].data(), */
-    /*                                 query_vars->alts[query_var_idx].data(), */ 
-    /*                                 "TP", credit); */
-    /*                     } else { // FP */
-    /*                         query_vars->errtypes[swap][query_var_idx] = ERRTYPE_FP; */
-    /*                         query_vars->sync_group[swap][query_var_idx] = sync_group; */
-    /*                         query_vars->credit[swap][query_var_idx] = credit; */
-    /*                         query_vars->ref_ed[swap][query_var_idx] = ref_ed; */
-    /*                         query_vars->query_ed[swap][query_var_idx] = query_ed; */
-    /*                         query_vars->callq[swap][query_var_idx] = callq; */
-    /*                         if (print) printf("%s:%d QUERY REF='%s'\tALT='%s'\t%s\t%f\n", */ 
-    /*                                 ctg.data(), query_vars->poss[query_var_idx], */
-    /*                                 query_vars->refs[query_var_idx].data(), */
-    /*                                 query_vars->alts[query_var_idx].data(), */ 
-    /*                                 "FP", 0.0f); */
-    /*                     } */
-    /*                 } */
-    /*             } */
-
-    /*             // process TRUTH variants */
-    /*             for (int truth_var_idx = prev_truth_var_ptr; */ 
-    /*                     truth_var_idx > truth_var_ptr; truth_var_idx--) { */
-    /*                 float credit = 1 - float(query_ed)/ref_ed; */
-    /*                 if (credit >= g.credit_threshold) { // TP */
-    /*                     truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_TP; */
-    /*                     truth_vars->sync_group[swap][truth_var_idx] = sync_group; */
-    /*                     truth_vars->credit[swap][truth_var_idx] = credit; */
-    /*                     truth_vars->ref_ed[swap][truth_var_idx] = ref_ed; */
-    /*                     truth_vars->query_ed[swap][truth_var_idx] = query_ed; */
-    /*                     truth_vars->callq[swap][truth_var_idx] = callq; */
-    /*                     if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", */ 
-    /*                             ctg.data(), truth_vars->poss[truth_var_idx], */
-    /*                             truth_vars->refs[truth_var_idx].data(), */
-    /*                             truth_vars->alts[truth_var_idx].data(), */ 
-    /*                             "TP", credit); */
-    /*                 } else { // FP call, FN truth */
-    /*                     truth_vars->errtypes[swap][truth_var_idx] = ERRTYPE_FN; */
-    /*                     truth_vars->sync_group[swap][truth_var_idx] = sync_group; */
-    /*                     truth_vars->credit[swap][truth_var_idx] = credit; */
-    /*                     truth_vars->ref_ed[swap][truth_var_idx] = ref_ed; */
-    /*                     truth_vars->query_ed[swap][truth_var_idx] = query_ed; */
-    /*                     truth_vars->callq[swap][truth_var_idx] = g.max_qual; */
-    /*                     if (print) printf("%s:%d TRUTH REF='%s'\tALT='%s'\t%s\t%f\n", */
-    /*                             ctg.data(), truth_vars->poss[truth_var_idx], */
-    /*                             truth_vars->refs[truth_var_idx].data(), */
-    /*                             truth_vars->alts[truth_var_idx].data(), */ 
-    /*                             "FN", credit); */
-    /*                 } */ 
-    /*             } */
-
-    /*             if (print) printf("%s: SYNC @%s(%2d,%2d) = REF(%2d,%2d), ED %d->%d, QUERY %d-%d, TRUTH %d-%d\n\n", ctg.data(), */
-    /*                     (prev_hi == ri) ? "REF" : "QRY", prev_qri, prev_ti, */
-    /*                     (prev_hi == ri) ? prev_qri : query_ref_ptrs[i][PTRS][prev_qri], */
-    /*                     truth_ref_ptrs[i][PTRS][prev_ti], ref_ed, query_ed, */ 
-    /*                     prev_query_var_ptr, query_var_ptr, */
-    /*                     prev_truth_var_ptr, truth_var_ptr */
-    /*             ); */
-
-    /*             // new sync group if there were any variants */
-    /*             if (query_var_ptr != prev_query_var_ptr || */ 
-    /*                 truth_var_ptr != prev_truth_var_ptr) { */
-    /*                 sync_group++; */
-    /*             } */
-    /*             prev_query_var_ptr = query_var_ptr; */
-    /*             prev_truth_var_ptr = truth_var_ptr; */
-    /*             prev_sync_ref_idx = sync_ref_idx; */
-    /*             prev_sync_truth_idx = sync_truth_idx; */
-    /*             query_ed = 0; */
-    /*         } */
-
-    /*         // update pointers and edit distance */
-    /*         if (print) printf("%s %s (%2d,%2d) %s\n", */ 
-    /*                 sync[i][sync_idx] ? "*" : " ", */
-    /*                 (prev_hi == ri) ? "REF" : "QRY", prev_qri, prev_ti, */
-    /*                 edits[i][sync_idx] ? "X" : "="); */
-
-    /*         // update path pointer */
-    /*         query_ed += edits[i][sync_idx]; */
-    /*         sync_idx--; */
-    /*         if (sync_idx < 0) break; */
-
-    /*         // traversing backwards, but prev_i comes before i numerically */
-    /*         qri = prev_qri; */
-    /*         ti = prev_ti; */
-    /*         hi = prev_hi; */
-    /*         prev_qri = path[i][sync_idx].qi; */
-    /*         prev_ti = path[i][sync_idx].ri; */
-    /*         prev_hi = path[i][sync_idx].mi; */
-
-    /*         // update next variant position */
-    /*         query_var_pos = (query_var_ptr < query_beg_idx) ? -1 : */
-    /*             query_vars->poss[query_var_ptr] - beg; */
-    /*         truth_var_pos = (truth_var_ptr < truth_beg_idx) ? -1 : */
-    /*             truth_vars->poss[truth_var_ptr] - beg; */
-    /*     } */
-    /* } */
+                // reset
+                sync_group++;
+                sync_qvars.clear();
+                sync_tvars.clear();
+                query_dist = 0;
+                ref_dist = 0;
+            } 
+        }
+        curr = prev;
+    }
 }
 
 
@@ -1198,6 +956,7 @@ Graph::Graph(
             if (var_pos > ref_pos) {
                 this->tnodes++;
                 this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, var_pos-ref_pos));
+                this->tbegs.push_back(ref_pos);
                 this->ttypes.push_back(TYPE_REF);
                 this->tidxs.push_back(-1);
             }
@@ -1205,6 +964,7 @@ Graph::Graph(
             // add the truth variant
             this->tnodes++;
             this->tseqs.push_back("_" + tvars->alts[var_idx]);
+            this->tbegs.push_back(var_pos);
             this->ttypes.push_back(tvars->types[var_idx]);
             this->tidxs.push_back(var_idx);
             ref_pos = tvars->poss[var_idx] + tvars->rlens[var_idx];
@@ -1214,6 +974,7 @@ Graph::Graph(
     // add the remainder of the truth
     this->tnodes++;
     this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, ref_end+1 -ref_pos));
+    this->tbegs.push_back(ref_pos);
     this->ttypes.push_back(TYPE_REF);
     this->tidxs.push_back(-1);
 
@@ -1325,36 +1086,9 @@ void precision_recall_wrapper(
 
                 std::unordered_map<idx4, idx4> ptrs;
                 calc_prec_recall_aln(graph, ptrs, false);
+                calc_prec_recall(graph, ptrs, hi, false);
             }
         }
-
-        /* // store optimal phasing for each supercluster */
-        /* // ORIG: query1-truth1 and query2-truth2 */
-        /* // SWAP: query1-truth2 and query2-truth1 */
-        /* store_phase(clusterdata_ptr, ctg, sc_idx, aln_score); */
-
-        /* // calculate paths from alignment */
-        /* std::vector< std::vector<idx> > path(CALLSETS*HAPS); */
-        /* std::vector< std::vector<bool> > sync(CALLSETS*HAPS); */
-        /* std::vector< std::vector<bool> > edit(CALLSETS*HAPS); */
-        /* std::vector< std::vector< std::vector<uint8_t> > > path_ptrs; */
-        /* std::vector< std::vector< std::vector<int16_t> > > path_scores; */
-        /* calc_prec_recall_path( */
-        /*         ref_q1, query1, query2, truth1, truth2, */
-        /*         path, sync, edit, aln_ptrs, path_ptrs, path_scores, */
-        /*         query1_ref_ptrs, ref_query1_ptrs, */ 
-        /*         query2_ref_ptrs, ref_query2_ptrs, */ 
-        /*         truth1_ref_ptrs, truth2_ref_ptrs, */
-        /*         swap_pred_maps, aln_query_ref_end, false); */
-
-        /* // calculate precision/recall from paths */
-        /* calc_prec_recall( */
-        /*         clusterdata_ptr, sc_idx, ctg, ref_q1, query1, query2, */ 
-        /*         truth1, truth2, path, sync, edit, */
-        /*         query1_ref_ptrs, ref_query1_ptrs, */ 
-        /*         query2_ref_ptrs, ref_query2_ptrs, */
-        /*         truth1_ref_ptrs, truth2_ref_ptrs, */
-        /*         aln_query_ref_end, false); */
     }
 }
 

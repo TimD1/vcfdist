@@ -15,7 +15,7 @@ class ctgVariants {
 public:
 
     // constructor
-    ctgVariants();
+    ctgVariants(std::string ctg);
 
     // helper functions
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
@@ -26,8 +26,10 @@ public:
     void print_var_sample(FILE* out_vcf, int idx, std::string gt, int sc_idx, 
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
     bool var_on_hap(int var_idx, int hap) const;
+    void set_var_calcgt_on_hap(int var_idx, int hap);
 
     // originally parsed data (size n)
+    std::string ctg;
     std::vector<int> poss;          // variant start positions (0-based)
     std::vector<int> rlens;         // reference lengths
     std::vector<uint8_t> types;     // variant type: NONE, SUB, INS, DEL, CPX

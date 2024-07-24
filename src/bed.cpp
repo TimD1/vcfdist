@@ -200,9 +200,9 @@ void check_contigs(
                         query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
                 INFO("Contig '%s' found in BED but not query VCF.", ctg.data());
                 query_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 query_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
                 query_ptr->ploidy.push_back(0);
@@ -211,9 +211,9 @@ void check_contigs(
                         truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
                 INFO("Contig '%s' found in BED but not truth VCF.", ctg.data());
                 truth_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 truth_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 truth_ptr->contigs.push_back(ctg);
                 truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
                 truth_ptr->ploidy.push_back(0);
@@ -236,9 +236,9 @@ void check_contigs(
                 WARN("Contig '%s' found in truth VCF but not query VCF."
                      " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
                 query_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 query_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
                 query_ptr->ploidy.push_back(truth_ptr->ploidy[i]);
@@ -251,9 +251,9 @@ void check_contigs(
                 WARN("Contig '%s' found in query VCF but not truth VCF."
                      " All query variants on '%s' will be false positives.", ctg.data(), ctg.data());
                 truth_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 truth_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants());
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 truth_ptr->contigs.push_back(ctg);
                 truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
                 truth_ptr->ploidy.push_back(query_ptr->ploidy[i]);

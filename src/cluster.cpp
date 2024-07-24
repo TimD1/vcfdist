@@ -114,7 +114,7 @@ void superclusterData::add_callset_vars(int callset,
         if (!nvars) continue;
 
         // merge variants from each haplotype for this ctg/callset
-        std::shared_ptr<ctgVariants> merged_vars(new ctgVariants());
+        std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
 
         // initialize with leftmost cluster info
         int curr_left_reach = std::numeric_limits<int>::max();
