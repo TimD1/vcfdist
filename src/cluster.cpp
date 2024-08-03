@@ -17,20 +17,7 @@ void ctgSuperclusters::add_supercluster(
         this->superclusters[c].push_back(brks[c]);
     this->begs.push_back(beg);
     this->ends.push_back(end);
-    this->sc_phase.push_back(PHASE_NONE);
-    this->pb_phase.push_back(PHASE_NONE);
-    this->orig_phase_dist.push_back(-1);
-    this->swap_phase_dist.push_back(-1);
     this->n++;
-}
-
-void ctgSuperclusters::set_phase(
-           int sc_idx, int phase, 
-           int orig_phase_dist, 
-           int swap_phase_dist) {
-    this->sc_phase[sc_idx] = phase;
-    this->orig_phase_dist[sc_idx] = orig_phase_dist;
-    this->swap_phase_dist[sc_idx] = swap_phase_dist;
 }
 
 
@@ -374,164 +361,10 @@ superclusterData::superclusterData(
 
     // supercluster
     this->supercluster();
-    this->transfer_phase_sets();
 }
 
 
 /******************************************************************************/
-
-/* Using per-variant phase set information from PS tags, calculate per-supercluster
- * phase sets. */
-void superclusterData::transfer_phase_sets() {
-    bool print = false;
-
-    int total_query_phase_sets = 0;
-    int total_truth_phase_sets = 0;
-    int total_multiple_phase_sets = 0;
-    int total_non_increasing = 0;
-    std::vector<int> query_phase_set_sizes;
-    std::vector<int> truth_phase_set_sizes;
-    int ctg_idx = 0;
-    for (std::string ctg : this->contigs) { // for each contig
-        std::shared_ptr<ctgSuperclusters> ctg_scs = this->superclusters[ctg];
-        if (print) printf("ctg: %s\n", ctg.data());
-        if (!ctg_scs->n) continue;
-
-        // set convenience variables
-        int qi = 0; int ti = 0; // query and truth indices
-        std::shared_ptr<ctgVariants> qv = ctg_scs->callset_vars[QUERY]; // vars
-        std::shared_ptr<ctgVariants> tv = ctg_scs->callset_vars[TRUTH];
-        std::vector<int> & qsc = ctg_scs->superclusters[QUERY]; // superclusters
-        std::vector<int> & tsc = ctg_scs->superclusters[TRUTH];
-
-        // get first phase set (to backfill all preceding zeros)
-        int first_pos = std::numeric_limits<int>::max();
-        int phase_set = 0;
-        for (; qi < qv->n; qi++) {
-            if (qv->phase_sets[qi] != 0) {
-                if (qv->poss[qi] < first_pos) {
-                    first_pos = qv->poss[qi]; phase_set = qv->phase_sets[qi];
-                }
-                break;
-            }
-        }
-        for (; ti < tv->n; ti++) {
-            if (tv->phase_sets[ti] != 0) {
-                if (tv->poss[ti] < first_pos) {
-                    first_pos = tv->poss[ti]; phase_set = tv->phase_sets[ti];
-                }
-                break;
-            }
-        }
-        if (print) printf("first phase set: %d\n", phase_set);
-
-        // carry phase_set across superclusters (if no heterozygous variants)
-        int query_phase_set = 0;
-        int truth_phase_set = 0;
-        int query_ps_beg = 0; int query_ps_end = 0;
-        int truth_ps_beg = 0; int truth_ps_end = 0;
-        for (int sci = 0; sci < ctg_scs->n; sci++) { // for each supercluster
-            int query_ps_ct = 0;
-            int truth_ps_ct = 0;
-            int non_increasing = 0;
-            if (print) printf("supercluster: %d\n", sci);
-
-            // check all variants in supercluster for each haplotype
-            if (qv->n)
-            for (qi = qv->clusters[qsc[sci]]; // QUERY HAP 1
-                    qi < qv->clusters[qsc[sci+1]]; qi++) {
-                if (qv->phase_sets[qi]) { // non-zero, has PS tag
-                    if (qv->phase_sets[qi] > query_phase_set) { // new PS
-                        if (query_phase_set) query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
-                        phase_set = query_phase_set = qv->phase_sets[qi];
-                        total_query_phase_sets++; query_ps_ct++;
-                        if (print) printf(" Q PS:%d %d-%d", phase_set, query_ps_beg, query_ps_end);
-                        query_ps_beg = qv->poss[qi];
-                        query_ps_end = qv->poss[qi] + qv->rlens[qi];
-                    } else if (qv->phase_sets[qi] == query_phase_set) { // same 
-                        if (!query_ps_ct) { query_ps_ct++; }
-                        query_ps_end = std::max(query_ps_end, qv->poss[qi] + qv->rlens[qi]);
-                    } else {
-                        query_ps_ct++;
-                        non_increasing++;
-                    }
-                }
-            }
-            if (tv->n)
-            for (ti = tv->clusters[tsc[sci]]; // TRUTH HAP 1
-                    ti < tv->clusters[tsc[sci+1]]; ti++) {
-                if (tv->phase_sets[ti]) { // non-zero, has PS tag
-                    if (tv->phase_sets[ti] > truth_phase_set) { // new
-                        if (truth_phase_set) truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
-                        phase_set = truth_phase_set = tv->phase_sets[ti];
-                        total_truth_phase_sets++; truth_ps_ct++;
-                        if (print) printf(" T PS:%d %d-%d", phase_set, truth_ps_beg, truth_ps_end);
-                        truth_ps_beg = tv->poss[ti];
-                        truth_ps_end = tv->poss[ti] + tv->rlens[ti];
-                    } else if (tv->phase_sets[ti] == truth_phase_set) { // same 
-                        if (!truth_ps_ct) { truth_ps_ct++; }
-                        truth_ps_end = std::max(truth_ps_end, tv->poss[ti] + tv->rlens[ti]);
-                    } else {
-                        truth_ps_ct++;
-                        non_increasing++;
-                    }
-                }
-            }
-
-            // if one supercluster contains variants in multiple phase sets
-            if (query_ps_ct > 1 || truth_ps_ct > 1) {
-                total_multiple_phase_sets++;
-            } else {
-                total_non_increasing += non_increasing;
-            }
-
-            // add phase_set to supercluster
-            ctg_scs->phase_sets.push_back(phase_set);
-            if (print) printf(" final=%d\n", phase_set);
-        }
-
-        // add final phase set on contig
-        if (!query_phase_set) {
-            query_phase_set_sizes.push_back(this->lengths[ctg_idx]);
-            total_query_phase_sets++;
-        } else {
-            query_phase_set_sizes.push_back(query_ps_end - query_ps_beg);
-            total_query_phase_sets++;
-        }
-        if (!truth_phase_set) {
-            truth_phase_set_sizes.push_back(this->lengths[ctg_idx]);
-            total_truth_phase_sets++;
-        } else {
-            truth_phase_set_sizes.push_back(truth_ps_end - truth_ps_beg);
-            total_truth_phase_sets++;
-        }
-        ctg_idx++;
-    }
-
-    // calculate phaseset NG50
-    size_t total_bases = 0;
-    for (size_t i = 0; i < this->contigs.size(); i++) {
-        total_bases += lengths[i];
-    }
-
-    int query_pb_ng50 = calc_ng50(query_phase_set_sizes, total_bases);
-    int truth_pb_ng50 = calc_ng50(truth_phase_set_sizes, total_bases);
-
-    // print
-    if (total_multiple_phase_sets)
-        WARN("%d total superclusters contain variants from multiple phase sets (PS)",
-                total_multiple_phase_sets)
-
-    if (total_non_increasing)
-        WARN("%d total phase sets (PS) are in non-increasing order",
-                total_non_increasing)
-
-    if (g.verbosity >= 1) INFO("              QUERY phase sets: %d", total_query_phase_sets);
-    if (g.verbosity >= 1) INFO("        QUERY phase block NG50: %d", query_pb_ng50);
-    if (g.verbosity >= 1) INFO("              TRUTH phase sets: %d", total_truth_phase_sets);
-    if (g.verbosity >= 1) INFO("        TRUTH phase block NG50: %d", truth_pb_ng50);
-}
-
 
 /* Supercluster using left_reach and right_reach of each cluster, calculated
  * during wf_swg_cluster().

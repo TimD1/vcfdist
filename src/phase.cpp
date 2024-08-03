@@ -1,9 +1,60 @@
 #include <vector>
 #include <algorithm>
+#include <stdexcept>
 
 #include "phase.h"
 #include "print.h"
 #include "globals.h"
+
+uint8_t swap_gt(uint8_t gt, bool swap) {
+
+    if (gt == GT_MISSING || gt == GT_OTHER)
+        ERROR("Invalid GT (%s) encountered in swap_gt()", gt_strs[gt].data());
+
+    if (swap) {
+        switch (gt) {
+            case GT_REF:
+            case GT_ALT1:
+            case GT_REF_REF:
+            case GT_ALT1_ALT1:
+                return gt;
+            case GT_REF_ALT1:
+                return GT_ALT1_REF;
+            case GT_ALT1_REF:
+                return GT_REF_ALT1;
+            case GT_ALT2_ALT1:
+                return GT_ALT1_ALT2;
+            case GT_ALT1_ALT2:
+                return GT_ALT2_ALT1;
+            default:
+                ERROR("Unexpected GT (%s) encountered in swap_gt()", gt_strs[gt].data());
+        }
+    } else {
+        return gt;
+    }
+}
+
+bool is_swapped_gt(uint8_t gt1, uint8_t gt2, bool swap) {
+    // handle homozygous cases
+    if (gt1 == GT_REF && gt2 == GT_REF) return true;
+    if (gt1 == GT_ALT1 && gt2 == GT_ALT1) return true;
+    if (gt1 == GT_REF_REF && gt2 == GT_REF_REF) return true;
+    if (gt1 == GT_ALT1_ALT1 && gt2 == GT_ALT1_ALT1) return true;
+
+    if (swap) {
+        if (gt1 == GT_ALT1_REF && gt2 == GT_REF_ALT1) return true;
+        if (gt2 == GT_ALT1_REF && gt1 == GT_REF_ALT1) return true;
+        if (gt1 == GT_ALT1_ALT2 && gt2 == GT_ALT2_ALT1) return true;
+        if (gt2 == GT_ALT1_ALT2 && gt1 == GT_ALT2_ALT1) return true;
+    } else {
+        if (gt1 == GT_ALT1_REF && gt2 == GT_ALT1_REF) return true;
+        if (gt1 == GT_REF_ALT1 && gt2 == GT_REF_ALT1) return true;
+        if (gt1 == GT_ALT1_ALT2 && gt2 == GT_ALT1_ALT2) return true;
+        if (gt1 == GT_ALT2_ALT1 && gt2 == GT_ALT2_ALT1) return true;
+    }
+    return false;
+}
+
 
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
@@ -39,180 +90,155 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // write variants
     for (std::string ctg : this->contigs) {
-        /* std::vector<int> ptrs(CALLSETS, 0); */
-        /* std::vector<int> poss(CALLSETS, 0); */
-        /* std::vector<int> next(CALLSETS, 0); */
-        /* int sc_idx = 0; */
-        /* int ploidy = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg)-contigs.begin()]; */
-        /* std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg]; */
-        /* std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters; */
-        /* if (ctg_scs->n == 0) continue; */
+        std::vector<int> ptrs = std::vector<int>(CALLSETS, 0);
+        std::vector<int> poss = std::vector<int>(CALLSETS, 0);
+        std::vector<int> next = std::vector<int>(CALLSETS, 0);
+        int sc_idx = 0;
+        int ploidy = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg)-contigs.begin()];
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        auto & vars = ctg_pbs->ctg_superclusters->callset_vars;
+        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
+        std::shared_ptr<ctgVariants> tvars = ctg_pbs->ctg_superclusters->callset_vars[TRUTH];
+        if (qvars->n == 0) continue;
 
-        /* // set supercluster flip/swap based on phaseblock and sc phasing */
-        /* int phase_block = 0; */
-        /* bool phase_switch = ctg_scs->pb_phase[sc_idx]; */
-        /* int phase_sc = ctg_scs->sc_phase[sc_idx]; */
-        /* bool phase_flip, swap; */
-        /* if (phase_switch) { */
-        /*     if (phase_sc == PHASE_ORIG) { // flip error */
-        /*         phase_flip = true; */
-        /*         swap = false; */
-        /*     } else { // PHASE_SWAP or PHASE_NONE */
-        /*         phase_flip = false; */
-        /*         swap = true; */
-        /*     } */
-        /* } else { // no phase switch */
-        /*     if (phase_sc == PHASE_SWAP) { // flip error */
-        /*         phase_flip = true; */
-        /*         swap = true; */
-        /*     } else { // PHASE_ORIG or PHASE_NONE */
-        /*         phase_flip = false; */
-        /*         swap = false; */
-        /*     } */
-        /* } */
+        // set supercluster flip/swap based on phaseblock and sc phasing
+        int phase_block = 0;
+        bool phase_switch = qvars->pb_phases[ptrs[QUERY]];
+        int phase = qvars->phases[ptrs[QUERY]];
+        bool phase_flip, swap;
+        if (phase_switch) {
+            if (phase == PHASE_ORIG) { // flip error
+                phase_flip = true;
+                swap = false;
+            } else { // PHASE_SWAP or PHASE_NONE
+                phase_flip = false;
+                swap = true;
+            }
+        } else { // no phase switch
+            if (phase == PHASE_SWAP) { // flip error
+                phase_flip = true;
+                swap = true;
+            } else { // PHASE_ORIG or PHASE_NONE
+                phase_flip = false;
+                swap = false;
+            }
+        }
 
-        /* auto & vars = ctg_scs->callset_vars; */
-        /* while ( ptrs[QUERY] < int(vars[QUERY]->poss.size()) || */
-        /*         ptrs[QUERY] < int(vars[QUERY]->poss.size()) || */
-        /*         ptrs[TRUTH] < int(vars[TRUTH]->poss.size()) || */
-        /*         ptrs[TRUTH] < int(vars[TRUTH]->poss.size())) { */
+        while ( ptrs[QUERY] < qvars->n || ptrs[TRUTH] < tvars->n) {
 
-        /*     // get next positions */
-        /*     for (int c = 0; c < CALLSETS; c++) { */
-        /*         poss[c] = ptrs[c] < int(vars[c]->poss.size()) ? */ 
-        /*                 vars[c]->poss[ptrs[c]] : */ 
-        /*                 std::numeric_limits<int>::max(); */
-        /*         if (ptrs[c] < int(vars[c]->types.size()) && */
-        /*                 (vars[c]->types[ptrs[c]] == TYPE_INS || */
-        /*                 vars[c]->types[ptrs[c]] == TYPE_DEL)) poss[c]--; */
-        /*     } */
+            // get next positions
+            for (int c = 0; c < CALLSETS; c++) {
+                poss[c] = ptrs[c] < int(vars[c]->poss.size()) ? 
+                        vars[c]->poss[ptrs[c]] : 
+                        std::numeric_limits<int>::max();
+                if (ptrs[c] < int(vars[c]->types.size()) &&
+                        (vars[c]->types[ptrs[c]] == TYPE_INS ||
+                        vars[c]->types[ptrs[c]] == TYPE_DEL)) poss[c]--;
+            }
 
-        /*     // set flags for next haps */
-        /*     int pos = std::min(poss[QUERY], poss[TRUTH]); */
-        /*     for (int c = 0; c < CALLSETS; c++) { */
-        /*         next[c] = (poss[c] == pos); */
-        /*     } */
+            // set flags for next haps
+            int pos = std::min(poss[QUERY], poss[TRUTH]);
+            for (int c = 0; c < CALLSETS; c++) {
+                next[c] = (poss[c] == pos);
+            }
 
-        /*     // update supercluster and if phase is swapped */
-        /*     if (pos >= ctg_scs->ends[sc_idx]) { */
-        /*         // update supercluster */
-        /*         sc_idx++; */
-        /*         phase_sc = ctg_scs->sc_phase[sc_idx]; */
+            // update supercluster and if phase is swapped
+            phase = qvars->phases[ptrs[QUERY]];
+            phase_switch = qvars->pb_phases[ptrs[QUERY]];
+            if (pos >= ctg_scs->ends[sc_idx]) {
+                // update supercluster
+                sc_idx++;
 
-        /*         // update phase block */
-        /*         if (sc_idx >= ctg_pbs->phase_blocks[phase_block+1]) */
-        /*             phase_block++; */
-        /*         phase_switch = ctg_scs->pb_phase[sc_idx]; */
+                // update phase block
+                if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
+                    phase_block++;
 
-        /*         // update switch/flip status */
-        /*         if (phase_switch) { */
-        /*             if (phase_sc == PHASE_ORIG) { // flip error */
-        /*                 phase_flip = true; */
-        /*                 swap = false; */
-        /*             } else { // PHASE_SWAP or PHASE_NONE */
-        /*                 phase_flip = false; */
-        /*                 swap = true; */
-        /*             } */
-        /*         } else { // no phase switch */
-        /*             if (phase_sc == PHASE_SWAP) { // flip error */
-        /*                 phase_flip = true; */
-        /*                 swap = true; */
-        /*             } else { // PHASE_ORIG or PHASE_NONE */
-        /*                 phase_flip = false; */
-        /*                 swap = false; */
-        /*             } */
-        /*         } */
-        /*     } */
+                // update switch/flip status
+                if (phase_switch) {
+                    if (phase == PHASE_ORIG) { // flip error
+                        phase_flip = true;
+                        swap = false;
+                    } else { // PHASE_SWAP or PHASE_NONE
+                        phase_flip = false;
+                        swap = true;
+                    }
+                } else { // no phase switch
+                    if (phase == PHASE_SWAP) { // flip error
+                        phase_flip = true;
+                        swap = true;
+                    } else { // PHASE_ORIG or PHASE_NONE
+                        phase_flip = false;
+                        swap = false;
+                    }
+                }
+            }
 
-        /*     // store if query and truth contain same variant */
-        /*     std::vector<bool> pair = {false, false}; */
-        /*     for (int h = 0; h < HAPS; h++) { */
-        /*         pair[h] = next[QUERY][h] && next[TRUTH][swap^h] && */
-        /*                 vars[QUERY][h]->refs[ptrs[QUERY][h]] == */ 
-        /*                 vars[TRUTH][swap^h]->refs[ptrs[TRUTH][swap^h]] && */
-        /*                 vars[QUERY][h]->alts[ptrs[QUERY][h]] == */ 
-        /*                 vars[TRUTH][swap^h]->alts[ptrs[TRUTH][swap^h]]; */
-        /*     } */
-
-        /*     if (next[QUERY][HAP1]) { */
-        /*         if (next[QUERY][HAP2]) { // two query variants */
-        /*             // don't collapse homozygous variants (credit results may differ) */
-        /*             for(int h = 0; h < HAPS; h++) { */
-        /*                 if (pair[h]) { // query matches truth */
-        /*                     vars[QUERY][h]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][h]); */
-        /*                     vars[TRUTH][h^swap]->print_var_sample(out_vcf, ptrs[TRUTH][h^swap], */ 
-        /*                             (h^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip); */
-        /*                     vars[QUERY][h]->print_var_sample(out_vcf, ptrs[QUERY][h], */ 
-        /*                             h?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip, true); */
-        /*                     ptrs[QUERY][h]++; ptrs[TRUTH][h^swap]++; */
-        /*                 } else { // just query */
-        /*                     vars[QUERY][h]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][h]); */
-        /*                     vars[TRUTH][h^swap]->print_var_empty(out_vcf, sc_idx, phase_block); */
-        /*                     vars[QUERY][h]->print_var_sample(out_vcf, ptrs[QUERY][h], */ 
-        /*                             h?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip, true); */
-        /*                     ptrs[QUERY][h]++; */
-        /*                 } */
-        /*             } */
-        /*         } else { // just query 1 */
-        /*             if (pair[HAP1]) { // query matches truth */
-        /*                 vars[QUERY][HAP1]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP1]); */
-        /*                 vars[TRUTH][HAP1^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1^swap], */ 
-        /*                         ploidy == 1 ? "1" : (HAP1^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip); */
-        /*                 vars[QUERY][HAP1]->print_var_sample(out_vcf, ptrs[QUERY][HAP1], */ 
-        /*                         ploidy == 1 ? "1" : "1|0", sc_idx, phase_block, phase_switch, phase_flip, true); */
-        /*                 ptrs[QUERY][HAP1]++; ptrs[TRUTH][HAP1^swap]++; */
-        /*             } else { // just query */
-        /*                 vars[QUERY][HAP1]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP1]); */
-        /*                 vars[TRUTH][HAP1^swap]->print_var_empty(out_vcf, sc_idx, phase_block); */
-        /*                 vars[QUERY][HAP1]->print_var_sample(out_vcf, ptrs[QUERY][HAP1], */ 
-        /*                         ploidy == 1 ? "1" : "1|0", sc_idx, phase_block, phase_switch, phase_flip, true); */
-        /*                 ptrs[QUERY][HAP1]++; */
-        /*             } */
-        /*         } */
-        /*     } else if (next[QUERY][HAP2]) { // just query 2 */
-        /*         if (pair[HAP2]) { // query matches truth */
-        /*             vars[QUERY][HAP2]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP2]); */
-        /*             vars[TRUTH][HAP2^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2^swap], */ 
-        /*                     ploidy == 1 ? "1" : (HAP2^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip); */
-        /*             vars[QUERY][HAP2]->print_var_sample(out_vcf, ptrs[QUERY][HAP2], */ 
-        /*                     ploidy == 1 ? "1" : "0|1", sc_idx, phase_block, phase_switch, phase_flip, true); */
-        /*             ptrs[QUERY][HAP2]++; ptrs[TRUTH][HAP2^swap]++; */
-        /*         } else { // just query */
-        /*             vars[QUERY][HAP2]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY][HAP2]); */
-        /*             vars[TRUTH][HAP2^swap]->print_var_empty(out_vcf, sc_idx, phase_block); */
-        /*             vars[QUERY][HAP2]->print_var_sample(out_vcf, ptrs[QUERY][HAP2], */ 
-        /*                     ploidy == 1 ? "1" : "0|1", sc_idx, phase_block, phase_switch, phase_flip, true); */
-        /*             ptrs[QUERY][HAP2]++; */
-        /*         } */
-        /*     } else { // no query variants, just truth */
-        /*         if (next[TRUTH][HAP1^swap] && next[TRUTH][HAP2^swap]) { // two truth variants */
-        /*             // don't collapse homozygous variants (credit results may differ) */
-        /*             for(int h = 0; h < HAPS; h++) { */
-        /*                 vars[TRUTH][h^swap]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][h^swap]); */
-        /*                 vars[TRUTH][h^swap]->print_var_sample(out_vcf, ptrs[TRUTH][h^swap], */ 
-        /*                         (h^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip); */
-        /*                 vars[QUERY][h]->print_var_empty(out_vcf, sc_idx, phase_block, true); */
-        /*                 ptrs[TRUTH][h^swap]++; */
-        /*             } */
-        /*         } else { // one truth variant */
-        /*             if (next[TRUTH][HAP1^swap]) { */
-        /*                 vars[TRUTH][HAP1^swap]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP1^swap]); */
-        /*                 vars[TRUTH][HAP1^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP1^swap], */ 
-        /*                         ploidy == 1 ? "1" : (HAP1^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip); */
-        /*                 vars[QUERY][HAP1]->print_var_empty(out_vcf, sc_idx, phase_block, true); */
-        /*                 ptrs[TRUTH][HAP1^swap]++; */
-        /*             } else if (next[TRUTH][HAP2^swap]) { */
-        /*                 vars[TRUTH][HAP2^swap]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH][HAP2^swap]); */
-        /*                 vars[TRUTH][HAP2^swap]->print_var_sample(out_vcf, ptrs[TRUTH][HAP2^swap], */ 
-        /*                         ploidy == 1 ? "1" : (HAP2^swap)?"0|1":"1|0", sc_idx, phase_block, phase_switch, phase_flip); */
-        /*                 vars[QUERY][HAP2]->print_var_empty(out_vcf, sc_idx, phase_block, true); */
-        /*                 ptrs[TRUTH][HAP2^swap]++; */
-        /*             } else { */
-        /*                 ERROR("No variants are selected next."); */
-        /*             } */
-        /*         } */
-        /*     } */
-        /* } */
+            if (next[QUERY]) {
+                if (next[TRUTH]) {
+                    if (vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
+                        vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
+                        // print data for each haplotype
+                        for (int hi = 0; hi < HAPS; hi++) {
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi) || 
+                                    vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
+                                vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
+                                if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) { // print truth
+                                    vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], hi,
+                                        ploidy == 1 ? "1" : (hi^swap ? "0|1" : "1|0"), 
+                                        sc_idx, phase_block, phase_switch, phase_flip);
+                                } else {
+                                    vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
+                                }
+                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) { // print truth
+                                    vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
+                                        ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
+                                        sc_idx, phase_block, phase_switch, phase_flip, true);
+                                } else {
+                                    vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
+                                }
+                            }
+                        }
+                        ptrs[QUERY]++; ptrs[TRUTH]++;
+                    } else { // positional tie, diff vars, just print query
+                        for (int hi = 0; hi < HAPS; hi++) {
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
+                                vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
+                                vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
+                                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
+                                        ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
+                                        sc_idx, phase_block, phase_switch, phase_flip, true);
+                            }
+                        }
+                        ptrs[QUERY]++;
+                    }
+                } else { // query is next
+                    for (int hi = 0; hi < HAPS; hi++) {
+                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
+                            vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
+                            vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
+                            vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
+                                    ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
+                                    sc_idx, phase_block, phase_switch, phase_flip, true);
+                        }
+                    }
+                    ptrs[QUERY]++;
+                }
+            } else if (next[TRUTH]) {
+                for (int hi = 0; hi < HAPS; hi++) {
+                    if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
+                        vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
+                        vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], hi,
+                                ploidy == 1 ? "1" : (hi^swap ? "0|1" : "1|0"), 
+                                sc_idx, phase_block, phase_switch, phase_flip);
+                        vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
+                    }
+                }
+                ptrs[TRUTH]++;
+            } else {
+                ERROR("No variants are selected next.");
+            }
+        }
     }
     fclose(out_vcf);
 }
@@ -241,16 +267,16 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     // add phase blocks based on phase sets for each contig
     for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         int curr_phase_set = -1;
-        for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
-            if (ctg_scs->phase_sets[sc_idx] != curr_phase_set) {
-                ctg_pbs->phase_blocks.push_back(sc_idx);
+        for (int qvar_idx = 0; qvar_idx < qvars->n; qvar_idx++) {
+            if (qvars->phase_sets[qvar_idx] != curr_phase_set) {
+                ctg_pbs->phase_blocks.push_back(qvar_idx);
                 ctg_pbs->n++;
-                curr_phase_set = ctg_scs->phase_sets[sc_idx];
+                curr_phase_set = qvars->phase_sets[qvar_idx];
             }
         }
-        ctg_pbs->phase_blocks.push_back(ctg_scs->n);
+        ctg_pbs->phase_blocks.push_back(qvars->n);
     }
     
     this->phase();
@@ -269,30 +295,43 @@ void phaseblockData::phase()
     // phase each contig separately
     for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-        std::vector< std::vector<int> > mat(2, std::vector<int>(ctg_scs->n+1));
-        std::vector< std::vector<int> > ptrs(2, std::vector<int>(ctg_scs->n+1));
+        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
+        std::vector< std::vector<int> > mat(2, std::vector<int>(qvars->n+1));
+        std::vector< std::vector<int> > ptrs(2, std::vector<int>(qvars->n+1));
+
+        // calculate phasings for each variant
+        for (int i = 0; i < qvars->n; i++) {
+            if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->calc_gts[i] == GT_ALT1_REF) || // same
+                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->calc_gts[i] == GT_REF_ALT1)) {
+                qvars->phases[i] = PHASE_ORIG;
+            } else if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->calc_gts[i] == GT_REF_ALT1) || // diff
+                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->calc_gts[i] == GT_ALT1_REF)) {
+                qvars->phases[i] = PHASE_SWAP;
+            } else {
+                qvars->phases[i] = PHASE_NONE;
+            }
+        }
 
         // forward pass
-        for (int i = 0; i < ctg_scs->n; i++) {
+        for (int i = 0; i < qvars->n; i++) {
 
             // determine costs (penalized if this phasing deemed incorrect)
             std::vector<int> costs = {0, 0};
-            switch (ctg_scs->sc_phase[i]) {
-                case PHASE_NONE: 
+            switch (qvars->phases[i]) {
+                case PHASE_SWAP:
+                    costs[PHASE_ORIG] = 0; 
+                    costs[PHASE_SWAP] = 1; 
+                    break;
+                case PHASE_ORIG:
+                    costs[PHASE_ORIG] = 1; 
+                    costs[PHASE_SWAP] = 0; 
+                    break;
+                case PHASE_NONE:
                     costs[PHASE_ORIG] = 0; 
                     costs[PHASE_SWAP] = 0; 
                     break;
-                case PHASE_ORIG: 
-                    costs[PHASE_ORIG] = 0; 
-                    costs[PHASE_SWAP] = 1; 
-                     break;
-                case PHASE_SWAP:
-                    costs[PHASE_ORIG] = 1; 
-                    costs[PHASE_SWAP] = 0; 
-                     break;
                 default:
-                    ERROR("Unexpected phase (%d)", ctg_scs->sc_phase[i]);
+                    ERROR("Unexpected phase (%d)", qvars->phases[i]);
                     break;
             }
 
@@ -301,7 +340,7 @@ void phaseblockData::phase()
 
             // no cost for phase switches if on border of phase set
             int cost_swap = 1;
-            if (i < ctg_scs->n-1 && ctg_scs->phase_sets[i] != ctg_scs->phase_sets[i+1]) {
+            if (i < qvars->n-1 && qvars->phase_sets[i] != qvars->phase_sets[i+1]) {
                 cost_swap = 0;
             }
 
@@ -318,32 +357,32 @@ void phaseblockData::phase()
         }
 
         // backwards pass
-        if (ctg_scs->n > 0) { // skip empty contigs
+        if (qvars->n > 0) { // skip empty contigs
 
             // determine starting phase
             int phase = PHASE_ORIG; // 0
-            if (mat[PHASE_SWAP][ctg_scs->n] < mat[PHASE_ORIG][ctg_scs->n])
+            if (mat[PHASE_SWAP][qvars->n] < mat[PHASE_ORIG][qvars->n])
                 phase = PHASE_SWAP; // 1
 
-            int i = ctg_scs->n;
+            int i = qvars->n;
             while (i > 0) {
                 if (ptrs[phase][i] == PHASE_PTR_SWAP) {
 
                     // not a switch error if between phase sets
-                    if (ctg_scs->phase_sets[i] == ctg_scs->phase_sets[i-1]) {
+                    if (qvars->phase_sets[i] == qvars->phase_sets[i-1]) {
                         ctg_pbs->switches.push_back(i);
                         ctg_pbs->nswitches++;
                     }
 
                     phase ^= 1;
                 } else if (ptrs[phase][i] == PHASE_PTR_KEEP) { // within phase block
-                    if (ctg_scs->sc_phase[i-1] != PHASE_NONE && ctg_scs->sc_phase[i-1] != phase) {
+                    if (qvars->phases[i-1] != PHASE_NONE && qvars->phases[i-1] != phase) {
                         ctg_pbs->flips.push_back(i-1);
                         ctg_pbs->nflips++;
                     }
                 }
                 i--;
-                ctg_scs->pb_phase[i] = phase;
+                qvars->pb_phases[i] = phase;
             }
             std::reverse(ctg_pbs->flips.begin(), ctg_pbs->flips.end());
             std::reverse(ctg_pbs->switches.begin(), ctg_pbs->switches.end());
@@ -355,19 +394,19 @@ void phaseblockData::phase()
     int switch_errors = 0;
     int flip_errors = 0;
     int phase_blocks = 0;
-    int superclusters = 0;
+    int variants = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int id = 0;
     for (std::string ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
 
         // print errors per contig
         if (g.verbosity >= 1) {
             INFO("    [%2d] %s: %d switch errors, %d flip errors, %d phase blocks", id, ctg.data(), 
                     ctg_pbs->nswitches, ctg_pbs->nflips, ctg_pbs->n);
         }
-        superclusters += ctg_scs->n;
+        variants += qvars->n;
         switch_errors += ctg_pbs->nswitches;
         flip_errors += ctg_pbs->nflips;
         phase_blocks += ctg_pbs->n;
@@ -381,10 +420,10 @@ void phaseblockData::phase()
     if (g.verbosity >= 1) INFO("             Total  phase blocks: %d", phase_blocks);
     if (g.verbosity >= 1) INFO("             Total switch errors: %d", switch_errors);
     if (g.verbosity >= 1) INFO("             Total   flip errors: %d", flip_errors);
-    if (g.verbosity >= 1 && superclusters) 
-        INFO("  Supercluster switch error rate: %.6f%%", 100*switch_errors/float(superclusters));
-    if (g.verbosity >= 1 && superclusters) 
-        INFO("    Supercluster flip error rate: %.6f%%", 100*flip_errors/float(superclusters));
+    if (g.verbosity >= 1 && variants) 
+        INFO("               Switch error rate: %.6f%%", 100*switch_errors/float(variants));
+    if (g.verbosity >= 1 && variants) 
+        INFO("                 Flip error rate: %.6f%%", 100*flip_errors/float(variants));
     if (g.verbosity >= 1) INFO("               Phase block  NG50: %d", ng50);
     if (g.verbosity >= 1) INFO("  (switch)     Phase block NGC50: %d", s_ngc50);
     if (g.verbosity >= 1) INFO("  (switchflip) Phase block NGC50: %d", sf_ngc50);
@@ -407,66 +446,66 @@ void phaseblockData::write_switchflips() {
     for (std::string ctg: this->contigs) {
         
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
 
         int switch_idx = 0;
         int flip_idx = 0;
         int pb_idx = 1;
-        if (ctg_scs->n == 0) continue;
+        if (qvars->n == 0) continue;
 
         // init start of this correct block
-        int sc = 0;
-        int next_sc = ctg_scs->n; // default to last
+        int vi = 0;
+        int next_vi = qvars->n; // default to last
         int beg = 0; int end = 0;
         int type = SWITCHTYPE_NONE;
 
         while (true) {
 
             // get type and supercluster of next switch/flip/phaseset
-            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_sc) {
+            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_vi) {
                 type = SWITCHTYPE_SWITCH;
-                next_sc = ctg_pbs->phase_blocks[pb_idx];
+                next_vi = ctg_pbs->phase_blocks[pb_idx];
             }
-            if (switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_sc) {
+            if (switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_vi) {
                 type = SWITCHTYPE_SWITCH_ERR;
-                next_sc = ctg_pbs->switches[switch_idx];
+                next_vi = ctg_pbs->switches[switch_idx];
             }
             // check flip last because it will cause a second switch
-            if (flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_sc) {
+            if (flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_vi) {
                 if (type == SWITCHTYPE_SWITCH)
                     type = SWITCHTYPE_SWITCH_AND_FLIP;
                 else
                     type = SWITCHTYPE_FLIP;
-                next_sc = ctg_pbs->flips[flip_idx];
+                next_vi = ctg_pbs->flips[flip_idx];
             }
             if (type == SWITCHTYPE_NONE) { // all out-of-bounds
                 break;
             }
-            if (next_sc <= sc) ERROR("Next supercluster (%d) is not after current supercluster (%d) in write_switchflips()", next_sc, sc);
+            if (next_vi < vi) ERROR("Next variant (%d) is not after current variant (%d) in write_switchflips()", next_vi, vi);
 
 
             // get block(s)
             if (type == SWITCHTYPE_FLIP || type == SWITCHTYPE_SWITCH_AND_FLIP) {
                 // switch could have occurred anywhere after last phased supercluster
-                int left = next_sc-1;
-                while (left > 0 && ctg_scs->sc_phase[left] == PHASE_NONE)
+                int left = next_vi-1;
+                while (left > 0 && qvars->phases[left] == PHASE_NONE)
                     left--;
                 if (left >= 0) {
-                    beg = ctg_scs->ends[left];
-                    end = ctg_scs->begs[next_sc];
+                    beg = qvars->poss[left] + qvars->rlens[left];
+                    end = qvars->poss[next_vi];
                     fprintf(out_sf, "%s\t%d\t%d\t%s\t%d\t%d\n", ctg.data(), beg, end, 
-                            switch_strs[SWITCHTYPE_FLIP_BEG].data(), next_sc, pb_idx-1);
+                            switch_strs[SWITCHTYPE_FLIP_BEG].data(), next_vi, pb_idx-1);
                 }
 
                 // switch could have occurred anywhere before next phased supercluster
-                int right = next_sc+1;
-                while (right < ctg_scs->n-1 && ctg_scs->sc_phase[right] == PHASE_NONE)
+                int right = next_vi+1;
+                while (right < qvars->n-1 && qvars->phases[right] == PHASE_NONE)
                     right++;
-                if (right < ctg_scs->n) {
-                    beg = ctg_scs->ends[next_sc];
-                    end = ctg_scs->begs[right];
+                if (right < qvars->n) {
+                    beg = qvars->poss[next_vi] + qvars->rlens[next_vi];
+                    end = qvars->poss[right];
                     fprintf(out_sf, "%s\t%d\t%d\t%s\t%d\t%d\n", ctg.data(), beg, end, 
-                            switch_strs[SWITCHTYPE_FLIP_END].data(), next_sc, pb_idx-1);
+                            switch_strs[SWITCHTYPE_FLIP_END].data(), next_vi, pb_idx-1);
                 }
                 flip_idx++;
                 if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
@@ -477,23 +516,23 @@ void phaseblockData::write_switchflips() {
 
             } else if (type == SWITCHTYPE_SWITCH_ERR) {
                 // expand left/right from in between these clusters
-                int left = next_sc-1;
-                while (left > 0 && ctg_scs->sc_phase[left] == PHASE_NONE)
+                int left = next_vi-1;
+                while (left > 0 && qvars->phases[left] == PHASE_NONE)
                     left--;
-                int right = next_sc;
-                while (right < ctg_scs->n-1 && ctg_scs->sc_phase[right] == PHASE_NONE)
+                int right = next_vi;
+                while (right < qvars->n-1 && qvars->phases[right] == PHASE_NONE)
                     right++;
-                if (left >= 0 && right < ctg_scs->n) {
-                    beg = ctg_scs->ends[left];
-                    end = ctg_scs->begs[right];
+                if (left >= 0 && right < qvars->n) {
+                    beg = qvars->poss[left] + qvars->rlens[left];
+                    end = qvars->poss[right];
                     fprintf(out_sf, "%s\t%d\t%d\t%s\t%d\t%d\n", ctg.data(), beg, end, 
-                            switch_strs[SWITCHTYPE_SWITCH_ERR].data(), next_sc, pb_idx-1);
+                            switch_strs[SWITCHTYPE_SWITCH_ERR].data(), next_vi, pb_idx-1);
                 }
                 switch_idx++;
             }
 
-            sc = next_sc;
-            next_sc = ctg_scs->n; // reset to end
+            vi = next_vi;
+            next_vi = qvars->n; // reset to end
             type = SWITCHTYPE_NONE;
         }
     }
@@ -535,74 +574,74 @@ int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
     for (std::string ctg: this->contigs) {
         
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
 
         int switch_idx = 0;
         int flip_idx = 0;
         int pb_idx = 1;
-        if (ctg_scs->n == 0) continue;
+        if (qvars->n == 0) continue;
 
         // init start of this correct block
-        int sc = 0;
-        int next_sc = ctg_scs->n; // default to last
-        int beg = ctg_scs->begs[0];
+        int vi = 0;
+        int next_vi = qvars->n; // default to last
+        int beg = qvars->poss[0];
         int end = 0;
         int type = SWITCHTYPE_NONE;
 
         while (true) {
 
             // get type and supercluster of next switch/flip/phaseset
-            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_sc) {
+            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_vi) {
                 type = SWITCHTYPE_SWITCH;
-                next_sc = ctg_pbs->phase_blocks[pb_idx];
+                next_vi = ctg_pbs->phase_blocks[pb_idx];
             }
-            if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_sc) {
+            if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_vi) {
                 type = SWITCHTYPE_SWITCH_ERR;
-                next_sc = ctg_pbs->switches[switch_idx];
+                next_vi = ctg_pbs->switches[switch_idx];
             }
             // check flip last (takes preference due to <=) because it can cause two breaks (before/after)
             // NOTE: is is possible for one supercluster to have both a switch (new PS) and flip
-            if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_sc) {
+            if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_vi) {
                 if (type == SWITCHTYPE_SWITCH)
                     type = SWITCHTYPE_SWITCH_AND_FLIP;
                 else
                     type = SWITCHTYPE_FLIP;
-                next_sc = ctg_pbs->flips[flip_idx];
+                next_vi = ctg_pbs->flips[flip_idx];
             }
             if (type == SWITCHTYPE_NONE) { // all out-of-bounds
                 break;
             }
-            if (next_sc <= sc) ERROR("Next supercluster (%d) is not after current supercluster (%d) in calc_ng50()", next_sc, sc);
+            if (next_vi < vi) ERROR("Next variant (%d) is not after current variant (%d) in calc_ng50()", next_vi, vi);
 
 
             // get block(s)
             if (type == SWITCHTYPE_FLIP || type == SWITCHTYPE_SWITCH_AND_FLIP) {
-                end = ctg_scs->ends[next_sc-1];
+                end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
                 correct_blocks.push_back(end-beg);
-                beg = ctg_scs->begs[next_sc];
+                beg = qvars->poss[next_vi];
 
-                end = ctg_scs->ends[next_sc];
+                end = qvars->poss[next_vi] + qvars->rlens[next_vi];
                 correct_blocks.push_back(end-beg);
-                beg = ctg_scs->begs[next_sc+1];
+                beg = qvars->poss[next_vi+1];
                 flip_idx++;
                 if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
             } else if (type == SWITCHTYPE_SWITCH) {
-                end = ctg_scs->ends[next_sc-1];
+                end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
                 correct_blocks.push_back(end-beg);
-                beg = ctg_scs->begs[next_sc];
+                beg = qvars->poss[next_vi];
                 pb_idx++;
             } else if (type == SWITCHTYPE_SWITCH_ERR) {
-                end = ctg_scs->ends[next_sc-1];
+                end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
                 correct_blocks.push_back(end-beg);
-                beg = ctg_scs->begs[next_sc];
+                beg = qvars->poss[next_vi];
                 switch_idx++;
             }
 
-            sc = next_sc;
-            next_sc = ctg_scs->n; // reset to end
+            vi = next_vi;
+            next_vi = qvars->n; // reset to end
             type = SWITCHTYPE_NONE;
         }
-        end = ctg_scs->ends[ctg_scs->n-1];
+        end = qvars->poss[qvars->n-1] + qvars->rlens[qvars->n-1];
         correct_blocks.push_back(end-beg);
     }
 

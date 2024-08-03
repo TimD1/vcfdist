@@ -16,11 +16,11 @@ public:
     int n = 0;                       // number of phase blocks
 
     // data, filled out during phase()
-    std::vector<int> phase_blocks;   // n+1, supercluster indices of new phase sets
-    std::vector<int> switches;       // switch occurs before this supercluster
-    std::vector<int> flips;          // indices of flipped superclusters
+    std::vector<int> phase_blocks;   // n+1, variant indices of new phase sets
+    std::vector<int> switches;       // switch occurs before this variant
+    std::vector<int> flips;          // indices of flipped variants
     int nswitches = 0;               // number of phase switch errors
-    int nflips = 0;                  // number of supercluster phase flip errors
+    int nflips = 0;                  // number of phase flip errors
 };
 
 class phaseblockData {
@@ -41,5 +41,8 @@ public:
     std::unordered_map<std::string, 
         std::shared_ptr<ctgPhaseblocks> > phase_blocks;
 };
+
+uint8_t swap_gt(uint8_t gt, bool swap);
+bool is_swapped_gt(uint8_t gt1, uint8_t gt2, bool swap);
 
 #endif

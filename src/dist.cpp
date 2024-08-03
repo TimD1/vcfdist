@@ -314,39 +314,6 @@ int calc_prec_recall_aln(
     }
 
     return score;
-
-} // function
-
-
-/******************************************************************************/
-
-
-int store_phase( 
-        superclusterData * clusterdata_ptr, 
-        const std::string & ctg, int sc_idx,
-        const std::vector<int> & s
-        ) {
-
-    // calculate best phasing
-    int orig_phase_dist = s[QUERY1_TRUTH1] + s[QUERY2_TRUTH2];
-    int swap_phase_dist = s[QUERY2_TRUTH1] + s[QUERY1_TRUTH2];
-    int phase = PHASE_NONE; // default either way if insufficient evidence
-    if (orig_phase_dist == swap_phase_dist) { // allow either phasing if equal dist
-        phase = PHASE_NONE;
-    } else if (orig_phase_dist == 0) { // protect division by zero
-        phase = PHASE_ORIG;
-    } else if (swap_phase_dist == 0) { // protect division by zero
-        phase = PHASE_SWAP;
-    } else if (1 - float(swap_phase_dist) / orig_phase_dist > g.phase_threshold) { // significant reduction by swapping
-        phase = PHASE_SWAP;
-    } else if (1 - float(orig_phase_dist) / swap_phase_dist > g.phase_threshold) { // significant reduction with orig
-        phase = PHASE_ORIG;
-    }
-
-    // save alignment information
-    clusterdata_ptr->superclusters[ctg]->set_phase(sc_idx,
-            phase, orig_phase_dist, swap_phase_dist);
-    return phase;
 }
 
 
@@ -764,7 +731,7 @@ void precision_recall_threads_wrapper(
                 int size = nscs / nthreads;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+size, thread2));
+                            thread_step, start, start+size, thread2, false));
                 start += size;
             }
             for (std::thread & t : threads)
@@ -790,7 +757,7 @@ void precision_recall_threads_wrapper(
                 if (thread_step < 0) break;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+1, thread2));
+                            thread_step, start, start+1, thread2, false));
                 start++;
                 total_ram += g.ram_steps[thread_step];
                 if (start >= int(sc_groups[thread_step][SC_IDX].size())) {
@@ -999,7 +966,7 @@ Graph::Graph(
 void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
-        int thread_step, int start, int stop, bool thread2) {
+        int thread_step, int start, int stop, bool thread2, bool print) {
 
 	// parse sc_idx from grouped superclusters
     if (stop == start) return;
@@ -1015,7 +982,7 @@ void precision_recall_wrapper(
         ////////////////////
         // DEBUG PRINTING //
         ////////////////////
-        if (true) {
+        if (print) {
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
             for (int c = 0; c < CALLSETS; c++) {
@@ -1048,46 +1015,14 @@ void precision_recall_wrapper(
         // calculate two forward-pass alignments, saving path
         // query1/query2 graph to truth1, query1/query2 graph to truth2
         std::vector<int> aln_score(HAPS);
+        for (int hi = 0; hi < HAPS; hi++) {
+            std::shared_ptr<Graph> graph(
+                    new Graph(sc, sc_idx, clusterdata_ptr->ref, ctg, hi));
+            if (print) graph->print();
 
-        // if memory-limited and each subproblem is large, 
-        // spawn a new thread for each of the 2 alignments
-        if (false) {
-        /* if (thread2) { // TODO: handle multi-threading here */
-            std::vector<std::thread> threads;
-            for (int hi = 0; hi < HAPS; hi++) {
-
-                /* // set truth string and truth->reference pointers */
-                /* std::string truth1 = "", ref_t1 = ""; */ 
-                /* std::vector< std::vector<int> > truth1_ref_ptrs, ref_truth1_ptrs; */
-                /* threads.push_back(std::thread( generate_ptrs_strs, */
-                /*         truth1, ref_t1, truth1_ref_ptrs, ref_truth1_ptrs, */ 
-                /*         sc->callset_vars[TRUTH], */
-                /*         sc->superclusters[TRUTH][sc_idx], */
-                /*         sc->superclusters[TRUTH][sc_idx+1], */
-                /*         sc->begs[sc_idx], sc->ends[sc_idx], */ 
-                /*         clusterdata_ptr->ref, ctg, hi)); */
-
-                /* threads.push_back(std::thread( calc_prec_recall_aln, */
-                /*     std::cref(query_graph), */
-                /*     std::cref(truth1), std::cref(truth2), std::cref(ref_t1), */
-                /*     std::cref(truth1_ref_ptrs), std::cref(truth2_ref_ptrs), */
-                /*     std::ref(aln_score), hi, false)); */
-
-            }
-            for (std::thread & t : threads)
-                t.join();
-
-        } else { // calculate 2 alignments in this thread
-
-            for (int hi = 0; hi < HAPS; hi++) {
-                std::shared_ptr<Graph> graph(
-                        new Graph(sc, sc_idx, clusterdata_ptr->ref, ctg, hi));
-                graph->print();
-
-                std::unordered_map<idx4, idx4> ptrs;
-                calc_prec_recall_aln(graph, ptrs, false);
-                calc_prec_recall(graph, ptrs, hi, false);
-            }
+            std::unordered_map<idx4, idx4> ptrs;
+            calc_prec_recall_aln(graph, ptrs, false);
+            calc_prec_recall(graph, ptrs, hi, false);
         }
     }
 }

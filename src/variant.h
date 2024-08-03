@@ -23,7 +23,7 @@ public:
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
             std::string ctg, int idx);
     void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);
-    void print_var_sample(FILE* out_vcf, int idx, std::string gt, int sc_idx, 
+    void print_var_sample(FILE* out_vcf, int var_idx, int hap_idx, std::string gt, int sc_idx, 
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
     bool var_on_hap(int var_idx, int hap) const;
     void set_var_calcgt_on_hap(int var_idx, int hap);
@@ -56,6 +56,10 @@ public:
     std::vector< std::vector<int> > ref_ed;    // reference edit distance in sync group
     std::vector< std::vector<int> > query_ed;  // query edit distance in sync group
     std::vector< std::vector<float> > credit;  // percentage reduction in edit dist (ref->query)
+
+    // set during phase()
+    std::vector<int> phases;             // variant keep/swap/unknown, from alignment
+    std::vector<int> pb_phases;          // phaseblock keep/swap, from phasing algorithm
 };
 
 class variantData {
@@ -73,6 +77,7 @@ public:
     void add_variants( const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query, 
             const std::string & ref, int qual, int phase_set);
+    void print_phase_info(int callset);
     void left_shift();
 
     // data

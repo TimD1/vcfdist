@@ -43,9 +43,11 @@ int main(int argc, char **argv) {
     // parse query and truth VCFs
     std::shared_ptr<variantData> query_ptr(
             new variantData(g.query_vcf_fn, ref_ptr, QUERY));
+    query_ptr->print_phase_info(QUERY);
     std::shared_ptr<variantData> truth_ptr(
             new variantData(g.truth_vcf_fn, ref_ptr, TRUTH));
     g.timers[TIME_READ].stop();
+    truth_ptr->print_phase_info(TRUTH);
 
     // write results
     if (g.write) {
@@ -218,25 +220,25 @@ int main(int argc, char **argv) {
     INFO("    done with precision-recall");
     g.timers[TIME_PR_ALN].stop();
 
-    /* // calculate global phasings */
-    /* g.timers[TIME_PHASE].start(); */
-    /* std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr)); */
-    /* g.timers[TIME_PHASE].stop(); */
+    // calculate global phasings
+    g.timers[TIME_PHASE].start();
+    std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr));
+    g.timers[TIME_PHASE].stop();
 
-    /* // write supercluster/phaseblock results in CSV format */
-    /* g.timers[TIME_WRITE].start(); */
-    /* if (g.write) phasedata_ptr->write_switchflips(); */
-    /* write_results(phasedata_ptr); */
+    // write supercluster/phaseblock results in CSV format
+    g.timers[TIME_WRITE].start();
+    if (g.write) phasedata_ptr->write_switchflips();
+    write_results(phasedata_ptr);
 
-    /* // save new VCF */
-    /* if (g.write) { */
-    /*     if (g.realign_query) */
-    /*         query_ptr->write_vcf(g.out_prefix + "query.vcf"); */
-    /*     if (g.realign_truth) */
-    /*         truth_ptr->write_vcf(g.out_prefix + "truth.vcf"); */
-    /*     phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf"); */
-    /* } */
-    /* g.timers[TIME_WRITE].stop(); */
+    // save new VCF
+    if (g.write) {
+        if (g.realign_query)
+            query_ptr->write_vcf(g.out_prefix + "query.vcf");
+        if (g.realign_truth)
+            truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
+        phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
+    }
+    g.timers[TIME_WRITE].stop();
 
     // report timing results
     g.timers[TIME_TOTAL].stop();

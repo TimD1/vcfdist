@@ -231,7 +231,7 @@ void precision_recall_threads_wrapper(
         std::vector< std::vector< std::vector<int> > > sc_groups);
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
-        int thread_step, int start, int stop, bool thread4);
+        int thread_step, int start, int stop, bool thread2, bool print = false);
 
 int calc_vcf_swg_score(
         std::shared_ptr<ctgVariants> vcf, 
