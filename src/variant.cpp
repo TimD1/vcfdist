@@ -318,8 +318,8 @@ void variantData::write_vcf(std::string out_vcf_fn) {
 
 /*******************************************************************************/
 
-bool ctgVariants::var_on_hap(int var_idx, int hap) const {
-    int gt = this->orig_gts[var_idx]; // simple gt, always (0|1, 1|0, or 1|1)
+bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
+    int gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx]; // simple gt, always (0|1, 1|0, or 1|1)
     if (hap == 0 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
         return true;
     if (hap == 1 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
@@ -390,28 +390,27 @@ void ctgVariants::print_var_sample(FILE* out_fp, int var_idx, int hap_idx, std::
         int sc_idx, int phase_block, bool phase_switch, 
         bool phase_flip, bool query /* = false */) {
 
-    // use either the normal or swapped evaluation
-    bool hap = phase_switch ^ phase_flip ^ hap_idx;
-
     // get categorization
     std::string errtype;
     std::string match_type;
-    if (this->credit[hap][var_idx] == 1) {
+    if (this->credit[hap_idx][var_idx] == 1) {
         errtype = "TP"; match_type = "gm";
-    } else if (this->credit[hap][var_idx] == 0) {
+    } else if (this->credit[hap_idx][var_idx] == 0) {
         errtype = query ? "FP" : "FN"; match_type = ".";
-    } else if (this->credit[hap][var_idx] >= g.credit_threshold) {
+    } else if (this->credit[hap_idx][var_idx] >= g.credit_threshold) {
         errtype = "TP"; match_type = "lm";
     } else {
         errtype = query ? "FP" : "FN"; match_type = "lm";
     }
 
     fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[hap][var_idx], 
-            this->ref_ed[hap][var_idx] == 0 ? "." : std::to_string(this->ref_ed[hap][var_idx]).data(),
-            this->ref_ed[hap][var_idx] == 0 ? "." : std::to_string(this->query_ed[hap][var_idx]).data(),
+            this->credit[hap_idx][var_idx], 
+            this->ref_ed[hap_idx][var_idx] == 0 ? "." : 
+                std::to_string(this->ref_ed[hap_idx][var_idx]).data(),
+            this->ref_ed[hap_idx][var_idx] == 0 ? "." : 
+                std::to_string(this->query_ed[hap_idx][var_idx]).data(),
             match_type.data(), int(this->var_quals[var_idx]), sc_idx, 
-            int(this->sync_group[hap][var_idx]), this->phase_sets[var_idx], phase_block,
+            int(this->sync_group[hap_idx][var_idx]), this->phase_sets[var_idx], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
             query ? (phase_flip ? "1" : "0") : "." , 
             query ? "\n" : "");
@@ -850,8 +849,9 @@ variantData::variantData(std::string vcf_fn,
                     WARN("No PS tag in %s VCF at %s:%lld",
                             callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
                 PS_missing_total++;
+                phase_set = 0;
             }
-            phase_set = 0;
+            // else, leave phase_set of 1|1 vars with missing PS tags the same as previous
 
         } else if (nPS <= 0) { // other error
             ERROR("Failed to read %s PS at %s:%lld", 

@@ -222,20 +222,20 @@ int calc_prec_recall_aln(
     idx4 start(0, 0, 0, 0);
     queue.push(start);
     done.insert(start);
-    ptrs[start] = idx4(-1, -1,-1,-1);
+    ptrs[start] = idx4(0, 0, -1, -1);
     int score = 0;
 
     // continue looping until full alignment found
     std::unordered_set<idx4> curr_wave; // everything explored this wave
     std::unordered_set<idx4> prev_wave; // everything explored prev wave
     while (true) {
-        if (print) printf("  score = %d\n", score);
+        /* if (print) printf("  score = %d\n", score); */
         if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
         // EXTEND WAVEFRONT (stay at same score)
         while (!queue.empty()) {
             idx4 x = queue.front(); queue.pop();
-            if (print) printf("    x = node (%d, %d) cell (%d, %d)\n", x.qni, x.tni, x.qi, x.ti);
+            /* if (print) printf("    x = node (%d, %d) cell (%d, %d)\n", x.qni, x.tni, x.qi, x.ti); */
             prev_wave.insert(x);
 
             // allow match on query
@@ -346,14 +346,22 @@ void calc_prec_recall(
         }
     }
 
-    while (curr != idx4(0,0,0,0)) {
+    while (curr != idx4(0,0,-1,-1)) {
 
         idx4 prev = ptrs.at(curr);
 
-        if (print) printf("curr = node (%d, %d) cell (%d, %d)",
-                curr.qni, curr.tni, curr.qi, curr.ti);
+        if (print) printf("curr = node (%d, %d) cell (%d, %d) poss (%d, %d)",
+                curr.qni, curr.tni, curr.qi, curr.ti, 
+                graph->qbegs[curr.qni]+curr.qi, graph->tbegs[curr.tni]+curr.ti);
         if (print) printf("\tprev = node (%d, %d) cell (%d, %d)\n",
                 prev.qni, prev.tni, prev.qi, prev.ti);
+
+        /* printf("%s submatrix, %s diag, query %s, truth %s, %s pos\n", */
+        /*     (prev.qni == curr.qni && prev.tni == curr.tni) ? "same" : "diff", */
+        /*     (prev.qi+1 == curr.qi && prev.ti+1 == curr.ti) ? "is" : "is not", */
+        /*     (graph->qtypes[curr.qni] == TYPE_REF) ? "ref" : "var", */
+        /*     (graph->ttypes[curr.tni] == TYPE_REF) ? "ref" : "var", */
+        /*     (graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) ? "same" : "diff"); */
 
         // if we move into a new query variant, mark it as included
         if (prev.qni != curr.qni && // new query node
@@ -404,7 +412,7 @@ void calc_prec_recall(
 
             // add sync point
             if (sync_tvars.size() || sync_qvars.size()) {
-            if (print) printf("syncing\n");
+                if (print) printf("syncing\n");
                 float credit = 0;
                 if (ref_dist == 0) {
                     WARN("Sync group with zero edit distance.");
@@ -412,11 +420,14 @@ void calc_prec_recall(
                     credit = 1 - float(query_dist) / ref_dist;
                 }
                 uint8_t errtype = (credit >= g.credit_threshold) ? ERRTYPE_TP : ERRTYPE_FP;
-                float qual = 1000;
+                float qual = g.max_qual;
                 for (int qvar_idx : sync_qvars) {
                     qual = std::min(qual, qvars->var_quals[qvar_idx]);
                 }
                 for (int qvar_idx : sync_qvars) {
+                    if (print) printf("QUERY var %d: BD=%s, BC=%f, Q=%f, SG=%d, RD=%d, QD=%d\n",
+                            qvar_idx, error_strs[errtype].data(), credit, 
+                            qual, sync_group, ref_dist, query_dist);
                     qvars->errtypes[truth_hap][qvar_idx] = errtype;
                     qvars->callq[truth_hap][qvar_idx] = qual;
                     qvars->sync_group[truth_hap][qvar_idx] = sync_group;
@@ -426,6 +437,9 @@ void calc_prec_recall(
                 }
                 if (errtype == ERRTYPE_FP) errtype = ERRTYPE_FN;
                 for (int tvar_idx : sync_tvars) {
+                    if (print) printf("TRUTH var %d: BD=%s, BC=%f, Q=%f, SG=%d, RD=%d, QD=%d\n",
+                            tvar_idx, error_strs[errtype].data(), credit, 
+                            qual, sync_group, ref_dist, query_dist);
                     tvars->errtypes[truth_hap][tvar_idx] = errtype;
                     tvars->callq[truth_hap][tvar_idx] = qual;
                     tvars->sync_group[truth_hap][tvar_idx] = sync_group;
@@ -923,7 +937,7 @@ Graph::Graph(
             if (var_pos > ref_pos) {
                 this->tnodes++;
                 this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, var_pos-ref_pos));
-                this->tbegs.push_back(ref_pos);
+                this->tbegs.push_back(ref_pos - ref_beg);
                 this->ttypes.push_back(TYPE_REF);
                 this->tidxs.push_back(-1);
             }
@@ -931,7 +945,7 @@ Graph::Graph(
             // add the truth variant
             this->tnodes++;
             this->tseqs.push_back("_" + tvars->alts[var_idx]);
-            this->tbegs.push_back(var_pos);
+            this->tbegs.push_back(var_pos - ref_beg);
             this->ttypes.push_back(tvars->types[var_idx]);
             this->tidxs.push_back(var_idx);
             ref_pos = tvars->poss[var_idx] + tvars->rlens[var_idx];
@@ -941,7 +955,7 @@ Graph::Graph(
     // add the remainder of the truth
     this->tnodes++;
     this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, ref_end+1 -ref_pos));
-    this->tbegs.push_back(ref_pos);
+    this->tbegs.push_back(ref_pos - ref_beg);
     this->ttypes.push_back(TYPE_REF);
     this->tidxs.push_back(-1);
 
@@ -969,6 +983,7 @@ void precision_recall_wrapper(
         int thread_step, int start, int stop, bool thread2, bool print) {
 
 	// parse sc_idx from grouped superclusters
+    print = true;
     if (stop == start) return;
     for (int supclust_idx = start; supclust_idx < stop; supclust_idx++) {
         std::string ctg = clusterdata_ptr->contigs[
@@ -1021,8 +1036,8 @@ void precision_recall_wrapper(
             if (print) graph->print();
 
             std::unordered_map<idx4, idx4> ptrs;
-            calc_prec_recall_aln(graph, ptrs, false);
-            calc_prec_recall(graph, ptrs, hi, false);
+            calc_prec_recall_aln(graph, ptrs, print);
+            calc_prec_recall(graph, ptrs, hi, print);
         }
     }
 }

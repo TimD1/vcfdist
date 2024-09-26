@@ -5,6 +5,7 @@
 #include "dist.h"
 #include "cluster.h"
 #include "print.h"
+#include "variant.h"
 
 ctgSuperclusters::ctgSuperclusters() {
     this->superclusters = std::vector< std::vector<int> > (CALLSETS, std::vector<int>());
@@ -38,22 +39,23 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
         for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
 
             std::vector<size_t> max_lens(CALLSETS, 0);
+            std::vector<size_t> lens(HAPS, 0);
             for (int c = 0; c < CALLSETS; c++) {
                 auto vars = ctg_scs->callset_vars[c];
-                /* printf("%s\n", callset_strs[c].data()); */
                 if (ctg_scs->callset_vars[c]->nc == 0) continue;
-                /* printf("nscs=%d, sc_size=%d, sc_idx=%d\n", ctg_scs->n, int(scs.size()), sc_idx); */
-                /* printf("clust_beg=%d, clust_end=%d, clust_size=%d\n", scs[sc_idx], scs[sc_idx+1], int(vars->clusters.size())); */
                 int var_beg = vars->clusters[ctg_scs->superclusters[c][sc_idx]];
                 int var_end = vars->clusters[ctg_scs->superclusters[c][sc_idx+1]];
-                /* printf("var_beg=%d, var_end=%d, nvar=%d, var_size=%d\n", var_beg, var_end, vars->n, int(vars->poss.size())); */
+
                 // calculate query len after applying variants
-                int len = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
-                for (int var = var_beg; var < var_end; var++) {
-                    len += (vars->alts[var].size() - 
-                            vars->refs[var].size());
+                for (int hi = 0; hi < HAPS; hi++) {
+                    lens[hi] = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
+                    for (int var = var_beg; var < var_end; var++) {
+                        if (!vars->var_on_hap(var, hi)) continue;
+                        lens[hi] += (vars->alts[var].size() - 
+                                vars->refs[var].size());
+                    }
+                    max_lens[c] = std::max(max_lens[c], lens[hi]);
                 }
-                max_lens[c] = std::max(max_lens[c], size_t(len));
             }
 
             // calculate memory usage

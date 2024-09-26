@@ -106,22 +106,18 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         int phase_block = 0;
         bool phase_switch = qvars->pb_phases[ptrs[QUERY]];
         int phase = qvars->phases[ptrs[QUERY]];
-        bool phase_flip, swap;
+        bool phase_flip;
         if (phase_switch) {
             if (phase == PHASE_ORIG) { // flip error
                 phase_flip = true;
-                swap = false;
             } else { // PHASE_SWAP or PHASE_NONE
                 phase_flip = false;
-                swap = true;
             }
         } else { // no phase switch
             if (phase == PHASE_SWAP) { // flip error
                 phase_flip = true;
-                swap = true;
             } else { // PHASE_ORIG or PHASE_NONE
                 phase_flip = false;
-                swap = false;
             }
         }
 
@@ -144,8 +140,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             }
 
             // update supercluster and if phase is swapped
-            phase = qvars->phases[ptrs[QUERY]];
-            phase_switch = qvars->pb_phases[ptrs[QUERY]];
+            if (ptrs[QUERY] < qvars->n) {
+                phase = qvars->phases[ptrs[QUERY]];
+                phase_switch = qvars->pb_phases[ptrs[QUERY]];
+            }
             if (pos >= ctg_scs->ends[sc_idx]) {
                 // update supercluster
                 sc_idx++;
@@ -158,18 +156,14 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 if (phase_switch) {
                     if (phase == PHASE_ORIG) { // flip error
                         phase_flip = true;
-                        swap = false;
                     } else { // PHASE_SWAP or PHASE_NONE
                         phase_flip = false;
-                        swap = true;
                     }
                 } else { // no phase switch
                     if (phase == PHASE_SWAP) { // flip error
                         phase_flip = true;
-                        swap = true;
                     } else { // PHASE_ORIG or PHASE_NONE
                         phase_flip = false;
-                        swap = false;
                     }
                 }
             }
@@ -180,17 +174,17 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
                         // print data for each haplotype
                         for (int hi = 0; hi < HAPS; hi++) {
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi) || 
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true) || 
                                     vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) { // print truth
                                     vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], hi,
-                                        ploidy == 1 ? "1" : (hi^swap ? "0|1" : "1|0"), 
+                                        ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"), 
                                         sc_idx, phase_block, phase_switch, phase_flip);
                                 } else {
                                     vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 }
-                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) { // print truth
+                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true)) { // print query
                                     vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
                                         ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
                                         sc_idx, phase_block, phase_switch, phase_flip, true);
@@ -202,7 +196,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         ptrs[QUERY]++; ptrs[TRUTH]++;
                     } else { // positional tie, diff vars, just print query
                         for (int hi = 0; hi < HAPS; hi++) {
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
@@ -214,7 +208,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     }
                 } else { // query is next
                     for (int hi = 0; hi < HAPS; hi++) {
-                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
+                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true)) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                             vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
@@ -229,7 +223,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                         vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], hi,
-                                ploidy == 1 ? "1" : (hi^swap ? "0|1" : "1|0"), 
+                                ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"), 
                                 sc_idx, phase_block, phase_switch, phase_flip);
                         vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                     }
@@ -318,11 +312,11 @@ void phaseblockData::phase()
             // determine costs (penalized if this phasing deemed incorrect)
             std::vector<int> costs = {0, 0};
             switch (qvars->phases[i]) {
-                case PHASE_SWAP:
+                case PHASE_ORIG:
                     costs[PHASE_ORIG] = 0; 
                     costs[PHASE_SWAP] = 1; 
                     break;
-                case PHASE_ORIG:
+                case PHASE_SWAP:
                     costs[PHASE_ORIG] = 1; 
                     costs[PHASE_SWAP] = 0; 
                     break;
@@ -440,7 +434,7 @@ void phaseblockData::write_switchflips() {
     FILE* out_sf = 0;
     if (g.verbosity >= 1) INFO("  Writing switchflip results to '%s'", out_sf_fn.data());
     out_sf = fopen(out_sf_fn.data(), "w");
-    fprintf(out_sf, "CONTIG\tSTART\tSTOP\tSWITCH_TYPE\tSUPERCLUSTER\tPHASE_BLOCK\n");
+    fprintf(out_sf, "CONTIG\tSTART\tSTOP\tSWITCH_TYPE\tVARIANT\tPHASE_BLOCK\n");
 
     // get sizes of each correct phase block (split on flips, not just switch)
     for (std::string ctg: this->contigs) {

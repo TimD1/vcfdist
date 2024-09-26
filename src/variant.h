@@ -25,7 +25,7 @@ public:
     void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);
     void print_var_sample(FILE* out_vcf, int var_idx, int hap_idx, std::string gt, int sc_idx, 
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
-    bool var_on_hap(int var_idx, int hap) const;
+    bool var_on_hap(int var_idx, int hap, bool calc = false) const;
     void set_var_calcgt_on_hap(int var_idx, int hap);
 
     // originally parsed data (size n)
@@ -48,8 +48,8 @@ public:
     std::vector<int> right_reaches; // cluster rightmost reach
     int nc = 0;
 
-    // set during prec_recall_aln()
-    std::vector<uint8_t> calc_gts;  // calculated genotype (0|1, 1|0, or 1|1)
+    // set during prec_recall_aln() [additional axis for haplotype]
+    std::vector<uint8_t> calc_gts;  // calculated genotype (0|1, 1|0, or 1|1), only set for query 
     std::vector< std::vector<uint8_t> > errtypes;  // error type: TP, FP, FN
     std::vector< std::vector<int> > sync_group;    // group of variants that participate in credit
     std::vector< std::vector<float> > callq;   // min call quality in sync group (for truth, of associated call)
