@@ -776,7 +776,6 @@ void precision_recall_wrapper(
         int thread_step, int start, int stop, bool thread2, bool print) {
 
 	// parse sc_idx from grouped superclusters
-    print = true;
     if (stop == start) return;
     for (int supclust_idx = start; supclust_idx < stop; supclust_idx++) {
         std::string ctg = clusterdata_ptr->contigs[

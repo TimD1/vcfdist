@@ -58,92 +58,86 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
 
 void variantData::print_phase_info(int callset) {
 
-    /* int total_phase_sets = 0; */
-    /* std::vector<int> phase_set_sizes; */
-    /* int ctg_idx = 0; */
-    /* bool print = true; */
+    int total_phase_sets = 0;
+    std::vector<int> phase_set_sizes;
+    int ctg_idx = 0;
 
-    /* for (std::string ctg : this->contigs) { // for each contig */
-    /*     std::shared_ptrs<ctgVariants> vars = this-> */
-    /*     if (!this->variants[]) continue; */
+    for (const std::string & ctg : this->contigs) { // for each contig
 
-    /*     // set convenience variables */
-    /*     int qi = 0; */
-    /*     std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY]; // vars */
-    /*     std::vector<int> & qsc = ctg_scs->superclusters[QUERY]; // superclusters */
+        // get first phase set (to backfill all preceding zeros)
+        int first_pos = std::numeric_limits<int>::max();
+        int first_phase_set = 0;
+        for (int hi = 0; hi < HAPS; hi++) {
+            std::shared_ptr<ctgVariants> vars = this->variants[hi][ctg];
+            for (int vi = 0; vi < vars->n; vi++) {
+                if (vars->phase_sets[vi] != 0) {
+                    if (vars->poss[vi] < first_pos) {
+                        first_pos = vars->poss[vi]; 
+                        first_phase_set = vars->phase_sets[vi];
+                    }
+                    break;
+                }
+            }
+        }
 
-    /*     // get first phase set (to backfill all preceding zeros) */
-    /*     int first_pos = std::numeric_limits<int>::max(); */
-    /*     int phase_set = 0; */
-    /*     for (; qi < qv->n; qi++) { */
-    /*         if (qv->phase_sets[qi] != 0) { */
-    /*             if (qv->poss[qi] < first_pos) { */
-    /*                 first_pos = qv->poss[qi]; phase_set = qv->phase_sets[qi]; */
-    /*             } */
-    /*             break; */
-    /*         } */
-    /*     } */
-    /*     if (print) printf("first phase set: %d\n", phase_set); */
+        // exit early if this contig has no phase sets
+        if (first_phase_set == 0) {
+            phase_set_sizes.push_back(this->lengths[ctg_idx]);
+            total_phase_sets++;
+            continue;
+        }
 
-    /*     // carry phase_set across superclusters (if no heterozygous variants) */
-    /*     int phase_set = 0; */
-    /*     int ps_beg = 0; int ps_end = 0; */
-    /*     for (int sci = 0; sci < ctg_scs->n; sci++) { // for each supercluster */
-    /*         int ps_ct = 0; */
-    /*         int non_increasing = 0; */
-    /*         if (print) printf("supercluster: %d\n", sci); */
+        std::vector<int> vi(HAPS, 0);
+        int ps_beg = 0; int ps_end = 0;
+        int phase_set = 0;
+        while (vi[0] < this->variants[0][ctg]->n || vi[1] < this->variants[1][ctg]->n) {
 
-    /*         // check all variants in supercluster for each haplotype */
-    /*         if (qv->n) */
-    /*         for (qi = qv->clusters[qsc[sci]]; // QUERY HAP 1 */
-    /*                 qi < qv->clusters[qsc[sci+1]]; qi++) { */
-    /*             if (qv->phase_sets[qi]) { // non-zero, has PS tag */
-    /*                 if (qv->phase_sets[qi] > phase_set) { // new PS */
-    /*                     if (phase_set) phase_set_sizes.push_back(ps_end - ps_beg); */
-    /*                     phase_set = phase_set = qv->phase_sets[qi]; */
-    /*                     total_phase_sets++; ps_ct++; */
-    /*                     if (print) printf(" Q PS:%d %d-%d", phase_set, ps_beg, ps_end); */
-    /*                     ps_beg = qv->poss[qi]; */
-    /*                     ps_end = qv->poss[qi] + qv->rlens[qi]; */
-    /*                 } else if (qv->phase_sets[qi] == phase_set) { // same */ 
-    /*                     if (!ps_ct) { ps_ct++; } */
-    /*                     ps_end = std::max(ps_end, qv->poss[qi] + qv->rlens[qi]); */
-    /*                 } else { */
-    /*                     ps_ct++; */
-    /*                     non_increasing++; */
-    /*                 } */
-    /*             } */
-    /*         } */
+            // select haplotype with variant that occurs first
+            int hi = 0;
+            if (vi[0] >= this->variants[0][ctg]->n) {
+                hi = 1;
+            } else if (vi[1] >= this->variants[1][ctg]->n) {
+                hi = 0;
+            } else {
+                hi = this->variants[0][ctg]->poss[vi[0]] > this->variants[1][ctg]->poss[vi[1]];
+            }
+            
+            // TODO: for now, only start new phase set if new PS tag found
+            std::shared_ptr<ctgVariants> vars = this->variants[hi][ctg];
+            if (vars->phase_sets[vi[hi]]) { // ignore unphased variants
+                if (vars->phase_sets[vi[hi]] != phase_set) { // new phase set, save old
+                    if (phase_set) phase_set_sizes.push_back(ps_end - ps_beg);
+                    phase_set = vars->phase_sets[vi[hi]];
+                    ps_beg = vars->poss[vi[hi]];
+                    ps_end = vars->poss[vi[hi]] + vars->rlens[vi[hi]];
+                    total_phase_sets++;
+                } else { // same 
+                    ps_end = std::max(ps_end, vars->poss[vi[hi]] + vars->rlens[vi[hi]]);
+                }
+            }
+            
+            vi[hi]++;
+        }
 
-    /*         // add phase_set to supercluster */
-    /*         ctg_scs->phase_sets.push_back(phase_set); */
-    /*         if (print) printf(" final=%d\n", phase_set); */
-    /*     } */
+        // add final phase set on contig
+        phase_set_sizes.push_back(ps_end - ps_beg);
+        total_phase_sets++;
+        ctg_idx++;
+    }
 
-    /*     // add final phase set on contig */
-    /*     if (!phase_set) { */
-    /*         phase_set_sizes.push_back(this->lengths[ctg_idx]); */
-    /*         total_phase_sets++; */
-    /*     } else { */
-    /*         phase_set_sizes.push_back(ps_end - ps_beg); */
-    /*         total_phase_sets++; */
-    /*     } */
-    /*     ctg_idx++; */
-    /* } */
+    // calculate phaseset NG50
+    size_t total_bases = 0;
+    for (size_t i = 0; i < this->contigs.size(); i++) {
+        total_bases += lengths[i];
+    }
 
-    /* // calculate phaseset NG50 */
-    /* size_t total_bases = 0; */
-    /* for (size_t i = 0; i < this->contigs.size(); i++) { */
-    /*     total_bases += lengths[i]; */
-    /* } */
+    int pb_ng50 = calc_ng50(phase_set_sizes, total_bases);
 
-    /* int pb_ng50 = calc_ng50(phase_set_sizes, total_bases); */
-
-    /* if (g.verbosity >= 1) INFO("              %s phase sets: %d", */
-    /*         callset_strs[callset].data(), total_phase_sets); */
-    /* if (g.verbosity >= 1) INFO("        %s phase block NG50: %d", */ 
-    /*         callset_strs[callset].data(), pb_ng50); */
-    /* if (g.verbosity >= 1) INFO("         Total contig bases: %d", total_bases); */
+    if (g.verbosity >= 1) INFO("          %s phase sets: %d",
+            callset_strs[callset].data(), total_phase_sets);
+    if (g.verbosity >= 1) INFO("    %s phase block NG50: %d", 
+            callset_strs[callset].data(), pb_ng50);
+    if (g.verbosity >= 1) INFO("        Total contig bases: %zu", total_bases);
 }
 
 /*******************************************************************************/
@@ -152,7 +146,7 @@ void variantData::left_shift() {
 
     // shift variants as far left as possible after realignment
     for (int hap = 0; hap < HAPS; hap++) {
-        for (std::string ctg : this->contigs) {
+        for (const std::string & ctg : this->contigs) {
             std::shared_ptr<ctgVariants> vars = this->variants[hap][ctg];
             for (int i = 0; i < vars->n; i++) {
 
@@ -1112,8 +1106,10 @@ variantData::variantData(std::string vcf_fn,
     if (print) INFO(" ");
 
     if (print) INFO("  %s VCF overview:", callset_strs[callset].data());
-    if (print) INFO("    TOTAL: %d", n + multi_total + complex_total);
-    if (print) INFO("    KEPT : %d", npass[HAP1] + npass[HAP2] + complex_total);
+    if (print) INFO("      Total %s variants: %d", 
+            callset_strs[callset].data(),  n + multi_total + complex_total);
+    if (print) INFO("      Kept  %s variants: %d", 
+            callset_strs[callset].data(), npass[HAP1] + npass[HAP2] + complex_total);
 
     free(gq);
     free(fgq);

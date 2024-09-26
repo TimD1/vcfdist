@@ -44,7 +44,6 @@ public:
     void add_callset_vars(int callset, std::vector< std::unordered_map< std::string,
             std::shared_ptr<ctgVariants> > > vars);
     void supercluster();
-    void transfer_phase_sets();
 
     // data
     std::vector<std::string> contigs;
