@@ -25,10 +25,6 @@ std::string PURPLE(char c);
 std::string PURPLE(std::string str);
 
 float qscore(double p_error);
-void print_ref_ptrs(std::vector< std::vector<int> > ptrs);
-void print_ptrs(const std::vector< std::vector<uint8_t> > & ptrs, 
-        const std::string & alt_str, const std::string & ref_str);
-
 void print_cigar(std::vector<int> cigar); 
 
 std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs);

@@ -6,55 +6,6 @@
 #include "print.h"
 #include "globals.h"
 
-uint8_t swap_gt(uint8_t gt, bool swap) {
-
-    if (gt == GT_MISSING || gt == GT_OTHER)
-        ERROR("Invalid GT (%s) encountered in swap_gt()", gt_strs[gt].data());
-
-    if (swap) {
-        switch (gt) {
-            case GT_REF:
-            case GT_ALT1:
-            case GT_REF_REF:
-            case GT_ALT1_ALT1:
-                return gt;
-            case GT_REF_ALT1:
-                return GT_ALT1_REF;
-            case GT_ALT1_REF:
-                return GT_REF_ALT1;
-            case GT_ALT2_ALT1:
-                return GT_ALT1_ALT2;
-            case GT_ALT1_ALT2:
-                return GT_ALT2_ALT1;
-            default:
-                ERROR("Unexpected GT (%s) encountered in swap_gt()", gt_strs[gt].data());
-        }
-    } else {
-        return gt;
-    }
-}
-
-bool is_swapped_gt(uint8_t gt1, uint8_t gt2, bool swap) {
-    // handle homozygous cases
-    if (gt1 == GT_REF && gt2 == GT_REF) return true;
-    if (gt1 == GT_ALT1 && gt2 == GT_ALT1) return true;
-    if (gt1 == GT_REF_REF && gt2 == GT_REF_REF) return true;
-    if (gt1 == GT_ALT1_ALT1 && gt2 == GT_ALT1_ALT1) return true;
-
-    if (swap) {
-        if (gt1 == GT_ALT1_REF && gt2 == GT_REF_ALT1) return true;
-        if (gt2 == GT_ALT1_REF && gt1 == GT_REF_ALT1) return true;
-        if (gt1 == GT_ALT1_ALT2 && gt2 == GT_ALT2_ALT1) return true;
-        if (gt2 == GT_ALT1_ALT2 && gt1 == GT_ALT2_ALT1) return true;
-    } else {
-        if (gt1 == GT_ALT1_REF && gt2 == GT_ALT1_REF) return true;
-        if (gt1 == GT_REF_ALT1 && gt2 == GT_REF_ALT1) return true;
-        if (gt1 == GT_ALT1_ALT2 && gt2 == GT_ALT1_ALT2) return true;
-        if (gt1 == GT_ALT2_ALT1 && gt2 == GT_ALT2_ALT1) return true;
-    }
-    return false;
-}
-
 
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 

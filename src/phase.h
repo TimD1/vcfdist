@@ -42,7 +42,4 @@ public:
         std::shared_ptr<ctgPhaseblocks> > phase_blocks;
 };
 
-uint8_t swap_gt(uint8_t gt, bool swap);
-bool is_swapped_gt(uint8_t gt1, uint8_t gt2, bool swap);
-
 #endif

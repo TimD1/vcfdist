@@ -144,16 +144,6 @@ namespace std {
 
 /******************************************************************************/
 
-void generate_ptrs_strs(
-        std::string & query_str, std::string & ref_str,
-        std::vector< std::vector<int> > & query_ptrs, 
-        std::vector< std::vector<int> > & ref_ptrs,
-        std::shared_ptr<ctgVariants> query_vars,
-        size_t query_clust_beg_idx, size_t ref_clust_beg_idx,
-        int beg_pos, int end_pos, std::shared_ptr<fastaData> ref, 
-        const std::string & ctg, int hap
-        );
-
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
         std::shared_ptr<ctgVariants> vars, const std::string & ctg,
@@ -180,16 +170,6 @@ void calc_prec_recall(
 
 /******************************************************************************/
 
-int swg_max_reach(
-        const std::string & query, 
-        const std::string & ref, 
-        const std::vector< std::vector<int> > & query_ref_ptrs, 
-        const std::vector< std::vector<int> > & ref_query_ptrs,
-        int sub, int open, int extend,
-        int score, bool print,
-        bool reverse = false,
-        int ref_section = -1);
-
 int wf_swg_max_reach(
         const std::string & query, const std::string & truth, 
         std::vector<int> & offs,
@@ -215,14 +195,6 @@ std::vector<int> wf_swg_backtrack(
         const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs,
         int s, int sub, int open, int extend, bool print = false);
-
-void wf_ed(
-        const std::string & query, const std::string & truth, int & s, 
-        std::vector< std::vector<int> > & offs,
-        std::vector< std::vector<int> > & ptrs, bool print = false);
-
-
-int count_dist(const std::vector<int> & cigar);
 
 /******************************************************************************/
 
