@@ -8,19 +8,19 @@
 
 std::string GREEN(int i) { return "\033[32m" + std::to_string(i) + "\033[0m"; }
 std::string GREEN(char c) { return "\033[32m" + std::string(1,c) + "\033[0m"; }
-std::string GREEN(std::string str) { return "\033[32m" + str + "\033[0m"; }
+std::string GREEN(const std::string & str) { return "\033[32m" + str + "\033[0m"; }
 std::string RED(int i) { return "\033[31m" + std::to_string(i) + "\033[0m"; }
 std::string RED(char c) { return "\033[31m" + std::string(1,c) + "\033[0m"; }
-std::string RED(std::string str) { return "\033[31m" + str + "\033[0m"; }
+std::string RED(const std::string & str) { return "\033[31m" + str + "\033[0m"; }
 std::string BLUE(int i) { return "\033[34m" + std::to_string(i) + "\033[0m"; }
 std::string BLUE(char c) { return "\033[34m" + std::string(1,c) + "\033[0m"; }
-std::string BLUE(std::string str) { return "\033[34m" + str + "\033[0m"; }
+std::string BLUE(const std::string & str) { return "\033[34m" + str + "\033[0m"; }
 std::string YELLOW(int i) { return "\033[33m" + std::to_string(i) + "\033[0m"; }
 std::string YELLOW(char c) { return "\033[33m" + std::string(1,c) + "\033[0m"; }
-std::string YELLOW(std::string str) { return "\033[33m" + str + "\033[0m"; }
+std::string YELLOW(const std::string & str) { return "\033[33m" + str + "\033[0m"; }
 std::string PURPLE(int i) { return "\033[35m" + std::to_string(i) + "\033[0m"; }
 std::string PURPLE(char c) { return "\033[35m" + std::string(1,c) + "\033[0m"; }
-std::string PURPLE(std::string str) { return "\033[35m" + str + "\033[0m"; }
+std::string PURPLE(const std::string & str) { return "\033[35m" + str + "\033[0m"; }
 
 
 /*******************************************************************************/
@@ -162,7 +162,7 @@ void print_wfa_ptrs(
 /*******************************************************************************/
 
 
-void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
+void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
     // for each class, store variant counts above each quality threshold
     // init counters; ax0: SNP/INDEL/SV/ALL, ax1: TP,FP,FN ax2: QUAL
@@ -174,18 +174,18 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
 
     // calculate summary statistics
-    for (std::string ctg : phasedata_ptr->contigs) {
+    for (const std::string & ctg : phasedata_ptr->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
 
         // add query
-        if (ctg_scs->n)
         for (int vi = 0; vi < qvars->n; vi++) {
             for (int hi = 0; hi < HAPS; hi++) {
-                if (!qvars->var_on_hap(vi, hi, true)) continue;
-                float q = qvars->callq[hi][vi];
+                if (!qvars->var_on_hap(vi, hi)) continue;
+                int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
+                float q = qvars->callq[calc_hi][vi];
                 int t = 0;
                 if (qvars->types[vi] == TYPE_SUB) { // SNP
                     t = VARTYPE_SNP;
@@ -197,22 +197,21 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                 } else { // SV
                     t = VARTYPE_SV;
                 }
-                if (qvars->errtypes[hi][vi] == ERRTYPE_UN) {
+                if (qvars->errtypes[calc_hi][vi] == ERRTYPE_UN) {
                     WARN("Unknown error type at QUERY %s:%d", ctg.data(), qvars->poss[vi]);
                     continue;
                 }
                 for (int qual = g.min_qual; qual <= q; qual++) {
-                    query_counts[t][ qvars->errtypes[hi][vi] ][qual-g.min_qual]++;
-                    query_counts[VARTYPE_ALL][ qvars->errtypes[hi][vi] ][qual-g.min_qual]++;
+                    query_counts[t][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
+                    query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
                 }
             }
         }
 
         // add truth
-        if (ctg_scs->n)
         for (int vi = 0; vi < tvars->n; vi++) {
             for (int hi = 0; hi < HAPS; hi++) {
-                if (!tvars->var_on_hap(vi, hi, false)) continue;
+                if (!tvars->var_on_hap(vi, hi)) continue;
                 float q = tvars->callq[hi][vi];
                 int t = 0;
                 if (tvars->types[vi] == TYPE_SUB) {
@@ -272,7 +271,7 @@ void write_precision_recall(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             // calculate summary metrics
             float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
             float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
-            float f1_score = precision+recall ? 2*precision*recall / (precision + recall) : 0;
+            float f1_score = (precision+recall) ? 2*precision*recall / (precision + recall) : 0;
             if (f1_score > max_f1_score[type]) {
                 max_f1_score[type] = f1_score;
                 max_f1_qual[type] = qual;
@@ -451,7 +450,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         FILE* out_query = fopen(out_query_fn.data(), "w");
         fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
                 "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
-        for (std::string ctg : phasedata_ptr->contigs) {
+        for (const std::string & ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
@@ -462,7 +461,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             int clust_idx = 0;
             for (int vi = 0; vi < qvars->n; vi++) {
                 for (int hi = 0; hi < HAPS; hi++) {
-                    if (!qvars->var_on_hap(vi, hi, /*calc=*/ true)) continue;
+                    if (!qvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
+                    int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
 
                     // update cluster and supercluster
                     if (clust_idx+1 >= int(qvars->clusters.size())) 
@@ -476,18 +476,18 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                     fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             qvars->poss[vi],
-                            hi,
+                            calc_hi,
                             qvars->refs[vi].data(),
                             qvars->alts[vi].data(),
                             qvars->var_quals[vi],
                             type_strs[qvars->types[vi]].data(),
-                            error_strs[qvars->errtypes[hi][vi]].data(),
-                            qvars->credit[hi][vi],
+                            error_strs[qvars->errtypes[calc_hi][vi]].data(),
+                            qvars->credit[calc_hi][vi],
                             clust_idx,
                             sci,
-                            qvars->sync_group[hi][vi],
-                            qvars->ref_ed[hi][vi],
-                            qvars->query_ed[hi][vi],
+                            qvars->sync_group[calc_hi][vi],
+                            qvars->ref_ed[calc_hi][vi],
+                            qvars->query_ed[calc_hi][vi],
                             region_strs[qvars->locs[vi]].data()
                            );
                 }
@@ -500,7 +500,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
         FILE* out_truth = fopen(out_truth_fn.data(), "w");
         fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
-        for (std::string ctg : phasedata_ptr->contigs) {
+        for (const std::string & ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
@@ -550,7 +550,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-void print_cigar(std::vector<int> cigar) {
+void print_cigar(const std::vector<int> & cigar) {
     for (int i = 0; i < int(cigar.size()); i++) {
         switch (cigar[i]) {
         case PTR_MAT:

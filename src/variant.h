@@ -15,7 +15,7 @@ class ctgVariants {
 public:
 
     // constructor
-    ctgVariants(std::string ctg);
+    ctgVariants(const std::string & ctg);
 
     // helper functions
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
@@ -23,10 +23,11 @@ public:
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
             std::string ctg, int idx);
     void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);
-    void print_var_sample(FILE* out_vcf, int var_idx, int hap_idx, std::string gt, int sc_idx, 
+    void print_var_sample(FILE* out_vcf, int var_idx, int hap_idx, const std::string & gt, int sc_idx, 
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
-    bool var_on_hap(int var_idx, int hap, bool calc = false) const;
+    bool var_on_hap(int var_idx, int hap_idx, bool calc = false) const;
     void set_var_calcgt_on_hap(int var_idx, int hap);
+    bool calcgt_is_swapped(int var_idx) const;
 
     // originally parsed data (size n)
     std::string ctg;
@@ -58,7 +59,7 @@ public:
     std::vector< std::vector<float> > credit;  // percentage reduction in edit dist (ref->query)
 
     // set during phase()
-    std::vector<int> phases;             // variant keep/swap/unknown, from alignment
+    std::vector<int> phases;             // variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
     std::vector<int> pb_phases;          // phaseblock keep/swap, from phasing algorithm
 };
 

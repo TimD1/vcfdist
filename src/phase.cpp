@@ -125,7 +125,8 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
                         // print data for each haplotype
                         for (int hi = 0; hi < HAPS; hi++) {
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true) || 
+                            int calc_hi = hi ^ vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi) || 
                                     vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) { // print truth
@@ -135,8 +136,8 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                                 } else {
                                     vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 }
-                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true)) { // print query
-                                    vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
+                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) { // print query
+                                    vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], calc_hi,
                                         ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
                                         sc_idx, phase_block, phase_switch, phase_flip, true);
                                 } else {
@@ -147,10 +148,11 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         ptrs[QUERY]++; ptrs[TRUTH]++;
                     } else { // positional tie, diff vars, just print query
                         for (int hi = 0; hi < HAPS; hi++) {
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true)) {
+                            int calc_hi = hi ^ vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
+                                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], calc_hi,
                                         ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
                                         sc_idx, phase_block, phase_switch, phase_flip, true);
                             }
@@ -159,10 +161,11 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     }
                 } else { // query is next
                     for (int hi = 0; hi < HAPS; hi++) {
-                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi, true)) {
+                        int calc_hi = hi ^ vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                            vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], hi,
+                            vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], calc_hi,
                                     ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
                                     sc_idx, phase_block, phase_switch, phase_flip, true);
                         }
@@ -205,12 +208,12 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     this->ref = clusterdata_ptr->ref;
 
     // add pointers to clusters
-    for (std::string ctg : this->contigs) {
+    for (const std::string & ctg : this->contigs) {
         this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->superclusters[ctg];
     }
 
     // add phase blocks based on phase sets for each contig
-    for (std::string ctg : this->contigs) {
+    for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         int curr_phase_set = -1;
@@ -238,7 +241,7 @@ void phaseblockData::phase()
             COLOR_PURPLE, COLOR_WHITE);
 
     // phase each contig separately
-    for (std::string ctg : this->contigs) {
+    for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         std::vector< std::vector<int> > mat(2, std::vector<int>(qvars->n+1));
@@ -342,7 +345,7 @@ void phaseblockData::phase()
     int variants = 0;
     if (g.verbosity >= 1) INFO("  Contigs:");
     int id = 0;
-    for (std::string ctg : this->contigs) {
+    for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
 

@@ -218,7 +218,7 @@ int calc_prec_recall_aln(
 
 void calc_prec_recall(
         const std::shared_ptr<Graph> graph,
-        std::unordered_map<idx4, idx4> & ptrs,
+        const std::unordered_map<idx4, idx4> & ptrs,
         int truth_hap, bool print
         ) {
 
@@ -239,6 +239,7 @@ void calc_prec_recall(
         if (graph->qtypes[qni] != TYPE_REF) {
             int qvar_idx = graph->qidxs[qni];
             qvars->errtypes[truth_hap][qvar_idx] = ERRTYPE_FP;
+            qvars->callq[truth_hap][qvar_idx] = qvars->var_quals[qvar_idx];
         }
     }
 
@@ -821,7 +822,6 @@ void precision_recall_wrapper(
         
         // calculate two forward-pass alignments, saving path
         // query1/query2 graph to truth1, query1/query2 graph to truth2
-        std::vector<int> aln_score(HAPS);
         for (int hi = 0; hi < HAPS; hi++) {
             std::shared_ptr<Graph> graph(
                     new Graph(sc, sc_idx, clusterdata_ptr->ref, ctg, hi));

@@ -10,22 +10,22 @@
 
 std::string GREEN(int i);
 std::string GREEN(char c);
-std::string GREEN(std::string str);
+std::string GREEN(const std::string & str);
 std::string RED(int i);
 std::string RED(char c);
-std::string RED(std::string str);
+std::string RED(const std::string & str);
 std::string BLUE(int i);
 std::string BLUE(char c);
-std::string BLUE(std::string str);
+std::string BLUE(const std::string & str);
 std::string YELLOW(int i);
 std::string YELLOW(char c);
-std::string YELLOW(std::string str);
+std::string YELLOW(const std::string & str);
 std::string PURPLE(int i);
 std::string PURPLE(char c);
-std::string PURPLE(std::string str);
+std::string PURPLE(const std::string & str);
 
 float qscore(double p_error);
-void print_cigar(std::vector<int> cigar); 
+void print_cigar(const std::vector<int> & cigar); 
 
 std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs);
 void print_graph_ptrs(const std::shared_ptr<Graph> query_graph,

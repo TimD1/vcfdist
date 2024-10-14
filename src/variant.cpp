@@ -11,7 +11,7 @@
 
 /******************************************************************************/
 
-ctgVariants::ctgVariants(std::string ctg) { 
+ctgVariants::ctgVariants(const std::string & ctg) { 
     this->ctg = ctg;
     this->n = 0; 
     for (int i = 0; i < PHASES; i++) {
@@ -311,6 +311,43 @@ void variantData::write_vcf(std::string out_vcf_fn) {
 
 
 /*******************************************************************************/
+/* This function is used to map haplotypes between orig_gt and calc_gt, in order to determine which
+   calc_gt data should be reported for the initial orig_gt variant, and is complicated by the
+   fact that the two may contain a different number of non-reference alleles. 
+ */ 
+bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
+    // 0|0,0|0 and 0|1,0|1 and 1|0,1|0 and 1|1,1|1
+    if (this->orig_gts[vi] == this->calc_gts[vi]) {
+        return false;
+    }
+    // orig_gt == 1|1 or 0|0 or calc_gt == 0|0, all/no calc_gt data will be reported, order doesn't matter
+    else if (this->orig_gts[vi] == GT_ALT1_ALT1 || 
+             this->orig_gts[vi] == GT_REF_REF || 
+             this->calc_gts[vi] == GT_REF_REF) {
+        return false;
+    }
+    // 0|1,1|0 and 1|0,0|1
+    else if ((this->orig_gts[vi] == GT_REF_ALT1 && this->calc_gts[vi] == GT_ALT1_REF) || 
+             (this->orig_gts[vi] == GT_ALT1_REF && this->calc_gts[vi] == GT_REF_ALT1)) {
+        return true;
+    }
+    // orig_gt = 0|1, choose better calc_gt
+    else if (this->orig_gts[vi] == GT_REF_ALT1 && this->calc_gts[vi] == GT_ALT1_ALT1) {
+        return this->credit[HAP1][vi] > this->credit[HAP2][vi];
+    }
+    // orig_gt = 1|0, choose better calc_gt
+    else if (this->orig_gts[vi] == GT_ALT1_REF && this->calc_gts[vi] == GT_ALT1_ALT1) {
+        return this->credit[HAP2][vi] > this->credit[HAP1][vi];
+    } else {
+        ERROR("Unexpected orig/calc genotypes for variant (%s -> %s) at pos %d: orig=%s calc=%s",
+                this->refs[vi].data(),
+                this->alts[vi].data(),
+                this->poss[vi],
+                gt_strs[this->orig_gts[vi]].data(),
+                gt_strs[this->calc_gts[vi]].data()
+        );
+    }
+}
 
 bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
     int gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx]; // simple gt, always (0|1, 1|0, or 1|1)
@@ -380,31 +417,30 @@ void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
 }
 
 
-void ctgVariants::print_var_sample(FILE* out_fp, int var_idx, int hap_idx, std::string gt,
-        int sc_idx, int phase_block, bool phase_switch, 
-        bool phase_flip, bool query /* = false */) {
+void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::string & gt,
+        int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query /* = false */) {
 
     // get categorization
     std::string errtype;
     std::string match_type;
-    if (this->credit[hap_idx][var_idx] == 1) {
+    if (this->credit[hi][vi] == 1) {
         errtype = "TP"; match_type = "gm";
-    } else if (this->credit[hap_idx][var_idx] == 0) {
+    } else if (this->credit[hi][vi] == 0) {
         errtype = query ? "FP" : "FN"; match_type = ".";
-    } else if (this->credit[hap_idx][var_idx] >= g.credit_threshold) {
+    } else if (this->credit[hi][vi] >= g.credit_threshold) {
         errtype = "TP"; match_type = "lm";
     } else {
         errtype = query ? "FP" : "FN"; match_type = "lm";
     }
 
     fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[hap_idx][var_idx], 
-            this->ref_ed[hap_idx][var_idx] == 0 ? "." : 
-                std::to_string(this->ref_ed[hap_idx][var_idx]).data(),
-            this->ref_ed[hap_idx][var_idx] == 0 ? "." : 
-                std::to_string(this->query_ed[hap_idx][var_idx]).data(),
-            match_type.data(), int(this->var_quals[var_idx]), sc_idx, 
-            int(this->sync_group[hap_idx][var_idx]), this->phase_sets[var_idx], phase_block,
+            this->credit[hi][vi], 
+            this->ref_ed[hi][vi] == 0 ? "." : 
+                std::to_string(this->ref_ed[hi][vi]).data(),
+            this->ref_ed[hi][vi] == 0 ? "." : 
+                std::to_string(this->query_ed[hi][vi]).data(),
+            match_type.data(), int(this->var_quals[vi]), sc_idx, 
+            int(this->sync_group[hi][vi]), this->phase_sets[vi], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
             query ? (phase_flip ? "1" : "0") : "." , 
             query ? "\n" : "");
@@ -553,7 +589,7 @@ variantData::variantData(std::string vcf_fn,
     std::unordered_map<int, int> ctglens;
     std::string ctg;
     std::vector<int> nregions(region_strs.size(), 0);
-    std::vector<int> pass_min_qual = {0, 0};
+    std::vector<int> pass_min_qual = {FALSE, FALSE};
 
     // quality data for each call
     int GQ_memsize = 0;
@@ -1015,9 +1051,9 @@ variantData::variantData(std::string vcf_fn,
         INFO("%d variants failed FILTER in %s VCF, skipped",
             failed_filter_total, callset_strs[callset].data());
 
-    if (pass_min_qual[FAIL] && print)
+    if (pass_min_qual[FALSE] && print)
         INFO("%d variants of low quality (<%d) in %s VCF, skipped", 
-            pass_min_qual[FAIL], g.min_qual, callset_strs[callset].data());
+            pass_min_qual[FALSE], g.min_qual, callset_strs[callset].data());
 
     if (wrong_ploidy_total) 
         WARN("%d variants with incorrect ploidy in %s VCF, kept",

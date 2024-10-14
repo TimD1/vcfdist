@@ -66,7 +66,7 @@ public:
     void print_version() const;
     void print_usage() const; 
     void print_citation() const; 
-    void init_timers(std::vector<std::string> timer_strs);
+    void init_timers(const std::vector<std::string> & timer_strs);
 
     // program data
     const std::string VERSION = "2.5.0";
@@ -74,8 +74,8 @@ public:
     std::vector<timer> timers;
 };
 
-std::string parent_path(std::string out_prefix);
-void create_directory(std::string dir);
+std::string parent_path(const std::string & out_prefix);
+void create_directory(const std::string & dir);
 
 extern Globals g;
 

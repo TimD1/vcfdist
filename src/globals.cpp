@@ -544,8 +544,8 @@ void Globals::print_usage() const
 
 
 
-void Globals::init_timers(std::vector<std::string> timer_strs) {
-    for (std::string timer_name : timer_strs) {
+void Globals::init_timers(const std::vector<std::string> & timer_strs) {
+    for (const std::string & timer_name : timer_strs) {
         g.timers.push_back( timer(timer_name) );
     }
 }
@@ -571,7 +571,7 @@ void Globals::print_citation() const
 }
 
 
-std::string parent_path(std::string out_prefix) {
+std::string parent_path(const std::string & out_prefix) {
     for (int i = out_prefix.size()-1; i >= 0; i--) {
         if (out_prefix[i] == '/')
             return out_prefix.substr(0, i+1);
@@ -580,7 +580,7 @@ std::string parent_path(std::string out_prefix) {
 }
 
 
-void create_directory(std::string dir) {
+void create_directory(const std::string & dir) {
     char *p = strdup(dir.data());
     char *sep = strchr(p+1, '/');
     while(sep != NULL) {

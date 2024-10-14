@@ -163,7 +163,7 @@ int calc_prec_recall_aln(
 
 void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
-        std::unordered_map<idx4, idx4> & ptrs,
+        const std::unordered_map<idx4, idx4> & ptrs,
         int truth_hap,
         bool print = false
         );
