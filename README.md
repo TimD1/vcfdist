@@ -1,5 +1,5 @@
 # vcfdist: benchmarking phased variant calls
-![build](https://github.com/timd1/vcfdist/actions/workflows/build.yml/badge.svg)
+![Tests](https://github.com/timd1/vcfdist/actions/workflows/test.yml/badge.svg)
 [![DOI](https://zenodo.org/badge/472945373.svg)](https://zenodo.org/badge/latestdoi/472945373)
 
 ## Overview
@@ -14,7 +14,7 @@
 ## Introduction
 vcfdist is a distance-based **germline variant calling evaluation tool** that:
 - simultaneously evaluates **SNPS, INDELs, and SVs** up to 10Kb
-- **requires local phasing** information for truth and query variants
+- evaluates both **phased** and **unphased** variant callsets
 - can **standardize** query and truth VCF **variant representations**
 - can evaluate **flip** and **switch phasing errors**
 
@@ -33,8 +33,8 @@ Please cite the following works if you use vcfdist:
 
 <pre>
 @article{dunn2023vcfdist,
-  author={Dunn, Tim and Narayanasamy, Satish},
   title={vcfdist: Accurately benchmarking phased small variant calls in human genomes},
+  author={Dunn, Tim and Narayanasamy, Satish},
   journal={Nature Communications},
   year={2023},
   volume={14},
@@ -49,18 +49,21 @@ Please cite the following works if you use vcfdist:
 
 <details>
 <summary>
-<a href="https://doi.org/10.1101/2024.01.23.575922" target="_blank"><b>[bioRxiv]</b> Jointly benchmarking small and structural variant calls with vcfdist</a>
+<a href="https://doi.org/10.1186/s13059-024-03394-5" target="_blank"><b>[Genome Biology]</b> Jointly benchmarking small and structural variant calls with vcfdist</a>
 </summary>
 
 <pre>
-@article{dunn2024vcfdist,
-  author={Dunn, Tim and Zook, Justin M and Holt, James M and Narayanasamy, Satish},
+@article{dunn2024jointly,
   title={Jointly benchmarking small and structural variant calls with vcfdist},
-  journal={bioRxiv},
+  author={Dunn, Tim and Zook, Justin M and Holt, James M and Narayanasamy, Satish},
+  journal={Genome Biology},
+  volume={25},
+  number={1},
+  pages={253},
   year={2024},
-  publisher={Cold Spring Harbor Laboratory},
-  doi={10.1101/2024.01.23.575922},
-  URL={https://doi.org/10.1101/2024.01.23.575922}
+  publisher={Springer},
+  doi={10.1186/s13059-024-03394-5},
+  URL={https://doi.org/10.1186/s13059-024-03394-5}
 }
 </pre>
 </details>
