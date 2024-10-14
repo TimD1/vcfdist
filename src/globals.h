@@ -80,15 +80,16 @@ void create_directory(std::string dir);
 extern Globals g;
 
 // defined in main.cpp
+extern std::vector<std::string> aln_strs;
 extern std::vector<std::string> callset_strs;
-extern std::vector<std::string> vartype_strs;
-extern std::vector<std::string> type_strs;
-extern std::vector<std::string> type_strs2;
 extern std::vector<std::string> error_strs;
 extern std::vector<std::string> gt_strs;
-extern std::vector<std::string> region_strs;
-extern std::vector<std::string> aln_strs;
 extern std::vector<std::string> phase_strs;
+extern std::vector<std::string> region_strs;
 extern std::vector<std::string> switch_strs;
+extern std::vector<std::string> timer_strs;
+extern std::vector<std::string> type_strs;
+extern std::vector<std::string> type_strs2;
+extern std::vector<std::string> vartype_strs;
 
 #endif

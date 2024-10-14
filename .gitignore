@@ -1,4 +1,5 @@
 # ignore certain file types
+*.a
 .*.swp
 *.o
 *.log
@@ -28,4 +29,5 @@ out/
 
 # don't track test cases
 test/
+tests/test_vcfdist
 issues/
