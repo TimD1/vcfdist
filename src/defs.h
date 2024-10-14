@@ -11,9 +11,6 @@ class idx3;
 class idx4;
 
 // misc
-#define FAIL 0
-#define PASS 1
-
 #define FALSE 0
 #define TRUE  1
 
@@ -97,35 +94,11 @@ class idx4;
 #define TRUTH    1
 #define CALLSETS 2
 
-#define QUERY1_TRUTH1 0 // four possible alignments of truth and query haps
-#define QUERY1_TRUTH2 1
-#define QUERY2_TRUTH1 2
-#define QUERY2_TRUTH2 3
-
-#define PEN_SUB    0 // penalties order in boolean array *_penalties_set
-#define PEN_OPEN   1
-#define PEN_EXTEND 2
-
 #define PTR_NONE    0  // backtracking pointer flags
 #define PTR_INS     1
 #define PTR_DEL     2
 #define PTR_MAT     4
 #define PTR_SUB     8
-#define PTR_SWP_MAT 16
-#define PTR_LPATH   32
-#define PATH        32
-#define PTR_RPATH   64
-#define MAIN_PATH   96
-#define PTR_SYNC    128
-
-// 2 x N pointer array stores REF <-> QUERY/TRUTH
-#define PTRS 0 // dimension for pointer position
-#define FLAGS 1 // dimension for flags
-#define PTR_DIMS 2
-#define PTR_VARIANT 1
-#define PTR_VAR_BEG 2
-#define PTR_VAR_END 4
-#define PTR_INS_LOC 8
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1
