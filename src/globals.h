@@ -52,7 +52,6 @@ public:
     std::vector<float> ram_steps;
 
     // high-level options
-    bool advanced = false;
     int verbosity = 1;
     int sv_threshold = 50;
     std::string out_prefix;

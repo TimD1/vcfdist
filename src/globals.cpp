@@ -33,12 +33,7 @@ void Globals::parse_args(int argc, char ** argv) {
     if (argc < 4) {
         int i = 1;
         while (i < argc) {
-            if (std::string(argv[i]) == "-a" || 
-                    std::string(argv[i]) == "--advanced") {
-                i++;
-                print_help = true;
-                g.advanced = true;
-            } else if (std::string(argv[i]) == "-h" || 
+            if (std::string(argv[i]) == "-h" || 
                     std::string(argv[i]) == "--help") {
                 i++;
                 print_help = true;
@@ -381,11 +376,6 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             g.realign_only = true;
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-a" || 
-                std::string(argv[i]) == "--advanced") {
-            i++;
-            g.advanced = true;
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-rt" ||
                 std::string(argv[i]) == "--realign-truth") {
             i++;
@@ -492,6 +482,12 @@ void Globals::print_usage() const
     printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.extend);
     printf("      Smith-Waterman gap extension penalty\n");
 
+    printf("\n  Clustering:\n");
+    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
+    printf("      maximum iterations for expanding/merging clusters\n");
+    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
+    printf("      select clustering method (see Github Wiki for details)\n");
+
     printf("\n  Precision-Recall:\n");
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
     printf("      minimum partial credit to consider variant a true positive\n");
@@ -505,21 +501,10 @@ void Globals::print_usage() const
     printf("\n  Miscellaneous:\n");
     printf("  -h, --help\n");
     printf("      show this help message\n");
-    printf("  -a, --advanced\n");
-    printf("      show advanced options, not recommended for most users\n");
     printf("  -ci, --citation\n");
     printf("      please cite vcfdist if used in your analyses. Thanks :)\n");
     printf("  -v, --version\n");
     printf("      print %s version (v%s)\n", this->PROGRAM.data(), this->VERSION.data());
-
-    if (!this->advanced) return;
-
-    printf("\n\nAdvanced Options: (not recommended for most users)\n");
-    printf("\n  Clustering:\n");
-    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
-    printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
-    printf("      select clustering method (see documentation for details)\n");
 }
 
 
