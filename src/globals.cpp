@@ -340,21 +340,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max threads must be positive");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-pt" ||
-                std::string(argv[i]) == "--phasing-threshold") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--phasing-threshold' used without providing value");
-            }
-            try {
-                this->phase_threshold = std::stod(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid phasing threshold provided");
-            }
-            if (this->phase_threshold <= 0 || this->phase_threshold > 1) {
-                ERROR("Provided phasing threshold must be on the interval (0,1]");
-            }
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-ct" ||
                 std::string(argv[i]) == "--credit-threshold") {
             i++;
@@ -535,11 +520,6 @@ void Globals::print_usage() const
     printf("      maximum iterations for expanding/merging clusters\n");
     printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
     printf("      select clustering method (see documentation for details)\n");
-
-    printf("\n  Phasing:\n");
-    printf("  -pt, --phasing-threshold <FLOAT> [%.2f]\n", g.phase_threshold);
-    printf("      minimum fractional reduction in edit distance over other phasing\n");
-    printf("      in order to consider this supercluster phased\n");
 }
 
 
