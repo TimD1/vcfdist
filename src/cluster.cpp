@@ -382,7 +382,7 @@ void superclusterData::supercluster() {
     int total_vars = 0;
     int most_vars = 0;
     int total_bases = 0;
-    for (std::string ctg : this->contigs) {
+    for (const std::string & ctg : this->contigs) {
 
         // skip empty contigs
         int nvars = 0;
@@ -392,7 +392,7 @@ void superclusterData::supercluster() {
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth haps)
-        auto & vars = this->superclusters[ctg]->callset_vars;
+        auto const & vars = this->superclusters[ctg]->callset_vars;
         std::vector<int> brks(CALLSETS, 0); // start of current supercluster
         while (true) {
 

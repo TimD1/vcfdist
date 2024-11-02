@@ -168,6 +168,8 @@ void calc_prec_recall(
         bool print = false
         );
 
+void fix_prec_recall_genotype(std::shared_ptr<ctgSuperclusters> sc, int sc_idx);
+
 /******************************************************************************/
 
 int wf_swg_max_reach(

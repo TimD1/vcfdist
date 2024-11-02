@@ -144,6 +144,21 @@ int calc_prec_recall_aln(
                 }
             }
 
+            // allow bottom-right corner to move diagonally into next truth and query nodes
+            // NOTE: separating this case out allows sync points between adjacent variants
+            if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length()) &&
+                x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
+                for (int qni : graph->qnexts[x.qni]) { // for all next nodes
+                    for (int tni : graph->tnexts[x.tni]) {
+                        idx4 z(qni, tni, 0, 0);
+                        if (!contains(done, z) && !contains(curr_wave, z)) {
+                            /* if (print) printf("      z = node (%d, %d) cell (%d, %d)\n", z.qni, z.tni, z.qi, z.ti); */
+                            queue.push(z); curr_wave.insert(z); ptrs[z] = x;
+                        }
+                    }
+                }
+            }
+
             // allow last row to move into first row of all next query nodes
             if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length())) {
                 for (int qni : graph->qnexts[x.qni]) { // for all next nodes
@@ -265,11 +280,11 @@ void calc_prec_recall(
                 graph->qtypes[prev.qni] != TYPE_REF) { // node is variant
             if (print) printf("new query variant\n");
             int qvar_idx = graph->qidxs[prev.qni];
-            qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap);
+            qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap, true);
             sync_qvars.push_back(qvar_idx);
         }
         // if we move into a query variant, include it in sync group and ref dist calc
-        else if (prev.tni != curr.tni && // new truth node
+        if (prev.tni != curr.tni && // new truth node
                 graph->ttypes[prev.tni] != TYPE_REF) { // node is variant
             if (print) printf("new truth variant\n");
             int tvar_idx = graph->tidxs[prev.tni];
@@ -292,19 +307,23 @@ void calc_prec_recall(
             }
         } 
         // if the alignment is a substitution, insertion, or deletion
-        else if (prev.qni == curr.qni && prev.tni == curr.tni && // same matrix
+        if (prev.qni == curr.qni && prev.tni == curr.tni && // same matrix
                 (prev.qi == curr.qi || prev.ti == curr.ti || // insertion or deletion
                  graph->tseqs[curr.tni][curr.ti] != graph->qseqs[curr.qni][curr.qi]) // substitution
                 ) {
             if (print) printf("non-match step\n");
             query_dist += 1;
         }
-        // check if this movement is a sync point
-        else if (prev.qni == curr.qni && prev.tni == curr.tni && // same submatrix
-                prev.qi+1 == curr.qi && prev.ti+1 == curr.ti && // diagonal movement
-                graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
-                graph->qtypes[curr.qni] == TYPE_REF && // not in query var
-                graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) { // main diag
+        // check if this movement is a sync point (ref main diag mvmt or between var main diag mvmt)
+        if ((prev.qni == curr.qni && prev.tni == curr.tni && // same submatrix
+                    prev.qi+1 == curr.qi && prev.ti+1 == curr.ti && // diagonal movement
+                    graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
+                    graph->qtypes[curr.qni] == TYPE_REF && // not in query var
+                    graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) ||
+                (prev.qni != curr.qni && prev.tni != curr.tni && // between vars
+                    curr.qi == 0 && curr.ti == 0 &&
+                    graph->tbegs[curr.tni] == graph->qbegs[curr.qni]) // on main diag
+                ) {
             if (print) printf("potential sync point\n");
 
             // add sync point
@@ -817,7 +836,7 @@ void precision_recall_wrapper(
         }
 
         //////////////////////////////////////////////////////
-        // PRECISION-RECALL: allow skipping called variants //
+        // PRECISION-RECALL: truth to query graph alignment //
         //////////////////////////////////////////////////////
         
         // calculate two forward-pass alignments, saving path
@@ -830,6 +849,35 @@ void precision_recall_wrapper(
             std::unordered_map<idx4, idx4> ptrs;
             calc_prec_recall_aln(graph, ptrs, print);
             calc_prec_recall(graph, ptrs, hi, print);
+        }
+        
+        // don't allow query 0|1 -> 1|1 if second allele is a FP
+        fix_prec_recall_genotype(sc, sc_idx);
+    }
+}
+
+
+/******************************************************************************/
+
+/* The precision-recall calculation allows the calculated GT to be anything (including 0|0 or 1|1).
+   We need to do some post-processing to fix this and set it to the most reasonable value.
+ */
+void fix_prec_recall_genotype(std::shared_ptr<ctgSuperclusters> sc, int sc_idx) {
+    int cluster_beg = sc->superclusters[QUERY][sc_idx];
+    int cluster_end = sc->superclusters[QUERY][sc_idx+1];
+    for (int ci = cluster_beg; ci < cluster_end; ci++) {
+        std::shared_ptr<ctgVariants> vars = sc->callset_vars[QUERY];
+        for (int vi = vars->clusters[ci]; vi < vars->clusters[ci+1]; vi++) {
+
+            // don't allow calculated GT to be 1|1 if either is a FP (convert to 0/1)
+            if (vars->calc_gts[vi] == GT_ALT1_ALT1 
+                    && (vars->orig_gts[vi] == GT_REF_ALT1 || vars->orig_gts[vi] == GT_ALT1_REF)) {
+                if (vars->errtypes[HAP1][vi] == ERRTYPE_FP) {
+                    vars->set_var_calcgt_on_hap(vi, HAP1, false);
+                } else if (vars->errtypes[HAP2][vi] == ERRTYPE_FP) {
+                    vars->set_var_calcgt_on_hap(vi, HAP2, false);
+                }
+            }
         }
     }
 }

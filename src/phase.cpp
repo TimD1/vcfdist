@@ -124,21 +124,22 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     if (vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
                         // print data for each haplotype
-                        for (int hi = 0; hi < HAPS; hi++) {
-                            int calc_hi = hi ^ vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi) || 
-                                    vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
+                        for (int thi = 0; thi < HAPS; thi++) {
+                            bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                            int qhi = thi ^ swap ^ phase_flip ^ phase_switch;
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, swap) || 
+                                    vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
-                                if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) { // print truth
-                                    vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], hi,
-                                        ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"), 
+                                if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) { // print truth
+                                    vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
+                                        ploidy == 1 ? "1" : (thi ? "0|1" : "1|0"), 
                                         sc_idx, phase_block, phase_switch, phase_flip);
                                 } else {
                                     vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 }
-                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) { // print query
-                                    vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], calc_hi,
-                                        ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
+                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, swap)) { // print query
+                                    vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
+                                        ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
                                         sc_idx, phase_block, phase_switch, phase_flip, true);
                                 } else {
                                     vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
@@ -147,37 +148,39 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         }
                         ptrs[QUERY]++; ptrs[TRUTH]++;
                     } else { // positional tie, diff vars, just print query
-                        for (int hi = 0; hi < HAPS; hi++) {
-                            int calc_hi = hi ^ vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
+                        for (int thi = 0; thi < HAPS; thi++) {
+                            bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                            int qhi = thi ^ swap ^ phase_flip ^ phase_switch;
+                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], thi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], calc_hi,
-                                        ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
+                                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
+                                        ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
                                         sc_idx, phase_block, phase_switch, phase_flip, true);
                             }
                         }
                         ptrs[QUERY]++;
                     }
                 } else { // query is next
-                    for (int hi = 0; hi < HAPS; hi++) {
-                        int calc_hi = hi ^ vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
-                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], hi)) {
+                    for (int thi = 0; thi < HAPS; thi++) {
+                        bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                        int qhi = thi ^ swap ^ phase_flip ^ phase_switch;
+                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], thi)) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                            vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], calc_hi,
-                                    ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"),
+                            vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
+                                    ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
                                     sc_idx, phase_block, phase_switch, phase_flip, true);
                         }
                     }
                     ptrs[QUERY]++;
                 }
             } else if (next[TRUTH]) {
-                for (int hi = 0; hi < HAPS; hi++) {
-                    if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], hi)) {
+                for (int thi = 0; thi < HAPS; thi++) {
+                    if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
-                        vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], hi,
-                                ploidy == 1 ? "1" : (hi ? "0|1" : "1|0"), 
+                        vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
+                                ploidy == 1 ? "1" : (thi ? "0|1" : "1|0"), 
                                 sc_idx, phase_block, phase_switch, phase_flip);
                         vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                     }
