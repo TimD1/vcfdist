@@ -1,5 +1,6 @@
 # vcfdist: benchmarking phased variant calls
 ![Tests](https://github.com/timd1/vcfdist/actions/workflows/test.yml/badge.svg)
+![Downloads](https://anaconda.org/bioconda/vcfdist/badges/downloads.svg)
 [![DOI](https://zenodo.org/badge/472945373.svg)](https://zenodo.org/badge/latestdoi/472945373)
 
 ## Overview
@@ -14,7 +15,7 @@
 ## Introduction
 vcfdist is a distance-based **germline variant calling evaluation tool** that:
 - simultaneously evaluates **SNPS, INDELs, and SVs** up to 10Kb
-- evaluates both **phased** and **unphased** variant callsets
+- requires **local phasing information** for truth and query variants
 - can **standardize** query and truth VCF **variant representations**
 - can evaluate **flip** and **switch phasing errors**
 
