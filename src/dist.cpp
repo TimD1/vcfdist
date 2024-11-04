@@ -878,6 +878,11 @@ void fix_prec_recall_genotype(std::shared_ptr<ctgSuperclusters> sc, int sc_idx) 
                     vars->set_var_calcgt_on_hap(vi, HAP2, false);
                 }
             }
+            // if the variant was a complete FP, don't mark it as a GT error. instead, set the
+            // calculated GT to be equal to what was expected
+            if (vars->calc_gts[vi] == GT_REF_REF) {
+                vars->calc_gts[vi] = vars->orig_gts[vi];
+            }
         }
     }
 }
