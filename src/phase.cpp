@@ -55,20 +55,20 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
         // set supercluster flip/swap based on phaseblock and sc phasing
         int phase_block = 0;
-        bool phase_switch = qvars->pb_phases[ptrs[QUERY]];
+        bool block_state = qvars->pb_phases[ptrs[QUERY]];
         int phase = qvars->phases[ptrs[QUERY]];
-        bool phase_flip;
-        if (phase_switch) {
+        bool flip_error;
+        if (block_state == PHASE_SWAP) {
             if (phase == PHASE_ORIG) { // flip error
-                phase_flip = true;
+                flip_error = true;
             } else { // PHASE_SWAP or PHASE_NONE
-                phase_flip = false;
+                flip_error = false;
             }
-        } else { // no phase switch
+        } else { // block_state == PHASE_ORIG
             if (phase == PHASE_SWAP) { // flip error
-                phase_flip = true;
+                flip_error = true;
             } else { // PHASE_ORIG or PHASE_NONE
-                phase_flip = false;
+                flip_error = false;
             }
         }
 
@@ -90,33 +90,32 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 next[c] = (poss[c] == pos);
             }
 
-            // update supercluster and if phase is swapped
+            // update phasing
             if (ptrs[QUERY] < qvars->n) {
                 phase = qvars->phases[ptrs[QUERY]];
-                phase_switch = qvars->pb_phases[ptrs[QUERY]];
-            }
-            if (pos >= ctg_scs->ends[sc_idx]) {
-                // update supercluster
-                sc_idx++;
-
-                // update phase block
-                if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
-                    phase_block++;
+                block_state = qvars->pb_phases[ptrs[QUERY]];
 
                 // update switch/flip status
-                if (phase_switch) {
-                    if (phase == PHASE_ORIG) { // flip error
-                        phase_flip = true;
+                if (block_state == PHASE_SWAP) {
+                    if (phase == PHASE_ORIG) {
+                        flip_error = true;
                     } else { // PHASE_SWAP or PHASE_NONE
-                        phase_flip = false;
+                        flip_error = false;
                     }
-                } else { // no phase switch
-                    if (phase == PHASE_SWAP) { // flip error
-                        phase_flip = true;
+                } else { // block_state == PHASE_ORIG
+                    if (phase == PHASE_SWAP) {
+                        flip_error = true;
                     } else { // PHASE_ORIG or PHASE_NONE
-                        phase_flip = false;
+                        flip_error = false;
                     }
                 }
+            }
+
+            // update supercluster and phase block
+            if (pos >= ctg_scs->ends[sc_idx]) {
+                sc_idx++;
+                if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
+                    phase_block++;
             }
 
             if (next[QUERY]) {
@@ -126,21 +125,21 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         // print data for each haplotype
                         for (int qhi = 0; qhi < HAPS; qhi++) {
                             bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
-                            int thi = qhi ^ swap ^ phase_switch ^ phase_flip;
+                            int thi = qhi ^ swap ^ block_state ^ flip_error;
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true) || 
                                     vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) { // print truth
                                     vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
                                         ploidy == 1 ? "1" : (thi ? "0|1" : "1|0"), 
-                                        sc_idx, phase_block, phase_switch, phase_flip);
+                                        sc_idx, phase_block, block_state, flip_error);
                                 } else {
                                     vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 }
                                 if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) { // print query
                                     vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
                                         ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
-                                        sc_idx, phase_block, phase_switch, phase_flip, true);
+                                        sc_idx, phase_block, block_state, flip_error, true);
                                 } else {
                                     vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                                 }
@@ -155,7 +154,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
                                         ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
-                                        sc_idx, phase_block, phase_switch, phase_flip, true);
+                                        sc_idx, phase_block, block_state, flip_error, true);
                             }
                         }
                         ptrs[QUERY]++;
@@ -168,7 +167,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                             vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
                                     ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
-                                    sc_idx, phase_block, phase_switch, phase_flip, true);
+                                    sc_idx, phase_block, block_state, flip_error, true);
                         }
                     }
                     ptrs[QUERY]++;
@@ -179,7 +178,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                         vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
                                 ploidy == 1 ? "1" : (thi ? "0|1" : "1|0"), 
-                                sc_idx, phase_block, phase_switch, phase_flip);
+                                sc_idx, phase_block, block_state, flip_error);
                         vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                     }
                 }
