@@ -417,7 +417,7 @@ void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set) {
 /*******************************************************************************/
 
 void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref, 
-        std::string ctg, int idx) {
+        const std::string & ctg, int idx) {
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
@@ -1028,7 +1028,7 @@ variantData::variantData(std::string vcf_fn,
                     break;
             }
 
-            // skip variants that are too small or large
+            // skip variants that are too large
             if (int(ref.size()) > g.max_size || int(alt.size()) > g.max_size) {
                 if (g.verbosity > 1)
                     WARN("Large variant of length %d in %s VCF at %s:%lld, skipping",
@@ -1047,6 +1047,11 @@ variantData::variantData(std::string vcf_fn,
                 }
                 overlapping_var_total++;
                 continue;
+            }
+            // update simple_gt if corresponding variant on other hap is skipped
+            if (simple_gt == GT_ALT1_ALT1 && (prev_end[hap^1] > pos ||
+                    (prev_end[hap^1] == pos && prev_type[hap^1] == TYPE_INS && type == TYPE_INS))) {
+                simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF;
             }
 
             // add to haplotype-specific query info
