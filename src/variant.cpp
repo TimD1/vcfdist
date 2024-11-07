@@ -688,7 +688,7 @@ variantData::variantData(std::string vcf_fn,
                 }
             }
 
-            // if so, save this filter's index
+            // if so, save this filter's index (to compare against for variants)
             if (filter_idx >= 0) {
                 for (int j = 0; j < hdr->hrec[i]->nkeys; j++) {
                     if (std::string(hdr->hrec[i]->keys[j]) == std::string("IDX")) {

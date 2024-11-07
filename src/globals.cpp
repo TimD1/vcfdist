@@ -458,7 +458,7 @@ void Globals::print_usage() const
 
     printf("\n  Variant Filtering/Selection:\n");
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
-    printf("      select just variants passing these FILTERs (OR operation)\n");
+    printf("      select just variants with these FILTER values (OR operation)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
     printf("      maximum variant size, larger variants ignored\n");
     printf("  -sv, --sv-threshold <INTEGER> [%d]\n", g.sv_threshold);
