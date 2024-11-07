@@ -319,9 +319,11 @@ void calc_prec_recall(
                     prev.qi+1 == curr.qi && prev.ti+1 == curr.ti && // diagonal movement
                     graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
                     graph->qtypes[curr.qni] == TYPE_REF && // not in query var
-                    graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) ||
+                    graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) || // main diag
                 (prev.qni != curr.qni && prev.tni != curr.tni && // between vars
                     curr.qi == 0 && curr.ti == 0 &&
+                    graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
+                    graph->qtypes[curr.qni] == TYPE_REF && // not in query var
                     graph->tbegs[curr.tni] == graph->qbegs[curr.qni]) // on main diag
                 ) {
             if (print) printf("potential sync point\n");

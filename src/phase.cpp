@@ -173,7 +173,8 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     ptrs[QUERY]++;
                 }
             } else if (next[TRUTH]) {
-                for (int thi = 0; thi < HAPS; thi++) {
+                for (int qhi = 0; qhi < HAPS; qhi++) {
+                    int thi = qhi ^ block_state ^ flip_error;
                     if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                         vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
