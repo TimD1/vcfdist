@@ -40,7 +40,7 @@ public:
 
     // constructors
 	Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-			std::shared_ptr<fastaData> ref, std::string ctg, int truth_hi);
+			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi);
 
     // methods
     void print();

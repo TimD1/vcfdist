@@ -331,7 +331,7 @@ void calc_prec_recall(
                 if (print) printf("syncing\n");
                 float credit = 0;
                 if (ref_dist == 0) {
-                    WARN("Sync group with zero edit distance.");
+                    // false positive with no nearby truth variant, credit = 0
                 } else {
                     credit = 1 - float(query_dist) / ref_dist;
                 }
@@ -632,7 +632,7 @@ void Graph::print() {
  */
 Graph::Graph(
 		std::shared_ptr<ctgSuperclusters> sc, int sc_idx, 
-        std::shared_ptr<fastaData> ref, std::string ctg, int truth_hap) {
+        std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hap) {
 
     ////////////////////////////////
     // STEP 1: CREATE QUERY NODES //
