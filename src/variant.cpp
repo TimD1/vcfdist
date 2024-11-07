@@ -85,6 +85,16 @@ void variantData::print_phase_info(int callset) {
             phase_set_sizes.push_back(this->lengths[ctg_idx]);
             total_phase_sets++;
             continue;
+        } else {
+            for (int hi = 0; hi < HAPS; hi++) {
+                std::shared_ptr<ctgVariants> vars = this->variants[hi][ctg];
+                for (int vi = 0; vi < vars->n; vi++) {
+                    if (vars->phase_sets[vi] != 0) {
+                        break;
+                    }
+                    vars->phase_sets[vi] = first_phase_set;
+                }
+            }
         }
 
         std::vector<int> vi(HAPS, 0);
@@ -637,7 +647,7 @@ variantData::variantData(std::string vcf_fn,
     int nPS       = 0;
     int * PS      = NULL;
     bool PS_warn  = false;
-    int phase_set = -1;
+    int phase_set = 0;
 
     /* int gq_missing_total = 0; */
     int PS_missing_total = 0;
