@@ -29,7 +29,7 @@ public:
 
     void write_summary_vcf(std::string vcf_fn);
     void write_phasing_summary(int phase_blocks, int switch_errors,
-        int flip_errors, int ng50, int s_ngc50, int sf_ngc50);
+        int flip_errors, int variants, int ng50, int s_ngc50, int sf_ngc50);
     void write_switchflips();
     void phase();
     int calculate_ng50(bool break_on_switch = false, bool break_on_flip = false);
