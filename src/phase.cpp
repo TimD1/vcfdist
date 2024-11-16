@@ -35,10 +35,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Set identifier (input, per-variant)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (output, per-supercluster, index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BP,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=VP,Number=1,Type=Integer,Description=\"Variant Phase: 0 = PHASE_ORIG, 1 = PHASE_SWAP, . = PHASE_NONE)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=FE,Number=1,Type=Integer,Description=\"Flip Error (a per-supercluster error)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=GE,Number=1,Type=String,Description=\"Genotype Error ('+' if 0/1 -> 1/1, '-' if 1/1 -> 0/1, '.' otherwise)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=GE,Number=1,Type=String,Description=\"Genotype Error ('+' if 0/1 truth -> 1/1 query, '-' if 1/1 truth -> 0/1 query, '.' otherwise)\">\n");
     fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRUTH\tQUERY\n");
 
     // write variants
@@ -119,6 +119,15 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
             }
+            /* if (next[QUERY]) { */
+            /*     fprintf(out_vcf, "orig_gt: %s\tcalc_gt: %s\n", */ 
+            /*             gt_strs[vars[QUERY]->orig_gts[ptrs[QUERY]]].data(), */
+            /*             gt_strs[vars[QUERY]->calc_gts[ptrs[QUERY]]].data()); */
+            /* } */
+            /* if (next[TRUTH]) { */
+            /*     fprintf(out_vcf, "orig_gt: %s\n", */ 
+            /*             gt_strs[vars[TRUTH]->orig_gts[ptrs[TRUTH]]].data()); */
+            /* } */
 
             if (next[QUERY]) {
                 if (next[TRUTH]) {
@@ -268,14 +277,6 @@ void phaseblockData::phase()
                     (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->calc_gts[i] == GT_ALT1_REF)) {
                 qvars->phases[i] = PHASE_SWAP;
             } else {
-                qvars->phases[i] = PHASE_NONE;
-            }
-
-            // only TP variants are actually phased
-            if (qvars->calc_gts[i] == GT_ALT1_REF && qvars->errtypes[HAP1][i] != ERRTYPE_TP) {
-                qvars->phases[i] = PHASE_NONE;
-            }
-            if (qvars->calc_gts[i] == GT_REF_ALT1 && qvars->errtypes[HAP2][i] != ERRTYPE_TP) {
                 qvars->phases[i] = PHASE_NONE;
             }
         }

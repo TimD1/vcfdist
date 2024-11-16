@@ -86,7 +86,7 @@ void variantData::print_phase_info(int callset) {
             phase_set_sizes.push_back(this->lengths[ctg_idx]);
             total_phase_sets++;
             continue;
-        } else {
+        } else { // set phase set up until first PS
             for (int hi = 0; hi < HAPS; hi++) {
                 std::shared_ptr<ctgVariants> vars = this->variants[hi][ctg];
                 for (int vi = 0; vi < vars->n; vi++) {
@@ -98,6 +98,7 @@ void variantData::print_phase_info(int callset) {
             }
         }
 
+        // TODO: why is hi needed here? when are variants merged? shouldn't this iterate over one list?
         std::vector<int> vi(HAPS, 0);
         int ps_beg = 0; int ps_end = 0;
         int phase_set = 0;
@@ -115,7 +116,7 @@ void variantData::print_phase_info(int callset) {
             
             // TODO: for now, only start new phase set if new PS tag found
             std::shared_ptr<ctgVariants> vars = this->variants[hi][ctg];
-            if (vars->phase_sets[vi[hi]]) { // ignore unphased variants
+            if (vars->phase_sets[vi[hi]] != 0) { // variant is phased
                 if (vars->phase_sets[vi[hi]] != phase_set) { // new phase set, save old
                     if (phase_set) phase_set_sizes.push_back(ps_end - ps_beg);
                     phase_set = vars->phase_sets[vi[hi]];
@@ -125,6 +126,9 @@ void variantData::print_phase_info(int callset) {
                 } else { // same 
                     ps_end = std::max(ps_end, vars->poss[vi[hi]] + vars->rlens[vi[hi]]);
                 }
+            } else { // set unphased variant phase set to current phase set
+                // TODO: only set phase sets for 1|1 variants (for when we add unphased eval)
+                vars->phase_sets[vi[hi]] = phase_set;
             }
             
             vi[hi]++;
@@ -432,14 +436,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BP:VP:FE:GE", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BP:VP:FE:GE", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -921,7 +925,6 @@ variantData::variantData(std::string vcf_fn,
                 PS_missing_total++;
                 phase_set = 0;
             }
-            // else, leave phase_set of 1|1 vars with missing PS tags the same as previous
 
         } else if (nPS <= 0) { // other error
             ERROR("Failed to read %s PS at %s:%lld", 

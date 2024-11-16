@@ -275,20 +275,20 @@ void calc_prec_recall(
         /*     (graph->ttypes[curr.tni] == TYPE_REF) ? "ref" : "var", */
         /*     (graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) ? "same" : "diff"); */
 
-        // if we move into a new query variant, mark it as included
+        // if we move out of a new query variant, mark it as included
         if (prev.qni != curr.qni && // new query node
-                graph->qtypes[prev.qni] != TYPE_REF) { // node is variant
+                graph->qtypes[curr.qni] != TYPE_REF) { // node is variant
             if (print) printf("new query variant\n");
-            int qvar_idx = graph->qidxs[prev.qni];
+            int qvar_idx = graph->qidxs[curr.qni];
             sync_qvars.push_back(qvar_idx);
         }
-        // if we move into a query variant, include it in sync group and ref dist calc
+        // if we move out of a query variant, include it in sync group and ref dist calc
         if (prev.tni != curr.tni && // new truth node
-                graph->ttypes[prev.tni] != TYPE_REF) { // node is variant
+                graph->ttypes[curr.tni] != TYPE_REF) { // node is variant
             if (print) printf("new truth variant\n");
-            int tvar_idx = graph->tidxs[prev.tni];
+            int tvar_idx = graph->tidxs[curr.tni];
             sync_tvars.push_back(tvar_idx);
-            switch (graph->ttypes[prev.tni]) {
+            switch (graph->ttypes[curr.tni]) {
                 case TYPE_INS:
                     ref_dist += tvars->alts[tvar_idx].size();
                     break;
@@ -300,7 +300,7 @@ void calc_prec_recall(
                     break;
                 default:
                     ERROR("Unexpected truth var type '%s' in calc_prec_recall() at %s:%d",
-                        type_strs[graph->ttypes[prev.tni]].data(), 
+                        type_strs[graph->ttypes[curr.tni]].data(), 
                         tvars->ctg.data(), tvars->poss[tvar_idx]);
                     break;
             }
@@ -313,18 +313,20 @@ void calc_prec_recall(
             if (print) printf("non-match step\n");
             query_dist += 1;
         }
+
         // check if this movement is a sync point (ref main diag mvmt or between var main diag mvmt)
-        if ((prev.qni == curr.qni && prev.tni == curr.tni && // same submatrix
-                    prev.qi+1 == curr.qi && prev.ti+1 == curr.ti && // diagonal movement
-                    graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
-                    graph->qtypes[curr.qni] == TYPE_REF && // not in query var
-                    graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi) || // main diag
-                (prev.qni != curr.qni && prev.tni != curr.tni && // between vars
-                    curr.qi == 0 && curr.ti == 0 &&
-                    graph->ttypes[curr.tni] == TYPE_REF && // not in truth var
-                    graph->qtypes[curr.qni] == TYPE_REF && // not in query var
-                    graph->tbegs[curr.tni] == graph->qbegs[curr.qni]) // on main diag
-                ) {
+        bool on_main_diag = graph->tbegs[curr.tni] + curr.ti == graph->qbegs[curr.qni] + curr.qi;
+        bool ref_query_move = graph->qtypes[curr.qni] == TYPE_REF 
+            && prev.qni == curr.qni
+            && prev.qi+1 == curr.qi;
+        bool ref_truth_move = graph->ttypes[curr.tni] == TYPE_REF 
+            && prev.tni == curr.tni
+            && prev.ti+1 == curr.ti;
+        bool query_var_end = curr.qi == 0 && prev.qni != curr.qni;
+        bool truth_var_end = curr.ti == 0 && prev.tni != curr.tni;
+        bool sync_point = on_main_diag
+            && ((ref_query_move && ref_truth_move) || truth_var_end || query_var_end);
+        if (sync_point) {
             if (print) printf("potential sync point\n");
 
             // add sync point
@@ -797,6 +799,7 @@ void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print) {
+    print = true;
 
 	// parse sc_idx from grouped superclusters
     if (stop == start) return;
@@ -875,6 +878,14 @@ void fix_genotype_allele_counts(std::shared_ptr<ctgSuperclusters> sc, int sc_idx
                     vars->ac_errtype[vi] = AC_ERR_1_TO_2;
                 }
                 vars->calc_gts[vi] = vars->orig_gts[vi];
+                // if we're in a PHASE_SWAP phase block, we should swap data here since otherwise
+                // there's no way based on calc_gt 1|1 to know to look at data from other hap
+                std::swap(vars->errtypes[HAP1][vi], vars->errtypes[HAP2][vi]);
+                std::swap(vars->sync_group[HAP1][vi], vars->sync_group[HAP2][vi]);
+                std::swap(vars->callq[HAP1][vi], vars->callq[HAP2][vi]);
+                std::swap(vars->ref_ed[HAP1][vi], vars->ref_ed[HAP2][vi]);
+                std::swap(vars->query_ed[HAP1][vi], vars->query_ed[HAP2][vi]);
+                std::swap(vars->credit[HAP1][vi], vars->credit[HAP2][vi]);
             }
             // force 0|1 and 1|0 query variants to be evaluated as such
             else if (vars->orig_gts[vi] == GT_REF_ALT1 || vars->orig_gts[vi] == GT_ALT1_REF) {
