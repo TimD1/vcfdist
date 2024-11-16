@@ -52,6 +52,7 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     // added during phase()
     this->phases.push_back(PHASE_NONE);
     this->pb_phases.push_back(PHASE_NONE);
+    this->ac_errtype.push_back(AC_ERR_NONE);
 }
 
 /******************************************************************************/
@@ -431,14 +432,14 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:FE", 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BP:VP:FE:GE", 
                 ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:FE", ctg.data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BP:VP:FE:GE", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
                 (ref_base + this->alts[idx]).data());
         break;
@@ -450,7 +451,7 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 
 void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx, 
         int phase_block, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:.:.:%d:.:.:%d:.:.%s", sc_idx, phase_block, query ? "\n" : "");
+    fprintf(out_fp, "\t.:.:.:.:.:.:.:%d:.:.:%d:.:.:.:.%s", sc_idx, phase_block, query ? "\n" : "");
 }
 
 
@@ -470,7 +471,7 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
         errtype = query ? "FP" : "FN"; match_type = "lm";
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s%s", gt.data(), errtype.data(), 
+    fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s:%s:%s%s", gt.data(), errtype.data(), 
             this->credit[hi][vi], 
             this->ref_ed[hi][vi] == 0 ? "." : 
                 std::to_string(this->ref_ed[hi][vi]).data(),
@@ -479,7 +480,9 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
             match_type.data(), int(this->var_quals[vi]), sc_idx, 
             int(this->sync_group[hi][vi]), this->phase_sets[vi], phase_block,
             query ? (phase_switch ? "1" : "0") : "." , 
+            phase_strs[this->phases[vi]].data(),
             query ? (phase_flip ? "1" : "0") : "." , 
+            ac_strs[this->ac_errtype[vi]].data(),
             query ? "\n" : "");
 }
 
@@ -487,8 +490,8 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
 /*******************************************************************************/
 
 
-void variantData::print_variant(FILE* out_fp, std::string ctg, int pos, int type,
-        std::string ref, std::string alt, float qual, std::string gt) {
+void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
+        const std::string & ref, const std::string & alt, float qual, const std::string & gt) {
 
     char ref_base;
     switch (type) {
@@ -519,7 +522,7 @@ void variantData::set_header(const std::shared_ptr<variantData> vcf) {
     this->lengths = vcf->lengths;
     this->ploidy = vcf->ploidy;
     this->ref = vcf->ref;
-    for (std::string ctg : this->contigs)
+    for (const std::string & ctg : this->contigs)
         for (int hap = 0; hap < 2; hap++)
             this->variants[hap][ctg] = 
                 std::shared_ptr<ctgVariants>(new ctgVariants(ctg));

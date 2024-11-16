@@ -14,7 +14,8 @@ std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "PE", "GE", "??"};
 std::vector<std::string> gt_strs = 
     {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "M|N" };
-std::vector<std::string> phase_strs = {"=", "X", "?"};
+std::vector<std::string> phase_strs = {"0", "1", "."};
+std::vector<std::string> ac_strs = {".", "+", "-"};
 std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CTG"};
 std::vector<std::string> switch_strs = 
     {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};

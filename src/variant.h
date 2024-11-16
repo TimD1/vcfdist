@@ -61,6 +61,7 @@ public:
     // set during phase()
     std::vector<int> phases;             // variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
     std::vector<int> pb_phases;          // phaseblock keep/swap, from phasing algorithm
+    std::vector<int> ac_errtype;         // allele count error type (e.g. 0|1 -> 1|1)
 };
 
 class variantData {
@@ -72,8 +73,8 @@ public:
 
     // functions
     void write_vcf(std::string vcf_fn);
-    void print_variant(FILE* out_fp, std::string ctg, int pos, int type,
-        std::string ref, std::string alt, float qual, std::string gt);
+    void print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
+        const std::string & ref, const std::string & alt, float qual, const std::string & gt);
     void set_header(const std::shared_ptr<variantData> vcf);
     void add_variants( const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query, 

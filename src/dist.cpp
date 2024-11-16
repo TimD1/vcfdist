@@ -280,7 +280,6 @@ void calc_prec_recall(
                 graph->qtypes[prev.qni] != TYPE_REF) { // node is variant
             if (print) printf("new query variant\n");
             int qvar_idx = graph->qidxs[prev.qni];
-            qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap, true);
             sync_qvars.push_back(qvar_idx);
         }
         // if we move into a query variant, include it in sync group and ref dist calc
@@ -352,6 +351,8 @@ void calc_prec_recall(
                     qvars->ref_ed[truth_hap][qvar_idx] = ref_dist;
                     qvars->query_ed[truth_hap][qvar_idx] = query_dist;
                     qvars->credit[truth_hap][qvar_idx] = credit;
+                    if (errtype == ERRTYPE_TP)
+                        qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap, true);
                 }
                 if (errtype == ERRTYPE_FP) errtype = ERRTYPE_FN;
                 for (int tvar_idx : sync_tvars) {
@@ -805,7 +806,7 @@ void precision_recall_wrapper(
         int sc_idx = sc_groups[thread_step][SC_IDX][supclust_idx];
 
         // set superclusters pointer
-        std::shared_ptr<ctgSuperclusters> sc = 
+        std::shared_ptr<ctgSuperclusters> scs = 
                 clusterdata_ptr->superclusters[ctg];
 
         ////////////////////
@@ -815,13 +816,13 @@ void precision_recall_wrapper(
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
             for (int c = 0; c < CALLSETS; c++) {
-                int cluster_beg = sc->superclusters[c][sc_idx];
-                int cluster_end = sc->superclusters[c][sc_idx+1];
+                int cluster_beg = scs->superclusters[c][sc_idx];
+                int cluster_end = scs->superclusters[c][sc_idx+1];
                 printf("%s: %d clusters (%d-%d)\n", callset_strs[c].data(),
                     cluster_end-cluster_beg, cluster_beg, cluster_end);
 
                 for (int j = cluster_beg; j < cluster_end; j++) {
-                    std::shared_ptr<ctgVariants> vars = sc->callset_vars[c];
+                    std::shared_ptr<ctgVariants> vars = scs->callset_vars[c];
                     int variant_beg = vars->clusters[j];
                     int variant_end = vars->clusters[j+1];
                     printf("\tCluster %d: %d variants (%d-%d)\n", j, 
@@ -845,16 +846,13 @@ void precision_recall_wrapper(
         // query1/query2 graph to truth1, query1/query2 graph to truth2
         for (int hi = 0; hi < HAPS; hi++) {
             std::shared_ptr<Graph> graph(
-                    new Graph(sc, sc_idx, clusterdata_ptr->ref, ctg, hi));
+                    new Graph(scs, sc_idx, clusterdata_ptr->ref, ctg, hi));
             if (print) graph->print();
 
             std::unordered_map<idx4, idx4> ptrs;
             calc_prec_recall_aln(graph, ptrs, print);
             calc_prec_recall(graph, ptrs, hi, print);
         }
-        
-        // don't allow query 0|1 -> 1|1 if second allele is a FP
-        fix_prec_recall_genotype(sc, sc_idx);
     }
 }
 
@@ -862,28 +860,51 @@ void precision_recall_wrapper(
 /******************************************************************************/
 
 /* The precision-recall calculation allows the calculated GT to be anything (including 0|0 or 1|1).
-   We need to do some post-processing to fix this and set it to the most reasonable value.
+   We need to do some post-processing to fix this and force the allele counts to be unchanged.
  */
-void fix_prec_recall_genotype(std::shared_ptr<ctgSuperclusters> sc, int sc_idx) {
+void fix_genotype_allele_counts(std::shared_ptr<ctgSuperclusters> sc, int sc_idx) {
     int cluster_beg = sc->superclusters[QUERY][sc_idx];
     int cluster_end = sc->superclusters[QUERY][sc_idx+1];
     for (int ci = cluster_beg; ci < cluster_end; ci++) {
         std::shared_ptr<ctgVariants> vars = sc->callset_vars[QUERY];
         for (int vi = vars->clusters[ci]; vi < vars->clusters[ci+1]; vi++) {
 
-            // don't allow calculated GT to be 1|1 if either is a FP (convert to 0/1)
-            if (vars->calc_gts[vi] == GT_ALT1_ALT1 
-                    && (vars->orig_gts[vi] == GT_REF_ALT1 || vars->orig_gts[vi] == GT_ALT1_REF)) {
-                if (vars->errtypes[HAP1][vi] == ERRTYPE_FP) {
-                    vars->set_var_calcgt_on_hap(vi, HAP1, false);
-                } else if (vars->errtypes[HAP2][vi] == ERRTYPE_FP) {
-                    vars->set_var_calcgt_on_hap(vi, HAP2, false);
+            // force 1|1 query variants to be evaluated as such
+            if (vars->orig_gts[vi] == GT_ALT1_ALT1) {
+                if (vars->calc_gts[vi] == GT_REF_ALT1 || vars->calc_gts[vi] == GT_ALT1_REF) {
+                    vars->ac_errtype[vi] = AC_ERR_1_TO_2;
                 }
-            }
-            // if the variant was a complete FP, don't mark it as a GT error. instead, set the
-            // calculated GT to be equal to what was expected
-            if (vars->calc_gts[vi] == GT_REF_REF) {
                 vars->calc_gts[vi] = vars->orig_gts[vi];
+            }
+            // force 0|1 and 1|0 query variants to be evaluated as such
+            else if (vars->orig_gts[vi] == GT_REF_ALT1 || vars->orig_gts[vi] == GT_ALT1_REF) {
+
+                // for called 1|1 variants, keep variant call with better calculated credit
+                if (vars->calc_gts[vi] == GT_ALT1_ALT1) {
+
+                    vars->ac_errtype[vi] = AC_ERR_2_TO_1;
+                    if (vars->credit[HAP1][vi] > vars->credit[HAP2][vi]) {
+                        vars->set_var_calcgt_on_hap(vi, HAP2, false);
+                    } else if (vars->credit[HAP1][vi] < vars->credit[HAP2][vi]) {
+                        vars->set_var_calcgt_on_hap(vi, HAP1, false);
+                    } else { // default to current phasing
+                        if (vars->pb_phases[vi] == PHASE_ORIG) {
+                            vars->calc_gts[vi] = vars->orig_gts[vi];
+                        } else { // PHASE_SWAP
+                            vars->calc_gts[vi] = (vars->orig_gts[vi] == GT_REF_ALT1) ? 
+                                GT_ALT1_REF : GT_REF_ALT1;
+                        }
+                    }
+                }
+
+                // for called 0|0 variants, don't upset the current phasing
+                if (vars->calc_gts[vi] == GT_REF_REF) {
+                    if (vars->pb_phases[vi] == PHASE_ORIG) {
+                        vars->calc_gts[vi] = vars->orig_gts[vi];
+                    } else { // PHASE_SWAP
+                        vars->calc_gts[vi] = (vars->orig_gts[vi] == GT_REF_ALT1) ? GT_ALT1_REF : GT_REF_ALT1;
+                    }
+                }
             }
         }
     }

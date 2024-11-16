@@ -68,6 +68,11 @@ class idx4;
 #define ERRTYPE_UN 5 // unknown
 #define ERRTYPES   6
 
+#define AC_ERR_NONE   0     // e.g. 0|1 -> 1|0 or 1|1 -> 1|1
+#define AC_ERR_1_TO_2 1     // e.g. 0|1 -> 1|1
+#define AC_ERR_2_TO_1 2     // e.g. 1|1 -> 0|1
+#define AC_ERRTYPES   3     // allele count error types
+
 #define SWITCHTYPE_FLIP       0
 #define SWITCHTYPE_SWITCH     1
 #define SWITCHTYPE_SWITCH_AND_FLIP     2

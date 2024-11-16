@@ -168,7 +168,7 @@ void calc_prec_recall(
         bool print = false
         );
 
-void fix_prec_recall_genotype(std::shared_ptr<ctgSuperclusters> sc, int sc_idx);
+void fix_genotype_allele_counts(std::shared_ptr<ctgSuperclusters> sc, int sc_idx);
 
 /******************************************************************************/
 

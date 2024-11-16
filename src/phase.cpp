@@ -35,8 +35,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Set identifier (input, per-variant)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (output, per-supercluster, index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block State (phaseblock truth-to-query mapping state; 0 = T1Q1:T2Q2, 1 = T1Q2:T2Q1)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BP,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=VP,Number=1,Type=Integer,Description=\"Variant Phase: 0 = PHASE_ORIG, 1 = PHASE_SWAP, . = PHASE_NONE)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=FE,Number=1,Type=Integer,Description=\"Flip Error (a per-supercluster error)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=GE,Number=1,Type=String,Description=\"Genotype Error ('+' if 0/1 -> 1/1, '-' if 1/1 -> 0/1, '.' otherwise)\">\n");
     fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRUTH\tQUERY\n");
 
     // write variants
@@ -228,7 +230,16 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         ctg_pbs->phase_blocks.push_back(qvars->n);
     }
     
+    // calculate phasings, flip, and switch errors
     this->phase();
+
+    // fix genotypes, with ties defaulting to current phase
+    for (const std::string & ctg : this->contigs) {
+        std::shared_ptr<ctgSuperclusters> scs = clusterdata_ptr->superclusters[ctg];
+        for (int sc_idx = 0; sc_idx < scs->n; sc_idx++) {
+            fix_genotype_allele_counts(scs, sc_idx);
+        }
+    }
 }
 
 
