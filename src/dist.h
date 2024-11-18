@@ -14,9 +14,11 @@ public:
 
     // supercluster data used to generate this graph
     // query variant data is at sc->callset_vars[QUERY]->{fieldname}[this->qidxs[qni]]
-    // query variant data is at sc->callset_vars[TRUTH]->{fieldname}[this->tidxs[tni]]
+    // truth variant data is at sc->callset_vars[TRUTH]->{fieldname}[this->tidxs[tni]]
     std::shared_ptr<ctgSuperclusters> sc;
 	int sc_idx;
+    std::string ref;                // for calculating original edit distance
+    std::string truth;
 
     // graph data for each node
     int qnodes;                     // each qvector is of size qnodes
@@ -44,6 +46,7 @@ public:
 
     // methods
     void print();
+    int get_truth_pos(int truth_node_idx, int truth_idx);
 };
 
 /******************************************************************************/
@@ -197,6 +200,12 @@ std::vector<int> wf_swg_backtrack(
         const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs,
         int s, int sub, int open, int extend, bool print = false);
+
+
+void wf_ed(
+        const std::string & query, const std::string & truth, int & s, 
+        std::vector< std::vector<int> > & offs,
+        std::vector< std::vector<int> > & ptrs, bool print = false);
 
 /******************************************************************************/
 
