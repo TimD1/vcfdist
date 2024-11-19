@@ -303,16 +303,16 @@ void calc_prec_recall(
         int truth_ref_pos = graph->tbegs[curr.tni] + curr.ti;
         int query_ref_pos = graph->qbegs[curr.qni] + curr.qi;
         bool on_main_diag = (truth_ref_pos == query_ref_pos);
+        bool same_submatrix = curr.qni == prev.qni && curr.tni == prev.tni;
+        bool diff_submatrix = curr.qni != prev.qni && curr.tni != prev.tni; // both must differ
         bool ref_query_move = graph->qtypes[curr.qni] == TYPE_REF 
             && prev.qni == curr.qni
             && prev.qi+1 == curr.qi;
         bool ref_truth_move = graph->ttypes[curr.tni] == TYPE_REF 
             && prev.tni == curr.tni
             && prev.ti+1 == curr.ti;
-        bool query_var_end = curr.qi == 0 && prev.qni != curr.qni;
-        bool truth_var_end = curr.ti == 0 && prev.tni != curr.tni;
-        bool sync_point = on_main_diag
-            && ((ref_query_move && ref_truth_move) || truth_var_end || query_var_end);
+        bool sync_point = on_main_diag && (
+                (same_submatrix && ref_query_move && ref_truth_move) || diff_submatrix);
         if (sync_point) {
             if (print) printf("potential sync point\n");
 
