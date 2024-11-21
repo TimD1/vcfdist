@@ -816,7 +816,6 @@ void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print) {
-    print = true;
 
 	// parse sc_idx from grouped superclusters
     if (stop == start) return;
@@ -911,6 +910,7 @@ void fix_genotype_allele_counts(std::shared_ptr<ctgSuperclusters> sc, int sc_idx
                 if (vars->calc_gts[vi] == GT_ALT1_ALT1) {
 
                     vars->ac_errtype[vi] = AC_ERR_2_TO_1;
+                    // try to use phasing with max credit
                     if (vars->credit[HAP1][vi] > vars->credit[HAP2][vi]) {
                         vars->set_var_calcgt_on_hap(vi, HAP2, false);
                     } else if (vars->credit[HAP1][vi] < vars->credit[HAP2][vi]) {
@@ -925,12 +925,20 @@ void fix_genotype_allele_counts(std::shared_ptr<ctgSuperclusters> sc, int sc_idx
                     }
                 }
 
-                // for called 0|0 variants, don't upset the current phasing
+                // for called 0|0 variants
                 if (vars->calc_gts[vi] == GT_REF_REF) {
-                    if (vars->pb_phases[vi] == PHASE_ORIG) {
-                        vars->calc_gts[vi] = vars->orig_gts[vi];
-                    } else { // PHASE_SWAP
-                        vars->calc_gts[vi] = (vars->orig_gts[vi] == GT_REF_ALT1) ? GT_ALT1_REF : GT_REF_ALT1;
+                    // try to use hap with max credit
+                    if (vars->credit[HAP1][vi] > vars->credit[HAP2][vi]) {
+                        vars->set_var_calcgt_on_hap(vi, HAP1, true);
+                    } else if (vars->credit[HAP1][vi] < vars->credit[HAP2][vi]) {
+                        vars->set_var_calcgt_on_hap(vi, HAP2, true);
+                    } else { // default to current phasing
+                        if (vars->pb_phases[vi] == PHASE_ORIG) {
+                            vars->calc_gts[vi] = vars->orig_gts[vi];
+                        } else { // PHASE_SWAP
+                            vars->calc_gts[vi] = (vars->orig_gts[vi] == GT_REF_ALT1) ? 
+                                GT_ALT1_REF : GT_REF_ALT1;
+                        }
                     }
                 }
             }

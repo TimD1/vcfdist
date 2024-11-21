@@ -119,12 +119,18 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
                     phase_block++;
             }
-            /* if (next[QUERY]) { */
-            /*     fprintf(out_vcf, "orig_gt: %s\tcalc_gt: %s\n", */ 
+
+            /* if (next[QUERY] && ptrs[QUERY] < qvars->n) { */
+            /*     fprintf(out_vcf, "orig_gt: %s\tcalc_gt: %s\tcredit: %.2f|%.2f\tref_dist: %d|%d\n", */ 
             /*             gt_strs[vars[QUERY]->orig_gts[ptrs[QUERY]]].data(), */
-            /*             gt_strs[vars[QUERY]->calc_gts[ptrs[QUERY]]].data()); */
+            /*             gt_strs[vars[QUERY]->calc_gts[ptrs[QUERY]]].data(), */
+            /*             vars[QUERY]->credit[HAP1][ptrs[QUERY]], */
+            /*             vars[QUERY]->credit[HAP2][ptrs[QUERY]], */
+            /*             vars[QUERY]->ref_ed[HAP1][ptrs[QUERY]], */
+            /*             vars[QUERY]->ref_ed[HAP2][ptrs[QUERY]] */
+            /*             ); */
             /* } */
-            /* if (next[TRUTH]) { */
+            /* if (next[TRUTH] && ptrs[TRUTH] < tvars->n) { */
             /*     fprintf(out_vcf, "orig_gt: %s\n", */ 
             /*             gt_strs[vars[TRUTH]->orig_gts[ptrs[TRUTH]]].data()); */
             /* } */
