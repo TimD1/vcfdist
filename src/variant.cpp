@@ -155,81 +155,9 @@ void variantData::print_phase_info(int callset) {
     if (g.verbosity >= 1) INFO("        Total contig bases: %zu", total_bases);
 }
 
+
 /*******************************************************************************/
 
-void variantData::left_shift() {
-
-    // shift variants as far left as possible after realignment
-    for (int hap = 0; hap < HAPS; hap++) {
-        for (const std::string & ctg : this->contigs) {
-            std::shared_ptr<ctgVariants> vars = this->variants[hap][ctg];
-            for (int i = 0; i < vars->n; i++) {
-
-                // shift INS
-                if (vars->types[i] == TYPE_INS) {
-                    bool match = true;
-                    while (match && vars->poss[i] > 0 && 
-                            (i == 0 || vars->poss[i] > 
-                            vars->poss[i-1] + vars->rlens[i-1]+1)) {
-                        int ins_size = vars->alts[i].size();
-                        char ref_base = this->ref->fasta.at(ctg)[vars->poss[i]-1];
-                        if (ref_base == vars->alts[i][ins_size-1]) {
-                            vars->alts[i] = ref_base + 
-                                    vars->alts[i].substr(0, ins_size-1);
-                            vars->poss[i]--;
-                        } else {
-                            match = false;
-                        }
-                    }
-                }
-
-                // shift DEL
-                if (vars->types[i] == TYPE_DEL) {
-                    bool match = true;
-                    while (match && vars->poss[i] > 0 && 
-                            (i == 0 || vars->poss[i] > 
-                            vars->poss[i-1] + vars->rlens[i-1]+1)) {
-                        int del_size = vars->refs[i].size();
-                        char ref_base = this->ref->fasta.at(ctg)[vars->poss[i]-1];
-                        if (ref_base == vars->refs[i][del_size-1]) {
-                            vars->refs[i] = ref_base + 
-                                    vars->refs[i].substr(0, del_size-1);
-                            vars->poss[i]--;
-                        } else {
-                            match = false;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // for each variant
-    for (int hap = 0; hap < HAPS; hap++) {
-        for (std::string ctg : this->contigs) {
-            std::shared_ptr<ctgVariants> vars = this->variants[hap][ctg];
-            for (int i = 0; i < vars->n; i++) {
-
-                // if we consume a ref base, and there's another variant at the
-                // same position (which doesn't, by definition), move this var
-                // afterwards
-                if (vars->refs[i].size() && i+1 < vars->n && 
-                            vars->poss[i+1] == vars->poss[i]) {
-                    std::swap(vars->rlens[i], vars->rlens[i+1]);
-                    std::swap(vars->types[i], vars->types[i+1]);
-                    std::swap(vars->locs[i],  vars->locs[i+1]);
-                    std::swap(vars->refs[i],  vars->refs[i+1]);
-                    std::swap(vars->alts[i],  vars->alts[i+1]);
-                    std::swap(vars->orig_gts[i],   vars->orig_gts[i+1]);
-                    std::swap(vars->gt_quals[i],   vars->gt_quals[i+1]);
-                    std::swap(vars->var_quals[i],  vars->var_quals[i+1]);
-                }
-            }
-        }
-    }
-}
-
-/******************************************************************************/
 
 void variantData::write_vcf(std::string out_vcf_fn) {
 
@@ -612,8 +540,8 @@ variantData::variantData(std::string vcf_fn,
     this->callset = callset;
 
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%s 0/7] Parsing %s VCF%s '%s'", COLOR_PURPLE,
-            callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
+    if (g.verbosity >= 1) INFO("%s[%s %d/%d] Parsing %s VCF%s '%s'", COLOR_PURPLE,
+            callset == QUERY ? "Q" : "T", TIME_READ, TIME_TOTAL-1, callset_strs[callset].data(), 
             COLOR_WHITE, vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 

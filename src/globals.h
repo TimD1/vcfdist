@@ -32,11 +32,6 @@ public:
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
-
-    // re-alignment
-    bool realign_truth = false;
-    bool realign_query = false;
-    bool realign_only = false;
     int sub = 5;
     int open = 6;
     int extend = 2;

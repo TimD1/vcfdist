@@ -20,7 +20,7 @@ std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CT
 std::vector<std::string> switch_strs = 
     {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
 std::vector<std::string> timer_strs = 
-    {"reading", "clustering", "realigning", "reclustering", "superclustering", "precision/recall", 
+    {"reading", "clustering", "superclustering", "precision/recall", 
      "phasing", "writing", "total"};
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
 std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
@@ -110,8 +110,8 @@ void Globals::parse_args(int argc, char ** argv) {
     this->ref_fasta_fn = std::string(argv[3]);
     if (g.verbosity >= 1) {
         INFO(" ");
-        INFO("%s[0/7] Loading reference FASTA%s '%s'", COLOR_PURPLE,
-                COLOR_WHITE, ref_fasta_fn.data());
+        INFO("%s[%d/%d] Loading reference FASTA%s '%s'", COLOR_PURPLE,
+                TIME_READ, TIME_TOTAL-1, COLOR_WHITE, ref_fasta_fn.data());
     }
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
@@ -372,21 +372,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max RAM must be positive");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-ro" || 
-                std::string(argv[i]) == "--realign-only") {
-            i++;
-            g.realign_only = true;
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-rt" ||
-                std::string(argv[i]) == "--realign-truth") {
-            i++;
-            g.realign_truth = true;
-/*******************************************************************************/
-        } else if (std::string(argv[i]) == "-rq" ||
-                std::string(argv[i]) == "--realign-query") {
-            i++;
-            g.realign_query = true;
-/*******************************************************************************/
         } else if (std::string(argv[i]) == "-ci" || 
                 std::string(argv[i]) == "--citation") {
             i++;
@@ -469,25 +454,17 @@ void Globals::print_usage() const
     printf("  -mx, --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality, higher qualities kept but thresholded\n");
 
-    printf("\n  Re-Alignment:\n");
-    printf("  -rq, --realign-query\n");
-    printf("      realign query variants using Smith-Waterman parameters\n");
-    printf("  -rt, --realign-truth\n");
-    printf("      realign truth variants using Smith-Waterman parameters\n");
-    printf("  -ro, --realign-only\n");
-    printf("      standardize truth and query variant representations, then exit\n");
+    printf("\n  Clustering:\n");
+    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
+    printf("      maximum iterations for expanding/merging clusters\n");
+    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
+    printf("      select clustering method (see Github Wiki for details)\n");
     printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.sub);
     printf("      Smith-Waterman mismatch (substitution) penalty\n");
     printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.open);
     printf("      Smith-Waterman gap opening penalty\n");
     printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.extend);
     printf("      Smith-Waterman gap extension penalty\n");
-
-    printf("\n  Clustering:\n");
-    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
-    printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
-    printf("      select clustering method (see Github Wiki for details)\n");
 
     printf("\n  Precision-Recall:\n");
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);

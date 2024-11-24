@@ -531,8 +531,8 @@ void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[5/7] Calculating precision and recall%s",
-            COLOR_PURPLE, COLOR_WHITE);
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Calculating precision and recall%s",
+            COLOR_PURPLE, TIME_PR_ALN, TIME_TOTAL-1, COLOR_WHITE);
 
     if (g.verbosity >= 1 ) 
     for (int i = 0; i < g.thread_nsteps; i++) {
@@ -1201,106 +1201,6 @@ int wf_swg_max_reach(
         }
     }
     return max_reach;
-}
-
-
-/******************************************************************************/
-
-
-std::shared_ptr<variantData> wf_swg_realign(
-        std::shared_ptr<variantData> vcf, 
-        std::shared_ptr<fastaData> ref_fasta, 
-        int sub, int open, int extend, int callset, bool print /* = false */) {
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%s 2/7] Realigning %s VCF%s '%s'", COLOR_PURPLE,
-            callset == QUERY ? "Q" : "T", callset_strs[callset].data(), 
-            COLOR_WHITE, vcf->filename.data());
-
-    // copy vcf header data over to results vcf
-    std::shared_ptr<variantData> results(new variantData());
-    results->set_header(vcf);
-
-    // iterate over each contig haplotype
-    for (int hap = 0; hap < 2; hap++) {
-        for (auto itr = vcf->variants[hap].begin(); 
-                itr != vcf->variants[hap].end(); itr++) {
-            std::string ctg = itr->first;
-            std::shared_ptr<ctgVariants> vars = itr->second;
-            if (vars->poss.size() == 0) continue;
-
-            // realign each cluster of variants
-            for (int cluster = 0; cluster < int(vars->clusters.size()-1); cluster++) {
-                int beg_idx = vars->clusters[cluster];
-                int end_idx = vars->clusters[cluster+1];
-                int beg = vars->poss[beg_idx]-1;
-                int end = vars->poss[end_idx-1] + vars->rlens[end_idx-1]+1;
-
-                // variant qual is minimum in cluster
-                float qual = g.max_qual;
-                for (int i = beg_idx; i < end_idx; i++) {
-                    qual = std::min(qual, vars->var_quals[i]);
-                }
-
-                // phase set is first non-zero phase set
-                int phase_set = 0;
-                for (int i = beg_idx; i < end_idx; i++) {
-                    if (vars->phase_sets[i] != phase_set) {
-                        phase_set = vars->phase_sets[i];
-                        break;
-                    }
-                }
-
-                // generate strings
-                std::string query = 
-                    generate_str(ref_fasta, vars, ctg, beg_idx, end_idx, beg, end);
-                std::string ref = ref_fasta->fasta.at(ctg).substr(beg, end-beg);
-                
-                // perform alignment
-                if (print) printf("REF:   %s\n", ref.data());
-                if (print) printf("QUERY: %s\n", query.data());
-                std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
-                std::vector< std::vector< std::vector<int> > > offs(MATS);
-                int s = 0;
-                std::reverse(query.begin(), query.end()); // for left-aligned INDELs
-                std::reverse(ref.begin(), ref.end());
-                wf_swg_align(query, ref, ptrs, offs, s, sub, open, extend, false);
-                
-                // backtrack
-                std::vector<int> cigar = wf_swg_backtrack(query, ref, ptrs, offs, 
-                        s, sub, open, extend, false);
-                std::reverse(query.begin(), query.end());
-                std::reverse(ref.begin(), ref.end());
-                std::reverse(cigar.begin(), cigar.end());
-                if (print) print_cigar(cigar);
-
-                // compare distances
-                if (print) {
-                    int new_score = calc_cig_swg_score(cigar, sub, open, extend);
-                    int old_score = calc_vcf_swg_score(vars, cluster, cluster+1, 
-                            sub, open, extend);
-                    if (new_score < old_score) {
-                        printf("\n\tCluster %d: %d variants (%d-%d)\n", 
-                            cluster, end_idx-beg_idx, beg_idx, end_idx);
-                        for (int i = beg_idx; i < end_idx; i++) {
-                            printf("\t\t%s %d\t%s\t%s\tQ=%f\n", 
-                                ctg.data(), vars->poss[i], 
-                                vars->refs[i].size() ?  vars->refs[i].data() : "_", 
-                                vars->alts[i].size() ?  vars->alts[i].data() : "_",
-                                vars->var_quals[i]);
-                        }
-                        printf("Old score: %d\n", old_score);
-                        printf("New score: %d\n", new_score);
-                    }
-                }
-                
-                // save resulting variants
-                results->add_variants(cigar, hap, beg, ctg, query, ref, qual, phase_set);
-
-            } // cluster
-        } // contig
-    } // hap
-
-    return results;
 }
 
 

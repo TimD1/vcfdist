@@ -80,7 +80,6 @@ public:
             int ref_pos, const std::string & ctg, const std::string & query, 
             const std::string & ref, int qual, int phase_set);
     void print_phase_info(int callset);
-    void left_shift();
 
     // data
     int callset;                     // 0=QUERY, 1=TRUTH

@@ -373,8 +373,8 @@ superclusterData::superclusterData(
  */
 void superclusterData::supercluster() {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[4/7] Superclustering TRUTH and QUERY variants%s",
-            COLOR_PURPLE, COLOR_WHITE);
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants%s",
+            COLOR_PURPLE, TIME_SUPCLUST, TIME_TOTAL-1, COLOR_WHITE);
 
     // iterate over each contig
     int total_superclusters = 0;
