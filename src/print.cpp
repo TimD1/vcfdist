@@ -389,25 +389,25 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";
         FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
         if (g.verbosity >= 1) INFO("  Writing phasing results to '%s'", out_phaseblocks_fn.data());
-        fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tSUPERCLUSTERS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
+        fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tVARIANTS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
         for (std::string ctg : phasedata_ptr->contigs) {
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
             for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
                 int beg_idx = ctg_pbs->phase_blocks[i];
-                int end_idx = ctg_pbs->phase_blocks[i+1]-1;
+                int end_idx = ctg_pbs->phase_blocks[i+1];
                 int beg = ctg_scs->begs[beg_idx];
-                int end = ctg_scs->ends[end_idx];
+                int end = ctg_scs->ends[end_idx]-1;
                 int nswitches = 0;
                 for (int si = 0; si < ctg_pbs->nswitches; si++) {
-                    if (ctg_pbs->switches[si] > beg_idx && ctg_pbs->switches[si] <= end_idx) nswitches++;
+                    if (ctg_pbs->switches[si] > beg_idx && ctg_pbs->switches[si] < end_idx) nswitches++;
                 }
                 int nflips = 0;
                 for (int fi = 0; fi < ctg_pbs->nflips; fi++) {
-                    if (ctg_pbs->flips[fi] > beg_idx && ctg_pbs->flips[fi] <= end_idx) nflips++;
+                    if (ctg_pbs->flips[fi] > beg_idx && ctg_pbs->flips[fi] < end_idx) nflips++;
                 }
                 fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
-                        ctg.data(), i, beg, end, end-beg, end_idx-beg_idx+1, nflips, nswitches);
+                        ctg.data(), i, beg, end, end-beg, end_idx-beg_idx, nflips, nswitches);
             }
         }
         fclose(out_phaseblocks);
