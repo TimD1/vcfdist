@@ -180,28 +180,41 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 
         // add query
         for (int vi = 0; vi < qvars->n; vi++) {
+            int t = 0;
+            if (qvars->types[vi] == TYPE_SUB) { // SNP
+                t = VARTYPE_SNP;
+            } else if ((qvars->types[vi] == TYPE_INS && // small INDEL
+                        int(qvars->alts[vi].size()) < g.sv_threshold) ||
+                    (qvars->types[vi] == TYPE_DEL &&
+                     int(qvars->refs[vi].size()) < g.sv_threshold)) {
+                t = VARTYPE_INDEL;
+            } else { // SV
+                t = VARTYPE_SV;
+            }
             for (int hi = 0; hi < HAPS; hi++) {
-                if (!qvars->var_on_hap(vi, hi)) continue;
                 int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
                 float q = qvars->callq[calc_hi][vi];
-                int t = 0;
-                if (qvars->types[vi] == TYPE_SUB) { // SNP
-                    t = VARTYPE_SNP;
-                } else if ((qvars->types[vi] == TYPE_INS && // small INDEL
-                            int(qvars->alts[vi].size()) < g.sv_threshold) ||
-                        (qvars->types[vi] == TYPE_DEL &&
-                         int(qvars->refs[vi].size()) < g.sv_threshold)) {
-                    t = VARTYPE_INDEL;
-                } else { // SV
-                    t = VARTYPE_SV;
-                }
-                if (qvars->errtypes[calc_hi][vi] == ERRTYPE_UN) {
-                    WARN("Unknown error type at QUERY %s:%d", ctg.data(), qvars->poss[vi]);
-                    continue;
-                }
-                for (int qual = g.min_qual; qual <= q; qual++) {
-                    query_counts[t][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
-                    query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
+                if (qvars->var_on_hap(vi, hi)) {
+                    if (qvars->errtypes[calc_hi][vi] == ERRTYPE_UN) {
+                        WARN("Unknown error type at QUERY %s:%d", ctg.data(), qvars->poss[vi]);
+                        continue;
+                    }
+                    for (int qual = g.min_qual; qual <= q; qual++) {
+                        query_counts[t][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
+                        query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
+                    }
+                } else { // variant not present on this haplotype
+                    // NOTE: custom logic for incorrect original allele count
+                    // orig_gt is 1|0 (query), calc_gt (~truth) was 1|1, forced back to 0|1
+                    // the extra 1 allele probably participated in a truth match, so decrement truth
+                    if (qvars->ac_errtype[vi] == AC_ERR_2_TO_1) {
+                        for (int qual = g.min_qual; qual <= q; qual++) {
+                            truth_counts[t][ERRTYPE_TP][qual-g.min_qual]--;
+                            truth_counts[VARTYPE_ALL][ERRTYPE_TP][qual-g.min_qual]--;
+                            truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
+                            truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
+                        }
+                    }
                 }
             }
         }
@@ -390,7 +403,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
         if (g.verbosity >= 1) INFO("  Writing phasing results to '%s'", out_phaseblocks_fn.data());
         fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tVARIANTS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
-        for (std::string ctg : phasedata_ptr->contigs) {
+        for (const std::string & ctg : phasedata_ptr->contigs) {
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
             for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
@@ -418,7 +431,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) INFO("  Writing superclustering results to '%s'", out_clusterings_fn.data());
         fprintf(out_clusterings, "CONTIG\tSUPERCLUSTER\tSTART\tSTOP\tSIZE\t"
                 "QUERY_VARS\tTRUTH_VARS\n");
-        for (std::string ctg : phasedata_ptr->contigs) {
+        for (const std::string & ctg : phasedata_ptr->contigs) {
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
             for (int i = 0; i < ctg_scs->n; i++) {
