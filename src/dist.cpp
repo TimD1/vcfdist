@@ -245,7 +245,7 @@ bool update_variant_evaluation_states(const std::shared_ptr<Graph> graph, int tr
     int largest_fn_size = -1;
     int largest_fn_idx = -1;
     for (int tni = 0; tni < graph->tnodes; tni++) {
-        if (graph->qtypes[tni] != TYPE_REF) {
+        if (graph->ttypes[tni] != TYPE_REF) {
             int tvar_idx = graph->tidxs[tni];
             if (tvars->errtypes[truth_hap][tvar_idx] == ERRTYPE_FN) {
                 found_fn = true;
