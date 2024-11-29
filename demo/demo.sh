@@ -5,8 +5,9 @@ echo -e "Running vcfdist..."
     nist-v4.2.1_chr1_5Mb.vcf.gz \
     GRCh38_chr1_5Mb.fa \
     -b nist-v4.2.1_chr1_5Mb.bed \
-    -p results/ \
-    -v 0
+    -p results/dev. \
+    -t 1 \
+    -v 1
 echo -e "done!"
 
 echo -en "Plotting results..."

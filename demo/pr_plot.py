@@ -6,7 +6,7 @@ plt.rcParams.update({"figure.facecolor": (0,0,0,0)})
 
 fig, ax = plt.subplots(1, 2, figsize=(10,8))
 
-with open(f"results/precision-recall.tsv") as csv:
+with open(f"results/dev.precision-recall.tsv") as csv:
     indel_recall = []
     indel_prec = []
     snp_recall = []

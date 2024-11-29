@@ -43,10 +43,10 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     for (int i = 0; i < PHASES; i++) {
         this->errtypes[i].push_back(ERRTYPE_UN);
         this->sync_group[i].push_back(0);
-        this->credit[i].push_back(0);
+        this->callq[i].push_back(0);
         this->ref_ed[i].push_back(0);
         this->query_ed[i].push_back(0);
-        this->callq[i].push_back(0);
+        this->credit[i].push_back(0);
     }
 
     // added during phase()
@@ -344,42 +344,42 @@ bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
 
 /* Set (or unset) the presence of an alternate allele in a variant's genotype.
  */
-void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set) {
+void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ignore_errors) {
     if (hap > 1) ERROR("Unexpected hap idx %d in set_var_calcgt_on_hap()", hap);
 
     if (this->calc_gts[var_idx] == GT_REF_REF) {
         if (set) {
             this->calc_gts[var_idx] = hap == 0 ? GT_ALT1_REF : GT_REF_ALT1;
         } else {
-            ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+            if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
         }
 
     } else if (this->calc_gts[var_idx] == GT_REF_ALT1) {
         if (set) {
-            if (hap == 1) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+            if (hap == 1 && !ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
             this->calc_gts[var_idx] = GT_ALT1_ALT1;
         } else {
-            if (hap == 0) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+            if (hap == 0 && !ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
             this->calc_gts[var_idx] = GT_REF_REF;
         }
 
     } else if (this->calc_gts[var_idx] == GT_ALT1_REF) {
         if (set) {
-            if (hap == 0) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+            if (hap == 0 && !ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
             this->calc_gts[var_idx] = GT_ALT1_ALT1;
         } else {
-            if (hap == 1) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+            if (hap == 1 && !ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
             this->calc_gts[var_idx] = GT_REF_REF;
         }
 
     } else if (this->calc_gts[var_idx] == GT_ALT1_ALT1) {
         if (set) {
-            ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+            if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
         } else {
             this->calc_gts[var_idx] = hap == 0 ? GT_REF_ALT1 : GT_ALT1_REF;

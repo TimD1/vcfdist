@@ -124,7 +124,7 @@ int calc_prec_recall_aln(
     // continue looping until full alignment found
     std::unordered_set<idx4> curr_wave; // everything explored this wave
     std::unordered_set<idx4> prev_wave; // everything explored prev wave
-    while (true) {
+    while (score < g.max_dist) {
         /* if (print) printf("  score = %d\n", score); */
         if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
@@ -230,57 +230,113 @@ int calc_prec_recall_aln(
 
 /******************************************************************************/
 
-/* Update variant evaluation states to record which variants have found matches, which did not and 
- * will not, and which variants need to be re-evaluated due to the presence of a false negative.
- */
-bool update_variant_evaluation_states(const std::shared_ptr<Graph> graph, int truth_hap) {
-    std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
-    std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
+void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
+			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, bool print) {
 
-    // NOTE: the motivation for this is that large FN truth SVs will have a sync group that
-    // extends pretty far left and right, "swallowing" other correct variant calls. Since
-    // correctness is determined per sync group, many TP SNP calls can't be identified unless
-    // evaluated without the presence of this FN SV. So we remove it and re-evaluate.
-    bool found_fn = false;
-    int largest_fn_size = -1;
-    int largest_fn_idx = -1;
-    for (int tni = 0; tni < graph->tnodes; tni++) {
-        if (graph->ttypes[tni] != TYPE_REF) {
-            int tvar_idx = graph->tidxs[tni];
-            if (tvars->errtypes[truth_hap][tvar_idx] == ERRTYPE_FN) {
-                found_fn = true;
-                int fn_size = std::max(tvars->refs[tvar_idx].size(), tvars->refs[tvar_idx].size());
-                if (fn_size > largest_fn_size) {
-                    largest_fn_size = fn_size;
-                    largest_fn_idx = tvar_idx;
-                }
-            }
+    bool done = false;
+    while (not done) {
+
+        // graph is constructed only from unevaluated variants
+        std::shared_ptr<Graph> graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
+        if (print) graph->print();
+
+        std::unordered_map<idx4, idx4> ptrs;
+        bool aligned = calc_prec_recall_aln(graph, ptrs, print) < g.max_dist;
+        if (aligned) { // alignment succeeded
+            calc_prec_recall(graph, ptrs, truth_hi, print);
+            done = true;
         }
-    }
 
-    // if we found a FN variant, re-evaluate all FP and FN variants besides the largest FN
-    if (found_fn) {
+        // NOTE: if alignment failed because it was too expensive, this can only be caused by a FN
+        // truth variant, since query variants can be skipped and the reference sections match.
+        // Try alignments without some of the largest truth variants
+
+        // NOTE: if we did align successfully and found a FN variant, re-evaluate all FP and FN variants 
+        // besides the largest FN. The motivation for this is that large FN truth SVs will have a sync 
+        // group that extends pretty far left and right, "swallowing" other correct variant calls. 
+        // Since correctness is determined per sync group, many TP SNP calls can't be identified unless
+        // evaluated without the presence of this FN SV. So we remove it and re-evaluate.
+        std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
+        std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
+        std::vector< std::pair<int, int> > exclude_sizes; // pairs of (truth_var_size, truth_var_idx)
         for (int tni = 0; tni < graph->tnodes; tni++) {
             if (graph->ttypes[tni] != TYPE_REF) {
                 int tvar_idx = graph->tidxs[tni];
-                if (tvar_idx != largest_fn_idx && tvars->credit[truth_hap][tvar_idx] != 1) {
-                    tvars->errtypes[truth_hap][tvar_idx] = ERRTYPE_UN;
+                if (not aligned || tvars->errtypes[truth_hi][tvar_idx] == ERRTYPE_FN) {
+                    done = false;
+                    int tvar_size = std::max(tvars->refs[tvar_idx].size(), tvars->refs[tvar_idx].size());
+                    exclude_sizes.push_back(std::make_pair(tvar_size, tvar_idx));
                 }
             }
         }
+        // NOTE: sort FNs (if aligned) or all truth vars (if not aligned) by decreasing variant size
+        std::sort(exclude_sizes.rbegin(), exclude_sizes.rend());
 
-        for (int qni = 0; qni < graph->qnodes; qni++) {
-            if (graph->qtypes[qni] != TYPE_REF) {
-                int qvar_idx = graph->qidxs[qni];
-                if (qvar_idx != largest_fn_idx && qvars->credit[truth_hap][qvar_idx] != 1) {
-                    qvars->errtypes[truth_hap][qvar_idx] = ERRTYPE_UN;
+        // try a number of alignments without some of the largest variants, choose the best one
+        if (not done) { // there are potential variants to exclude
+            std::vector< std::pair<int, int> > exclude_dists;
+            for (int retry = 0; retry < std::min(g.max_retries, int(exclude_sizes.size())); retry++) {
+
+                // retry with all variants except the chosen variant to exclude (FN)
+                for (int tni = 0; tni < graph->tnodes; tni++) {
+                    if (graph->ttypes[tni] != TYPE_REF) {
+                        int tvar_idx = graph->tidxs[tni];
+                        if (tvar_idx == exclude_sizes[retry].second) {
+                            tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_FN;
+                        } else {
+                            tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_UN;
+                        }
+                    }
+                }
+                for (int qni = 0; qni < graph->qnodes; qni++) {
+                    if (graph->qtypes[qni] != TYPE_REF) {
+                        int qvar_idx = graph->qidxs[qni];
+                        qvars->errtypes[truth_hi][qvar_idx] = ERRTYPE_UN;
+                    }
+                }
+
+                // retry alignment (with one large variant excluded, as well as all TPs)
+                std::shared_ptr<Graph> retry_graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
+                if (print) retry_graph->print();
+                std::unordered_map<idx4, idx4> retry_ptrs;
+                int dist = calc_prec_recall_aln(retry_graph, retry_ptrs, print);
+                exclude_dists.push_back(std::make_pair(dist, exclude_sizes[retry].second));
+            }
+
+            // sort retried alignments in order of resulting edit distance
+            std::sort(exclude_dists.begin(), exclude_dists.end());
+
+            // the variant for which excluding resulted in lowest edit dist should be considered FN
+            // prepare variants for the next iteration
+            for (int tni = 0; tni < graph->tnodes; tni++) {
+                if (graph->ttypes[tni] != TYPE_REF) {
+                    int tvar_idx = graph->tidxs[tni];
+                    if (tvar_idx == exclude_dists[0].second) { // remove this variant from eval
+                        tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_FN;
+                    } else {
+                        tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_UN;
+                        tvars->sync_group[truth_hi][tvar_idx] = 0;
+                        tvars->callq[truth_hi][tvar_idx] = 0;
+                        tvars->ref_ed[truth_hi][tvar_idx] = 0;
+                        tvars->query_ed[truth_hi][tvar_idx] = 0;
+                        tvars->credit[truth_hi][tvar_idx] = 0;
+                    }
+                }
+            }
+            for (int qni = 0; qni < graph->qnodes; qni++) {
+                if (graph->qtypes[qni] != TYPE_REF) {
+                    int qvar_idx = graph->qidxs[qni];
+                    qvars->set_var_calcgt_on_hap(qvar_idx, truth_hi, false, true);
+                    qvars->errtypes[truth_hi][qvar_idx] = ERRTYPE_UN;
+                    qvars->sync_group[truth_hi][qvar_idx] = 0;
+                    qvars->callq[truth_hi][qvar_idx] = 0;
+                    qvars->ref_ed[truth_hi][qvar_idx] = 0;
+                    qvars->query_ed[truth_hi][qvar_idx] = 0;
+                    qvars->credit[truth_hi][qvar_idx] = 0;
                 }
             }
         }
     }
-
-    // return true if we're done
-    return not found_fn;
 }
 
 
@@ -917,18 +973,7 @@ void precision_recall_wrapper(
         // calculate two forward-pass alignments, saving path
         // query1/query2 graph to truth1, query1/query2 graph to truth2
         for (int hi = 0; hi < HAPS; hi++) {
-            bool done_evaluating_variants = false;
-            while (not done_evaluating_variants) {
-                // graph is constructed only from unevaluated variants
-                std::shared_ptr<Graph> graph(
-                        new Graph(scs, sc_idx, clusterdata_ptr->ref, ctg, hi));
-                if (print) graph->print();
-
-                std::unordered_map<idx4, idx4> ptrs;
-                calc_prec_recall_aln(graph, ptrs, print);
-                calc_prec_recall(graph, ptrs, hi, print);
-                done_evaluating_variants = update_variant_evaluation_states(graph, hi);
-            }
+            evaluate_variants(scs, sc_idx, clusterdata_ptr->ref, ctg, hi);
         }
     }
 }

@@ -13,4 +13,4 @@
     -b ../test/bench20.bed \
     -t 1 \
     -l 1000 \
-    -p ../out/dev.
+    -p ../out/dev3.

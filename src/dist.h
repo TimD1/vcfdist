@@ -171,7 +171,9 @@ void calc_prec_recall(
         bool print = false
         );
 
-bool update_variant_evaluation_states(const std::shared_ptr<Graph> graph, int hap_idx);
+void evaluate_variants(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
+			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, 
+            bool print = false);
 
 /******************************************************************************/
 

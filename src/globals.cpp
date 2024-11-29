@@ -195,7 +195,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide larger SV threshold size");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-mn" ||
+        } else if (std::string(argv[i]) == "-q" ||
                 std::string(argv[i]) == "--min-qual") {
             i++;
             if (i == argc) {
@@ -210,7 +210,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Must provide non-negative minimum variant quality");
             }
 /*******************************************************************************/
-        } else if (std::string(argv[i]) == "-mx" ||
+        } else if (std::string(argv[i]) == "-mq" ||
                 std::string(argv[i]) == "--max-qual") {
             i++;
             if (i == argc) {
@@ -317,6 +317,30 @@ void Globals::parse_args(int argc, char ** argv) {
             }
             if (this->max_cluster_itrs < 1) {
                 ERROR("Max cluster iterations must be positive");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-md" || 
+                std::string(argv[i]) == "--max-dist") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--max-dist' used without providing maximum alignment distance");
+            }
+            try {
+                this->max_dist = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid maximum alignment distance provided");
+            }
+/*******************************************************************************/
+        } else if (std::string(argv[i]) == "-mr" || 
+                std::string(argv[i]) == "--max-retries") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--max-retries' used without providing maximum retries");
+            }
+            try {
+                this->max_retries = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid maximum alignment retries provided");
             }
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-t" ||
@@ -436,7 +460,7 @@ void Globals::print_usage() const
     printf("  -v, --verbosity <INTEGER> [%d]\n", g.verbosity);
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
     printf("  -p, --prefix <STRING> [./]\n");
-    printf("      prefix for output files (directory needs a trailing slash)\n");
+    printf("      prefix for output files (directories need a trailing slash)\n");
     printf("  -n, --no-output-files\n");
     printf("      skip writing output files, only print summary to console\n");
 
@@ -447,9 +471,9 @@ void Globals::print_usage() const
     printf("      maximum variant size, larger variants ignored\n");
     printf("  -sv, --sv-threshold <INTEGER> [%d]\n", g.sv_threshold);
     printf("      variants of this size or larger are considered SVs, not INDELs\n");
-    printf("  -mn, --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("  -q, --min-qual <INTEGER> [%d]\n", g.min_qual);
     printf("      minimum variant quality, lower qualities ignored\n");
-    printf("  -mx, --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("  -mq, --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality, higher qualities kept but thresholded\n");
 
     printf("\n  Clustering:\n");
@@ -466,12 +490,16 @@ void Globals::print_usage() const
 
     printf("\n  Precision-Recall:\n");
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
-    printf("      minimum partial credit to consider variant a true positive\n");
+    printf("      minimum partial credit to consider a variant a true positive\n");
+    printf("  -md, --max-dist <INTEGER> [%d]\n", g.max_dist);
+    printf("      maximum alignment edit distance allowed for each supercluster\n");
+    printf("  -mr, --max-retries <INTEGER> [%d]\n", g.max_retries);
+    printf("      limit retries for aligning each supercluster, after removing each large variant\n");
 
     printf("\n  Utilization:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
     printf("      maximum threads to use for clustering and precision/recall alignment\n");
-    printf("  -r, --max-ram <FLOAT> [%.3fGB]\n", g.max_ram);
+    printf("  -r, --max-ram <FLOAT> [%.2fGB]\n", g.max_ram);
     printf("      (approximate) maximum RAM to use for precision/recall alignment\n");
 
     printf("\n  Miscellaneous:\n");

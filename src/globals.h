@@ -38,6 +38,8 @@ public:
 
     // precision-recall
     double credit_threshold = 0.7;
+    int max_dist = 1000;
+    int max_retries = 5;
 
     // memory params
     int max_threads = 64;
