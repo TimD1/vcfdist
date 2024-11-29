@@ -247,14 +247,137 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     
     // calculate phasings, flip, and switch errors
     this->phase();
+    // calculate and fix allele count errors
+    this->fix_allele_counts();
+}
 
-    // fix genotypes, with ties defaulting to current phase
+
+/******************************************************************************/
+
+
+/* The precision-recall calculation allows the calculated GT to be anything (including 0|0 or 1|1).
+   We need to do some post-processing to fix this and force the allele counts to be unchanged.
+ */
+void phaseblockData::fix_allele_counts() {
+    std::vector<int> allele_error_counts(AC_ERRTYPES, 0);
     for (const std::string & ctg : this->contigs) {
-        std::shared_ptr<ctgSuperclusters> scs = clusterdata_ptr->superclusters[ctg];
-        for (int sc_idx = 0; sc_idx < scs->n; sc_idx++) {
-            fix_genotype_allele_counts(scs, sc_idx);
+        std::shared_ptr<ctgVariants> qvars = 
+            this->phase_blocks[ctg]->ctg_superclusters->callset_vars[QUERY];
+
+        for (int vi = 0; vi < qvars->n; vi++) {
+            int allele_count_errtype = qvars->set_allele_errtype(vi);
+            if (allele_count_errtype == AC_UNKNOWN) {
+                ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), qvars->poss[vi],
+                        gt_strs[qvars->calc_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
+            }
+            allele_error_counts[allele_count_errtype]++;
+
+            // force 1|1 query variants to be evaluated as such
+            if (qvars->orig_gts[vi] == GT_ALT1_ALT1) {
+                qvars->calc_gts[vi] = qvars->orig_gts[vi];
+
+                // if we're in a PHASE_SWAP phase block, we should swap data here since otherwise
+                // there's no way based on calc_gt 1|1 to know to look at data from other hap
+                if (qvars->pb_phases[vi] == PHASE_SWAP) {
+                    std::swap(qvars->errtypes[HAP1][vi], qvars->errtypes[HAP2][vi]);
+                    std::swap(qvars->sync_group[HAP1][vi], qvars->sync_group[HAP2][vi]);
+                    std::swap(qvars->callq[HAP1][vi], qvars->callq[HAP2][vi]);
+                    std::swap(qvars->ref_ed[HAP1][vi], qvars->ref_ed[HAP2][vi]);
+                    std::swap(qvars->query_ed[HAP1][vi], qvars->query_ed[HAP2][vi]);
+                    std::swap(qvars->credit[HAP1][vi], qvars->credit[HAP2][vi]);
+                }
+            }
+
+            // force original 0|1 and 1|0 query variants to be evaluated as such, though truth differs
+            // (calc_gt has allele count 2, orig_gt has allele count 1)
+            else if (allele_count_errtype == AC_ERR_2_TO_1) {
+
+                // for called 1|1 variants, keep variant call with better calculated credit
+                if (qvars->credit[HAP1][vi] > qvars->credit[HAP2][vi]) {
+                    qvars->set_var_calcgt_on_hap(vi, HAP2, false);
+                } else if (qvars->credit[HAP1][vi] < qvars->credit[HAP2][vi]) {
+                    qvars->set_var_calcgt_on_hap(vi, HAP1, false);
+                } else { // default to current phasing
+                    if (qvars->pb_phases[vi] == PHASE_ORIG) {
+                        qvars->calc_gts[vi] = qvars->orig_gts[vi];
+                    } else { // PHASE_SWAP
+                        qvars->calc_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
+                            GT_ALT1_REF : GT_REF_ALT1;
+                    }
+                }
+            // (calc_gt has allele count 0, orig_gt has allele count 1)
+            } else if (allele_count_errtype == AC_ERR_0_TO_1) {
+                // try to use hap with max credit
+                if (qvars->credit[HAP1][vi] > qvars->credit[HAP2][vi]) {
+                    qvars->set_var_calcgt_on_hap(vi, HAP1, true);
+                } else if (qvars->credit[HAP1][vi] < qvars->credit[HAP2][vi]) {
+                    qvars->set_var_calcgt_on_hap(vi, HAP2, true);
+                } else { // default to current phasing
+                    if (qvars->pb_phases[vi] == PHASE_ORIG) {
+                        qvars->calc_gts[vi] = qvars->orig_gts[vi];
+                    } else { // PHASE_SWAP
+                        qvars->calc_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
+                            GT_ALT1_REF : GT_REF_ALT1;
+                    }
+                }
+            }
+        }
+
+        // false negative errors can only be counted from the truth VCF
+        std::shared_ptr<ctgVariants> tvars = 
+            this->phase_blocks[ctg]->ctg_superclusters->callset_vars[TRUTH];
+        for (int vi = 0; vi < qvars->n; vi++) {
+            if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
+                if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
+                        tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
+                    allele_error_counts[AC_ERR_2_TO_0]++;
+                }
+            } else if (tvars->orig_gts[vi] == GT_REF_ALT1) {
+                if (tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
+                    allele_error_counts[AC_ERR_1_TO_0]++;
+                }
+            } else if (tvars->orig_gts[vi] == GT_ALT1_REF) {
+                if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN) {
+                    allele_error_counts[AC_ERR_1_TO_0]++;
+                }
+            }
         }
     }
+
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Genotype Error Summary:");
+    if (g.verbosity >= 1) INFO("    0/0 -> 0/1: %-8d  1 FP", allele_error_counts[AC_ERR_0_TO_1]);
+    if (g.verbosity >= 1) INFO("    0/0 -> 1/1: %-8d  2 FP", allele_error_counts[AC_ERR_0_TO_2]);
+    if (g.verbosity >= 1) INFO("    0/1 -> 0/0: %-8d  1 FN", allele_error_counts[AC_ERR_1_TO_0]);
+    if (g.verbosity >= 1) INFO("    0/1 -> 0/1: %-8d  1 TP", allele_error_counts[AC_ERR_1_TO_1]);
+    if (g.verbosity >= 1) INFO("    0/1 -> 1/1: %-8d  1 TP, 1 FP (False Homozygous)", allele_error_counts[AC_ERR_1_TO_2]);
+    if (g.verbosity >= 1) INFO("    1/1 -> 0/0: %-8d  2 FN", allele_error_counts[AC_ERR_2_TO_0]);
+    if (g.verbosity >= 1) INFO("    1/1 -> 0/1: %-8d  1 TP, 1 FN (False Heterozygous)", allele_error_counts[AC_ERR_2_TO_1]);
+    if (g.verbosity >= 1) INFO("    1/1 -> 1/1: %-8d  2 TP", allele_error_counts[AC_ERR_2_TO_2]);
+    if (g.verbosity >= 1) INFO(" ");
+    this->write_genotype_error_summary(allele_error_counts);
+}
+
+
+/*******************************************************************************/
+
+
+void phaseblockData::write_genotype_error_summary(const std::vector<int> & allele_error_counts) {
+    std::string out_genotype_errors_fn = g.out_prefix + "genotype-errors.tsv";
+    FILE* out_genotype_errors = 0;
+    if (g.verbosity >= 1) INFO("  Writing genotype error results to '%s'", out_genotype_errors_fn.data());
+    out_genotype_errors = fopen(out_genotype_errors_fn.data(), "w");
+    fprintf(out_genotype_errors, "ALLELE_COUNT_0_TO_1\tALLELE_COUNT_0_TO_2\tALLELE_COUNT_1_TO_0\tALLELE_COUNT_1_TO_1\tALLELE_COUNT_1_TO_2\tALLELE_COUNT_2_TO_0\tALLELE_COUNT_2_TO_1\tALLELE_COUNT_2_TO_2\n");
+    fprintf(out_genotype_errors, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+            allele_error_counts[AC_ERR_0_TO_1],
+            allele_error_counts[AC_ERR_0_TO_2],
+            allele_error_counts[AC_ERR_1_TO_0],
+            allele_error_counts[AC_ERR_1_TO_1],
+            allele_error_counts[AC_ERR_1_TO_2],
+            allele_error_counts[AC_ERR_2_TO_0],
+            allele_error_counts[AC_ERR_2_TO_1],
+            allele_error_counts[AC_ERR_2_TO_2]);
+    fclose(out_genotype_errors);
 }
 
 
@@ -548,7 +671,7 @@ int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
 
     // get sizes of each correct phase block (split on flips, not just switch)
     std::vector<int> correct_blocks;
-    for (std::string ctg: this->contigs) {
+    for (const std::string & ctg: this->contigs) {
         
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];

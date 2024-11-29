@@ -71,7 +71,6 @@ void create_directory(const std::string & dir);
 extern Globals g;
 
 // defined in main.cpp
-extern std::vector<std::string> aln_strs;
 extern std::vector<std::string> callset_strs;
 extern std::vector<std::string> error_strs;
 extern std::vector<std::string> gt_strs;

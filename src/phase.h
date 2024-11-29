@@ -32,6 +32,8 @@ public:
         int flip_errors, int variants, int ng50, int s_ngc50, int sf_ngc50);
     void write_switchflips();
     void phase();
+    void fix_allele_counts();
+    void write_genotype_error_summary(const std::vector<int> & allele_count_errors);
     int calculate_ng50(bool break_on_switch = false, bool break_on_flip = false);
 
     std::shared_ptr<fastaData> ref;

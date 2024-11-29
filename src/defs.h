@@ -63,15 +63,19 @@ class idx4;
 #define ERRTYPE_TP 0 // true positive
 #define ERRTYPE_FP 1 // false positive
 #define ERRTYPE_FN 2 // false negative
-#define ERRTYPE_PE 3 // phase error (0|1 -> 1|0)
-#define ERRTYPE_GE 4 // genotype error (0|1 -> 1|1)
-#define ERRTYPE_UN 5 // unknown
-#define ERRTYPES   6
+#define ERRTYPE_UN 3 // unknown
+#define ERRTYPES   4
 
-#define AC_ERR_NONE   0     // e.g. 0|1 -> 1|0 or 1|1 -> 1|1
-#define AC_ERR_1_TO_2 1     // e.g. 0|1 -> 1|1
-#define AC_ERR_2_TO_1 2     // e.g. 1|1 -> 0|1
-#define AC_ERRTYPES   3     // allele count error types
+#define AC_ERR_0_TO_1  0 // e.g. 0/0 -> 0/1 (1 QUERY_FP)
+#define AC_ERR_0_TO_2  1 // e.g. 0/0 -> 1/1 (2 QUERY_FP)
+#define AC_ERR_1_TO_0  2 // e.g. 0/1 -> 0/0 (1 TRUTH_FN)
+#define AC_ERR_1_TO_1  3 // e.g. 0/1 -> 0/1 (1 QUERY_TP, 1 TRUTH_TP)
+#define AC_ERR_1_TO_2  4 // e.g. 0/1 -> 1/1 (1 QUERY_TP, 1 TRUTH_TP, 1 QUERY_FP)
+#define AC_ERR_2_TO_0  5 // e.g. 1/1 -> 0/0 (2 TRUTH_FN)
+#define AC_ERR_2_TO_1  6 // e.g. 1/1 -> 0/1 (1 QUERY_TP, 1 TRUTH_TP, 1 TRUTH_FN)
+#define AC_ERR_2_TO_2  7 // e.g. 1/1 -> 1/1 (2 QUERY_TP, 2 TRUTH_TP)
+#define AC_UNKNOWN     8
+#define AC_ERRTYPES    8 // allele count error types
 
 #define SWITCHTYPE_FLIP       0
 #define SWITCHTYPE_SWITCH     1

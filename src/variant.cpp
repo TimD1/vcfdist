@@ -52,10 +52,44 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     // added during phase()
     this->phases.push_back(PHASE_NONE);
     this->pb_phases.push_back(PHASE_NONE);
-    this->ac_errtype.push_back(AC_ERR_NONE);
+    this->ac_errtype.push_back(AC_UNKNOWN);
 }
 
 /******************************************************************************/
+
+/* Precision/Recall calculation allows dynamically adjusting the variant genotype.
+ * Afterwards, this functions records how the genotype allele count has changed.
+ */
+int ctgVariants::set_allele_errtype(int vi) { 
+    if (this->calc_gts[vi] == GT_ALT1_REF || this->calc_gts[vi] == GT_REF_ALT1) {
+        if (this->orig_gts[vi] == GT_ALT1_ALT1) {
+            return this->ac_errtype[vi] = AC_ERR_1_TO_2;
+        } else if (this->orig_gts[vi] == GT_ALT1_REF || this->orig_gts[vi] == GT_REF_ALT1) {
+            return this->ac_errtype[vi] = AC_ERR_1_TO_1;
+        } else {
+            return this->ac_errtype[vi] = AC_ERR_1_TO_0;
+        }
+    } else if (this->calc_gts[vi] == GT_ALT1_ALT1) {
+        if (this->orig_gts[vi] == GT_ALT1_ALT1) {
+            return this->ac_errtype[vi] = AC_ERR_2_TO_2;
+        } else if (this->orig_gts[vi] == GT_ALT1_REF || this->orig_gts[vi] == GT_REF_ALT1) {
+            return this->ac_errtype[vi] = AC_ERR_2_TO_1;
+        } else {
+            return this->ac_errtype[vi] = AC_ERR_2_TO_0;
+        }
+    } else if (this->calc_gts[vi] == GT_REF_REF) {
+        if (this->orig_gts[vi] == GT_ALT1_ALT1) {
+            return this->ac_errtype[vi] = AC_ERR_0_TO_2;
+        } else if (this->orig_gts[vi] == GT_ALT1_REF || this->orig_gts[vi] == GT_REF_ALT1) {
+            return this->ac_errtype[vi] = AC_ERR_0_TO_1;
+        }
+    }
+    return AC_UNKNOWN;
+}
+
+
+/******************************************************************************/
+
 
 void variantData::print_phase_info(int callset) {
 

@@ -171,8 +171,6 @@ void calc_prec_recall(
         bool print = false
         );
 
-void fix_genotype_allele_counts(std::shared_ptr<ctgSuperclusters> sc, int sc_idx);
-
 /******************************************************************************/
 
 int wf_swg_max_reach(
