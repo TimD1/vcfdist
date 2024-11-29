@@ -63,7 +63,8 @@ class idx4;
 #define ERRTYPE_TP 0 // true positive
 #define ERRTYPE_FP 1 // false positive
 #define ERRTYPE_FN 2 // false negative
-#define ERRTYPE_UN 3 // unknown
+#define ERRTYPE_UN 3 // unknown (not evaluated yet)
+#define ERRTYPE_NE 3 // not evaluated (and will not be)
 #define ERRTYPES   4
 
 #define AC_ERR_0_TO_1  0 // e.g. 0/0 -> 0/1 (1 QUERY_FP)

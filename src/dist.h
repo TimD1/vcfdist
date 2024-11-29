@@ -171,6 +171,8 @@ void calc_prec_recall(
         bool print = false
         );
 
+bool update_variant_evaluation_states(const std::shared_ptr<Graph> graph, int hap_idx);
+
 /******************************************************************************/
 
 int wf_swg_max_reach(

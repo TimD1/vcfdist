@@ -230,6 +230,62 @@ int calc_prec_recall_aln(
 
 /******************************************************************************/
 
+/* Update variant evaluation states to record which variants have found matches, which did not and 
+ * will not, and which variants need to be re-evaluated due to the presence of a false negative.
+ */
+bool update_variant_evaluation_states(const std::shared_ptr<Graph> graph, int truth_hap) {
+    std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
+    std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
+
+    // NOTE: the motivation for this is that large FN truth SVs will have a sync group that
+    // extends pretty far left and right, "swallowing" other correct variant calls. Since
+    // correctness is determined per sync group, many TP SNP calls can't be identified unless
+    // evaluated without the presence of this FN SV. So we remove it and re-evaluate.
+    bool found_fn = false;
+    int largest_fn_size = -1;
+    int largest_fn_idx = -1;
+    for (int tni = 0; tni < graph->tnodes; tni++) {
+        if (graph->qtypes[tni] != TYPE_REF) {
+            int tvar_idx = graph->tidxs[tni];
+            if (tvars->errtypes[truth_hap][tvar_idx] == ERRTYPE_FN) {
+                found_fn = true;
+                int fn_size = std::max(tvars->refs[tvar_idx].size(), tvars->refs[tvar_idx].size());
+                if (fn_size > largest_fn_size) {
+                    largest_fn_size = fn_size;
+                    largest_fn_idx = tvar_idx;
+                }
+            }
+        }
+    }
+
+    // if we found a FN variant, re-evaluate all FP and FN variants besides the largest FN
+    if (found_fn) {
+        for (int tni = 0; tni < graph->tnodes; tni++) {
+            if (graph->ttypes[tni] != TYPE_REF) {
+                int tvar_idx = graph->tidxs[tni];
+                if (tvar_idx != largest_fn_idx && tvars->credit[truth_hap][tvar_idx] != 1) {
+                    tvars->errtypes[truth_hap][tvar_idx] = ERRTYPE_UN;
+                }
+            }
+        }
+
+        for (int qni = 0; qni < graph->qnodes; qni++) {
+            if (graph->qtypes[qni] != TYPE_REF) {
+                int qvar_idx = graph->qidxs[qni];
+                if (qvar_idx != largest_fn_idx && qvars->credit[truth_hap][qvar_idx] != 1) {
+                    qvars->errtypes[truth_hap][qvar_idx] = ERRTYPE_UN;
+                }
+            }
+        }
+    }
+
+    // return true if we're done
+    return not found_fn;
+}
+
+
+/******************************************************************************/
+
 
 void calc_prec_recall(
         const std::shared_ptr<Graph> graph,
@@ -671,6 +727,8 @@ Graph::Graph(
     // iterate through all the variants
     this->qnodes = 0;
     for (int var_idx = qvar_beg; var_idx < qvar_end; var_idx++) {
+        // skip variants that we've already evaluated
+        if (qvars->errtypes[truth_hap][var_idx] != ERRTYPE_UN) { continue; }
         
         // prior to adding the next variant, add as many reference substrings as necessary
         // due to earlier variants that end before it starts
@@ -760,6 +818,8 @@ Graph::Graph(
     this->tnodes = 0;
     this->truth = "";
     for (int var_idx = tvar_beg; var_idx < tvar_end; var_idx++) {
+        // skip variants that we've already evaluated
+        if (tvars->errtypes[truth_hap][var_idx] != ERRTYPE_UN) { continue; }
 
         if (tvars->var_on_hap(var_idx, truth_hap)) { // ignore variant if on other hap
             // add reference node before next truth variant
@@ -828,9 +888,6 @@ void precision_recall_wrapper(
         std::shared_ptr<ctgSuperclusters> scs = 
                 clusterdata_ptr->superclusters[ctg];
 
-        ////////////////////
-        // DEBUG PRINTING //
-        ////////////////////
         if (print) {
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
@@ -856,21 +913,22 @@ void precision_recall_wrapper(
                 }
             }
         }
-
-        //////////////////////////////////////////////////////
-        // PRECISION-RECALL: truth to query graph alignment //
-        //////////////////////////////////////////////////////
         
         // calculate two forward-pass alignments, saving path
         // query1/query2 graph to truth1, query1/query2 graph to truth2
         for (int hi = 0; hi < HAPS; hi++) {
-            std::shared_ptr<Graph> graph(
-                    new Graph(scs, sc_idx, clusterdata_ptr->ref, ctg, hi));
-            if (print) graph->print();
+            bool done_evaluating_variants = false;
+            while (not done_evaluating_variants) {
+                // graph is constructed only from unevaluated variants
+                std::shared_ptr<Graph> graph(
+                        new Graph(scs, sc_idx, clusterdata_ptr->ref, ctg, hi));
+                if (print) graph->print();
 
-            std::unordered_map<idx4, idx4> ptrs;
-            calc_prec_recall_aln(graph, ptrs, print);
-            calc_prec_recall(graph, ptrs, hi, print);
+                std::unordered_map<idx4, idx4> ptrs;
+                calc_prec_recall_aln(graph, ptrs, print);
+                calc_prec_recall(graph, ptrs, hi, print);
+                done_evaluating_variants = update_variant_evaluation_states(graph, hi);
+            }
         }
     }
 }
