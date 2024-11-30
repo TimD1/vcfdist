@@ -260,7 +260,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
    We need to do some post-processing to fix this and force the allele counts to be unchanged.
  */
 void phaseblockData::fix_allele_counts() {
-    std::vector<int> allele_error_counts(AC_ERRTYPES, 0);
+    std::vector< std::vector<int> > allele_error_counts(AC_ERRTYPES, std::vector<int>(VARTYPES, 0));
     for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgVariants> qvars = 
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[QUERY];
@@ -271,7 +271,9 @@ void phaseblockData::fix_allele_counts() {
                 ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), qvars->poss[vi],
                         gt_strs[qvars->calc_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
             }
-            allele_error_counts[allele_count_errtype]++;
+            int vartype = qvars->get_vartype(vi);
+            allele_error_counts[allele_count_errtype][vartype]++;
+            allele_error_counts[allele_count_errtype][VARTYPE_ALL]++;
 
             // force 1|1 query variants to be evaluated as such
             if (qvars->orig_gts[vi] == GT_ALT1_ALT1) {
@@ -328,18 +330,22 @@ void phaseblockData::fix_allele_counts() {
         std::shared_ptr<ctgVariants> tvars = 
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[TRUTH];
         for (int vi = 0; vi < qvars->n; vi++) {
+            int vartype = tvars->get_vartype(vi);
             if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
                         tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
-                    allele_error_counts[AC_ERR_2_TO_0]++;
+                    allele_error_counts[AC_ERR_2_TO_0][vartype]++;
+                    allele_error_counts[AC_ERR_2_TO_0][VARTYPE_ALL]++;
                 }
             } else if (tvars->orig_gts[vi] == GT_REF_ALT1) {
                 if (tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
-                    allele_error_counts[AC_ERR_1_TO_0]++;
+                    allele_error_counts[AC_ERR_1_TO_0][vartype]++;
+                    allele_error_counts[AC_ERR_1_TO_0][VARTYPE_ALL]++;
                 }
             } else if (tvars->orig_gts[vi] == GT_ALT1_REF) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN) {
-                    allele_error_counts[AC_ERR_1_TO_0]++;
+                    allele_error_counts[AC_ERR_1_TO_0][vartype]++;
+                    allele_error_counts[AC_ERR_1_TO_0][VARTYPE_ALL]++;
                 }
             }
         }
@@ -347,14 +353,22 @@ void phaseblockData::fix_allele_counts() {
 
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Genotype Error Summary:");
-    if (g.verbosity >= 1) INFO("    0/0 -> 0/1: %-8d  1 FP", allele_error_counts[AC_ERR_0_TO_1]);
-    if (g.verbosity >= 1) INFO("    0/0 -> 1/1: %-8d  2 FP", allele_error_counts[AC_ERR_0_TO_2]);
-    if (g.verbosity >= 1) INFO("    0/1 -> 0/0: %-8d  1 FN", allele_error_counts[AC_ERR_1_TO_0]);
-    if (g.verbosity >= 1) INFO("    0/1 -> 0/1: %-8d  1 TP", allele_error_counts[AC_ERR_1_TO_1]);
-    if (g.verbosity >= 1) INFO("    0/1 -> 1/1: %-8d  1 TP, 1 FP (False Homozygous)", allele_error_counts[AC_ERR_1_TO_2]);
-    if (g.verbosity >= 1) INFO("    1/1 -> 0/0: %-8d  2 FN", allele_error_counts[AC_ERR_2_TO_0]);
-    if (g.verbosity >= 1) INFO("    1/1 -> 0/1: %-8d  1 TP, 1 FN (False Heterozygous)", allele_error_counts[AC_ERR_2_TO_1]);
-    if (g.verbosity >= 1) INFO("    1/1 -> 1/1: %-8d  2 TP", allele_error_counts[AC_ERR_2_TO_2]);
+    if (g.verbosity >= 1) INFO("    0/0 -> 0/1: %-8d  1 FP", 
+            allele_error_counts[AC_ERR_0_TO_1][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    0/0 -> 1/1: %-8d  2 FP", 
+            allele_error_counts[AC_ERR_0_TO_2][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    0/1 -> 0/0: %-8d  1 FN", 
+            allele_error_counts[AC_ERR_1_TO_0][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    0/1 -> 0/1: %-8d  1 TP", 
+            allele_error_counts[AC_ERR_1_TO_1][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    0/1 -> 1/1: %-8d  1 TP, 1 FP (False Homozygous)", 
+            allele_error_counts[AC_ERR_1_TO_2][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    1/1 -> 0/0: %-8d  2 FN", 
+            allele_error_counts[AC_ERR_2_TO_0][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    1/1 -> 0/1: %-8d  1 TP, 1 FN (False Heterozygous)", 
+            allele_error_counts[AC_ERR_2_TO_1][VARTYPE_ALL]);
+    if (g.verbosity >= 1) INFO("    1/1 -> 1/1: %-8d  2 TP", 
+            allele_error_counts[AC_ERR_2_TO_2][VARTYPE_ALL]);
     if (g.verbosity >= 1) INFO(" ");
     this->write_genotype_error_summary(allele_error_counts);
 }
@@ -363,21 +377,25 @@ void phaseblockData::fix_allele_counts() {
 /*******************************************************************************/
 
 
-void phaseblockData::write_genotype_error_summary(const std::vector<int> & allele_error_counts) {
+void phaseblockData::write_genotype_error_summary(
+        const std::vector< std::vector<int> > & allele_error_counts) {
     std::string out_genotype_errors_fn = g.out_prefix + "genotype-errors.tsv";
     FILE* out_genotype_errors = 0;
     if (g.verbosity >= 1) INFO("  Writing genotype error results to '%s'", out_genotype_errors_fn.data());
     out_genotype_errors = fopen(out_genotype_errors_fn.data(), "w");
-    fprintf(out_genotype_errors, "ALLELE_COUNT_0_TO_1\tALLELE_COUNT_0_TO_2\tALLELE_COUNT_1_TO_0\tALLELE_COUNT_1_TO_1\tALLELE_COUNT_1_TO_2\tALLELE_COUNT_2_TO_0\tALLELE_COUNT_2_TO_1\tALLELE_COUNT_2_TO_2\n");
-    fprintf(out_genotype_errors, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
-            allele_error_counts[AC_ERR_0_TO_1],
-            allele_error_counts[AC_ERR_0_TO_2],
-            allele_error_counts[AC_ERR_1_TO_0],
-            allele_error_counts[AC_ERR_1_TO_1],
-            allele_error_counts[AC_ERR_1_TO_2],
-            allele_error_counts[AC_ERR_2_TO_0],
-            allele_error_counts[AC_ERR_2_TO_1],
-            allele_error_counts[AC_ERR_2_TO_2]);
+    fprintf(out_genotype_errors, "VAR_TYPE\tALLELE_COUNT_0_TO_1\tALLELE_COUNT_0_TO_2\tALLELE_COUNT_1_TO_0\tALLELE_COUNT_1_TO_1\tALLELE_COUNT_1_TO_2\tALLELE_COUNT_2_TO_0\tALLELE_COUNT_2_TO_1\tALLELE_COUNT_2_TO_2\n");
+    for (int vartype = 0; vartype < VARTYPES; vartype++) {
+        fprintf(out_genotype_errors, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+                vartype_strs[vartype].data(),
+                allele_error_counts[AC_ERR_0_TO_1][vartype],
+                allele_error_counts[AC_ERR_0_TO_2][vartype],
+                allele_error_counts[AC_ERR_1_TO_0][vartype],
+                allele_error_counts[AC_ERR_1_TO_1][vartype],
+                allele_error_counts[AC_ERR_1_TO_2][vartype],
+                allele_error_counts[AC_ERR_2_TO_0][vartype],
+                allele_error_counts[AC_ERR_2_TO_1][vartype],
+                allele_error_counts[AC_ERR_2_TO_2][vartype]);
+    }
     fclose(out_genotype_errors);
 }
 

@@ -180,17 +180,8 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 
         // add query
         for (int vi = 0; vi < qvars->n; vi++) {
-            int t = 0;
-            if (qvars->types[vi] == TYPE_SUB) { // SNP
-                t = VARTYPE_SNP;
-            } else if ((qvars->types[vi] == TYPE_INS && // small INDEL
-                        int(qvars->alts[vi].size()) < g.sv_threshold) ||
-                    (qvars->types[vi] == TYPE_DEL &&
-                     int(qvars->refs[vi].size()) < g.sv_threshold)) {
-                t = VARTYPE_INDEL;
-            } else { // SV
-                t = VARTYPE_SV;
-            }
+
+            int vartype = qvars->get_vartype(vi);
             for (int hi = 0; hi < HAPS; hi++) {
                 int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
                 float q = qvars->callq[calc_hi][vi];
@@ -200,7 +191,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                         continue;
                     }
                     for (int qual = g.min_qual; qual <= q; qual++) {
-                        query_counts[t][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
+                        query_counts[vartype][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
                         query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
                     }
                 } else { // variant not present on this haplotype
@@ -209,9 +200,9 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                     // the extra 1 allele probably participated in a truth match, so decrement truth
                     if (qvars->ac_errtype[vi] == AC_ERR_2_TO_1) {
                         for (int qual = g.min_qual; qual <= q; qual++) {
-                            truth_counts[t][ERRTYPE_TP][qual-g.min_qual]--;
+                            truth_counts[vartype][ERRTYPE_TP][qual-g.min_qual]--;
                             truth_counts[VARTYPE_ALL][ERRTYPE_TP][qual-g.min_qual]--;
-                            truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
+                            truth_counts[vartype][ERRTYPE_FN][qual-g.min_qual]++;
                             truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
                         }
                     }
@@ -224,17 +215,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
             for (int hi = 0; hi < HAPS; hi++) {
                 if (!tvars->var_on_hap(vi, hi)) continue;
                 float q = tvars->callq[hi][vi];
-                int t = 0;
-                if (tvars->types[vi] == TYPE_SUB) {
-                    t = VARTYPE_SNP;
-                } else if ((tvars->types[vi] == TYPE_INS &&
-                            int(tvars->alts[vi].size()) < g.sv_threshold) ||
-                        (tvars->types[vi] == TYPE_DEL && 
-                         int(tvars->refs[vi].size()) < g.sv_threshold)) {
-                    t = VARTYPE_INDEL;
-                } else {
-                    t = VARTYPE_SV;
-                }
+                int vartype = tvars->get_vartype(vi);
                 if (tvars->errtypes[hi][vi] == ERRTYPE_UN) {
                     WARN("Unknown error type at TRUTH %s:%d", ctg.data(), tvars->poss[vi]);
                     continue;
@@ -242,11 +223,11 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                 // corresponding query call is only correct until its Qscore, after which it falls below
                 // the quality threshold, is filtered, and becomes a false negative
                 for (int qual = g.min_qual; qual <= q; qual++) {
-                    truth_counts[t][ tvars->errtypes[hi][vi] ][qual-g.min_qual]++;
+                    truth_counts[vartype][ tvars->errtypes[hi][vi] ][qual-g.min_qual]++;
                     truth_counts[VARTYPE_ALL][ tvars->errtypes[hi][vi] ][qual-g.min_qual]++;
                 }
                 for (int qual = q+1; qual <= g.max_qual; qual++) {
-                    truth_counts[t][ERRTYPE_FN][qual-g.min_qual]++;
+                    truth_counts[vartype][ERRTYPE_FN][qual-g.min_qual]++;
                     truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
                 }
             }

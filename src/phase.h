@@ -33,7 +33,8 @@ public:
     void write_switchflips();
     void phase();
     void fix_allele_counts();
-    void write_genotype_error_summary(const std::vector<int> & allele_count_errors);
+    void write_genotype_error_summary(
+            const std::vector< std::vector<int> > & allele_count_errors);
     int calculate_ng50(bool break_on_switch = false, bool break_on_flip = false);
 
     std::shared_ptr<fastaData> ref;

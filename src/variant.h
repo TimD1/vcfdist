@@ -27,6 +27,7 @@ public:
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
     bool var_on_hap(int var_idx, int hap_idx, bool calc = false) const;
     void set_var_calcgt_on_hap(int var_idx, int hap, bool set = true, bool ignore_errors = false);
+    int get_vartype(int var_idx);
     int set_allele_errtype(int var_idx);
     bool calcgt_is_swapped(int var_idx) const;
 

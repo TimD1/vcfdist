@@ -55,7 +55,26 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->ac_errtype.push_back(AC_UNKNOWN);
 }
 
+
 /******************************************************************************/
+
+
+int ctgVariants::get_vartype(int vi) { 
+    if (this->types[vi] == TYPE_SUB) { // SNP
+        return VARTYPE_SNP;
+    } else if ((this->types[vi] == TYPE_INS && // small INDEL
+                int(this->alts[vi].size()) < g.sv_threshold) ||
+            (this->types[vi] == TYPE_DEL &&
+             int(this->refs[vi].size()) < g.sv_threshold)) {
+        return VARTYPE_INDEL;
+    } else { // SV
+        return VARTYPE_SV;
+    }
+}
+
+
+/******************************************************************************/
+
 
 /* Precision/Recall calculation allows dynamically adjusting the variant genotype.
  * Afterwards, this functions records how the genotype allele count has changed.
