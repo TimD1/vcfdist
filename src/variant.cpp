@@ -350,31 +350,43 @@ void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ign
     if (this->calc_gts[var_idx] == GT_REF_REF) {
         if (set) {
             this->calc_gts[var_idx] = hap == 0 ? GT_ALT1_REF : GT_REF_ALT1;
-        } else {
+        } else { // unset
             if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
         }
 
     } else if (this->calc_gts[var_idx] == GT_REF_ALT1) {
         if (set) {
-            if (hap == 1 && !ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+            if (hap == 1) {
+                if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
-            this->calc_gts[var_idx] = GT_ALT1_ALT1;
-        } else {
-            if (hap == 0 && !ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+            } else {
+                this->calc_gts[var_idx] = GT_ALT1_ALT1;
+            }
+        } else { // unset
+            if (hap == 0) {
+                if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
-            this->calc_gts[var_idx] = GT_REF_REF;
+            } else {
+                this->calc_gts[var_idx] = GT_REF_REF;
+            }
         }
 
     } else if (this->calc_gts[var_idx] == GT_ALT1_REF) {
         if (set) {
-            if (hap == 0 && !ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+            if (hap == 0) {
+                if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
-            this->calc_gts[var_idx] = GT_ALT1_ALT1;
-        } else {
-            if (hap == 1 && !ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+            } else {
+                this->calc_gts[var_idx] = GT_ALT1_ALT1;
+            }
+        } else { // unset
+            if (hap == 1) {
+                if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], hap);
-            this->calc_gts[var_idx] = GT_REF_REF;
+            } else {
+                this->calc_gts[var_idx] = GT_REF_REF;
+            }
         }
 
     } else if (this->calc_gts[var_idx] == GT_ALT1_ALT1) {
