@@ -238,12 +238,14 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
 
         // graph is constructed only from unevaluated variants
         std::shared_ptr<Graph> graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
+        std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
+        std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
         if (print) graph->print();
 
         std::unordered_map<idx4, idx4> ptrs;
-        bool aligned = calc_prec_recall_aln(graph, ptrs, print) < g.max_dist;
+        bool aligned = calc_prec_recall_aln(graph, ptrs, false) < g.max_dist;
         if (aligned) { // alignment succeeded
-            calc_prec_recall(graph, ptrs, truth_hi, print);
+            calc_prec_recall(graph, ptrs, truth_hi, false);
             done = true;
         }
 
@@ -256,15 +258,13 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         // group that extends pretty far left and right, "swallowing" other correct variant calls. 
         // Since correctness is determined per sync group, many TP SNP calls can't be identified unless
         // evaluated without the presence of this FN SV. So we remove it and re-evaluate.
-        std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
-        std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
         std::vector< std::pair<int, int> > exclude_sizes; // pairs of (truth_var_size, truth_var_idx)
         for (int tni = 0; tni < graph->tnodes; tni++) {
             if (graph->ttypes[tni] != TYPE_REF) {
                 int tvar_idx = graph->tidxs[tni];
                 if (not aligned || tvars->errtypes[truth_hi][tvar_idx] == ERRTYPE_FN) {
                     done = false;
-                    int tvar_size = std::max(tvars->refs[tvar_idx].size(), tvars->refs[tvar_idx].size());
+                    int tvar_size = std::max(tvars->alts[tvar_idx].size(), tvars->refs[tvar_idx].size());
                     exclude_sizes.push_back(std::make_pair(tvar_size, tvar_idx));
                 }
             }
@@ -973,7 +973,8 @@ void precision_recall_wrapper(
         // calculate two forward-pass alignments, saving path
         // query1/query2 graph to truth1, query1/query2 graph to truth2
         for (int hi = 0; hi < HAPS; hi++) {
-            evaluate_variants(scs, sc_idx, clusterdata_ptr->ref, ctg, hi);
+            if (print) printf("HAP %d\n", hi);
+            evaluate_variants(scs, sc_idx, clusterdata_ptr->ref, ctg, hi, print);
         }
     }
 }
