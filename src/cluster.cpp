@@ -46,13 +46,12 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
                 int var_beg = vars->clusters[ctg_scs->superclusters[c][sc_idx]];
                 int var_end = vars->clusters[ctg_scs->superclusters[c][sc_idx+1]];
 
-                // calculate query len after applying variants
+                // calculate query len as reference lengths plus alternate lengths
                 for (int hi = 0; hi < HAPS; hi++) {
                     lens[hi] = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
                     for (int var = var_beg; var < var_end; var++) {
                         if (!vars->var_on_hap(var, hi)) continue;
-                        lens[hi] += (vars->alts[var].size() - 
-                                vars->refs[var].size());
+                        lens[hi] += int(vars->alts[var].size());
                     }
                     max_lens[c] = std::max(max_lens[c], lens[hi]);
                 }
