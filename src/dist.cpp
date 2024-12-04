@@ -146,8 +146,7 @@ int calc_prec_recall_aln(
 
             // allow bottom-right corner to move diagonally into next truth and query nodes
             // NOTE: separating this case out allows sync points between adjacent variants
-            if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length()) &&
-                x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
+            if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti == int(graph->tseqs[x.tni].length())-1) {
                 for (int qni : graph->qnexts[x.qni]) { // for all next nodes
                     for (int tni : graph->tnexts[x.tni]) {
                         idx4 z(qni, tni, 0, 0);
@@ -200,7 +199,7 @@ int calc_prec_recall_aln(
                     queue.push(y); curr_wave.insert(y); ptrs[y] = x;
                 }
             }
-            if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // INS
+            if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // DEL
                 idx4 y(x.qni, x.tni, x.qi, x.ti+1);
                 if (!contains(done, y) && !contains(curr_wave, y)) {
                     queue.push(y); curr_wave.insert(y); ptrs[y] = x;
@@ -230,6 +229,7 @@ int calc_prec_recall_aln(
 
 /******************************************************************************/
 
+
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
 			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, bool print) {
 
@@ -243,7 +243,9 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         if (print) graph->print();
 
         std::unordered_map<idx4, idx4> ptrs;
-        bool aligned = calc_prec_recall_aln(graph, ptrs, false) < g.max_dist;
+        int aln_score = calc_prec_recall_aln(graph, ptrs, false);
+        if (print) printf("alignment score: %d\n", aln_score);
+        bool aligned = aln_score < g.max_dist;
         if (aligned) { // alignment succeeded
             calc_prec_recall(graph, ptrs, truth_hi, false);
             done = true;
@@ -271,7 +273,13 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         }
         // NOTE: sort FNs (if aligned) or all truth vars (if not aligned) by decreasing variant size
         std::sort(exclude_sizes.rbegin(), exclude_sizes.rend());
-
+        if (print) for (int i = 0; i < int(exclude_sizes.size()); i++) {
+            int tvar_idx = exclude_sizes[i].second;
+            printf("  exclude size %d, var %d = %s:%d (%s,%s)\n",
+                    exclude_sizes[i].first, tvar_idx, ctg.data(), 
+                    tvars->poss[tvar_idx], tvars->refs[tvar_idx].data(),
+                    tvars->alts[tvar_idx].data());
+        }
         // try a number of alignments without some of the largest variants, choose the best one
         if (not done) { // there are potential variants to exclude
             std::vector< std::pair<int, int> > exclude_dists;
@@ -299,12 +307,19 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
                 std::shared_ptr<Graph> retry_graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
                 if (print) retry_graph->print();
                 std::unordered_map<idx4, idx4> retry_ptrs;
-                int dist = calc_prec_recall_aln(retry_graph, retry_ptrs, print);
+                int dist = calc_prec_recall_aln(retry_graph, retry_ptrs, false);
                 exclude_dists.push_back(std::make_pair(dist, exclude_sizes[retry].second));
             }
 
             // sort retried alignments in order of resulting edit distance
             std::sort(exclude_dists.begin(), exclude_dists.end());
+            if (print) for (int i = 0; i < int(exclude_dists.size()); i++) {
+                int tvar_idx = exclude_dists[i].second;
+                printf("  exclude dist %d, var %d = %s:%d (%s,%s)\n",
+                        exclude_dists[i].first, tvar_idx, ctg.data(), 
+                        tvars->poss[tvar_idx], tvars->refs[tvar_idx].data(),
+                        tvars->alts[tvar_idx].data());
+            }
 
             // the variant for which excluding resulted in lowest edit dist should be considered FN
             // prepare variants for the next iteration
@@ -391,16 +406,16 @@ void calc_prec_recall(
         // if we move out of a new query variant, mark it as included
         if (prev.qni != curr.qni && // new query node
                 graph->qtypes[curr.qni] != TYPE_REF) { // node is variant
-            if (print) printf("new query variant\n");
             int qvar_idx = graph->qidxs[curr.qni];
             sync_qvars.push_back(qvar_idx);
+            if (print) printf("new query variant: %d\n", qvar_idx);
         }
         // if we move out of a query variant, include it in sync group and ref dist calc
         if (prev.tni != curr.tni && // new truth node
                 graph->ttypes[curr.tni] != TYPE_REF) { // node is variant
-            if (print) printf("new truth variant\n");
             int tvar_idx = graph->tidxs[curr.tni];
             sync_tvars.push_back(tvar_idx);
+            if (print) printf("new truth variant: %d\n", tvar_idx);
         } 
         // if the alignment is a substitution, insertion, or deletion
         if (prev.qni == curr.qni && prev.tni == curr.tni && // same matrix
@@ -786,7 +801,7 @@ Graph::Graph(
         // skip variants that we've already evaluated
         if (qvars->errtypes[truth_hap][var_idx] != ERRTYPE_UN) { continue; }
         
-        // prior to adding the next variant, add as many reference substrings as necessary
+        // prior to adding the next variant, add as many reference nodes as necessary
         // due to earlier variants that end before it starts
         int var_pos = qvars->poss[var_idx];
         while (ref_pos < var_pos) {
@@ -853,10 +868,10 @@ Graph::Graph(
         for (int n2 = 0; n2 < this->qnodes; n2++) {
             if (n2 == n1) continue; // don't compare node to itself
             // add predecessor of current node
-            if (this->qbegs[n1] == this->qends[n2])
+            if (this->qbegs[n1] == this->qends[n2] && n2 < n1)
                 this->qprevs[n1].push_back(n2);
             // add successor of current node
-            if (this->qends[n1] == this->qbegs[n2])
+            if (this->qends[n1] == this->qbegs[n2] && n1 < n2)
                 this->qnexts[n1].push_back(n2);
         }
     }
