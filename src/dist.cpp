@@ -124,7 +124,7 @@ int calc_prec_recall_aln(
     // continue looping until full alignment found
     std::unordered_set<idx4> curr_wave; // everything explored this wave
     std::unordered_set<idx4> prev_wave; // everything explored prev wave
-    while (score < g.max_dist) {
+    while (score <= g.max_dist) {
         /* if (print) printf("  score = %d\n", score); */
         if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
@@ -245,7 +245,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         std::unordered_map<idx4, idx4> ptrs;
         int aln_score = calc_prec_recall_aln(graph, ptrs, false);
         if (print) printf("alignment score: %d\n", aln_score);
-        bool aligned = aln_score < g.max_dist;
+        bool aligned = aln_score <= g.max_dist;
         if (aligned) { // alignment succeeded
             calc_prec_recall(graph, ptrs, truth_hi, false);
             done = true;
