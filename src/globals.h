@@ -25,13 +25,14 @@ public:
     std::vector<int> filter_ids;
     int min_qual = 0;
     int max_qual = 60;
-    int max_size = 5000;
+    int max_size = 100000;
 
     // clustering
     std::string cluster_method = "biwfa";
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
+    int max_cluster_var_size = 1000;
     int sub = 5;
     int open = 6;
     int extend = 2;

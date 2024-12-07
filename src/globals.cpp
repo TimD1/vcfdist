@@ -179,6 +179,18 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant size provided");
             }
+        } else if (std::string(argv[i]) == "-lcv" || 
+                std::string(argv[i]) == "--largest-cluster-variant") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '--largest-cluster-variant' used without providing variant size");
+            }
+            try {
+                this->max_cluster_var_size = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid maximum cluster variant size provided");
+            }
+/*******************************************************************************/
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-sv" || 
                 std::string(argv[i]) == "--sv-threshold") {
@@ -468,35 +480,38 @@ void Globals::print_usage() const
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
     printf("      select just variants with these FILTER values (OR operation)\n");
     printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
-    printf("      maximum variant size, larger variants ignored\n");
+    printf("      maximum variant size; larger variants are ignored\n");
     printf("  -sv, --sv-threshold <INTEGER> [%d]\n", g.sv_threshold);
     printf("      variants of this size or larger are considered SVs, not INDELs\n");
     printf("  -q, --min-qual <INTEGER> [%d]\n", g.min_qual);
-    printf("      minimum variant quality, lower qualities ignored\n");
+    printf("      minimum variant quality; lower quality variants are ignored\n");
     printf("  -mq, --max-qual <INTEGER> [%d]\n", g.max_qual);
-    printf("      maximum variant quality, higher qualities kept but thresholded\n");
+    printf("      maximum variant quality; higher variant qualities are thresholded\n");
 
     printf("\n  Clustering:\n");
-    printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs);
-    printf("      maximum iterations for expanding/merging clusters\n");
-    printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n");
-    printf("      select clustering method (see Github Wiki for details)\n");
-    printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.sub);
-    printf("      Smith-Waterman mismatch (substitution) penalty\n");
-    printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.open);
-    printf("      Smith-Waterman gap opening penalty\n");
-    printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.extend);
-    printf("      Smith-Waterman gap extension penalty\n");
+    printf("  -lcv, --largest-cluster-variant <INTEGER> [%d]\n", g.max_cluster_var_size);
+    printf("      maximum variant size to be clustered dynamically (larger variants use a\n");
+    printf("      simpler clustering algorithm but correctness is evaluated in the same manner)\n");
+    /* printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs); */
+    /* printf("      maximum iterations for expanding/merging clusters\n"); */
+    /* printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n"); */
+    /* printf("      select clustering method (see Github Wiki for details)\n"); */
+    /* printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.sub); */
+    /* printf("      Smith-Waterman mismatch (substitution) penalty\n"); */
+    /* printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.open); */
+    /* printf("      Smith-Waterman gap opening penalty\n"); */
+    /* printf("  -e, --gap-extend-penalty <INTEGER> [%d]\n", g.extend); */
+    /* printf("      Smith-Waterman gap extension penalty\n"); */
 
     printf("\n  Precision-Recall:\n");
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
     printf("      minimum partial credit to consider a variant a true positive\n");
     printf("  -md, --max-dist <INTEGER> [%d]\n", g.max_dist);
     printf("      maximum alignment edit distance allowed for each supercluster\n");
-    printf("  -mr, --max-retries <INTEGER> [%d]\n", g.max_retries);
-    printf("      limit retries for aligning each supercluster, after removing each large variant\n");
+    /* printf("  -mr, --max-retries <INTEGER> [%d]\n", g.max_retries); */
+    /* printf("      maximum retries for aligning each supercluster after removing each large variant\n"); */
 
-    printf("\n  Utilization:\n");
+    printf("\n  Resource Usage:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
     printf("      maximum threads to use for clustering and precision/recall alignment\n");
     printf("  -r, --max-ram <FLOAT> [%.2fGB]\n", g.max_ram);
