@@ -70,8 +70,6 @@ class variantData {
 public:
     // constructors
     variantData();
-    variantData(std::string vcf_fn, 
-            std::shared_ptr<fastaData> reference, int callset);
 
     // functions
     void write_vcf(std::string vcf_fn);
@@ -84,8 +82,10 @@ public:
     void print_phase_info(int callset);
 
     // data
+    std::shared_ptr<fastaData> ref;
     int callset;                     // 0=QUERY, 1=TRUTH
     std::string filename;
+
     std::string sample;
     std::vector<std::string> contigs;
     std::vector<int> lengths;
@@ -94,8 +94,11 @@ public:
         std::unordered_map<
             std::string, 
             std::shared_ptr<ctgVariants> > > variants;
-
-    std::shared_ptr<fastaData> ref;
 };
+
+void parse_variants(const std::string & vcf_fn, 
+        std::shared_ptr<variantData> variant_data,
+        std::shared_ptr<variantData> large_variant_data,
+        std::shared_ptr<fastaData> reference, int callset);
 
 #endif

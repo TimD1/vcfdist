@@ -590,19 +590,24 @@ void variantData::add_variants(
 
 /******************************************************************************/
 
-variantData::variantData() : variants(2) { ; }
+variantData::variantData() : variants(HAPS) { ; }
 
-variantData::variantData(std::string vcf_fn, 
+void parse_variants(const std::string & vcf_fn, 
+        std::shared_ptr<variantData> variant_data,
+        std::shared_ptr<variantData> large_variant_data,
         std::shared_ptr<fastaData> reference, 
-        int callset) : variants(2) {
+        int callset) {
 
     // set reference fasta pointer
-    this->ref = reference;
-    this->filename = vcf_fn;
+    variant_data->ref = reference;
+    large_variant_data->ref = reference;
+    variant_data->filename = vcf_fn;
+    large_variant_data->filename = vcf_fn;
 
     if (callset < 0 || callset >= CALLSETS)
         ERROR("Invalid callset (%d).", callset);
-    this->callset = callset;
+    variant_data->callset = callset;
+    large_variant_data->callset = callset;
 
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%s %d/%d] Parsing %s VCF%s '%s'", COLOR_PURPLE,
@@ -656,6 +661,7 @@ variantData::variantData(std::string vcf_fn,
     int unknown_allele_total = 0;
     int unphased_gt_total = 0;
     int large_var_total = 0;
+    int too_large_var_total = 0;
     int wrong_ploidy_total = 0;
     int multi_total = 0;
     int ref_call_total = 0;
@@ -720,7 +726,8 @@ variantData::variantData(std::string vcf_fn,
     if (bcf_hdr_nsamples(hdr) != 1) 
         ERROR("Expected 1 sample but found %d in %s VCF '%s'", bcf_hdr_nsamples(hdr),
                 callset_strs[callset].data(), vcf_fn.data());
-    this->sample = hdr->samples[0];
+    variant_data->sample = hdr->samples[0];
+    large_variant_data->sample = hdr->samples[0];
 
     // verify that the filters we selected were in the VCF
     for (int fi = 0; fi < int(g.filters.size()); fi++) {
@@ -738,9 +745,13 @@ variantData::variantData(std::string vcf_fn,
         goto error1;
     }
     for(int i = 0; i < nctg; i++) {
-        this->variants[HAP1][ctgnames[i]] = 
+        variant_data->variants[HAP1][ctgnames[i]] = 
                 std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
-        this->variants[HAP2][ctgnames[i]] = 
+        variant_data->variants[HAP2][ctgnames[i]] = 
+                std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
+        large_variant_data->variants[HAP1][ctgnames[i]] = 
+                std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
+        large_variant_data->variants[HAP2][ctgnames[i]] = 
                 std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
     }
 
@@ -763,9 +774,12 @@ variantData::variantData(std::string vcf_fn,
                 ERROR("Unsorted %s VCF '%s', contig '%s' already parsed", 
                         callset_strs[callset].data(), vcf_fn.data(), ctg.data());
             } else {
-                this->contigs.push_back(ctg);
-                this->ploidy.push_back(0);
-                this->lengths.push_back(ctglens[rec->rid]);
+                variant_data->contigs.push_back(ctg);
+                variant_data->ploidy.push_back(0);
+                variant_data->lengths.push_back(ctglens[rec->rid]);
+                large_variant_data->contigs.push_back(ctg);
+                large_variant_data->ploidy.push_back(0);
+                large_variant_data->lengths.push_back(ctglens[rec->rid]);
                 prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
                 prev_type = {TYPE_SUB, TYPE_SUB};
             }
@@ -838,18 +852,20 @@ variantData::variantData(std::string vcf_fn,
         }
 
         // update ploidy info
-        int ctg_idx = std::find(contigs.begin(), contigs.end(), ctg) - contigs.begin();
-        if (ploidy[ctg_idx] != 0) { // already set, enforce it doesn't change
-            if (std::abs(ngt) != ploidy[ctg_idx] && ctg[ctg.size()-1] != 'X') {
+        int ctg_idx = std::find(variant_data->contigs.begin(), variant_data->contigs.end(), ctg) 
+                - variant_data->contigs.begin();
+        if (variant_data->ploidy[ctg_idx] != 0) { // already set, enforce it doesn't change
+            if (std::abs(ngt) != variant_data->ploidy[ctg_idx] && ctg[ctg.size()-1] != 'X') {
                 if (g.verbosity > 1)
                     WARN("Expected ploidy %d for all variants on contig '%s',"
-                          " found ploidy %d at %s:%lld in %s VCF.", ploidy[ctg_idx],
+                          " found ploidy %d at %s:%lld in %s VCF.", variant_data->ploidy[ctg_idx],
                         ctg.data(), std::abs(ngt), ctg.data(), (long long)rec->pos,
                         callset_strs[callset].data());
                 wrong_ploidy_total += 1;
             }
         } else { // set ploidy for this contig
-            ploidy[ctg_idx] = std::abs(ngt);
+            variant_data->ploidy[ctg_idx] = std::abs(ngt);
+            large_variant_data->ploidy[ctg_idx] = std::abs(ngt);
         }
 
         // parse genotype info
@@ -1043,7 +1059,7 @@ variantData::variantData(std::string vcf_fn,
                     WARN("Large variant of length %d in %s VCF at %s:%lld, skipping",
                         int(std::max(ref.size(), alt.size())),
                         callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
-                large_var_total++;
+                too_large_var_total++;
                 continue;
             }
 
@@ -1064,15 +1080,29 @@ variantData::variantData(std::string vcf_fn,
             }
 
             // add to haplotype-specific query info
-            if (type == TYPE_CPX) { // split CPX into INS+DEL
-                this->variants[hap][ctg]->add_var(pos, 0, // INS
-                    TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
-                this->variants[hap][ctg]->add_var(pos, rlen, // DEL
-                    TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
-                complex_total++;
+            if (int(ref.size()) > g.max_cluster_var_size || int(alt.size()) > g.max_cluster_var_size) {
+                large_var_total++;
+                if (type == TYPE_CPX) { // split CPX into INS+DEL
+                    large_variant_data->variants[hap][ctg]->add_var(pos, 0, // INS
+                        TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    large_variant_data->variants[hap][ctg]->add_var(pos, rlen, // DEL
+                        TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    complex_total++;
+                } else {
+                    large_variant_data->variants[hap][ctg]->add_var(pos, rlen,
+                            type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                }
             } else {
-                this->variants[hap][ctg]->add_var(pos, rlen,
-                        type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                if (type == TYPE_CPX) { // split CPX into INS+DEL
+                    variant_data->variants[hap][ctg]->add_var(pos, 0, // INS
+                        TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    variant_data->variants[hap][ctg]->add_var(pos, rlen, // DEL
+                        TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    complex_total++;
+                } else {
+                    variant_data->variants[hap][ctg]->add_var(pos, rlen,
+                            type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                }
             }
 
             prev_end[hap] = pos + rlen;
@@ -1144,9 +1174,13 @@ variantData::variantData(std::string vcf_fn,
         INFO("%d variants on border of selected regions in %s VCF, skipped",
                 nregions[BED_BORDER], callset_strs[callset].data());
 
-    if (large_var_total)
+    if (too_large_var_total)
         WARN("%d large (size > %d) variants in %s VCF, skipped", 
-                large_var_total, g.max_size, callset_strs[callset].data());
+                too_large_var_total, g.max_size, callset_strs[callset].data());
+
+    if (large_var_total)
+        INFO("%d large (size > %d) variants in %s VCF, set aside for second round evaluation", 
+                large_var_total, g.max_cluster_var_size, callset_strs[callset].data());
 
     if (overlapping_var_total)
         WARN("%d overlapping variants in %s VCF, skipped", 
@@ -1175,10 +1209,10 @@ variantData::variantData(std::string vcf_fn,
     if (print) INFO(" ");
 
     if (print) INFO("  Contigs:");
-    for (size_t i = 0; i < this->contigs.size(); i++) {
-        if (print) INFO("    [%2lu] %s: %d | %d variants", i, this->contigs[i].data(),
-                this->variants[HAP1][this->contigs[i]]->n, 
-                this->variants[HAP2][this->contigs[i]]->n);
+    for (size_t i = 0; i < variant_data->contigs.size(); i++) {
+        if (print) INFO("    [%2lu] %s: %d | %d variants", i, variant_data->contigs[i].data(),
+                variant_data->variants[HAP1][variant_data->contigs[i]]->n, 
+                variant_data->variants[HAP2][variant_data->contigs[i]]->n);
     }
     if (print) INFO(" ");
 

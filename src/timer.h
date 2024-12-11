@@ -10,7 +10,7 @@
 class timer {
 public:
     timer() {};
-    timer(std::string timer_name) : name(timer_name) {};
+    timer(const std::string & timer_name) : name(timer_name) {};
 
     void start();
     void stop();

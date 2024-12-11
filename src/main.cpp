@@ -26,65 +26,55 @@ int main(int argc, char **argv) {
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
     // parse query and truth VCFs
-    std::shared_ptr<variantData> query_ptr(
-            new variantData(g.query_vcf_fn, ref_ptr, QUERY));
+    std::shared_ptr<variantData> query_ptr(new variantData());
+    std::shared_ptr<variantData> large_query_ptr(new variantData());
+    parse_variants(g.query_vcf_fn, query_ptr, large_query_ptr, ref_ptr, QUERY);
     query_ptr->print_phase_info(QUERY);
-    std::shared_ptr<variantData> truth_ptr(
-            new variantData(g.truth_vcf_fn, ref_ptr, TRUTH));
-    g.timers[TIME_READ].stop();
+    std::shared_ptr<variantData> truth_ptr(new variantData());
+    std::shared_ptr<variantData> large_truth_ptr(new variantData());
+    parse_variants(g.truth_vcf_fn, truth_ptr, large_truth_ptr, ref_ptr, TRUTH);
     truth_ptr->print_phase_info(TRUTH);
+    g.timers[TIME_READ].stop();
 
     // ensure each input contains all contigs in BED
     check_contigs(query_ptr, truth_ptr, ref_ptr);
 
     // cluster query VCF
     g.timers[TIME_CLUST].start();
-    if (g.cluster_method == "gap" || g.cluster_method == "size") {
-        simple_cluster(query_ptr, QUERY);
-    } else if (g.cluster_method == "biwfa") {
-        if (g.verbosity >= 1) INFO(" ");
-        if (g.verbosity >= 1) INFO("%s[Q %d/%d] Wavefront clustering %s VCF%s '%s'", 
-                COLOR_PURPLE, TIME_CLUST, TIME_TOTAL-1, callset_strs[QUERY].data(), 
-                COLOR_WHITE, query_ptr->filename.data());
-        std::vector<std::thread> threads;
-        for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
-            threads.push_back(std::thread( wf_swg_cluster, 
-                        query_ptr.get(), t/2 /* contig */, t%2, /* hap */
-                        g.sub, g.open, g.extend)); 
-            if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
-                for (std::thread & thread : threads) thread.join();
-                threads.clear();
-            }
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[Q %d/%d] Clustering %s VCF%s '%s'", 
+            COLOR_PURPLE, TIME_CLUST, TIME_TOTAL-1, callset_strs[QUERY].data(), 
+            COLOR_WHITE, query_ptr->filename.data());
+    std::vector<std::thread> threads;
+    for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
+        threads.push_back(std::thread( wf_swg_cluster, 
+                    query_ptr.get(), t/2 /* contig */, t%2, /* hap */
+                    g.sub, g.open, g.extend)); 
+        if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
+            for (std::thread & thread : threads) thread.join();
+            threads.clear();
         }
-        for (std::thread & thread : threads) thread.join();
-    } else { 
-        ERROR("Unexpected clustering method '%s'", g.cluster_method.data()); 
     }
+    for (std::thread & thread : threads) thread.join();
     g.timers[TIME_CLUST].stop();
 
     // cluster truth VCF
     g.timers[TIME_CLUST].start();
-    if (g.cluster_method == "gap" || g.cluster_method == "size") {
-        simple_cluster(truth_ptr, TRUTH); 
-    } else if (g.cluster_method == "biwfa") {
-        if (g.verbosity >= 1) INFO(" ");
-        if (g.verbosity >= 1) INFO("%s[T %d/%d] Wavefront clustering %s VCF%s '%s'", 
-                COLOR_PURPLE, TIME_CLUST, TIME_TOTAL-1, callset_strs[TRUTH].data(), 
-                COLOR_WHITE, truth_ptr->filename.data());
-        std::vector<std::thread> threads;
-        for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
-            threads.push_back(std::thread( wf_swg_cluster, 
-                        truth_ptr.get(), t/2 /* contig */, t%2, /* hap */
-                        g.sub, g.open, g.extend)); 
-            if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
-                for (std::thread & thread : threads) thread.join();
-                threads.clear();
-            }
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[T %d/%d] Clustering %s VCF%s '%s'", 
+            COLOR_PURPLE, TIME_CLUST, TIME_TOTAL-1, callset_strs[TRUTH].data(), 
+            COLOR_WHITE, truth_ptr->filename.data());
+    threads.clear();
+    for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
+        threads.push_back(std::thread( wf_swg_cluster, 
+                    truth_ptr.get(), t/2 /* contig */, t%2, /* hap */
+                    g.sub, g.open, g.extend)); 
+        if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
+            for (std::thread & thread : threads) thread.join();
+            threads.clear();
         }
-        for (std::thread & thread : threads) thread.join();
-    } else { 
-        ERROR("Unexpected clustering method '%s'", g.cluster_method.data()); 
     }
+    for (std::thread & thread : threads) thread.join();
     g.timers[TIME_CLUST].stop();
 
     // calculate superclusters
