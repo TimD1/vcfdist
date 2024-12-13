@@ -47,6 +47,8 @@ public:
 
     // data
     std::vector<std::string> contigs;
+    std::vector<std::string> samples;
+    std::vector<std::string> filenames;
     std::vector<int> lengths;
     std::vector<int> ploidy;
     std::unordered_map<std::string, 

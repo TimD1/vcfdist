@@ -226,7 +226,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     }
     this->ref = clusterdata_ptr->ref;
 
-    // add pointers to clusters
+    // add pointers to superclusters
     for (const std::string & ctg : this->contigs) {
         this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->superclusters[ctg];
     }
@@ -632,7 +632,7 @@ void phaseblockData::write_switchflips() {
                 pb_idx++;
 
             } else if (type == SWITCHTYPE_SWITCH_ERR) {
-                // expand left/right from in between these clusters
+                // expand left/right from in between these variants
                 int left = next_vi-1;
                 while (left > 0 && qvars->phases[left] == PHASE_NONE)
                     left--;

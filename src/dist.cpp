@@ -39,6 +39,53 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases) {
 /******************************************************************************/
 
 
+/* Extract the FP and FN variants from evaluated superclusters into new variant lists. 
+ * These variants will be re-evaluated in combination with larger variants that skipped
+ * the first round of evaluation.
+ */
+void extract_errors(std::shared_ptr<superclusterData> sc_data_ptr,
+        std::shared_ptr<variantData> query_fp_ptr,
+        std::shared_ptr<variantData> truth_fn_ptr) {
+
+    // initialize query variant data
+    query_fp_ptr->ref = sc_data_ptr->ref;
+    query_fp_ptr->callset = QUERY;
+    query_fp_ptr->contigs = sc_data_ptr->contigs;
+    query_fp_ptr->lengths = sc_data_ptr->lengths;
+    query_fp_ptr->ploidy = sc_data_ptr->ploidy;
+    query_fp_ptr->sample = sc_data_ptr->samples[QUERY];
+    query_fp_ptr->filename = sc_data_ptr->filenames[QUERY];
+
+    // initialize truth variant data
+    truth_fn_ptr->ref = sc_data_ptr->ref;
+    truth_fn_ptr->callset = TRUTH;
+    truth_fn_ptr->contigs = sc_data_ptr->contigs;
+    truth_fn_ptr->lengths = sc_data_ptr->lengths;
+    truth_fn_ptr->ploidy = sc_data_ptr->ploidy;
+    truth_fn_ptr->sample = sc_data_ptr->samples[TRUTH];
+    truth_fn_ptr->filename = sc_data_ptr->filenames[TRUTH];
+
+    for (const std::string & ctg : sc_data_ptr->contigs) {
+
+        // pull out FP query variants
+        std::shared_ptr<ctgVariants> qvars = sc_data_ptr->superclusters[ctg]->callset_vars[QUERY];
+        for (int qi = 0; qi < qvars->n; qi++) {
+            // TODO: for now, only pull out variants that are FP on both haps
+            if (qvars->errtypes[HAP1][qi] == ERRTYPE_FP && qvars->errtypes[HAP2][qi] == ERRTYPE_FP) {
+                
+            }
+        }
+        
+
+        std::shared_ptr<ctgVariants> tvars = sc_data_ptr->superclusters[ctg]->callset_vars[TRUTH];
+    }
+
+}
+
+
+/******************************************************************************/
+
+
 /* Generate the new sequence by applying variants to the reference. */
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
@@ -996,34 +1043,6 @@ void precision_recall_wrapper(
 
 
 /******************************************************************************/
-
-
-/* Calculate the combined Smith-Waterman score for all variants within 
- * one or several adjacent clusters.
- */
-int calc_vcf_swg_score(std::shared_ptr<ctgVariants> vars, 
-        int clust_beg_idx, int clust_end_idx, int sub, int open, int extend) {
-    int score = 0;
-    for (int var_idx = vars->clusters[clust_beg_idx]; 
-            var_idx < vars->clusters[clust_end_idx]; var_idx++) {
-        switch (vars->types[var_idx]) {
-            case TYPE_SUB:
-                score += sub;
-                break;
-            case TYPE_INS:
-                score += open;
-                score += extend * vars->alts[var_idx].size();
-                break;
-            case TYPE_DEL:
-                score += open;
-                score += extend * vars->refs[var_idx].size();
-                break;
-            default:
-                ERROR("Unexpected variant type in calc_vcf_swg_score()");
-        }
-    }
-    return score;
-}
 
 
 int calc_cig_swg_score(const std::vector<int> & cigar, 

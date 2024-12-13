@@ -27,12 +27,13 @@ int main(int argc, char **argv) {
 
     // parse query and truth VCFs
     std::shared_ptr<variantData> query_ptr(new variantData());
-    std::shared_ptr<variantData> large_query_ptr(new variantData());
-    parse_variants(g.query_vcf_fn, query_ptr, large_query_ptr, ref_ptr, QUERY);
+    std::shared_ptr<variantData> query_ptr2(new variantData()); // second round eval
+    parse_variants(g.query_vcf_fn, query_ptr, query_ptr2, ref_ptr, QUERY);
     query_ptr->print_phase_info(QUERY);
+
     std::shared_ptr<variantData> truth_ptr(new variantData());
-    std::shared_ptr<variantData> large_truth_ptr(new variantData());
-    parse_variants(g.truth_vcf_fn, truth_ptr, large_truth_ptr, ref_ptr, TRUTH);
+    std::shared_ptr<variantData> truth_ptr2(new variantData()); // second round eval
+    parse_variants(g.truth_vcf_fn, truth_ptr, truth_ptr2, ref_ptr, TRUTH);
     truth_ptr->print_phase_info(TRUTH);
     g.timers[TIME_READ].stop();
 
@@ -79,22 +80,49 @@ int main(int argc, char **argv) {
 
     // calculate superclusters
     g.timers[TIME_SUPCLUST].start();
-    std::shared_ptr<superclusterData> clusterdata_ptr(
+    std::shared_ptr<superclusterData> sc_data_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
 
     // calculate supercluster sizes
-    auto sc_groups = sort_superclusters(clusterdata_ptr);
+    auto sc_groups = sort_superclusters(sc_data_ptr);
     g.timers[TIME_SUPCLUST].stop();
 
     // calculate precision/recall and genotypes
     g.timers[TIME_PR_ALN].start();
-    precision_recall_threads_wrapper(clusterdata_ptr, sc_groups);
-    INFO("    done with precision-recall");
+    precision_recall_threads_wrapper(sc_data_ptr, sc_groups);
+    INFO("    done with precision-recall (round #1)");
     g.timers[TIME_PR_ALN].stop();
+
+    /* // pull out FP and FN variants from first-round evaluation */
+    /* std::shared_ptr<variantData> query_ptr_fp(new variantData()); */
+    /* std::shared_ptr<variantData> truth_ptr_fn(new variantData()); */
+    /* extract_errors(sc_data_ptr, query_ptr_fp, truth_ptr_fn); */
+
+    /* // merge first-round FP and FN with large second-round variants */
+    /* query_ptr2->add_variant_data(query_ptr_fp); */
+    /* truth_ptr2->add_variant_data(truth_ptr_fn); */
+
+    /* // perform second-round evaluation */
+    /* g.timers[TIME_CLUST].start(); */
+    /* simple_cluster(query_ptr2, QUERY); */
+    /* simple_cluster(truth_ptr2, TRUTH); */
+    /* g.timers[TIME_CLUST].stop(); */
+    /* g.timers[TIME_SUPCLUST].start(); */
+    /* std::shared_ptr<superclusterData> sc_data_ptr2( */
+    /*         new superclusterData(query_ptr2, truth_ptr2, ref_ptr)); */
+    /* sc_groups = sort_superclusters(sc_data_ptr2); */
+    /* g.timers[TIME_SUPCLUST].stop(); */
+    /* g.timers[TIME_PR_ALN].start(); */
+    /* precision_recall_threads_wrapper(sc_data_ptr2, sc_groups); */
+    /* INFO("    done with precision-recall (round #2)"); */
+    /* g.timers[TIME_PR_ALN].stop(); */
+
+    // merge first-round and second-round results
+    // TODO: re-use add_variant_data to merge superclusters?
 
     // calculate global phasings
     g.timers[TIME_PHASE].start();
-    std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(clusterdata_ptr));
+    std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(sc_data_ptr));
     g.timers[TIME_PHASE].stop();
 
     // write supercluster/phaseblock results in CSV format

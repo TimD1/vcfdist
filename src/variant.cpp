@@ -11,6 +11,12 @@
 
 /******************************************************************************/
 
+void add_variant_data(std::shared_ptr<variantData> other_variants) {
+    
+}
+
+/******************************************************************************/
+
 ctgVariants::ctgVariants(const std::string & ctg) { 
     this->ctg = ctg;
     this->n = 0; 
@@ -590,7 +596,7 @@ void variantData::add_variants(
 
 /******************************************************************************/
 
-variantData::variantData() : variants(HAPS) { ; }
+variantData::variantData() : callset(QUERY), variants(HAPS) { ; }
 
 void parse_variants(const std::string & vcf_fn, 
         std::shared_ptr<variantData> variant_data,

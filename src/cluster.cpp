@@ -332,6 +332,12 @@ superclusterData::superclusterData(
     // set reference pointer
     this->ref = ref_ptr;
 
+    // save samples and filenames
+    this->samples.push_back(query_ptr->sample);
+    this->samples.push_back(truth_ptr->sample);
+    this->filenames.push_back(query_ptr->filename);
+    this->filenames.push_back(truth_ptr->filename);
+
     // create list of all contigs covered by truth/query
     for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
         std::string ctg = query_ptr->contigs[i];

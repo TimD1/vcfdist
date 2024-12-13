@@ -206,18 +206,18 @@ void wf_ed(
 
 /******************************************************************************/
 
+void extract_errors(std::shared_ptr<superclusterData> superclusters,
+        std::shared_ptr<variantData> query_ptr_fp,
+        std::shared_ptr<variantData> truth_ptr_fn);
+
+/******************************************************************************/
+
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups);
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print = false);
-
-int calc_vcf_swg_score(
-        std::shared_ptr<ctgVariants> vcf, 
-        int clust_beg_idx, 
-        int clust_end_idx,
-        int sub, int open, int extend);
 
 int calc_cig_swg_score(
         const std::vector<int> & cigar,

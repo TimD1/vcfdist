@@ -51,7 +51,7 @@ public:
     std::vector<int> right_reaches; // cluster rightmost reach
     int nc = 0;
 
-    // set during prec_recall_aln() [additional axis for haplotype]
+    // set during prec_recall_aln() (size (2, n), additional axis for haplotype)
     std::vector<uint8_t> calc_gts;  // calculated genotype (0|1, 1|0, or 1|1), only set for query 
     std::vector< std::vector<uint8_t> > errtypes;  // error type: TP, FP, FN
     std::vector< std::vector<int> > sync_group;    // group of variants that participate in credit
@@ -60,7 +60,7 @@ public:
     std::vector< std::vector<int> > query_ed;  // query edit distance in sync group
     std::vector< std::vector<float> > credit;  // percentage reduction in edit dist (ref->query)
 
-    // set during phase()
+    // set during phase() (size n)
     std::vector<int> phases;             // variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
     std::vector<int> pb_phases;          // phaseblock keep/swap, from phasing algorithm
     std::vector<int> ac_errtype;         // allele count error type (e.g. 0|1 -> 1|1)
@@ -76,9 +76,10 @@ public:
     void print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
         const std::string & ref, const std::string & alt, float qual, const std::string & gt);
     void set_header(const std::shared_ptr<variantData> vcf);
-    void add_variants( const std::vector<int> & cigar, int hap,
+    void add_variants(const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query, 
             const std::string & ref, int qual, int phase_set);
+    void add_variant_data(std::shared_ptr<variantData> other_variants);
     void print_phase_info(int callset);
 
     // data
