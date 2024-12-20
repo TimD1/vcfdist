@@ -25,13 +25,13 @@ public:
     // callset_vars[truth|query]
     std::vector< std::shared_ptr<ctgVariants> > callset_vars;
 
-    // cluster indices of superclusters (not variant indices!)
+    // variant indices of superclusters
     // superclusters[truth|query] (size (2, n+1))
     std::vector< std::vector<int> > superclusters;
 
     // data (length n)
-    int n = 0;                                         // number of superclusters
-    std::vector<int> begs, ends;                       // ref beg/end pos across haps and truth/query
+    int n = 0;                        // number of superclusters
+    std::vector<int> begs, ends;      // ref beg/end pos across haps and truth/query
 };
 
 class superclusterData {

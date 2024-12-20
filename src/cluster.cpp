@@ -13,11 +13,11 @@ ctgSuperclusters::ctgSuperclusters() {
 }
 
 void ctgSuperclusters::add_supercluster(
-           std::vector<int> brks, int beg, int end) {
+           std::vector<int> var_idx, int beg_pos, int end_pos) {
     for (int c = 0; c < CALLSETS; c++)
-        this->superclusters[c].push_back(brks[c]);
-    this->begs.push_back(beg);
-    this->ends.push_back(end);
+        this->superclusters[c].push_back(var_idx[c]);
+    this->begs.push_back(beg_pos);
+    this->ends.push_back(end_pos);
     this->n++;
 }
 
@@ -43,8 +43,8 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             for (int c = 0; c < CALLSETS; c++) {
                 auto vars = ctg_scs->callset_vars[c];
                 if (ctg_scs->callset_vars[c]->nc == 0) continue;
-                int var_beg = vars->clusters[ctg_scs->superclusters[c][sc_idx]];
-                int var_end = vars->clusters[ctg_scs->superclusters[c][sc_idx+1]];
+                int var_beg = ctg_scs->superclusters[c][sc_idx];
+                int var_end = ctg_scs->superclusters[c][sc_idx+1];
 
                 // calculate query len as reference lengths plus alternate lengths
                 for (int hi = 0; hi < HAPS; hi++) {
@@ -491,14 +491,16 @@ void superclusterData::supercluster() {
             }
 
             // save supercluster information
-            this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
+            std::vector<int> var_idx = {vars[QUERY]->clusters[brks[QUERY]], vars[TRUTH]->clusters[brks[TRUTH]]};
+            this->superclusters[ctg]->add_supercluster(var_idx, beg_pos, end_pos);
 
             // reset for next active cluster
             brks = next_brks;
         }
 
         // add sentinel, not actually a supercluster
-        this->superclusters[ctg]->add_supercluster(brks, 
+        std::vector<int> var_idx = {vars[QUERY]->clusters[brks[QUERY]], vars[TRUTH]->clusters[brks[TRUTH]]};
+        this->superclusters[ctg]->add_supercluster(var_idx, 
             std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
         this->superclusters[ctg]->n--;
 

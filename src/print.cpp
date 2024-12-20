@@ -418,16 +418,10 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             for (int i = 0; i < ctg_scs->n; i++) {
 
                 // count query vars, allowing empty haps
-                int query_vars = ctg_scs->callset_vars[QUERY]->clusters.size() ?
-                    ctg_scs->callset_vars[QUERY]->clusters[
-                            ctg_scs->superclusters[QUERY][i+1]] -
-                        ctg_scs->callset_vars[QUERY]->clusters[
-                            ctg_scs->superclusters[QUERY][i]] : 0;
-                int truth_vars = ctg_scs->callset_vars[TRUTH]->clusters.size() ?
-                    ctg_scs->callset_vars[TRUTH]->clusters[
-                            ctg_scs->superclusters[TRUTH][i+1]] -
-                        ctg_scs->callset_vars[TRUTH]->clusters[
-                            ctg_scs->superclusters[TRUTH][i]] : 0;
+                int query_vars = ctg_scs->callset_vars[QUERY]->n ?
+                    ctg_scs->superclusters[QUERY][i+1] - ctg_scs->superclusters[QUERY][i] : 0;
+                int truth_vars = ctg_scs->callset_vars[TRUTH]->n ?
+                    ctg_scs->superclusters[TRUTH][i+1] - ctg_scs->superclusters[TRUTH][i] : 0;
 
                 // print data
                 fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", 
@@ -442,7 +436,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
         FILE* out_query = fopen(out_query_fn.data(), "w");
         fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
-                "\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
+                "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (const std::string & ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
@@ -451,22 +445,18 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
 
             int sci = 0;
-            int clust_idx = 0;
             for (int vi = 0; vi < qvars->n; vi++) {
                 for (int hi = 0; hi < HAPS; hi++) {
                     if (!qvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
                     int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
 
-                    // update cluster and supercluster
-                    if (clust_idx+1 >= int(qvars->clusters.size())) 
-                        ERROR("Out of bounds cluster during write_results(): query")
-                    if (qvars->clusters[clust_idx+1] <= vi) clust_idx++;
+                    // update supercluster
                     if (sci >= int(ctg_scs->begs.size())) 
                         ERROR("Out of bounds supercluster during write_results(): query")
                     while (qvars->poss[vi] >= ctg_scs->ends[sci])
                         sci++;
 
-                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
+                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             qvars->poss[vi],
                             calc_hi,
@@ -476,7 +466,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             type_strs[qvars->types[vi]].data(),
                             error_strs[qvars->errtypes[calc_hi][vi]].data(),
                             qvars->credit[calc_hi][vi],
-                            clust_idx,
                             sci,
                             qvars->sync_group[calc_hi][vi],
                             qvars->ref_ed[calc_hi][vi],
@@ -492,7 +481,8 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_truth_fn = g.out_prefix + "truth.tsv";
         if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
         FILE* out_truth = fopen(out_truth_fn.data(), "w");
-        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE\tCREDIT\tCLUSTER\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
+        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
+                "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (const std::string & ctg : phasedata_ptr->contigs) {
 
             // set pointers to variants and superclusters
@@ -501,21 +491,17 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
 
             int sci = 0;
-            int clust_idx = 0;
             for (int vi = 0; vi < tvars->n; vi++) {
                 for (int hi = 0; hi < HAPS; hi++) {
                     if (!tvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
 
-                    // update cluster and supercluster
-                    if (clust_idx+1 >= int(tvars->clusters.size()))
-                        ERROR("Out of bounds cluster during write_results(): truth")
-                    if (tvars->clusters[clust_idx+1] <= vi) clust_idx++;
+                    // update supercluster
                     if (sci >= int(ctg_scs->begs.size())) 
                         ERROR("Out of bounds supercluster during write_results(): truth")
                     while (tvars->poss[vi] >= ctg_scs->ends[sci])
                         sci++;
 
-                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%d\t%s\n",
+                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             tvars->poss[vi],
                             hi,
@@ -525,7 +511,6 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             type_strs[tvars->types[vi]].data(),
                             error_strs[tvars->errtypes[hi][vi]].data(),
                             tvars->credit[hi][vi],
-                            clust_idx,
                             sci,
                             tvars->sync_group[hi][vi],
                             tvars->ref_ed[hi][vi],

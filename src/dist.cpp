@@ -830,8 +830,8 @@ Graph::Graph(
 
     // initialize helper variables
     auto qvars = sc->callset_vars[QUERY];
-    int qvar_beg = qvars->clusters[sc->superclusters[QUERY][sc_idx]];
-    int qvar_end = qvars->clusters[sc->superclusters[QUERY][sc_idx+1]];
+    int qvar_beg = sc->superclusters[QUERY][sc_idx];
+    int qvar_end = sc->superclusters[QUERY][sc_idx+1];
     int ref_beg = sc->begs[sc_idx];
     int ref_end = sc->ends[sc_idx];
 
@@ -928,8 +928,8 @@ Graph::Graph(
     ////////////////////////////////
 
     auto tvars = sc->callset_vars[TRUTH];
-    int tvar_beg = tvars->clusters[sc->superclusters[TRUTH][sc_idx]];
-    int tvar_end = tvars->clusters[sc->superclusters[TRUTH][sc_idx+1]];
+    int tvar_beg = sc->superclusters[TRUTH][sc_idx];
+    int tvar_end = sc->superclusters[TRUTH][sc_idx+1];
     ref_pos = ref_beg;
 
     // iterate through all the variants
@@ -1010,24 +1010,17 @@ void precision_recall_wrapper(
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
             for (int c = 0; c < CALLSETS; c++) {
-                int cluster_beg = scs->superclusters[c][sc_idx];
-                int cluster_end = scs->superclusters[c][sc_idx+1];
-                printf("%s: %d clusters (%d-%d)\n", callset_strs[c].data(),
-                    cluster_end-cluster_beg, cluster_beg, cluster_end);
-
-                for (int j = cluster_beg; j < cluster_end; j++) {
-                    std::shared_ptr<ctgVariants> vars = scs->callset_vars[c];
-                    int variant_beg = vars->clusters[j];
-                    int variant_end = vars->clusters[j+1];
-                    printf("\tCluster %d: %d variants (%d-%d)\n", j, 
+                int variant_beg = scs->superclusters[c][sc_idx];
+                int variant_end = scs->superclusters[c][sc_idx+1];
+                printf("%s: %d variants (%d-%d)\n", callset_strs[c].data(),
                         variant_end-variant_beg, variant_beg, variant_end);
-                    for (int k = variant_beg; k < variant_end; k++) {
-                        printf("\t\t%s %d\t%s\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[k], 
-                        vars->refs[k].size() ?  vars->refs[k].data() : "_", 
-                        vars->alts[k].size() ?  vars->alts[k].data() : "_",
-                        gt_strs[vars->orig_gts[k]].data(),
-                        vars->var_quals[k]);
-                    }
+                std::shared_ptr<ctgVariants> vars = scs->callset_vars[c];
+                for (int var_idx = variant_beg; var_idx < variant_end; var_idx++) {
+                    printf("\t\t%s %d\t%s\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[var_idx], 
+                    vars->refs[var_idx].size() ?  vars->refs[var_idx].data() : "_", 
+                    vars->alts[var_idx].size() ?  vars->alts[var_idx].data() : "_",
+                    gt_strs[vars->orig_gts[var_idx]].data(),
+                    vars->var_quals[var_idx]);
                 }
             }
         }

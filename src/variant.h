@@ -46,6 +46,7 @@ public:
     int n = 0;
 
     // set during clustering (size nc+1)
+    // TODO: these are now ONLY used during clustering, should be removed from the class
     std::vector<int> clusters;      // variant indices of clusters in this struct's vectors
     std::vector<int> left_reaches;  // cluster leftmost reach
     std::vector<int> right_reaches; // cluster rightmost reach
