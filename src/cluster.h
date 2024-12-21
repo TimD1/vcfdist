@@ -43,6 +43,7 @@ public:
 
     void add_callset_vars(int callset, std::vector< std::unordered_map< std::string,
             std::shared_ptr<ctgVariants> > > vars);
+    void merge(std::shared_ptr<superclusterData> other_data);
     void supercluster();
 
     // data

@@ -13,6 +13,7 @@
 
 /* Merge unclustered variants with another set of unclustered variants. */
 void variantData::merge(std::shared_ptr<variantData> other_variants) {
+    // TODO: verify other fields match
     for (const std::string & ctg : other_variants->contigs) {
 
         // if another contig is completely new, just store the whole thing
@@ -132,11 +133,27 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
         other_vars->orig_gts[idx],
         other_vars->gt_quals[idx],
         other_vars->var_quals[idx],
-        other_vars->phase_sets[idx]);
+        other_vars->phase_sets[idx],
+        other_vars->calc_gts[idx],
+        other_vars->errtypes[HAP1][idx], other_vars->errtypes[HAP2][idx],
+        other_vars->sync_group[HAP1][idx], other_vars->sync_group[HAP2][idx],
+        other_vars->callq[HAP1][idx], other_vars->callq[HAP2][idx],
+        other_vars->ref_ed[HAP1][idx], other_vars->ref_ed[HAP2][idx],
+        other_vars->query_ed[HAP1][idx], other_vars->query_ed[HAP2][idx],
+        other_vars->credit[HAP1][idx], other_vars->credit[HAP2][idx]);
 }
 
+// TODO: remove assumption that no variants match
 void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
-        std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps) {
+        std::string ref, std::string alt, uint8_t orig_gt, float gt_qual, float var_qual, 
+        int phase_set, uint8_t calc_gt /* GT_REF_REF */, 
+        uint8_t hap1_errtype /* ERRTYPE_UN */, uint8_t hap2_errtype /* ERRTYPE_UN */, 
+        int hap1_sync_group /* 0 */, int hap2_sync_group /* 0 */, 
+        float hap1_callq /* 0 */, float hap2_callq /* 0 */, 
+        int hap1_ref_ed /* 0 */, int hap2_ref_ed /* 0 */, 
+        int hap1_query_ed /* 0 */, int hap2_query_ed /* 0 */, 
+        float hap1_credit /* 0 */, float hap2_credit /* 0 */
+        ) {
     // set for all variants
     this->poss.push_back(pos);
     this->rlens.push_back(rlen);
@@ -145,21 +162,25 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->refs.push_back(ref);
     this->alts.push_back(alt);
     this->orig_gts.push_back(orig_gt);
-    this->gt_quals.push_back(gq);
-    this->var_quals.push_back(std::min(vq, float(g.max_qual)));
-    this->phase_sets.push_back(ps);
+    this->gt_quals.push_back(gt_qual);
+    this->var_quals.push_back(std::min(var_qual, float(g.max_qual)));
+    this->phase_sets.push_back(phase_set);
     this->n++;
 
     // added during precision/recall analysis
-    this->calc_gts.push_back(GT_REF_REF);
-    for (int hi = 0; hi < HAPS; hi++) {
-        this->errtypes[hi].push_back(ERRTYPE_UN);
-        this->sync_group[hi].push_back(0);
-        this->callq[hi].push_back(0);
-        this->ref_ed[hi].push_back(0);
-        this->query_ed[hi].push_back(0);
-        this->credit[hi].push_back(0);
-    }
+    this->calc_gts.push_back(calc_gt);
+    this->errtypes[HAP1].push_back(hap1_errtype);
+    this->sync_group[HAP1].push_back(hap1_sync_group);
+    this->callq[HAP1].push_back(hap1_callq);
+    this->ref_ed[HAP1].push_back(hap1_ref_ed);
+    this->query_ed[HAP1].push_back(hap1_query_ed);
+    this->credit[HAP1].push_back(hap1_credit);
+    this->errtypes[HAP2].push_back(hap2_errtype);
+    this->sync_group[HAP2].push_back(hap2_sync_group);
+    this->callq[HAP2].push_back(hap2_callq);
+    this->ref_ed[HAP2].push_back(hap2_ref_ed);
+    this->query_ed[HAP2].push_back(hap2_query_ed);
+    this->credit[HAP2].push_back(hap2_credit);
 
     // added during phasing analysis
     this->phases.push_back(PHASE_NONE);

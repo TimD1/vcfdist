@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
     g.timers[TIME_ALIGN_EVAL_2].stop();
 
     // merge first-round and second-round results
-    // TODO: re-use add_variant_data to merge superclusters?
+    sc_data_ptr->merge(sc_data_ptr2);
 
     // calculate phasing statistics
     g.timers[TIME_PHASE].start();

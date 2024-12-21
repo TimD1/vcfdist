@@ -21,7 +21,12 @@ public:
     void remove_vars(const std::vector<int> & indices);
     void add_var(std::shared_ptr<ctgVariants> other_vars, int idx);
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
-            std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps);
+        std::string ref, std::string alt, uint8_t orig_gt, float gt_qual, float var_qual, 
+        int phase_set, uint8_t calc_gt = GT_REF_REF, 
+        uint8_t hap1_errtype = ERRTYPE_UN, uint8_t hap2_errtype = ERRTYPE_UN, 
+        int hap1_sync_group = 0, int hap2_sync_group = 0, float hap1_callq = 0, float hap2_callq = 0, 
+        int hap1_ref_ed = 0, int hap2_ref_ed = 0, int hap1_query_ed = 0, int hap2_query_ed = 0, 
+        float hap1_credit = 0, float hap2_credit = 0);
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 
             const std::string & ctg, int idx);
     void print_var_empty(FILE* out_vcf, int sc_idx, int phase_block, bool query = false);

@@ -22,6 +22,48 @@ void ctgSuperclusters::add_supercluster(
 }
 
 
+/* Merge evaluation results from multiple distinct evaluations. */
+void superclusterData::merge(std::shared_ptr<superclusterData> other_data) {
+    for (const std::string & ctg : other_data->contigs) {
+
+        // if another contig is completely new, just store the whole thing
+        if (std::find(this->contigs.begin(), this->contigs.end(), ctg) == this->contigs.end()) {
+            this->superclusters[ctg] = other_data->superclusters[ctg];
+            continue;
+        }
+
+        // otherwise, contig exists for both, add variants in correct order
+        for (int ci = 0; ci < CALLSETS; ci++) {
+            int vi1 = 0;
+            int vi2 = 0;
+            std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
+            std::shared_ptr<ctgVariants> v1 = this->superclusters[ctg]->callset_vars[ci];
+            std::shared_ptr<ctgVariants> v2 = other_data->superclusters[ctg]->callset_vars[ci];
+            while (vi1 < v1->n && vi2 < v2->n) {
+                if (v1->poss[vi1] < v2->poss[vi2]) { // v1 occurs first
+                    merged_vars->add_var(v1, vi1++);
+                } else if (v1->poss[vi1] > v2->poss[vi2]) { // v2 occurs first
+                    merged_vars->add_var(v2, vi2++);
+                } else { // tie, order by variant type
+                    // TODO: what if variants are the same ref/alt?
+                    if (v1->types[vi1] == TYPE_INS) {
+                        merged_vars->add_var(v1, vi1++);
+                    } else if (v2->types[vi2] == TYPE_INS) {
+                        merged_vars->add_var(v2, vi2++);
+                    } else {
+                        merged_vars->add_var(v1, vi1++);
+                    }
+                }
+            }
+            // add all remaining vars
+            while (vi1 < v1->n) { merged_vars->add_var(v1, vi1++); }
+            while (vi2 < v2->n) { merged_vars->add_var(v2, vi2++); }
+            this->superclusters[ctg]->callset_vars[ci] = merged_vars;
+        }
+    }
+}
+
+
 /******************************************************************************/
 
 
