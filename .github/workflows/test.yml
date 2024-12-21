@@ -17,6 +17,7 @@ jobs:
         ref: ${{ github.ref }}
     - name: Install htslib
       run: |
+       sudo apt-get install -y libbz2-dev
        wget https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2
        tar -xvf htslib-1.17.tar.bz2
        cd htslib-1.17
