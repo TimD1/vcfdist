@@ -41,10 +41,10 @@ int main(int argc, char **argv) {
     check_contigs(query_ptr, truth_ptr, ref_ptr);
 
     // cluster query VCF
-    g.timers[TIME_CLUST].start();
+    g.timers[TIME_EXACT_CLUSTER].start();
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[Q %d/%d] Clustering %s VCF%s '%s'", 
-            COLOR_PURPLE, TIME_CLUST, TIME_TOTAL-1, callset_strs[QUERY].data(), 
+    if (g.verbosity >= 1) INFO("%s[Q %d/%d] Exact clustering %s VCF (small vars)%s '%s'", 
+            COLOR_PURPLE, TIME_EXACT_CLUSTER, TIME_TOTAL-1, callset_strs[QUERY].data(), 
             COLOR_WHITE, query_ptr->filename.data());
     std::vector<std::thread> threads;
     for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
@@ -57,13 +57,11 @@ int main(int argc, char **argv) {
         }
     }
     for (std::thread & thread : threads) thread.join();
-    g.timers[TIME_CLUST].stop();
 
     // cluster truth VCF
-    g.timers[TIME_CLUST].start();
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[T %d/%d] Clustering %s VCF%s '%s'", 
-            COLOR_PURPLE, TIME_CLUST, TIME_TOTAL-1, callset_strs[TRUTH].data(), 
+    if (g.verbosity >= 1) INFO("%s[T %d/%d] Exact clustering %s VCF (small vars)%s '%s'", 
+            COLOR_PURPLE, TIME_EXACT_CLUSTER, TIME_TOTAL-1, callset_strs[TRUTH].data(), 
             COLOR_WHITE, truth_ptr->filename.data());
     threads.clear();
     for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
@@ -76,22 +74,24 @@ int main(int argc, char **argv) {
         }
     }
     for (std::thread & thread : threads) thread.join();
-    g.timers[TIME_CLUST].stop();
 
-    // calculate superclusters
-    g.timers[TIME_SUPCLUST].start();
+    // first-round superclustering
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants (small vars)%s",
+            COLOR_PURPLE, TIME_EXACT_CLUSTER, TIME_TOTAL-1, COLOR_WHITE);
     std::shared_ptr<superclusterData> sc_data_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
-
-    // calculate supercluster sizes
     auto sc_groups = sort_superclusters(sc_data_ptr);
-    g.timers[TIME_SUPCLUST].stop();
+    g.timers[TIME_EXACT_CLUSTER].stop();
 
-    // calculate precision/recall and genotypes
-    g.timers[TIME_PR_ALN].start();
+    // first-round evaluation: precision/recall and genotypes
+    g.timers[TIME_ALIGN_EVAL_1].start();
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Evaluating variant calls (small vars)%s",
+            COLOR_PURPLE, TIME_ALIGN_EVAL_1, TIME_TOTAL-1, COLOR_WHITE);
     precision_recall_threads_wrapper(sc_data_ptr, sc_groups);
-    INFO("    done with precision-recall (round #1)");
-    g.timers[TIME_PR_ALN].stop();
+    INFO("    done with variant call evaluation (round 1: small variants)");
+    g.timers[TIME_ALIGN_EVAL_1].stop();
 
     // pull out FP and FN variants from first-round evaluation
     std::shared_ptr<variantData> query_ptr_fp(new variantData());
@@ -102,35 +102,51 @@ int main(int argc, char **argv) {
     query_ptr2->merge(query_ptr_fp);
     truth_ptr2->merge(truth_ptr_fn);
 
-    // perform second-round evaluation
-    g.timers[TIME_CLUST].start();
+    // perform second-round clustering (simple cluster large and FP/FN vars)
+    g.timers[TIME_SIMPLE_CLUSTER].start();
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[Q %d/%d] Simple clustering %s VCF (large and FP/FN vars)%s '%s'", 
+            COLOR_PURPLE, TIME_SIMPLE_CLUSTER, TIME_TOTAL-1, callset_strs[QUERY].data(), COLOR_WHITE,
+            query_ptr2->filename.data());
     simple_cluster(query_ptr2, QUERY);
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[T %d/%d] Simple clustering %s VCF (large and FP/FN vars)%s '%s'", 
+            COLOR_PURPLE, TIME_SIMPLE_CLUSTER, TIME_TOTAL-1, callset_strs[TRUTH].data(), COLOR_WHITE,
+            truth_ptr2->filename.data());
     simple_cluster(truth_ptr2, TRUTH);
-    g.timers[TIME_CLUST].stop();
-    g.timers[TIME_SUPCLUST].start();
+
+    // second-round superclustering
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants (large and FP/FN vars)%s",
+            COLOR_PURPLE, TIME_SIMPLE_CLUSTER, TIME_TOTAL-1, COLOR_WHITE);
     std::shared_ptr<superclusterData> sc_data_ptr2(
             new superclusterData(query_ptr2, truth_ptr2, ref_ptr));
     sc_groups = sort_superclusters(sc_data_ptr2);
-    g.timers[TIME_SUPCLUST].stop();
-    g.timers[TIME_PR_ALN].start();
+    g.timers[TIME_SIMPLE_CLUSTER].stop();
+
+    // second-round evaluation: precision/recall and genotypes
+    g.timers[TIME_ALIGN_EVAL_2].start();
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Evaluating variant calls (large and FP/FN vars)%s",
+            COLOR_PURPLE, TIME_ALIGN_EVAL_2, TIME_TOTAL-1, COLOR_WHITE);
     precision_recall_threads_wrapper(sc_data_ptr2, sc_groups);
-    INFO("    done with precision-recall (round #2)");
-    g.timers[TIME_PR_ALN].stop();
+    INFO("    done with variant call evaluation (round 2: large variants and round 1 FP/FN variants)");
+    g.timers[TIME_ALIGN_EVAL_2].stop();
 
     // merge first-round and second-round results
     // TODO: re-use add_variant_data to merge superclusters?
 
-    // calculate global phasings
+    // calculate phasing statistics
     g.timers[TIME_PHASE].start();
     std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(sc_data_ptr));
     g.timers[TIME_PHASE].stop();
 
-    // write supercluster/phaseblock results in CSV format
+    // write phasing results
     g.timers[TIME_WRITE].start();
     if (g.write) phasedata_ptr->write_switchflips();
     write_results(phasedata_ptr);
 
-    // save new VCF
+    // write summary VCF with per-variant evaluation info
     if (g.write) {
         query_ptr->write_vcf(g.out_prefix + "query.vcf");
         truth_ptr->write_vcf(g.out_prefix + "truth.vcf");

@@ -738,9 +738,6 @@ void wf_swg_align(
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups) {
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%d/%d] Calculating precision and recall%s",
-            COLOR_PURPLE, TIME_PR_ALN, TIME_TOTAL-1, COLOR_WHITE);
 
     if (g.verbosity >= 1 ) 
     for (int i = 0; i < g.thread_nsteps; i++) {

@@ -377,9 +377,6 @@ superclusterData::superclusterData(
  * during wf_swg_cluster().
  */
 void superclusterData::supercluster() {
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants%s",
-            COLOR_PURPLE, TIME_SUPCLUST, TIME_TOTAL-1, COLOR_WHITE);
 
     // iterate over each contig
     int total_superclusters = 0;
@@ -529,10 +526,6 @@ void superclusterData::supercluster() {
  * to all `VariantData`
  * */
 void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%sClustering %s VCF%s '%s'", 
-            COLOR_PURPLE, callset_strs[callset].data(), 
-            COLOR_WHITE, vcf->filename.data());
     bool print = false;
 
     // cluster each contig
