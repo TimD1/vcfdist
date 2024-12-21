@@ -18,6 +18,8 @@ public:
     ctgVariants(const std::string & ctg);
 
     // helper functions
+    void remove_vars(const std::vector<int> & indices);
+    void add_var(std::shared_ptr<ctgVariants> other_vars, int idx);
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
             std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps);
     void print_var_info(FILE* out_vcf, std::shared_ptr<fastaData> ref, 

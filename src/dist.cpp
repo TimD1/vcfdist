@@ -66,20 +66,54 @@ void extract_errors(std::shared_ptr<superclusterData> sc_data_ptr,
     truth_fn_ptr->filename = sc_data_ptr->filenames[TRUTH];
 
     for (const std::string & ctg : sc_data_ptr->contigs) {
+        // create empty query contig variants
+        for (int hi = 0; hi < HAPS; hi++) {
+            std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
+            query_fp_ptr->variants[hi][ctg] = ctg_vars;
+        }
 
-        // pull out FP query variants
+        // copy FP query variants over to new list
         std::shared_ptr<ctgVariants> qvars = sc_data_ptr->superclusters[ctg]->callset_vars[QUERY];
+        std::vector<int> qvars_to_remove;
         for (int qi = 0; qi < qvars->n; qi++) {
             // TODO: for now, only pull out variants that are FP on both haps
             if (qvars->errtypes[HAP1][qi] == ERRTYPE_FP && qvars->errtypes[HAP2][qi] == ERRTYPE_FP) {
-                
+                qvars_to_remove.push_back(qi);
+                for (int hi = 0; hi < HAPS; hi++) {
+                    if (qvars->var_on_hap(qi, hi)) {
+                        query_fp_ptr->variants[hi][ctg]->add_var(qvars, qi);
+                    }
+                }
             }
         }
+
+        // remove FP query variants from evaluated variants
+        qvars->remove_vars(qvars_to_remove);
         
+        // create empty truth contig variants
+        for (int hi = 0; hi < HAPS; hi++) {
+            std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
+            truth_fn_ptr->variants[hi][ctg] = ctg_vars;
+        }
 
+        // copy FN truth variants over to new list
         std::shared_ptr<ctgVariants> tvars = sc_data_ptr->superclusters[ctg]->callset_vars[TRUTH];
-    }
+        std::vector<int> tvars_to_remove;
+        for (int ti = 0; ti < tvars->n; ti++) {
+            // TODO: for now, only pull out variants that are FN on both haps
+            if (tvars->errtypes[HAP1][ti] == ERRTYPE_FN && tvars->errtypes[HAP2][ti] == ERRTYPE_FN) {
+                tvars_to_remove.push_back(ti);
+                for (int hi = 0; hi < HAPS; hi++) {
+                    if (tvars->var_on_hap(ti, hi)) {
+                        truth_fn_ptr->variants[hi][ctg]->add_var(tvars, ti);
+                    }
+                }
+            }
+        }
 
+        // remove FN truth variants from evaluated variants
+        tvars->remove_vars(tvars_to_remove);
+    }
 }
 
 

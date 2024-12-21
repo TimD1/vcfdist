@@ -93,10 +93,10 @@ int main(int argc, char **argv) {
     INFO("    done with precision-recall (round #1)");
     g.timers[TIME_PR_ALN].stop();
 
-    /* // pull out FP and FN variants from first-round evaluation */
-    /* std::shared_ptr<variantData> query_ptr_fp(new variantData()); */
-    /* std::shared_ptr<variantData> truth_ptr_fn(new variantData()); */
-    /* extract_errors(sc_data_ptr, query_ptr_fp, truth_ptr_fn); */
+    // pull out FP and FN variants from first-round evaluation
+    std::shared_ptr<variantData> query_ptr_fp(new variantData());
+    std::shared_ptr<variantData> truth_ptr_fn(new variantData());
+    extract_errors(sc_data_ptr, query_ptr_fp, truth_ptr_fn);
 
     /* // merge first-round FP and FN with large second-round variants */
     /* query_ptr2->add_variant_data(query_ptr_fp); */

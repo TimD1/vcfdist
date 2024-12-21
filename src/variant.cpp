@@ -30,8 +30,75 @@ ctgVariants::ctgVariants(const std::string & ctg) {
     }
 }
 
+
+/******************************************************************************/
+
+
+/* Efficiently remove many elements from a vector. */
+template<typename T>
+void _remove_indices(std::vector<T> & vector, const std::vector<int> & to_remove)
+{
+    auto vector_base = vector.begin();
+    size_t down_by = 0;
+
+    for (auto iter = to_remove.cbegin(); iter < to_remove.cend(); iter++, down_by++)
+        {
+        size_t next = (iter + 1 == to_remove.cend() ? vector.size() : *(iter + 1));
+        std::move(vector_base + *iter + 1, vector_base + next, vector_base + *iter - down_by);
+    }
+    vector.resize(vector.size() - to_remove.size());
+}
+
+
+/* Remove many variants at once. */
+void ctgVariants::remove_vars(const std::vector<int> & indices) {
+    // set for all variants
+    _remove_indices(this->poss, indices);
+    _remove_indices(this->rlens, indices);
+    _remove_indices(this->types, indices);
+    _remove_indices(this->locs, indices);
+    _remove_indices(this->refs, indices);
+    _remove_indices(this->alts, indices);
+    _remove_indices(this->orig_gts, indices);
+    _remove_indices(this->gt_quals, indices);
+    _remove_indices(this->var_quals, indices);
+    _remove_indices(this->phase_sets, indices);
+    this->n -= int(indices.size());
+
+    // added during precision/recall analysis
+    _remove_indices(this->calc_gts, indices);
+    for (int hi = 0; hi < HAPS; hi++) {
+        _remove_indices(this->errtypes[hi], indices);
+        _remove_indices(this->sync_group[hi], indices);
+        _remove_indices(this->callq[hi], indices);
+        _remove_indices(this->ref_ed[hi], indices);
+        _remove_indices(this->query_ed[hi], indices);
+        _remove_indices(this->credit[hi], indices);
+    }
+
+    // added during phasing analysis
+    _remove_indices(this->phases, indices);
+    _remove_indices(this->pb_phases, indices);
+    _remove_indices(this->ac_errtype, indices);
+}
+
+void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
+    this->add_var(
+        other_vars->poss[idx], 
+        other_vars->rlens[idx], 
+        other_vars->types[idx], 
+        other_vars->locs[idx],
+        other_vars->refs[idx],
+        other_vars->alts[idx],
+        other_vars->orig_gts[idx],
+        other_vars->gt_quals[idx],
+        other_vars->var_quals[idx],
+        other_vars->phase_sets[idx]);
+}
+
 void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps) {
+    // set for all variants
     this->poss.push_back(pos);
     this->rlens.push_back(rlen);
     this->types.push_back(type);
@@ -44,18 +111,18 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->phase_sets.push_back(ps);
     this->n++;
 
-    // added during precision/recall backtrack
+    // added during precision/recall analysis
     this->calc_gts.push_back(GT_REF_REF);
-    for (int i = 0; i < PHASES; i++) {
-        this->errtypes[i].push_back(ERRTYPE_UN);
-        this->sync_group[i].push_back(0);
-        this->callq[i].push_back(0);
-        this->ref_ed[i].push_back(0);
-        this->query_ed[i].push_back(0);
-        this->credit[i].push_back(0);
+    for (int hi = 0; hi < HAPS; hi++) {
+        this->errtypes[hi].push_back(ERRTYPE_UN);
+        this->sync_group[hi].push_back(0);
+        this->callq[hi].push_back(0);
+        this->ref_ed[hi].push_back(0);
+        this->query_ed[hi].push_back(0);
+        this->credit[hi].push_back(0);
     }
 
-    // added during phase()
+    // added during phasing analysis
     this->phases.push_back(PHASE_NONE);
     this->pb_phases.push_back(PHASE_NONE);
     this->ac_errtype.push_back(AC_UNKNOWN);
