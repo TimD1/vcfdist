@@ -98,24 +98,24 @@ int main(int argc, char **argv) {
     std::shared_ptr<variantData> truth_ptr_fn(new variantData());
     extract_errors(sc_data_ptr, query_ptr_fp, truth_ptr_fn);
 
-    /* // merge first-round FP and FN with large second-round variants */
-    /* query_ptr2->add_variant_data(query_ptr_fp); */
-    /* truth_ptr2->add_variant_data(truth_ptr_fn); */
+    // merge first-round FP and FN with large second-round variants
+    query_ptr2->merge(query_ptr_fp);
+    truth_ptr2->merge(truth_ptr_fn);
 
-    /* // perform second-round evaluation */
-    /* g.timers[TIME_CLUST].start(); */
-    /* simple_cluster(query_ptr2, QUERY); */
-    /* simple_cluster(truth_ptr2, TRUTH); */
-    /* g.timers[TIME_CLUST].stop(); */
-    /* g.timers[TIME_SUPCLUST].start(); */
-    /* std::shared_ptr<superclusterData> sc_data_ptr2( */
-    /*         new superclusterData(query_ptr2, truth_ptr2, ref_ptr)); */
-    /* sc_groups = sort_superclusters(sc_data_ptr2); */
-    /* g.timers[TIME_SUPCLUST].stop(); */
-    /* g.timers[TIME_PR_ALN].start(); */
-    /* precision_recall_threads_wrapper(sc_data_ptr2, sc_groups); */
-    /* INFO("    done with precision-recall (round #2)"); */
-    /* g.timers[TIME_PR_ALN].stop(); */
+    // perform second-round evaluation
+    g.timers[TIME_CLUST].start();
+    simple_cluster(query_ptr2, QUERY);
+    simple_cluster(truth_ptr2, TRUTH);
+    g.timers[TIME_CLUST].stop();
+    g.timers[TIME_SUPCLUST].start();
+    std::shared_ptr<superclusterData> sc_data_ptr2(
+            new superclusterData(query_ptr2, truth_ptr2, ref_ptr));
+    sc_groups = sort_superclusters(sc_data_ptr2);
+    g.timers[TIME_SUPCLUST].stop();
+    g.timers[TIME_PR_ALN].start();
+    precision_recall_threads_wrapper(sc_data_ptr2, sc_groups);
+    INFO("    done with precision-recall (round #2)");
+    g.timers[TIME_PR_ALN].stop();
 
     // merge first-round and second-round results
     // TODO: re-use add_variant_data to merge superclusters?
