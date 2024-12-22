@@ -7,6 +7,12 @@
 #include "print.h"
 #include "variant.h"
 
+
+ctgSuperclusters::ctgSuperclusters() {
+    this->callset_vars = std::vector< std::shared_ptr<ctgVariants> > (CALLSETS, nullptr);
+}
+
+
 /* Merge evaluation results from multiple distinct evaluations. */
 void superclusterData::merge(std::shared_ptr<superclusterData> other_data) {
     for (const std::string & ctg : other_data->contigs) {
@@ -52,12 +58,17 @@ void superclusterData::merge(std::shared_ptr<superclusterData> other_data) {
 /******************************************************************************/
 
 
-int ctgSuperclusters::get_min_ref_pos(int qvi, int tvi) {
-    return std::min(this->callset_vars[QUERY]->poss[qvi], this->callset_vars[TRUTH]->poss[tvi]) - 1;
+int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
+    // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
+    return std::min( (qvi_start == qvi_end) ? std::numeric_limits<int>::max() : 
+                this->callset_vars[QUERY]->poss[qvi_start], 
+            (tvi_start == tvi_end) ? std::numeric_limits<int>::max() :
+                this->callset_vars[TRUTH]->poss[tvi_start]) - 1;
 }
 
 
 int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
+    // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
     int max_ref_pos = -1;
     for (int qvi = qvi_start; qvi < qvi_end; qvi++) {
         max_ref_pos = std::max(max_ref_pos,
@@ -67,7 +78,7 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
         max_ref_pos = std::max(max_ref_pos,
                 this->callset_vars[TRUTH]->poss[tvi] + this->callset_vars[TRUTH]->rlens[tvi]);
     }
-    return max_ref_pos + 1;
+    return (max_ref_pos == -1) ? std::numeric_limits<int>::max() : max_ref_pos + 1;
 }
 
 
@@ -86,28 +97,36 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
     for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
         std::string ctg = sc_data->contigs[ctg_idx];
         std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
-        for (int sc_idx = 0; sc_idx < ctg_scs->n; sc_idx++) {
+        std::shared_ptr<ctgVariants> qvars = sc_data->superclusters[ctg]->callset_vars[QUERY];
+        std::shared_ptr<ctgVariants> tvars = sc_data->superclusters[ctg]->callset_vars[TRUTH];
+        if (!qvars->n) continue;
+        int nscs =  std::max(qvars->superclusters[qvars->n-1], tvars->superclusters[tvars->n-1]);
+
+        for (int sc_idx = 0; sc_idx < nscs; sc_idx++) {
 
             std::vector<size_t> max_lens(CALLSETS, 0);
             std::vector<size_t> lens(HAPS, 0);
             for (int c = 0; c < CALLSETS; c++) {
                 auto vars = ctg_scs->callset_vars[c];
                 if (ctg_scs->callset_vars[c]->nc == 0) continue;
-                int var_beg = ctg_scs->superclusters[c][sc_idx];
-                int var_end = ctg_scs->superclusters[c][sc_idx+1];
+                int var_beg = std::distance(vars->superclusters.begin(),
+                    std::lower_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
+                int var_end = std::distance(vars->superclusters.begin(),
+                    std::upper_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
 
-                // calculate query len as reference lengths plus alternate lengths
+                // calculate query len as reference length plus alternate lengths
                 for (int hi = 0; hi < HAPS; hi++) {
-                    lens[hi] = ctg_scs->ends[sc_idx] - ctg_scs->begs[sc_idx];
-                    for (int var = var_beg; var < var_end; var++) {
-                        if (!vars->var_on_hap(var, hi)) continue;
-                        lens[hi] += int(vars->alts[var].size());
+                    lens[hi] = var_beg == var_end ? 0 : vars->poss[var_end-1] - vars->poss[var_beg];
+                    for (int vi = var_beg; vi < var_end; vi++) {
+                        if (!vars->var_on_hap(vi, hi)) continue;
+                        lens[hi] += int(vars->alts[vi].size());
                     }
                     max_lens[c] = std::max(max_lens[c], lens[hi]);
                 }
             }
 
             // calculate memory usage
+            // TODO: this will need to be updated
             // 10 comes from:
             // (4) aln_ptrs    = 1 byte * 2 haps * 2 phasings
             // (2) path_ptrs   = 1 byte * 2 haps
@@ -116,8 +135,8 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
             size_t mem = max_lens[QUERY] * max_lens[TRUTH]* 10 * 2;
             double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
             if (mem_gb > g.max_ram) {
-                WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %s:%d-%d, running anyways", 
-                        g.max_ram, mem_gb, ctg.data(), ctg_scs->begs[sc_idx], ctg_scs->ends[sc_idx]);
+                WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %d, running anyways", 
+                        g.max_ram, mem_gb, sc_idx);
                 sc_groups[g.thread_nsteps-1][CTG_IDX].push_back(ctg_idx);
                 sc_groups[g.thread_nsteps-1][SC_IDX].push_back(sc_idx);
                 continue;

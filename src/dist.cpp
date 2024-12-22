@@ -764,7 +764,7 @@ void precision_recall_threads_wrapper(
                 int size = nscs / nthreads;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+size, thread2, false));
+                            thread_step, start, start+size, thread2, /* print = */ false));
                 start += size;
             }
             for (std::thread & t : threads)
@@ -790,7 +790,7 @@ void precision_recall_threads_wrapper(
                 if (thread_step < 0) break;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+1, thread2, false));
+                            thread_step, start, start+1, thread2, /* print = */ false));
                 start++;
                 total_ram += g.ram_steps[thread_step];
                 if (start >= int(sc_groups[thread_step][SC_IDX].size())) {
@@ -870,7 +870,7 @@ Graph::Graph(
             std::lower_bound(tvars->superclusters.begin(), tvars->superclusters.end(), sc_idx));
     int tvar_end = std::distance(tvars->superclusters.begin(),
             std::upper_bound(tvars->superclusters.begin(), tvars->superclusters.end(), sc_idx));
-    int ref_beg = sc->get_min_ref_pos(qvar_beg, tvar_beg);
+    int ref_beg = sc->get_min_ref_pos(qvar_beg, qvar_end, tvar_beg, tvar_end);
     int ref_end = sc->get_max_ref_pos(qvar_beg, qvar_end, tvar_beg, tvar_end);
 
     int ref_pos = ref_beg;

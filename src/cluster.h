@@ -12,12 +12,13 @@
 
 class ctgSuperclusters {
 public:
+    ctgSuperclusters();
 
     // stores variant info for each callset
     // callset_vars[truth|query]
     std::vector< std::shared_ptr<ctgVariants> > callset_vars;
 
-    int get_min_ref_pos(int qvi, int tvi);
+    int get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end);
     int get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end);
 };
 
