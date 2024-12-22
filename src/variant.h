@@ -22,7 +22,7 @@ public:
     void add_var(std::shared_ptr<ctgVariants> other_vars, int idx);
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         std::string ref, std::string alt, uint8_t orig_gt, float gt_qual, float var_qual, 
-        int phase_set, uint8_t calc_gt = GT_REF_REF, 
+        int phase_set, int supercluster = -1, uint8_t calc_gt = GT_REF_REF, 
         uint8_t hap1_errtype = ERRTYPE_UN, uint8_t hap2_errtype = ERRTYPE_UN, 
         int hap1_sync_group = 0, int hap2_sync_group = 0, float hap1_callq = 0, float hap2_callq = 0, 
         int hap1_ref_ed = 0, int hap2_ref_ed = 0, int hap1_query_ed = 0, int hap2_query_ed = 0, 
@@ -50,6 +50,7 @@ public:
     std::vector<float> gt_quals;    // genotype quality (0-60)
     std::vector<float> var_quals;   // variant quality (0-60)
     std::vector<int> phase_sets;    // integer representing variant phase set (0 = missing)
+    std::vector<int> superclusters; // initially -1, set during superclustering
     int n = 0;
 
     // set during clustering (size nc+1)

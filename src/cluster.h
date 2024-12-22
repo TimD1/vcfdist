@@ -13,25 +13,12 @@
 class ctgSuperclusters {
 public:
 
-    // constructor
-    ctgSuperclusters();
-
-    // add supercluster info
-    void add_supercluster(
-           std::vector<int> brks,
-           int beg, int end);
-
     // stores variant info for each callset
     // callset_vars[truth|query]
     std::vector< std::shared_ptr<ctgVariants> > callset_vars;
 
-    // variant indices of superclusters
-    // superclusters[truth|query] (size (2, n+1))
-    std::vector< std::vector<int> > superclusters;
-
-    // data (length n)
-    int n = 0;                        // number of superclusters
-    std::vector<int> begs, ends;      // ref beg/end pos across haps and truth/query
+    int get_min_ref_pos(int qvi, int tvi);
+    int get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end);
 };
 
 class superclusterData {

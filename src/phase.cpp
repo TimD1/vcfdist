@@ -46,7 +46,6 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         std::vector<int> ptrs = std::vector<int>(CALLSETS, 0);
         std::vector<int> poss = std::vector<int>(CALLSETS, 0);
         std::vector<int> next = std::vector<int>(CALLSETS, 0);
-        int sc_idx = 0;
         int ploidy = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg)-contigs.begin()];
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
@@ -114,11 +113,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             }
 
             // update supercluster and phase block
-            if (pos >= ctg_scs->ends[sc_idx]) {
-                sc_idx++;
-                if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
-                    phase_block++;
-            }
+            int sc_idx = next[QUERY] ? vars[QUERY]->superclusters[ptrs[QUERY]] :
+                                       vars[TRUTH]->superclusters[ptrs[TRUTH]];
+            if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
+                phase_block++;
 
             /* if (next[QUERY] && ptrs[QUERY] < qvars->n) { */
             /*     fprintf(out_vcf, "orig_gt: %s\tcalc_gt: %s\tcredit: %.2f|%.2f\tref_dist: %d|%d\tphase: %s\n", */ 

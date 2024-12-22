@@ -7,21 +7,6 @@
 #include "print.h"
 #include "variant.h"
 
-ctgSuperclusters::ctgSuperclusters() {
-    this->superclusters = std::vector< std::vector<int> > (CALLSETS, std::vector<int>());
-    this->callset_vars = std::vector< std::shared_ptr<ctgVariants> > (CALLSETS, nullptr);
-}
-
-void ctgSuperclusters::add_supercluster(
-           std::vector<int> var_idx, int beg_pos, int end_pos) {
-    for (int c = 0; c < CALLSETS; c++)
-        this->superclusters[c].push_back(var_idx[c]);
-    this->begs.push_back(beg_pos);
-    this->ends.push_back(end_pos);
-    this->n++;
-}
-
-
 /* Merge evaluation results from multiple distinct evaluations. */
 void superclusterData::merge(std::shared_ptr<superclusterData> other_data) {
     for (const std::string & ctg : other_data->contigs) {
@@ -67,6 +52,29 @@ void superclusterData::merge(std::shared_ptr<superclusterData> other_data) {
 /******************************************************************************/
 
 
+int ctgSuperclusters::get_min_ref_pos(int qvi, int tvi) {
+    return std::min(this->callset_vars[QUERY]->poss[qvi], this->callset_vars[TRUTH]->poss[tvi]) - 1;
+}
+
+
+int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
+    int max_ref_pos = -1;
+    for (int qvi = qvi_start; qvi < qvi_end; qvi++) {
+        max_ref_pos = std::max(max_ref_pos,
+                this->callset_vars[QUERY]->poss[qvi] + this->callset_vars[QUERY]->rlens[qvi]);
+    }
+    for (int tvi = tvi_start; tvi < tvi_end; tvi++) {
+        max_ref_pos = std::max(max_ref_pos,
+                this->callset_vars[TRUTH]->poss[tvi] + this->callset_vars[TRUTH]->rlens[tvi]);
+    }
+    return max_ref_pos + 1;
+}
+
+
+/******************************************************************************/
+
+
+// TODO: remove this function after shifting to WFA alignment (with max ED)
 std::vector< std::vector< std::vector<int> > > 
 sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
@@ -438,6 +446,7 @@ void superclusterData::supercluster() {
         // for each cluster of variants (merge query and truth haps)
         auto const & vars = this->superclusters[ctg]->callset_vars;
         std::vector<int> brks(CALLSETS, 0); // start of current supercluster
+        int sc_idx = 0;
         while (true) {
 
             // init: empty supercluster
@@ -500,15 +509,14 @@ void superclusterData::supercluster() {
             int this_vars = 0;
             for (int c = 0; c < CALLSETS; c++) {
                 if (vars[c]->nc)
-                    this_vars += vars[c]->clusters[ next_brks[c] ] - 
-                        vars[c]->clusters[ brks[c] ];
+                    this_vars += vars[c]->clusters[next_brks[c]] - vars[c]->clusters[brks[c]];
             }
             most_vars = std::max(most_vars, this_vars);
             total_vars += this_vars;
 
             // debug print
             if (false) {
-                printf("\nSUPERCLUSTER: %d\n", this->superclusters[ctg]->n);
+                printf("\nSUPERCLUSTER: %d\n", sc_idx);
                 printf("POS: %s:%d-%d\n", ctg.data(), beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
                 for (int c = 0; c < CALLSETS; c++) {
@@ -530,20 +538,26 @@ void superclusterData::supercluster() {
             }
 
             // save supercluster information
-            std::vector<int> var_idx = {vars[QUERY]->clusters[brks[QUERY]], vars[TRUTH]->clusters[brks[TRUTH]]};
-            this->superclusters[ctg]->add_supercluster(var_idx, beg_pos, end_pos);
+            for (int ci = 0; ci < CALLSETS; ci++) {
+                for (int vi = vars[ci]->clusters[brks[ci]]; 
+                         vi < vars[ci]->clusters[next_brks[ci]]; vi++) {
+                    vars[ci]->superclusters[vi] = sc_idx;
+                }
+            }
+            sc_idx++;
 
             // reset for next active cluster
             brks = next_brks;
         }
 
-        // add sentinel, not actually a supercluster
-        std::vector<int> var_idx = {vars[QUERY]->clusters[brks[QUERY]], vars[TRUTH]->clusters[brks[TRUTH]]};
-        this->superclusters[ctg]->add_supercluster(var_idx, 
-            std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
-        this->superclusters[ctg]->n--;
+        // add remaining variants as a supercluster
+        for (int ci = 0; ci < CALLSETS; ci++) {
+            for (int vi = vars[ci]->clusters[brks[ci]]; vi < vars[ci]->n; vi++) {
+                vars[ci]->superclusters[vi] = sc_idx;
+            }
+        }
 
-        total_superclusters += this->superclusters[ctg]->n;
+        total_superclusters += sc_idx;
     }
     if (g.verbosity >= 1) INFO("           Total superclusters: %d", total_superclusters);
     if (g.verbosity >= 1) INFO("  Largest supercluster (bases): %d", largest_supercluster);

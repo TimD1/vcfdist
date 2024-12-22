@@ -860,11 +860,18 @@ Graph::Graph(
     ////////////////////////////////
 
     // initialize helper variables
-    auto qvars = sc->callset_vars[QUERY];
-    int qvar_beg = sc->superclusters[QUERY][sc_idx];
-    int qvar_end = sc->superclusters[QUERY][sc_idx+1];
-    int ref_beg = sc->begs[sc_idx];
-    int ref_end = sc->ends[sc_idx];
+    std::shared_ptr<ctgVariants> qvars = sc->callset_vars[QUERY];
+    std::shared_ptr<ctgVariants> tvars = sc->callset_vars[TRUTH];
+    int qvar_beg = std::distance(qvars->superclusters.begin(),
+            std::lower_bound(qvars->superclusters.begin(), qvars->superclusters.end(), sc_idx));
+    int qvar_end = std::distance(qvars->superclusters.begin(),
+            std::upper_bound(qvars->superclusters.begin(), qvars->superclusters.end(), sc_idx));
+    int tvar_beg = std::distance(tvars->superclusters.begin(),
+            std::lower_bound(tvars->superclusters.begin(), tvars->superclusters.end(), sc_idx));
+    int tvar_end = std::distance(tvars->superclusters.begin(),
+            std::upper_bound(tvars->superclusters.begin(), tvars->superclusters.end(), sc_idx));
+    int ref_beg = sc->get_min_ref_pos(qvar_beg, tvar_beg);
+    int ref_end = sc->get_max_ref_pos(qvar_beg, qvar_end, tvar_beg, tvar_end);
 
     int ref_pos = ref_beg;
     this->sc = sc;
@@ -958,12 +965,8 @@ Graph::Graph(
     // STEP 3: CREATE TRUTH NODES //
     ////////////////////////////////
 
-    auto tvars = sc->callset_vars[TRUTH];
-    int tvar_beg = sc->superclusters[TRUTH][sc_idx];
-    int tvar_end = sc->superclusters[TRUTH][sc_idx+1];
-    ref_pos = ref_beg;
-
     // iterate through all the variants
+    ref_pos = ref_beg;
     this->tnodes = 0;
     this->truth = "";
     for (int var_idx = tvar_beg; var_idx < tvar_end; var_idx++) {
@@ -1034,19 +1037,22 @@ void precision_recall_wrapper(
         int sc_idx = sc_groups[thread_step][SC_IDX][supclust_idx];
 
         // set superclusters pointer
-        std::shared_ptr<ctgSuperclusters> scs = 
-                clusterdata_ptr->superclusters[ctg];
+        std::shared_ptr<ctgSuperclusters> scs = clusterdata_ptr->superclusters[ctg];
 
         if (print) {
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
             for (int c = 0; c < CALLSETS; c++) {
-                int variant_beg = scs->superclusters[c][sc_idx];
-                int variant_end = scs->superclusters[c][sc_idx+1];
-                printf("%s: %d variants (%d-%d)\n", callset_strs[c].data(),
-                        variant_end-variant_beg, variant_beg, variant_end);
                 std::shared_ptr<ctgVariants> vars = scs->callset_vars[c];
-                for (int var_idx = variant_beg; var_idx < variant_end; var_idx++) {
+                int var_beg = std::distance(vars->superclusters.begin(),
+                        std::lower_bound(vars->superclusters.begin(), 
+                                         vars->superclusters.end(), sc_idx));
+                int var_end = std::distance(vars->superclusters.begin(),
+                        std::upper_bound(vars->superclusters.begin(), 
+                                         vars->superclusters.end(), sc_idx));
+                printf("%s: %d variants (%d-%d)\n", callset_strs[c].data(),
+                        var_end-var_beg, var_beg, var_end);
+                for (int var_idx = var_beg; var_idx < var_end; var_idx++) {
                     printf("\t\t%s %d\t%s\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[var_idx], 
                     vars->refs[var_idx].size() ?  vars->refs[var_idx].data() : "_", 
                     vars->alts[var_idx].size() ?  vars->alts[var_idx].data() : "_",

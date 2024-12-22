@@ -16,7 +16,7 @@ public:
     int n = 0;                       // number of phase blocks
 
     // data, filled out during phase()
-    std::vector<int> phase_blocks;   // n+1, variant indices of new phase sets
+    std::vector<int> phase_blocks;   // n+1, query variant indices of new phase sets
     std::vector<int> switches;       // switch occurs before this variant
     std::vector<int> flips;          // indices of flipped variants
     int nswitches = 0;               // number of phase switch errors

@@ -387,11 +387,12 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         for (const std::string & ctg : phasedata_ptr->contigs) {
             std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-            for (int i = 0; i < ctg_pbs->n && ctg_scs->n > 0; i++) {
-                int beg_idx = ctg_pbs->phase_blocks[i];
-                int end_idx = ctg_pbs->phase_blocks[i+1];
-                int beg = ctg_scs->begs[beg_idx];
-                int end = ctg_scs->ends[end_idx]-1;
+            for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
+                int beg_idx = ctg_pbs->phase_blocks[pbi]; // QUERY variant indices
+                int end_idx = ctg_pbs->phase_blocks[pbi+1];
+                int beg = ctg_scs->callset_vars[QUERY]->poss[beg_idx] - 1;
+                int end = ctg_scs->callset_vars[QUERY]->poss[end_idx-1] +
+                          ctg_scs->callset_vars[QUERY]->rlens[end_idx-1] + 1;
                 int nswitches = 0;
                 for (int si = 0; si < ctg_pbs->nswitches; si++) {
                     if (ctg_pbs->switches[si] > beg_idx && ctg_pbs->switches[si] < end_idx) nswitches++;
@@ -401,35 +402,10 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                     if (ctg_pbs->flips[fi] > beg_idx && ctg_pbs->flips[fi] < end_idx) nflips++;
                 }
                 fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
-                        ctg.data(), i, beg, end, end-beg, end_idx-beg_idx, nflips, nswitches);
+                        ctg.data(), pbi, beg, end, end-beg, end_idx-beg_idx, nflips, nswitches);
             }
         }
         fclose(out_phaseblocks);
-
-        // print clustering information
-        std::string out_clusterings_fn = g.out_prefix + "superclusters.tsv";
-        FILE* out_clusterings = fopen(out_clusterings_fn.data(), "w");
-        if (g.verbosity >= 1) INFO("  Writing superclustering results to '%s'", out_clusterings_fn.data());
-        fprintf(out_clusterings, "CONTIG\tSUPERCLUSTER\tSTART\tSTOP\tSIZE\t"
-                "QUERY_VARS\tTRUTH_VARS\n");
-        for (const std::string & ctg : phasedata_ptr->contigs) {
-            std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
-            std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-            for (int i = 0; i < ctg_scs->n; i++) {
-
-                // count query vars, allowing empty haps
-                int query_vars = ctg_scs->callset_vars[QUERY]->n ?
-                    ctg_scs->superclusters[QUERY][i+1] - ctg_scs->superclusters[QUERY][i] : 0;
-                int truth_vars = ctg_scs->callset_vars[TRUTH]->n ?
-                    ctg_scs->superclusters[TRUTH][i+1] - ctg_scs->superclusters[TRUTH][i] : 0;
-
-                // print data
-                fprintf(out_clusterings, "%s\t%d\t%d\t%d\t%d\t%d\t%d\n", 
-                    ctg.data(), i, ctg_scs->begs[i], ctg_scs->ends[i],
-                    ctg_scs->ends[i] - ctg_scs->begs[i], query_vars, truth_vars);
-            }
-        }
-        fclose(out_clusterings);
 
         // print query variant information
         std::string out_query_fn = g.out_prefix + "query.tsv";
@@ -444,18 +420,10 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
             std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
 
-            int sci = 0;
             for (int vi = 0; vi < qvars->n; vi++) {
                 for (int hi = 0; hi < HAPS; hi++) {
                     if (!qvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
                     int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
-
-                    // update supercluster
-                    if (sci >= int(ctg_scs->begs.size())) 
-                        ERROR("Out of bounds supercluster during write_results(): query")
-                    while (qvars->poss[vi] >= ctg_scs->ends[sci])
-                        sci++;
-
                     fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             qvars->poss[vi],
@@ -466,7 +434,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             type_strs[qvars->types[vi]].data(),
                             error_strs[qvars->errtypes[calc_hi][vi]].data(),
                             qvars->credit[calc_hi][vi],
-                            sci,
+                            qvars->superclusters[vi],
                             qvars->sync_group[calc_hi][vi],
                             qvars->ref_ed[calc_hi][vi],
                             qvars->query_ed[calc_hi][vi],
@@ -490,16 +458,9 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
             std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
 
-            int sci = 0;
             for (int vi = 0; vi < tvars->n; vi++) {
                 for (int hi = 0; hi < HAPS; hi++) {
                     if (!tvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
-
-                    // update supercluster
-                    if (sci >= int(ctg_scs->begs.size())) 
-                        ERROR("Out of bounds supercluster during write_results(): truth")
-                    while (tvars->poss[vi] >= ctg_scs->ends[sci])
-                        sci++;
 
                     fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
@@ -511,7 +472,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
                             type_strs[tvars->types[vi]].data(),
                             error_strs[tvars->errtypes[hi][vi]].data(),
                             tvars->credit[hi][vi],
-                            sci,
+                            tvars->superclusters[vi],
                             tvars->sync_group[hi][vi],
                             tvars->ref_ed[hi][vi],
                             tvars->query_ed[hi][vi],

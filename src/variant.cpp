@@ -103,6 +103,7 @@ void ctgVariants::remove_vars(const std::vector<int> & indices) {
     _remove_indices(this->gt_quals, indices);
     _remove_indices(this->var_quals, indices);
     _remove_indices(this->phase_sets, indices);
+    _remove_indices(this->superclusters, indices);
     this->n -= int(indices.size());
 
     // added during precision/recall analysis
@@ -134,6 +135,7 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
         other_vars->gt_quals[idx],
         other_vars->var_quals[idx],
         other_vars->phase_sets[idx],
+        other_vars->superclusters[idx],
         other_vars->calc_gts[idx],
         other_vars->errtypes[HAP1][idx], other_vars->errtypes[HAP2][idx],
         other_vars->sync_group[HAP1][idx], other_vars->sync_group[HAP2][idx],
@@ -146,7 +148,7 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
 // TODO: remove assumption that no variants match
 void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         std::string ref, std::string alt, uint8_t orig_gt, float gt_qual, float var_qual, 
-        int phase_set, uint8_t calc_gt /* GT_REF_REF */, 
+        int phase_set, int supercluster /* -1 */, uint8_t calc_gt /* GT_REF_REF */, 
         uint8_t hap1_errtype /* ERRTYPE_UN */, uint8_t hap2_errtype /* ERRTYPE_UN */, 
         int hap1_sync_group /* 0 */, int hap2_sync_group /* 0 */, 
         float hap1_callq /* 0 */, float hap2_callq /* 0 */, 
@@ -165,6 +167,7 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->gt_quals.push_back(gt_qual);
     this->var_quals.push_back(std::min(var_qual, float(g.max_qual)));
     this->phase_sets.push_back(phase_set);
+    this->superclusters.push_back(supercluster);
     this->n++;
 
     // added during precision/recall analysis
