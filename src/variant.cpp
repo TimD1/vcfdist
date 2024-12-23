@@ -363,6 +363,7 @@ void variantData::write_vcf(std::string out_vcf_fn) {
                 this->contigs[i].data(), this->lengths[i], this->ploidy[i]);
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=String,Description=\"Phase Set\">\n");
     fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n",
             this->sample.data());
 
@@ -402,7 +403,9 @@ void variantData::write_vcf(std::string out_vcf_fn) {
                             this->variants[HAP1][ctg]->types[ptrs[HAP1]],
                             this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
                             this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], "1|1");
+                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], 
+                            this->variants[HAP1][ctg]->phase_sets[ptrs[HAP1]],
+                            "1|1");
                     
                 } else {
                     // two separate phased variants (0|1 + 1|0)
@@ -410,12 +413,16 @@ void variantData::write_vcf(std::string out_vcf_fn) {
                             this->variants[HAP1][ctg]->types[ptrs[HAP1]],
                             this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
                             this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], "1|0");
+                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], 
+                            this->variants[HAP1][ctg]->phase_sets[ptrs[HAP1]], 
+                            "1|0");
                     print_variant(out_vcf, ctg, pos, 
                             this->variants[HAP2][ctg]->types[ptrs[HAP2]],
                             this->variants[HAP2][ctg]->refs[ptrs[HAP2]],
                             this->variants[HAP2][ctg]->alts[ptrs[HAP2]],
-                            this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]], "0|1");
+                            this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]], 
+                            this->variants[HAP2][ctg]->phase_sets[ptrs[HAP2]], 
+                            "0|1");
                 }
 
             } else if (hap1) { // 1|0
@@ -423,14 +430,18 @@ void variantData::write_vcf(std::string out_vcf_fn) {
                         this->variants[HAP1][ctg]->types[ptrs[HAP1]],
                         this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
                         this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                        this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], p == 1 ? "1" : "1|0");
+                        this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], 
+                        this->variants[HAP1][ctg]->phase_sets[ptrs[HAP1]], 
+                        p == 1 ? "1" : "1|0");
 
             } else if (hap2) { // 0|1
                 print_variant(out_vcf, ctg, pos, 
                         this->variants[HAP2][ctg]->types[ptrs[HAP2]],
                         this->variants[HAP2][ctg]->refs[ptrs[HAP2]],
                         this->variants[HAP2][ctg]->alts[ptrs[HAP2]],
-                        this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]],  p == 1 ? "1" :"0|1");
+                        this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]],
+                        this->variants[HAP2][ctg]->phase_sets[ptrs[HAP2]],
+                        p == 1 ? "1" :"0|1");
             }
 
             // update pointers
@@ -624,21 +635,22 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
 
 
 void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
-        const std::string & ref, const std::string & alt, float qual, const std::string & gt) {
+        const std::string & ref, const std::string & alt, float qual, int phase_set,
+        const std::string & gt) {
 
     char ref_base;
     switch (type) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tGT\t%s\n", ctg.data(),
-            pos+1, ref.data(), alt.data(), qual, gt.data());
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tPS:GT\t%d:%s\n", ctg.data(),
+            pos+1, ref.data(), alt.data(), qual, phase_set, gt.data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
         try {
             ref_base = this->ref->fasta.at(ctg)[pos];
-            fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tGT\t%s\n", ctg.data(), 
+            fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tPS:GT\t%d:%s\n", ctg.data(), 
                     pos+1, (ref_base + ref).data(), (ref_base + alt).data(), 
-                    qual, gt.data());
+                    qual, phase_set, gt.data());
         } catch (const std::out_of_range & e) {
             ERROR("Contig '%s' not in reference FASTA (print_variant)", ctg.data());
         }
@@ -1215,7 +1227,7 @@ void parse_variants(const std::string & vcf_fn,
                 simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF;
             }
 
-            // add to haplotype-specific query info
+            // add variant to list of large variants (second-round evaluation)
             if (int(ref.size()) > g.max_cluster_var_size || int(alt.size()) > g.max_cluster_var_size) {
                 large_var_total++;
                 if (type == TYPE_CPX) { // split CPX into INS+DEL
@@ -1228,7 +1240,7 @@ void parse_variants(const std::string & vcf_fn,
                     large_variant_data->variants[hap][ctg]->add_var(pos, rlen,
                             type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
                 }
-            } else {
+            } else { // add variant to list of small variants (first-round evaluation)
                 if (type == TYPE_CPX) { // split CPX into INS+DEL
                     variant_data->variants[hap][ctg]->add_var(pos, 0, // INS
                         TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);

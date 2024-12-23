@@ -37,6 +37,16 @@ int main(int argc, char **argv) {
     truth_ptr->print_phase_info(TRUTH);
     g.timers[TIME_READ].stop();
 
+    // write parsed per-variant information
+    g.timers[TIME_WRITE].start();
+    if (g.write) {
+        query_ptr->write_vcf(g.out_prefix + "query-small.vcf");
+        query_ptr2->write_vcf(g.out_prefix + "query-large.vcf");
+        truth_ptr->write_vcf(g.out_prefix + "truth-small.vcf");
+        truth_ptr2->write_vcf(g.out_prefix + "truth-large.vcf");
+    }
+    g.timers[TIME_WRITE].stop();
+
     // ensure each input contains all contigs in BED
     check_contigs(query_ptr, truth_ptr, ref_ptr);
 
@@ -102,6 +112,14 @@ int main(int argc, char **argv) {
     query_ptr2->merge(query_ptr_fp);
     truth_ptr2->merge(truth_ptr_fn);
 
+    // write parsed per-variant information
+    g.timers[TIME_WRITE].start();
+    if (g.write) {
+        query_ptr2->write_vcf(g.out_prefix + "query-large-errors.vcf");
+        truth_ptr2->write_vcf(g.out_prefix + "truth-large-errors.vcf");
+    }
+    g.timers[TIME_WRITE].stop();
+
     // perform second-round clustering (simple cluster large and FP/FN vars)
     g.timers[TIME_SIMPLE_CLUSTER].start();
     if (g.verbosity >= 1) INFO(" ");
@@ -145,13 +163,7 @@ int main(int argc, char **argv) {
     g.timers[TIME_WRITE].start();
     if (g.write) phasedata_ptr->write_switchflips();
     write_results(phasedata_ptr);
-
-    // write summary VCF with per-variant evaluation info
-    if (g.write) {
-        query_ptr->write_vcf(g.out_prefix + "query.vcf");
-        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
-        phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
-    }
+    if (g.write) phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
     g.timers[TIME_WRITE].stop();
 
     // report timing results

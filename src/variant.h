@@ -83,7 +83,8 @@ public:
     // functions
     void write_vcf(std::string vcf_fn);
     void print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
-        const std::string & ref, const std::string & alt, float qual, const std::string & gt);
+        const std::string & ref, const std::string & alt, float qual, int phase_set,
+        const std::string & gt);
     void set_header(const std::shared_ptr<variantData> vcf);
     void add_variants(const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query, 
