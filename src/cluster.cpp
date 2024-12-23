@@ -100,7 +100,8 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
         std::shared_ptr<ctgVariants> qvars = sc_data->superclusters[ctg]->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = sc_data->superclusters[ctg]->callset_vars[TRUTH];
         if (!qvars->n) continue;
-        int nscs =  std::max(qvars->superclusters[qvars->n-1], tvars->superclusters[tvars->n-1]);
+        // superclusters are numbered 0...n-1, so we need +1 to get the total count
+        int nscs =  std::max(qvars->superclusters[qvars->n-1], tvars->superclusters[tvars->n-1]) + 1;
 
         for (int sc_idx = 0; sc_idx < nscs; sc_idx++) {
 
