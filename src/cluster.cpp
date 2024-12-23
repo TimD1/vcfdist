@@ -382,6 +382,12 @@ void superclusterData::add_callset_vars(int callset,
 
         } // while variants remain
 
+        // save reaches of final cluster
+        merged_vars->clusters.push_back(curr_var_idx);
+        merged_vars->left_reaches.push_back(curr_left_reach);
+        merged_vars->right_reaches.push_back(curr_right_reach);
+        merged_vars->nc++;
+
         // add sentinel cluster and save contig variants
         merged_vars->clusters.push_back(merged_vars->n);
         merged_vars->left_reaches.push_back(std::numeric_limits<int>::max());
@@ -716,6 +722,11 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
                 ERROR("Mismatch between original and clustered variant count, contig '%s' hap %d",
                         ctg.data(), hap);
             }
+            /* printf("CLUSTERS: HAP %d\n", hap); */
+            /* for (int i = 0; i < vars->nc; i++) { */
+            /*     printf("vars %d-%d: %d-%d\n", vars->clusters[i], vars->clusters[i+1], */
+            /*             vars->left_reaches[i], vars->right_reaches[i]); */
+            /* } */
         } // hap
     } // ctg
 }
