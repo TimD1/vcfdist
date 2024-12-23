@@ -29,12 +29,10 @@ int main(int argc, char **argv) {
     std::shared_ptr<variantData> query_ptr(new variantData());
     std::shared_ptr<variantData> query_ptr2(new variantData()); // second round eval
     parse_variants(g.query_vcf_fn, query_ptr, query_ptr2, ref_ptr, QUERY);
-    query_ptr->print_phase_info(QUERY);
 
     std::shared_ptr<variantData> truth_ptr(new variantData());
     std::shared_ptr<variantData> truth_ptr2(new variantData()); // second round eval
     parse_variants(g.truth_vcf_fn, truth_ptr, truth_ptr2, ref_ptr, TRUTH);
-    truth_ptr->print_phase_info(TRUTH);
     g.timers[TIME_READ].stop();
 
     // write parsed per-variant information
@@ -156,6 +154,9 @@ int main(int argc, char **argv) {
 
     // calculate phasing statistics
     g.timers[TIME_PHASE].start();
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Phasing superclusters%s",
+            COLOR_PURPLE, TIME_PHASE, TIME_TOTAL-1, COLOR_WHITE);
     std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(sc_data_ptr));
     g.timers[TIME_PHASE].stop();
 

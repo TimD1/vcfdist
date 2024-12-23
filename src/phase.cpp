@@ -243,7 +243,9 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         }
         ctg_pbs->phase_blocks.push_back(qvars->n);
     }
-    
+
+    // fill in unset PS tags
+    this->fix_phase_set_tags();
     // calculate phasings, flip, and switch errors
     this->phase();
     // calculate and fix allele count errors
@@ -252,6 +254,87 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
 
 
 /******************************************************************************/
+
+
+/* Add phase set tags to homozygous variants. */
+void phaseblockData::fix_phase_set_tags() {
+
+    for (int ci = 0; ci < CALLSETS; ci++) {
+        int total_phase_sets = 0;
+        std::vector<int> phase_set_sizes;
+        int ctg_idx = 0;
+
+        for (const std::string & ctg : this->contigs) { // for each contig
+            std::shared_ptr<ctgSuperclusters> ctg_scs = this->phase_blocks[ctg]->ctg_superclusters;
+            std::shared_ptr<ctgVariants> vars = ctg_scs->callset_vars[ci];
+
+            // get first phase set (to backfill all preceding zeros)
+            int first_phase_set = 0;
+            for (int vi = 0; vi < vars->n; vi++) {
+                if (vars->phase_sets[vi] != 0) {
+                    first_phase_set = vars->phase_sets[vi];
+                    break;
+                }
+            }
+
+            // exit early if this contig has no phase sets
+            if (first_phase_set == 0) {
+                phase_set_sizes.push_back(this->lengths[ctg_idx]);
+                total_phase_sets++;
+                continue;
+            } else { // set phase set up until first PS
+                for (int vi = 0; vi < vars->n; vi++) {
+                    if (vars->phase_sets[vi] != 0) {
+                        break;
+                    }
+                    vars->phase_sets[vi] = first_phase_set;
+                }
+            }
+
+            int ps_beg = 0; int ps_end = 0;
+            int phase_set = 0;
+            for (int vi = 0; vi < vars->n; vi++) {
+                if (vars->phase_sets[vi] != 0) { // variant is phased
+                    if (vars->phase_sets[vi] != phase_set) { // new phase set, save old
+                        if (phase_set) phase_set_sizes.push_back(ps_end - ps_beg);
+                        phase_set = vars->phase_sets[vi];
+                        ps_beg = vars->poss[vi];
+                        ps_end = vars->poss[vi] + vars->rlens[vi];
+                        total_phase_sets++;
+                    } else { // same 
+                        ps_end = std::max(ps_end, vars->poss[vi] + vars->rlens[vi]);
+                    }
+                } else { // set unphased variant phase set to current phase set
+                    // TODO: only set phase sets for 1|1 variants (for when we add unphased eval)
+                    vars->phase_sets[vi] = phase_set;
+                }
+            }
+
+            // add final phase set on contig
+            phase_set_sizes.push_back(ps_end - ps_beg);
+            total_phase_sets++;
+            ctg_idx++;
+        }
+
+        // calculate phaseset NG50
+        size_t total_bases = 0;
+        for (size_t i = 0; i < this->contigs.size(); i++) {
+            total_bases += lengths[i];
+        }
+
+        int pb_ng50 = calc_ng50(phase_set_sizes, total_bases);
+
+        if (g.verbosity >= 1) INFO("               %s phase sets: %d",
+                callset_strs[ci].data(), total_phase_sets);
+        if (g.verbosity >= 1) INFO("         %s phase block NG50: %d", 
+                callset_strs[ci].data(), pb_ng50);
+        if (g.verbosity >= 1) INFO("              %s total bases: %zu", 
+                callset_strs[ci].data(), total_bases);
+    }
+}
+
+
+/*******************************************************************************/
 
 
 /* The precision-recall calculation allows the calculated GT to be anything (including 0|0 or 1|1).
@@ -403,10 +486,6 @@ void phaseblockData::write_genotype_error_summary(
 
 void phaseblockData::phase()
 {
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%d/%d] Phasing superclusters%s",
-            COLOR_PURPLE, TIME_PHASE, TIME_TOTAL-1, COLOR_WHITE);
-
     // phase each contig separately
     for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
@@ -510,6 +589,7 @@ void phaseblockData::phase()
     int flip_errors = 0;
     int phase_blocks = 0;
     int variants = 0;
+    if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Contigs:");
     int id = 0;
     for (const std::string & ctg : this->contigs) {

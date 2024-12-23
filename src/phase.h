@@ -32,6 +32,7 @@ public:
         int flip_errors, int variants, int ng50, int s_ngc50, int sf_ngc50);
     void write_switchflips();
     void phase();
+    void fix_phase_set_tags();
     void fix_allele_counts();
     void write_genotype_error_summary(
             const std::vector< std::vector<int> > & allele_count_errors);
