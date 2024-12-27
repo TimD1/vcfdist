@@ -181,6 +181,179 @@ std::string generate_str(
 
 /******************************************************************************/
 
+int wfa_calc_prec_recall_aln(
+        const std::shared_ptr<Graph> graph,
+        std::vector< std::vector< std::vector< std::vector<uint32_t> > > > & ptrs,
+        std::vector< std::vector< std::vector< std::vector<int> > > > & offs,
+        bool print
+        ) {
+
+    // init: offs/ptrs [query_node][truth_node][score][diagonal] = offset/pointer
+    int s = 0;
+    bool done = false;
+    for (int qni = 0; qni < graph->qnodes; qni++) {
+        ptrs.push_back(std::vector< std::vector< std::vector<uint32_t> > >(graph->tnodes));
+        offs.push_back(std::vector< std::vector< std::vector<int> > >(graph->tnodes));
+        for (int tni = 0; tni < graph->tnodes; tni++) {
+            int mat_len = graph->qseqs[qni].length() + graph->tseqs[tni].length() - 1;
+            ptrs[qni][tni].push_back(std::vector<uint32_t>(mat_len, PTR_NONE));
+            offs[qni][tni].push_back(std::vector<int>(mat_len, -2));
+        }
+    }
+    offs[0][0][s][graph->qseqs[0].length()-1] = -1; // main diag
+    ptrs[0][0][s][graph->qseqs[0].length()-1] = PTR_MAT;
+
+    while (true) {
+
+        // EXTEND WAVEFRONT
+        // NOTE: because the graph is a topologically sorted DAG, we can safely assume that all
+        // extensions that reach into other matrices will always have a larger qni/tni, and be 
+        // fully extended later in this double for loop
+        for (int qni = 0; qni < graph->qnodes; qni++) {
+            for (int tni = 0; tni < graph->tnodes; tni++) {
+                int query_len = graph->qseqs[qni].length();
+                int truth_len = graph->tseqs[tni].length();
+                int mat_len = query_len + truth_len - 1;
+                for (int d = 0; d < mat_len; d++) {
+                    int off = offs[qni][tni][s][d];
+                    int diag = d + 1 - query_len;
+
+                    // extend
+                    while (off != -2 && diag + off >= -1 && 
+                           off < query_len - 1 && 
+                           diag + off < truth_len - 1) {
+                        if (graph->qseqs[qni][off+1] == graph->tseqs[tni][diag+off+1]) off++;
+                        else break;
+                    }
+                    if (off == query_len - 1) { // extend into next query matrices
+                        for (int next_qni : graph->qnexts[qni]) {
+                            int next_query_len = graph->qseqs[next_qni].length();
+                            int next_d = d + next_query_len - 1;  // derived
+                            if (offs[next_qni][tni][s][next_d] == -2) {
+                                offs[next_qni][tni][s][next_d] = 0;
+                                // INS just to denote movement on query, row = 0 means it's a match
+                                ptrs[next_qni][tni][s][next_d] = PTR_INS | (qni << PTR_BITS);
+                            }
+                        }
+                    }
+                    if (diag + off == truth_len - 1) {
+                        for (int next_tni : graph->tnexts[tni]) {
+                            int next_query_len = graph->qseqs[qni].length();
+                            int next_d = next_query_len - off - 1;
+                            if (offs[qni][next_tni][s][next_d] == -2) {
+                                offs[qni][next_tni][s][next_d] = off;
+                                // DEL just to denote movement on truth, col = 0 means it's a match
+                                ptrs[qni][next_tni][s][next_d] = PTR_DEL | (tni << PTR_BITS);
+                            }
+                        }
+                    }
+
+                    // debug printing
+                    if (print) {
+                        if (off > offs[qni][tni][s][d]) {
+                            printf("(%d, %d, %d, %d) extend\n", qni, tni, off, off+diag);
+                        }
+                        if (off == query_len - 1) {
+                            for (int next_qni : graph->qnexts[qni]) {
+                                printf("(%d, %d, 0, %d) query extend\n", next_qni, tni, d);
+                            }
+                        }
+                        if (diag + off == truth_len - 1) {
+                            for (int next_tni : graph->tnexts[tni]) {
+                                printf("(%d, %d, %d, 0) truth extend\n", qni, next_tni, off);
+                            }
+                        }
+                    }
+
+                    // update offset
+                    offs[qni][tni][s][d] = off;
+
+                    // finish if done
+                    if (qni == graph->qnodes - 1 && 
+                        tni == graph->tnodes - 1 &&
+                        off == query_len - 1 && 
+                        off + diag == truth_len - 1)
+                    { done = true; break; }
+                }
+            }
+        }
+        if (done) break;
+
+        // debug print
+        if (print)
+        for (int qni = 0; qni < graph->qnodes; qni++) {
+            for (int tni = 0; tni < graph->tnodes; tni++) {
+                printf("\n(%d, %d) matrix\n", qni, tni);
+                printf("offs %d:", s);
+                int query_len = graph->qseqs[qni].length();
+                int truth_len = graph->tseqs[tni].length();
+                int mat_len = query_len + truth_len - 1;
+                for (int di = 0; di < mat_len; di++) {
+                    printf("\t%d", offs[qni][tni][s][di]);
+                }
+                printf("\n");
+            }
+        }
+
+        // NEXT WAVEFRONT
+        s++;
+        if(print) printf("\nscore = %d\n", s);
+        for (int qni = 0; qni < graph->qnodes; qni++) {
+            for (int tni = 0; tni < graph->tnodes; tni++) {
+                int mat_len = graph->qseqs[qni].length() + graph->tseqs[tni].length() - 1;
+                ptrs[qni][tni].push_back(std::vector<uint32_t>(mat_len, PTR_NONE));
+                offs[qni][tni].push_back(std::vector<int>(mat_len, -2));
+            }
+        }
+
+        for (int qni = 0; qni < graph->qnodes; qni++) {
+            for (int tni = 0; tni < graph->tnodes; tni++) {
+                int query_len = graph->qseqs[qni].length();
+                int truth_len = graph->tseqs[tni].length();
+                int mat_len = query_len + truth_len - 1;
+                for (int d = 0; d < mat_len; d++) {
+                    int diag = d + 1 - query_len;
+
+                    // substitution
+                    if (       offs[qni][tni][s-1][d] != -2 && 
+                               offs[qni][tni][s-1][d]+1 < query_len &&
+                        diag + offs[qni][tni][s-1][d]+1 < truth_len &&
+                               offs[qni][tni][s-1][d]+1 > offs[qni][tni][s][d]) {
+                        offs[qni][tni][s][d] = offs[qni][tni][s-1][d] + 1;
+                        ptrs[qni][tni][s][d] = PTR_SUB;
+                        if(print) printf("(%d, %d, %d, %d) sub\n", qni, tni, offs[qni][tni][s][d], 
+                                offs[qni][tni][s][d]+diag);
+                    }
+
+                    // deletion
+                    if (d > 0 && 
+                               offs[qni][tni][s-1][d-1] != -2 &&
+                        diag + offs[qni][tni][s-1][d-1] < truth_len &&
+                               offs[qni][tni][s-1][d-1] > offs[qni][tni][s][d]) {
+                        offs[qni][tni][s][d] = offs[qni][tni][s-1][d-1];
+                        ptrs[qni][tni][s][d] = PTR_DEL;
+                        if(print) printf("(%d, %d, %d, %d) del\n", qni, tni, offs[qni][tni][s][d], 
+                                offs[qni][tni][s][d]+diag);
+                    }
+
+                    // insertion
+                    if (d < mat_len-1 && 
+                               offs[qni][tni][s-1][d+1] != -2 &&
+                               offs[qni][tni][s-1][d+1]+1 < query_len &&
+                        diag + offs[qni][tni][s-1][d+1]+1 < truth_len &&
+                        diag + offs[qni][tni][s-1][d+1]+1 >= 0 &&
+                               offs[qni][tni][s-1][d+1]+1 > offs[qni][tni][s][d]) {
+                        offs[qni][tni][s][d] = offs[qni][tni][s-1][d+1]+1;
+                        ptrs[qni][tni][s][d] = PTR_INS;
+                        if(print) printf("(%d, %d, %d, %d) ins\n", qni, tni, offs[qni][tni][s][d], 
+                                offs[qni][tni][s][d]+diag);
+                    }
+                }
+            }
+        }
+    }
+    return s;
+}
 
 /* Calculate initial forward-pass alignment for truth string and query graph.
  * This function generates a pointer matrix and alignment score.
@@ -323,9 +496,15 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
         if (print) graph->print();
 
+        // init empty pointers/offsets
         std::unordered_map<idx4, idx4> ptrs;
-        int aln_score = calc_prec_recall_aln(graph, ptrs, false);
-        if (print) printf("alignment score: %d\n", aln_score);
+        std::vector< std::vector< std::vector< std::vector<uint32_t> > > > wfa_ptrs;
+        std::vector< std::vector< std::vector< std::vector<int> > > > wfa_offs;
+
+        int aln_score = calc_prec_recall_aln(graph, ptrs, print);
+        int wfa_score = wfa_calc_prec_recall_aln(graph, wfa_ptrs, wfa_offs, print);
+        if (print) printf("alignment score: %d, wfa: %d\n", aln_score, wfa_score);
+        assert(aln_score == wfa_score);
         bool aligned = aln_score <= g.max_dist;
         if (aligned) { // alignment succeeded
             calc_prec_recall(graph, ptrs, truth_hi, false);

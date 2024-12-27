@@ -103,11 +103,12 @@ class idx4;
 #define TRUTH    1
 #define CALLSETS 2
 
-#define PTR_NONE    0  // backtracking pointer flags
-#define PTR_INS     1
-#define PTR_DEL     2
-#define PTR_MAT     4
-#define PTR_SUB     8
+#define PTR_NONE 0  // backtracking pointer flags
+#define PTR_INS  1
+#define PTR_DEL  2
+#define PTR_MAT  4
+#define PTR_SUB  8
+#define PTR_BITS 4  // (28 bits for previous graph node index, 4 bits for pointer)
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1
