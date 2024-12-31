@@ -109,6 +109,7 @@ class idx4;
 #define PTR_MAT  4
 #define PTR_SUB  8
 #define PTR_BITS 4  // (28 bits for previous graph node index, 4 bits for pointer)
+#define PTR_MASK 15 // (1 << PTR_BITS) - 1
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1

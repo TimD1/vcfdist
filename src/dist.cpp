@@ -232,7 +232,7 @@ int wfa_calc_prec_recall_aln(
                             if (offs[next_qni][tni][s][next_d] == -2) {
                                 offs[next_qni][tni][s][next_d] = 0;
                                 // INS just to denote movement on query, row = 0 means it's a match
-                                ptrs[next_qni][tni][s][next_d] = PTR_INS | (qni << PTR_BITS);
+                                ptrs[next_qni][tni][s][next_d] = PTR_MAT | PTR_INS | (qni << PTR_BITS);
                             }
                         }
                     }
@@ -243,7 +243,7 @@ int wfa_calc_prec_recall_aln(
                             if (offs[qni][next_tni][s][next_d] == -2) {
                                 offs[qni][next_tni][s][next_d] = off;
                                 // DEL just to denote movement on truth, col = 0 means it's a match
-                                ptrs[qni][next_tni][s][next_d] = PTR_DEL | (tni << PTR_BITS);
+                                ptrs[qni][next_tni][s][next_d] = PTR_MAT | PTR_DEL | (tni << PTR_BITS);
                             }
                         }
                     }
@@ -484,6 +484,167 @@ int calc_prec_recall_aln(
 /******************************************************************************/
 
 
+std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
+        const std::vector< std::vector< std::vector< std::vector<uint32_t> > > > & ptrs,
+        const std::vector< std::vector< std::vector< std::vector<int> > > > & offs, bool print) {
+    std::vector<idx4> path;
+    int qni = graph->qnodes-1;
+    int tni = graph->tnodes-1;
+    int diag = graph->tseqs[tni].length() - graph->qseqs[qni].length();
+    int d = diag + graph->qseqs[qni].length() - 1;
+    int off = offs[qni][tni][s][d];
+    uint32_t ptr = ptrs[qni][tni][s][d];
+    path.push_back(idx4(qni, tni, off, diag+off));
+    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+
+    while (qni > 0 || tni > 0 || diag+off > 0) {
+        if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u]\n",
+                qni, tni, off, diag + off, ptr >> PTR_BITS, ptr & PTR_MASK);
+
+        // pointer movement into other matrix
+        if (ptr & PTR_MAT) {
+            // move into new query matrix (hit top row)
+            if (ptr & PTR_INS) {
+                printf("insertion, new query matrix\n");
+                assert(diag >= 0);
+                while (off > 0) {
+                    off--;
+                    path.push_back(idx4(qni, tni, off, diag+off));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                }
+                int prev_qni = ptr >> PTR_BITS;
+                if (diag != 0) {
+                    printf("hit top row\n");
+                    path.push_back(idx4(prev_qni, tni, graph->qseqs[prev_qni].length()-1, diag));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", prev_qni, tni, 
+                            int(graph->qseqs[prev_qni].length())-1, diag);
+                    qni = prev_qni;
+                    diag = diag - graph->qseqs[qni].length() + 1;
+                    d = diag + graph->qseqs[qni].length()-1;
+                } else {  // move twice (diagonal into new query/truth)
+                    printf("hit corner\n");
+                    qni = prev_qni;
+                    diag = diag - graph->qseqs[qni].length() + 1;
+                    d = diag + graph->qseqs[qni].length()-1;
+                    ptr = ptrs[qni][tni][s][d];
+                    if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u]\n",
+                            qni, tni, off, diag + off, ptr >> PTR_BITS, ptr & PTR_MASK);
+
+                    // TODO: PTR is not always PTR_DEL if var adjacent to del
+                    // e.g. may got INS-INS-DEL-DEL instead of INS-DEL-INS-DEL
+                    printf("move twice, now deletion\n");
+                    tni = ptr >> PTR_BITS;
+                    diag = graph->qseqs[qni].length() - graph->tseqs[tni].length();
+                    d = diag + graph->qseqs[qni].length() - 1;
+                    path.push_back(idx4(qni, tni, graph->qseqs[qni].length()-1,
+                                graph->tseqs[tni].length()-1));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, 
+                            int(graph->qseqs[qni].length())-1, int(graph->tseqs[tni].length())-1);
+                }
+
+            // move into new truth matrix (hit left col)
+            } else if (ptr & PTR_DEL) {
+                printf("deletion, new truth matrix\n");
+                assert(diag <= 0);
+                while (diag + off > 0) {
+                    off--;
+                    path.push_back(idx4(qni, tni, off, diag+off));
+                        if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                }
+                int prev_tni = ptr >> PTR_BITS;
+                if (diag != 0) {
+                    printf("hit left col\n");
+                    path.push_back(idx4(qni, prev_tni, -diag, graph->tseqs[prev_tni].length()-1));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, prev_tni, -diag,
+                            int(graph->tseqs[prev_tni].length()-1));
+                    tni = prev_tni;
+                    diag = diag + graph->tseqs[prev_tni].length()-1;
+                    d = diag + graph->qseqs[qni].length()-1;
+                } else {  // move twice (diagonal into new query/truth)
+                    printf("hit corner\n");
+                    tni = prev_tni;
+                    diag = diag + graph->tseqs[prev_tni].length()-1;
+                    d = diag + graph->qseqs[qni].length()-1;
+                    ptr = ptrs[qni][tni][s][d];
+                    if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u]\n",
+                            qni, tni, off, diag + off, ptr >> PTR_BITS, ptr & PTR_MASK);
+
+                    // TODO: PTR is not always PTR_INS if var adjacent to del
+                    // e.g. may got INS-INS-DEL-DEL instead of INS-DEL-INS-DEL
+                    printf("move twice, now insertion\n");
+                    qni = ptr >> PTR_BITS;
+                    diag = graph->qseqs[qni].length() - graph->tseqs[tni].length();
+                    d = diag + graph->qseqs[qni].length() - 1;
+                    path.push_back(idx4(qni, tni, graph->qseqs[qni].length()-1,
+                                graph->tseqs[tni].length()-1));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, 
+                            int(graph->qseqs[qni].length())-1, int(graph->tseqs[tni].length())-1);
+                }
+            }
+            else if (qni == 0 && tni == 0 && diag == 0) { // final matrix, MAT, no INS/DEL
+                printf("final matrix\n");
+                while (--off >= -1) {
+                    path.push_back(idx4(qni, tni, off, diag+off));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                }
+                break;
+            }
+            else {
+                ERROR("Unexpected pointer value (prev=%d, ptr=%d) during WFA backtrack.", 
+                        ptr >> PTR_BITS, ptr & PTR_MASK);
+            }
+        }
+
+        else {  // same matrix
+            printf("same matrix\n");
+            int prev_off = 0;
+            switch (ptrs[qni][tni][s][d] & PTR_MASK) {
+                case PTR_SUB:
+                    printf("substitution\n");
+                    prev_off = offs[qni][tni][--s][d];
+                    while (--off >= prev_off) {
+                        path.push_back(idx4(qni, tni, off, diag+off));
+                        if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                    }
+                    break;
+                case PTR_INS:
+                    printf("insertion\n");
+                    prev_off = offs[qni][tni][--s][++d];
+                    while (--off > prev_off) {
+                        path.push_back(idx4(qni, tni, off, diag+off));
+                        if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                    }
+                    path.push_back(idx4(qni, tni, off, diag+off+1));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off+1);
+                    diag++;
+                    break;
+                case PTR_DEL:
+                    printf("deletion\n");
+                    prev_off = offs[qni][tni][--s][--d];
+                    while (--off >= prev_off) {
+                        path.push_back(idx4(qni, tni, off, diag+off));
+                        if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                    }
+                    path.push_back(idx4(qni, tni, off+1, diag+off));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off+1, diag+off);
+                    diag--;
+                    break;
+                default:
+                    ERROR("Unexpected pointer value (prev=%d, ptr=%d) during WFA backtrack.", 
+                            ptr >> PTR_BITS, ptr & PTR_MASK);
+                    break;
+            }
+        }
+        off = offs[qni][tni][s][d];
+        ptr = ptrs[qni][tni][s][d];
+    }
+    return path;
+}
+
+
+/******************************************************************************/
+
+
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
 			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, bool print) {
 
@@ -497,17 +658,17 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         if (print) graph->print();
 
         // init empty pointers/offsets
-        std::unordered_map<idx4, idx4> ptrs;
         std::vector< std::vector< std::vector< std::vector<uint32_t> > > > wfa_ptrs;
         std::vector< std::vector< std::vector< std::vector<int> > > > wfa_offs;
 
-        int aln_score = calc_prec_recall_aln(graph, ptrs, print);
+        std::unordered_map<idx4, idx4> ptrs;
+        int aln_score = calc_prec_recall_aln(graph, ptrs, true);
         int wfa_score = wfa_calc_prec_recall_aln(graph, wfa_ptrs, wfa_offs, print);
-        if (print) printf("alignment score: %d, wfa: %d\n", aln_score, wfa_score);
         assert(aln_score == wfa_score);
-        bool aligned = aln_score <= g.max_dist;
+        std::vector<idx4> path = parse_wfa_path(graph, wfa_score, wfa_ptrs, wfa_offs, true);
+        bool aligned = wfa_score <= g.max_dist;
         if (aligned) { // alignment succeeded
-            calc_prec_recall(graph, ptrs, truth_hi, false);
+            /* calc_prec_recall(graph, path, truth_hi, false); */
             done = true;
         }
 
@@ -620,14 +781,12 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
 
 void calc_prec_recall(
         const std::shared_ptr<Graph> graph,
-        const std::unordered_map<idx4, idx4> & ptrs,
+        std::vector<idx4> & path,
         int truth_hap, bool print
         ) {
 
-    idx4 end(graph->qnodes-1, graph->tnodes-1, 
-            graph->qseqs[graph->qnodes-1].length()-1,
-            graph->tseqs[graph->tnodes-1].length()-1);
-    idx4 curr = end;
+    idx4 curr = path.back();
+    path.pop_back();
     int prev_query_ref_pos = graph->ref.size();
     int prev_truth_pos = graph->truth.size();
     int sync_group = 0;
@@ -648,7 +807,8 @@ void calc_prec_recall(
 
     while (curr != idx4(0,0,-1,-1)) {
 
-        idx4 prev = ptrs.at(curr);
+        idx4 prev = path.back();
+        path.pop_back();
 
         if (print) printf("curr = node (%d, %d) cell (%d, %d) poss (%d, %d)",
                 curr.qni, curr.tni, curr.qi, curr.ti, 

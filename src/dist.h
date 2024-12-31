@@ -158,6 +158,12 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases);
 
 /******************************************************************************/
 
+int parse_wfa_path(
+        const std::shared_ptr<Graph> graph,
+        std::vector< std::vector< std::vector< std::vector<uint32_t> > > > & ptrs
+        );
+
+
 int wfa_calc_prec_recall_aln(
         const std::shared_ptr<Graph> graph,
         std::vector< std::vector< std::vector< std::vector<uint32_t> > > > & ptrs,
@@ -173,7 +179,7 @@ int calc_prec_recall_aln(
 
 void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
-        const std::unordered_map<idx4, idx4> & ptrs,
+        std::vector<idx4> & path,
         int truth_hap,
         bool print = false
         );
