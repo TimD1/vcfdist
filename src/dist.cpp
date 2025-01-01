@@ -505,7 +505,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
         if (ptr & PTR_MAT) {
             // move into new query matrix (hit top row)
             if (ptr & PTR_INS) {
-                printf("insertion, new query matrix\n");
+                if (print) printf("insertion, new query matrix\n");
                 assert(diag >= 0);
                 while (off > 0) {
                     off--;
@@ -513,7 +513,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
                 }
                 int prev_qni = ptr >> PTR_BITS;
-                printf("hit top row\n");
+                if (print) printf("hit top row\n");
                 path.push_back(idx4(prev_qni, tni, graph->qseqs[prev_qni].length()-1, diag));
                 if (print) printf("path {%d, %d} (%d, %d)\n", prev_qni, tni, 
                         int(graph->qseqs[prev_qni].length())-1, diag);
@@ -523,7 +523,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
 
             // move into new truth matrix (hit left col)
             } else if (ptr & PTR_DEL) {
-                printf("deletion, new truth matrix\n");
+                if (print) printf("deletion, new truth matrix\n");
                 assert(diag <= 0);
                 while (diag + off > 0) {
                     off--;
@@ -531,7 +531,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                         if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
                 }
                 int prev_tni = ptr >> PTR_BITS;
-                printf("hit left col\n");
+                if (print) printf("hit left col\n");
                 path.push_back(idx4(qni, prev_tni, -diag, graph->tseqs[prev_tni].length()-1));
                 if (print) printf("path {%d, %d} (%d, %d)\n", qni, prev_tni, -diag,
                         int(graph->tseqs[prev_tni].length()-1));
@@ -540,7 +540,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                 d = diag + graph->qseqs[qni].length()-1;
             }
             else if (qni == 0 && tni == 0 && diag == 0) { // final matrix, MAT, no INS/DEL
-                printf("final matrix\n");
+                if (print) printf("final matrix\n");
                 while (--off >= -1) {
                     path.push_back(idx4(qni, tni, off, diag+off));
                     if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
@@ -554,11 +554,11 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
         }
 
         else {  // same matrix
-            printf("same matrix\n");
+            if (print) printf("same matrix\n");
             int prev_off = 0;
             switch (ptrs[qni][tni][s][d] & PTR_MASK) {
                 case PTR_SUB:
-                    printf("substitution\n");
+                    if (print) printf("substitution\n");
                     prev_off = offs[qni][tni][--s][d];
                     while (--off >= prev_off) {
                         path.push_back(idx4(qni, tni, off, diag+off));
@@ -566,7 +566,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     }
                     break;
                 case PTR_INS:
-                    printf("insertion\n");
+                    if (print) printf("insertion\n");
                     prev_off = offs[qni][tni][--s][++d];
                     while (--off > prev_off) {
                         path.push_back(idx4(qni, tni, off, diag+off));
@@ -577,7 +577,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     diag++;
                     break;
                 case PTR_DEL:
-                    printf("deletion\n");
+                    if (print) printf("deletion\n");
                     prev_off = offs[qni][tni][--s][--d];
                     while (--off >= prev_off) {
                         path.push_back(idx4(qni, tni, off, diag+off));
@@ -621,13 +621,13 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         std::vector< std::vector< std::vector< std::vector<int> > > > wfa_offs;
 
         std::unordered_map<idx4, idx4> ptrs;
-        int aln_score = calc_prec_recall_aln(graph, ptrs, true);
+        int aln_score = calc_prec_recall_aln(graph, ptrs, false);
         int wfa_score = wfa_calc_prec_recall_aln(graph, wfa_ptrs, wfa_offs, print);
         assert(aln_score == wfa_score);
-        std::vector<idx4> path = parse_wfa_path(graph, wfa_score, wfa_ptrs, wfa_offs, true);
+        std::vector<idx4> path = parse_wfa_path(graph, wfa_score, wfa_ptrs, wfa_offs, false);
         bool aligned = wfa_score <= g.max_dist;
         if (aligned) { // alignment succeeded
-            calc_prec_recall(graph, path, truth_hi, true);
+            calc_prec_recall(graph, path, truth_hi, false);
             done = true;
         }
 
