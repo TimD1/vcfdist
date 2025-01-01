@@ -513,34 +513,13 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
                 }
                 int prev_qni = ptr >> PTR_BITS;
-                if (diag != 0) {
-                    printf("hit top row\n");
-                    path.push_back(idx4(prev_qni, tni, graph->qseqs[prev_qni].length()-1, diag));
-                    if (print) printf("path {%d, %d} (%d, %d)\n", prev_qni, tni, 
-                            int(graph->qseqs[prev_qni].length())-1, diag);
-                    qni = prev_qni;
-                    diag = diag - graph->qseqs[qni].length() + 1;
-                    d = diag + graph->qseqs[qni].length()-1;
-                } else {  // move twice (diagonal into new query/truth)
-                    printf("hit corner\n");
-                    qni = prev_qni;
-                    diag = diag - graph->qseqs[qni].length() + 1;
-                    d = diag + graph->qseqs[qni].length()-1;
-                    ptr = ptrs[qni][tni][s][d];
-                    if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u]\n",
-                            qni, tni, off, diag + off, ptr >> PTR_BITS, ptr & PTR_MASK);
-
-                    // TODO: PTR is not always PTR_DEL if var adjacent to del
-                    // e.g. may got INS-INS-DEL-DEL instead of INS-DEL-INS-DEL
-                    printf("move twice, now deletion\n");
-                    tni = ptr >> PTR_BITS;
-                    diag = graph->qseqs[qni].length() - graph->tseqs[tni].length();
-                    d = diag + graph->qseqs[qni].length() - 1;
-                    path.push_back(idx4(qni, tni, graph->qseqs[qni].length()-1,
-                                graph->tseqs[tni].length()-1));
-                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, 
-                            int(graph->qseqs[qni].length())-1, int(graph->tseqs[tni].length())-1);
-                }
+                printf("hit top row\n");
+                path.push_back(idx4(prev_qni, tni, graph->qseqs[prev_qni].length()-1, diag));
+                if (print) printf("path {%d, %d} (%d, %d)\n", prev_qni, tni, 
+                        int(graph->qseqs[prev_qni].length())-1, diag);
+                qni = prev_qni;
+                diag = diag - graph->qseqs[qni].length() + 1;
+                d = diag + graph->qseqs[qni].length()-1;
 
             // move into new truth matrix (hit left col)
             } else if (ptr & PTR_DEL) {
@@ -552,34 +531,13 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                         if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
                 }
                 int prev_tni = ptr >> PTR_BITS;
-                if (diag != 0) {
-                    printf("hit left col\n");
-                    path.push_back(idx4(qni, prev_tni, -diag, graph->tseqs[prev_tni].length()-1));
-                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, prev_tni, -diag,
-                            int(graph->tseqs[prev_tni].length()-1));
-                    tni = prev_tni;
-                    diag = diag + graph->tseqs[prev_tni].length()-1;
-                    d = diag + graph->qseqs[qni].length()-1;
-                } else {  // move twice (diagonal into new query/truth)
-                    printf("hit corner\n");
-                    tni = prev_tni;
-                    diag = diag + graph->tseqs[prev_tni].length()-1;
-                    d = diag + graph->qseqs[qni].length()-1;
-                    ptr = ptrs[qni][tni][s][d];
-                    if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u]\n",
-                            qni, tni, off, diag + off, ptr >> PTR_BITS, ptr & PTR_MASK);
-
-                    // TODO: PTR is not always PTR_INS if var adjacent to del
-                    // e.g. may got INS-INS-DEL-DEL instead of INS-DEL-INS-DEL
-                    printf("move twice, now insertion\n");
-                    qni = ptr >> PTR_BITS;
-                    diag = graph->qseqs[qni].length() - graph->tseqs[tni].length();
-                    d = diag + graph->qseqs[qni].length() - 1;
-                    path.push_back(idx4(qni, tni, graph->qseqs[qni].length()-1,
-                                graph->tseqs[tni].length()-1));
-                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, 
-                            int(graph->qseqs[qni].length())-1, int(graph->tseqs[tni].length())-1);
-                }
+                printf("hit left col\n");
+                path.push_back(idx4(qni, prev_tni, -diag, graph->tseqs[prev_tni].length()-1));
+                if (print) printf("path {%d, %d} (%d, %d)\n", qni, prev_tni, -diag,
+                        int(graph->tseqs[prev_tni].length()-1));
+                tni = prev_tni;
+                diag = diag + graph->tseqs[prev_tni].length()-1;
+                d = diag + graph->qseqs[qni].length()-1;
             }
             else if (qni == 0 && tni == 0 && diag == 0) { // final matrix, MAT, no INS/DEL
                 printf("final matrix\n");
@@ -638,6 +596,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
         off = offs[qni][tni][s][d];
         ptr = ptrs[qni][tni][s][d];
     }
+    std::reverse(path.begin(), path.end());
     return path;
 }
 
@@ -668,7 +627,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         std::vector<idx4> path = parse_wfa_path(graph, wfa_score, wfa_ptrs, wfa_offs, true);
         bool aligned = wfa_score <= g.max_dist;
         if (aligned) { // alignment succeeded
-            /* calc_prec_recall(graph, path, truth_hi, false); */
+            calc_prec_recall(graph, path, truth_hi, true);
             done = true;
         }
 
@@ -805,7 +764,7 @@ void calc_prec_recall(
         }
     }
 
-    while (curr != idx4(0,0,-1,-1)) {
+    while (curr != idx4(0, 0, -1, -1)) {
 
         idx4 prev = path.back();
         path.pop_back();
