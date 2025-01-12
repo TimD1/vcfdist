@@ -39,15 +39,15 @@ void write_params() {
         filters_str += "," + g.filters[i];
 
     // write all params to file
-    std::string out_params_fn = g.out_prefix + "parameters.txt";
+    std::string out_params_fn = g.out_prefix + "parameters.tsv";
     FILE* out_params = fopen(out_params_fn.data(), "w");
     fprintf(out_params, 
-        "program = '%s'\nversion = '%s'\nout_prefix = '%s'\ncommand = '%s'\nreference_fasta = '%s'\n"
-        "query_vcf = '%s'\ntruth_vcf = '%s'\nbed_file = '%s'\nwrite_outputs = %s\nfilters = '%s'\n"
-        "min_var_qual = %d\nmax_var_qual = %d\nmax_var_size = %d\nsv_threshold = %d\n"
-        "credit_threshold = %f\ncluster_method = '%s'\ncluster_min_gap = %d\n"
-        "reach_min_gap = %d\nmax_cluster_itrs = %d\nmax_threads = %d\nmax_ram = %f\n"
-        "sub = %d\nopen = %d\nextend = %d\n",
+        "program\t%s\nversion\t%s\nout_prefix\t%s\ncommand\t%s\nreference_fasta\t%s\n"
+        "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nwrite_outputs\t%s\nfilters\t%s\n"
+        "min_var_qual\t%d\nmax_var_qual\t%d\nmax_var_size\t%d\nsv_threshold\t%d\n"
+        "credit_threshold\t%f\ncluster_method\t%s\ncluster_min_gap\t%d\n"
+        "reach_min_gap\t%d\nmax_cluster_itrs\t%d\nmax_threads\t%d\nmax_ram\t%f\n"
+        "sub\t%d\nopen\t%d\nextend\t%d\n",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.max_size, g.sv_threshold,
