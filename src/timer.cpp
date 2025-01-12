@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "defs.h"
+#include "globals.h"
 
 void timer::start() {
     if (running) {
@@ -28,4 +29,18 @@ double timer::total() {
 
 void timer::print(int i) {
     INFO("  [%d] %-37s: %8.3fs", i, name.data(), total());
+}
+
+std::string timer::get_name() {
+    return name;
+}
+
+void write_runtime() {
+    std::string runtimes_fn = g.out_prefix + "runtime.tsv";
+    if (g.verbosity >= 1) INFO("  Writing stage runtimes '%s'", runtimes_fn.data());
+    FILE* out_runtimes = fopen(runtimes_fn.data(), "w");
+    for (int i = 0; i <= TIME_TOTAL; i++) {
+        fprintf(out_runtimes, "%s\t%lf\n", g.timers[i].get_name().data(), g.timers[i].total());
+    }
+    fclose(out_runtimes);
 }

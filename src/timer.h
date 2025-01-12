@@ -13,6 +13,7 @@ public:
     timer(const std::string & timer_name) : name(timer_name) {};
 
     void start();
+    std::string get_name();
     void stop();
     double total();
     void print(int i);
@@ -23,5 +24,7 @@ private:
     double total_time = 0;
     bool running = false;
 };
+
+void write_runtime();
 
 #endif

@@ -169,10 +169,11 @@ int main(int argc, char **argv) {
 
     // report timing results
     g.timers[TIME_TOTAL].stop();
+    write_runtime();
     if (g.verbosity >= 1) {
         INFO(" ")
         INFO("Timers:")
-        for (int i = 0; i < TIME_TOTAL+1; i++) { g.timers[i].print(i); }
+        for (int i = 0; i <= TIME_TOTAL; i++) { g.timers[i].print(i); }
     }
     return EXIT_SUCCESS;
 }
