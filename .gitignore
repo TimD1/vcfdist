@@ -19,6 +19,7 @@
 *.aux
 src/vcfdist
 src/test
+__pycache__
 
 # ignore analysis
 analysis/*/*/
