@@ -37,5 +37,6 @@ jobs:
     - name: Test vcfdist
       run: |
        sudo apt-get install -y libgtest-dev
+       pip install pytest pytest-workflow
        cd tests
        pytest -vv
