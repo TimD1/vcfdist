@@ -39,4 +39,4 @@ jobs:
        sudo apt-get install -y libgtest-dev
        pip install pytest pytest-workflow
        cd tests
-       pytest -vv
+       pytest -vv --ga
