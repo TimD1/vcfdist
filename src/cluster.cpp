@@ -162,6 +162,7 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 void superclusterData::add_callset_vars(int callset,
         std::vector< std::unordered_map< std::string, 
         std::shared_ptr<ctgVariants> > > vars) {
+    bool print = false;
 
     for (int ctg_idx = 0; ctg_idx < int(this->contigs.size()); ctg_idx++) {
         std::string ctg = contigs[ctg_idx];
@@ -191,6 +192,8 @@ void superclusterData::add_callset_vars(int callset,
         } else if (vars[HAP2][ctg]->n) {
             curr_left_reach = vars[HAP2][ctg]->left_reaches[0];
             curr_right_reach = vars[HAP2][ctg]->right_reaches[0];
+        } else {
+            ERROR("No variants on contig: %s", ctg.data());
         }
 
         // initialize indices
@@ -199,8 +202,7 @@ void superclusterData::add_callset_vars(int callset,
         int curr_var_idx = 0;
         int next_left_reach = std::numeric_limits<int>::max();
         int next_right_reach = std::numeric_limits<int>::min();
-        while (var_idx[HAP1] < vars[HAP1][ctg]->n ||
-                var_idx[HAP2] < vars[HAP2][ctg]->n) {
+        while (var_idx[HAP1] < vars[HAP1][ctg]->n || var_idx[HAP2] < vars[HAP2][ctg]->n) {
 
             //////////////////
             // ADD VARIANTS //
@@ -228,13 +230,13 @@ void superclusterData::add_callset_vars(int callset,
                             vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
                             vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
                             vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
-                    /* printf("adding 1|1 var= %s:%d\t%s\t%s\t%s\n", */
-                    /*         ctg.data(), */ 
-                    /*         vars[HAP1][ctg]->poss[var_idx[HAP1]], */
-                    /*         vars[HAP1][ctg]->refs[var_idx[HAP1]].data(), */
-                    /*         vars[HAP1][ctg]->alts[var_idx[HAP1]].data(), */
-                    /*         gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data() */
-                    /*         ); */
+                    if (print) printf("adding 1|1 var= %s:%d\t%s\t%s\t%s\n",
+                            ctg.data(), 
+                            vars[HAP1][ctg]->poss[var_idx[HAP1]],
+                            vars[HAP1][ctg]->refs[var_idx[HAP1]].data(),
+                            vars[HAP1][ctg]->alts[var_idx[HAP1]].data(),
+                            gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data()
+                            );
                     var_idx[HAP1]++; var_idx[HAP2]++;
                     updated[HAP1] = true; updated[HAP2] = true;
 
@@ -261,59 +263,58 @@ void superclusterData::add_callset_vars(int callset,
                             vars[hap_idx][ctg]->gt_quals[var_idx[hap_idx]],
                             vars[hap_idx][ctg]->var_quals[var_idx[hap_idx]],
                             vars[hap_idx][ctg]->phase_sets[var_idx[hap_idx]]);
-                    /* printf("adding %s var= %s:%d\t%s\t%s\t%s\n", */
-                    /*         hap_idx == 0 ? "1|0" : "0|1", */
-                    /*         ctg.data(), */ 
-                    /*         vars[hap_idx][ctg]->poss[var_idx[hap_idx]], */
-                    /*         vars[hap_idx][ctg]->refs[var_idx[hap_idx]].data(), */
-                    /*         vars[hap_idx][ctg]->alts[var_idx[hap_idx]].data(), */
-                    /*         gt_strs[vars[hap_idx][ctg]->orig_gts[var_idx[hap_idx]]].data() */
-                    /*             ); */
+                    if (print) printf("adding %s var= %s:%d\t%s\t%s\t%s\n",
+                            hap_idx == 0 ? "1|0" : "0|1",
+                            ctg.data(), 
+                            vars[hap_idx][ctg]->poss[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->refs[var_idx[hap_idx]].data(),
+                            vars[hap_idx][ctg]->alts[var_idx[hap_idx]].data(),
+                            gt_strs[vars[hap_idx][ctg]->orig_gts[var_idx[hap_idx]]].data()
+                                );
                     var_idx[hap_idx]++;
                     updated[hap_idx] = true;
                 }
             } else if (var_idx[HAP1] < vars[HAP1][ctg]->n) { // only hap1 vars left
-                    merged_vars->add_var(
-                            vars[HAP1][ctg]->poss[var_idx[HAP1]],
-                            vars[HAP1][ctg]->rlens[var_idx[HAP1]],
-                            vars[HAP1][ctg]->types[var_idx[HAP1]],
-                            vars[HAP1][ctg]->locs[var_idx[HAP1]],
-                            vars[HAP1][ctg]->refs[var_idx[HAP1]],
-                            vars[HAP1][ctg]->alts[var_idx[HAP1]],
-                            vars[HAP1][ctg]->orig_gts[var_idx[HAP1]],
-                            vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
-                            vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
-                            vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
-                    /* printf("adding 1|0 var= %s:%d\t%s\t%s\t%s\n", */
-                    /*         ctg.data(), */ 
-                    /*         vars[HAP1][ctg]->poss[var_idx[HAP1]], */
-                    /*         vars[HAP1][ctg]->refs[var_idx[HAP1]].data(), */
-                    /*         vars[HAP1][ctg]->alts[var_idx[HAP1]].data(), */
-                    /*         gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data() */
-                    /*             ); */
-                    var_idx[HAP1]++;
-                    updated[HAP1] = true;
+                merged_vars->add_var(
+                        vars[HAP1][ctg]->poss[var_idx[HAP1]],
+                        vars[HAP1][ctg]->rlens[var_idx[HAP1]],
+                        vars[HAP1][ctg]->types[var_idx[HAP1]],
+                        vars[HAP1][ctg]->locs[var_idx[HAP1]],
+                        vars[HAP1][ctg]->refs[var_idx[HAP1]],
+                        vars[HAP1][ctg]->alts[var_idx[HAP1]],
+                        vars[HAP1][ctg]->orig_gts[var_idx[HAP1]],
+                        vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
+                        vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
+                        vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
+                if (print) printf("adding 1|0 var= %s:%d\t%s\t%s\t%s\n",
+                        ctg.data(), 
+                        vars[HAP1][ctg]->poss[var_idx[HAP1]],
+                        vars[HAP1][ctg]->refs[var_idx[HAP1]].data(),
+                        vars[HAP1][ctg]->alts[var_idx[HAP1]].data(),
+                        gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data()
+                            );
+                var_idx[HAP1]++;
+                updated[HAP1] = true;
             } else if (var_idx[HAP2] < vars[HAP2][ctg]->n) { // only hap2 vars left
-                    merged_vars->add_var(
-                            vars[HAP2][ctg]->poss[var_idx[HAP2]],
-                            vars[HAP2][ctg]->rlens[var_idx[HAP2]],
-                            vars[HAP2][ctg]->types[var_idx[HAP2]],
-                            vars[HAP2][ctg]->locs[var_idx[HAP2]],
-                            vars[HAP2][ctg]->refs[var_idx[HAP2]],
-                            vars[HAP2][ctg]->alts[var_idx[HAP2]],
-                            vars[HAP2][ctg]->orig_gts[var_idx[HAP2]],
-                            vars[HAP2][ctg]->gt_quals[var_idx[HAP2]],
-                            vars[HAP2][ctg]->var_quals[var_idx[HAP2]],
-                            vars[HAP2][ctg]->phase_sets[var_idx[HAP2]]);
-                    /* printf("adding 0|1 var= %s:%d\t%s\t%s\t%s\n", */
-                    /*         ctg.data(), */ 
-                    /*         vars[HAP2][ctg]->poss[var_idx[HAP2]], */
-                    /*         vars[HAP2][ctg]->refs[var_idx[HAP2]].data(), */
-                    /*         vars[HAP2][ctg]->alts[var_idx[HAP2]].data(), */
-                    /*         gt_strs[vars[HAP1][ctg]->orig_gts[var_idx[HAP1]]].data() */
-                    /*             ); */
-                    var_idx[HAP2]++;
-                    updated[HAP2] = true;
+                merged_vars->add_var(
+                        vars[HAP2][ctg]->poss[var_idx[HAP2]],
+                        vars[HAP2][ctg]->rlens[var_idx[HAP2]],
+                        vars[HAP2][ctg]->types[var_idx[HAP2]],
+                        vars[HAP2][ctg]->locs[var_idx[HAP2]],
+                        vars[HAP2][ctg]->refs[var_idx[HAP2]],
+                        vars[HAP2][ctg]->alts[var_idx[HAP2]],
+                        vars[HAP2][ctg]->orig_gts[var_idx[HAP2]],
+                        vars[HAP2][ctg]->gt_quals[var_idx[HAP2]],
+                        vars[HAP2][ctg]->var_quals[var_idx[HAP2]],
+                        vars[HAP2][ctg]->phase_sets[var_idx[HAP2]]);
+                if (print) printf("adding 0|1 var= %s:%d\t%s\t%s\t%s\n",
+                        ctg.data(), 
+                        vars[HAP2][ctg]->poss[var_idx[HAP2]],
+                        vars[HAP2][ctg]->refs[var_idx[HAP2]].data(),
+                        vars[HAP2][ctg]->alts[var_idx[HAP2]].data(),
+                        gt_strs[vars[HAP2][ctg]->orig_gts[var_idx[HAP2]]].data());
+                var_idx[HAP2]++;
+                updated[HAP2] = true;
             }
 
             /////////////////////
@@ -332,22 +333,24 @@ void superclusterData::add_callset_vars(int callset,
             // update reaches
             for (int h = 0; h < HAPS; h++) {
                 if (clust_idx[h] < vars[h][ctg]->nc) {
-                    if (vars[h][ctg]->left_reaches[clust_idx[h]] <= 
+                    if (clust_idx[h^1] >= vars[h^1][ctg]->nc ||
+                            vars[h][ctg]->left_reaches[clust_idx[h]] <=
                             vars[h^1][ctg]->left_reaches[clust_idx[h^1]]) {
+                        // TODO: why no std::min here?
                         next_left_reach = vars[h][ctg]->left_reaches[clust_idx[h]];
                         next_right_reach = std::max(next_right_reach,
                             vars[h][ctg]->right_reaches[clust_idx[h]]);
                     }
                 }
             }
-            /* printf("curr = (%d, %d)\tnext = (%d, %d)\n", */
-            /*         curr_left_reach, curr_right_reach, */
-            /*         next_left_reach, next_right_reach); */
+            if (print) printf("curr = (%d, %d)\tnext = (%d, %d)\n",
+                    curr_left_reach, curr_right_reach,
+                    next_left_reach, next_right_reach);
 
             // starting new supercluster
             if (next_left_reach > curr_right_reach) {
-                /* printf("new supercluster, adding curr = %d (%d, %d)\n\n", */
-                /*         curr_var_idx, curr_left_reach, curr_right_reach); */
+                if (print) printf("new supercluster, adding curr = %d (%d, %d)\n",
+                        curr_var_idx, curr_left_reach, curr_right_reach);
 
                 // save reaches of prev cluster
                 merged_vars->clusters.push_back(curr_var_idx);
@@ -365,8 +368,9 @@ void superclusterData::add_callset_vars(int callset,
                 next_right_reach = std::numeric_limits<int>::min();
                 for (int h = 0; h < HAPS; h++) {
                     if (clust_idx[h] < vars[h][ctg]->nc &&
+                       (clust_idx[h^1] >= vars[h^1][ctg]->nc ||
                             vars[h][ctg]->left_reaches[clust_idx[h]] <=
-                            vars[h^1][ctg]->left_reaches[clust_idx[h^1]]) {
+                            vars[h^1][ctg]->left_reaches[clust_idx[h^1]])) {
                         next_left_reach  = std::min(next_left_reach,
                                 vars[h][ctg]->left_reaches[clust_idx[h]]);
                         next_right_reach = std::max(next_right_reach,
@@ -375,7 +379,7 @@ void superclusterData::add_callset_vars(int callset,
                 }
 
             } else { // same supercluster
-                /* printf("same supercluster\n"); */
+                if (print) printf("same supercluster\n");
                 curr_left_reach = std::min(curr_left_reach, next_left_reach);
                 curr_right_reach = std::max(curr_right_reach, next_right_reach);
             }
