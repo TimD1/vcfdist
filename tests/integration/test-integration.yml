@@ -2,4 +2,4 @@
   command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist -h'
 
 - name: test_small-var_phased_single-phaseset_chr20
-  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist "${VCFDIST_REPO_PATH}/tests/integration/data/query_chr20.vcf.gz" "${VCFDIST_REPO_PATH}/tests/integration/data/truth_chr20.vcf.gz" "${VCFDIST_REPO_PATH}/data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta" -b "${VCFDIST_REPO_PATH}/tests/integration/data/chr20.bed"'
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist "${VCFDIST_REPO_PATH}/tests/integration/data/query_chr20.vcf.gz" "${VCFDIST_REPO_PATH}/tests/integration/data/truth_chr20.vcf.gz" "${VCFDIST_REPO_PATH}/tests/integration/data/GCA_000001405.15_GRCh38_no_alt_analysis_set_chr20.fasta" -b "${VCFDIST_REPO_PATH}/tests/integration/data/chr20.bed"'
