@@ -161,19 +161,22 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
 void superclusterData::add_callset_vars(int callset,
         std::vector< std::unordered_map< std::string, 
-        std::shared_ptr<ctgVariants> > > vars) {
+        std::shared_ptr<ctgVariants> > > & vars) {
     bool print = false;
 
     for (int ctg_idx = 0; ctg_idx < int(this->contigs.size()); ctg_idx++) {
         std::string ctg = contigs[ctg_idx];
 
+        // merge variants from each haplotype for this ctg/callset
+        std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
+
         // skip empty contigs
         int nvars = 0;
         for (int h = 0; h < HAPS; h++) nvars += vars[h][ctg]->n;
-        if (!nvars) continue;
-
-        // merge variants from each haplotype for this ctg/callset
-        std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
+        if (!nvars) {
+            this->superclusters[ctg]->callset_vars[callset] = merged_vars;
+            continue;
+        }
 
         // initialize with leftmost cluster info
         int curr_left_reach = std::numeric_limits<int>::max();
