@@ -17,9 +17,12 @@
 *.json
 *.log
 *.aux
-src/vcfdist
 src/test
 __pycache__
+
+# ignore binaries
+src/vcfdist
+tests/unit/build/test_vcfdist
 
 # ignore analysis
 analysis/*/*/
@@ -32,5 +35,4 @@ out/
 
 # don't track test cases
 test/
-tests/unit/build/test_vcfdist
 issues/
