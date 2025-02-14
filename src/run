@@ -1,16 +1,24 @@
 #!/bin/bash
 
-# valgrind --leak-check=full \
-#     --show-leak-kinds=all \
+HEAD="$(git rev-parse HEAD | head -c 6)"
+REMOVE_FIELDS="FORMAT/SC,FORMAT/SG,FORMAT/RD,FORMAT/QD,FORMAT/BC,FORMAT/BK,FORMAT/BS,FORMAT/PB"
+
+# valgrind \
 #     --track-origins=yes \
 #     --dsymutil=yes \
 #     --verbose \
 #     --log-file=valgrind.log \
+#     --leak-check=full \
+#     --show-leak-kinds=all \
 ./vcfdist \
-    ../test/query20.vcf.gz \
-    ../test/truth20.vcf.gz \
+    ../tests/integration/data/query_chr20.vcf.gz \
+    ../tests/integration/data/truth_chr20.vcf.gz \
     ../data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
-    -b ../test/bench20.bed \
+    -b ../tests/integration/data/chr20.bed \
     -t 1 \
-    -l 1000 \
-    -p ../out/dev3.
+    -lcv 10 \
+    -p ../out/${HEAD}.
+
+bcftools annotate --remove ${REMOVE_FIELDS} ../out/10eda9.summary.vcf -o 3.0.0-a0.summary.vcf
+bcftools annotate --remove ${REMOVE_FIELDS} ../out/${HEAD}.summary.vcf -o HEAD.summary.vcf
+diff 3.0.0-a0.summary.vcf HEAD.summary.vcf > diff.txt
