@@ -3,12 +3,13 @@ INSTALLDIR = /usr/local/bin
 OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o timer.o
 
 CXX ?= g++
-CXXFLAGS ?= -O3
+# CXXFLAGS = -O3
+CXXFLAGS = -g -pg -O1
 CXXFLAGS += -Wall -Wextra -std=c++17
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 
 $(TARGET): $(OBJS) main.cpp
-	$(CXX) $(OBJS) main.cpp $(LDFLAGS) -o $(TARGET)
+	$(CXX) $(CXXFLAGS) $(OBJS) main.cpp $(LDFLAGS) -o $(TARGET)
 
 install:
 	cp $(TARGET) $(INSTALLDIR)
