@@ -32,6 +32,7 @@ public:
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
+    int max_supercluster_size = 10000;
 
     // re-alignment
     bool realign_truth = false;

@@ -69,4 +69,22 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx, int hap,
 std::vector< std::vector< std::vector<int> > > 
         sort_superclusters(std::shared_ptr<superclusterData>);
 
+// helper functions for splitting large superclusters
+std::vector< std::vector<int> > split_large_supercluster(
+        const std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
+        const std::vector<int> & cluster_start_indices,
+        const std::vector<int> & cluster_end_indices, bool print = false);
+std::vector<int> get_supercluster_range(
+        const std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
+        const std::vector<int> & cluster_start_indices,
+        const std::vector<int> & cluster_end_indices);
+std::vector<int> get_supercluster_split_location(
+        const std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
+        const std::vector<int> & cluster_start_indices,
+        const std::vector<int> & cluster_end_indices);
+int get_hap_idx_of_next_cluster(
+        const std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
+        const std::vector<int> & cluster_start_indices,
+        const std::vector<int> & cluster_end_indices);
+
 #endif
