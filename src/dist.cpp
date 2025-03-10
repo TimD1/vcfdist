@@ -1103,6 +1103,35 @@ void calc_prec_recall(
             print_ref_ptrs(truth_ref_ptrs[i]);
         }
 
+        if (print) {
+            printf("\n\nSupercluster: %d\n", sc_idx);
+            std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
+            for (int j = 0; j < CALLSETS*HAPS; j++) {
+                int callset = j >> 1;
+                int hap = j % 2;
+                int cluster_beg = sc->superclusters[callset][hap][sc_idx];
+                int cluster_end = sc->superclusters[callset][hap][sc_idx+1];
+                printf("%s%d: %d clusters (%d-%d)\n", 
+                    callset_strs[callset].data(), hap+1,
+                    cluster_end-cluster_beg,
+                    cluster_beg, cluster_end);
+
+                for (int k = cluster_beg; k < cluster_end; k++) {
+                    std::shared_ptr<ctgVariants> vars = sc->ctg_variants[callset][hap];
+                    int variant_beg = vars->clusters[k];
+                    int variant_end = vars->clusters[k+1];
+                    printf("\tCluster %d: %d variants (%d-%d)\n", k, 
+                        variant_end-variant_beg, variant_beg, variant_end);
+                    for (int l = variant_beg; l < variant_end; l++) {
+                        printf("\t\t%s %d\t%s\t%s\tQ=%f\n", ctg.data(), vars->poss[l], 
+                        vars->refs[l].size() ?  vars->refs[l].data() : "_", 
+                        vars->alts[l].size() ?  vars->alts[l].data() : "_",
+                        vars->var_quals[l]);
+                    }
+                }
+            }
+        }
+
         // sync occurs between prev_var and var
         while (sync_idx >= 0) {
 
@@ -1188,6 +1217,7 @@ void calc_prec_recall(
                 // combined, are equivalent to no variants. In this case, the truth VCF should
                 // be fixed. Output a warning, and allow the evaluation to continue.
                 if (ref_ed == 0 && truth_var_ptr != prev_truth_var_ptr) {
+                    warn = true;
                     WARN("Zero edit distance with truth variants at ctg %s supercluster %d", ctg.data(), sc_idx);
                     ref_ed = 1; // prevent divide-by-zero
                 }

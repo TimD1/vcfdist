@@ -174,7 +174,7 @@ superclusterData::superclusterData(
             ERROR("Truth VCF does not contain contig '%s'", ctg.data());
         }
     }
-    this->supercluster(true);
+    this->supercluster(false);
     this->transfer_phase_sets();
 }
 
@@ -520,19 +520,25 @@ void superclusterData::supercluster(bool print) {
                 WARN("Max supercluster size (%d) exceeded (%d) at %s:%d-%d, breaking up into %d superclusters", 
                         g.max_supercluster_size, end_pos-beg_pos, ctg.data(), beg_pos, end_pos, 
                         int(all_brks.size()-1));
-                for (int i = 0; i < int(all_brks.size())-1; i++) {
-                    std::vector<int> curr_poss = get_supercluster_range(vars, all_brks[i], all_brks[i+1]);
-                    int curr_beg_pos = curr_poss[0];
-                    int curr_end_pos = curr_poss[1];
-                    this->superclusters[ctg]->add_supercluster(all_brks[i], curr_beg_pos, curr_end_pos);
+                for (int brk_idx = 0; brk_idx < int(all_brks.size())-1; brk_idx++) {
+                    brks = all_brks[brk_idx];
+                    next_brks = all_brks[brk_idx+1];
+                    poss = get_supercluster_range(vars, brks, next_brks);
+                    beg_pos = poss[0];
+                    end_pos = poss[1];
+                    this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
                     if (print) printf("BREAK: | %d | %d | %d | %d |\n",
-                            all_brks[i][0], all_brks[i][1], all_brks[i][2], all_brks[i][3]);
+                            brks[0], brks[1], brks[2], brks[3]);
+                    if (print) printf("NEXT: | %d | %d | %d | %d |\n",
+                            next_brks[0], next_brks[1], next_brks[2], next_brks[3]);
                 }
 
             } else {
                 // save alignment information
                 this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
                 if (print) printf("BREAK: | %d | %d | %d | %d |\n", brks[0], brks[1], brks[2], brks[3]);
+                if (print) printf("NEXT: | %d | %d | %d | %d |\n",
+                        next_brks[0], next_brks[1], next_brks[2], next_brks[3]);
             }
 
             // reset for next active cluster
@@ -570,24 +576,26 @@ std::vector<int> get_supercluster_range(
     int end_pos = -1;
 
     for (int i = 0; i < CALLSETS*HAPS; i++) {
+        if (cluster_start_indices[i] >= int(vars[i>>1][i&1]->clusters.size())) {
+            ERROR("Cluster start indices invalid in get_supercluster_range()");
+        }
+        if (cluster_end_indices[i] >= int(vars[i>>1][i&1]->clusters.size())) {
+            ERROR("Cluster end indices invalid in get_supercluster_range()");
+        }
         // if there is a cluster on this hap, update beginning and end positions
         if (cluster_end_indices[i] - cluster_start_indices[i]) {
 
             // one position left of the leftmost variant
-            if (cluster_start_indices[i] < int(vars[i>>1][i&1]->clusters.size())) {
-                beg_pos = std::min(beg_pos,
-                    vars[i>>1][i&1]->poss[
-                        vars[i>>1][i&1]->clusters[cluster_start_indices[i]]]-1);
-            }
+            beg_pos = std::min(beg_pos,
+                vars[i>>1][i&1]->poss[
+                    vars[i>>1][i&1]->clusters[cluster_start_indices[i]]]-1);
 
             // one position right of the rightmost variant end in the last included cluster
-            if (cluster_end_indices[i] < int(vars[i>>1][i&1]->clusters.size())) {
-                end_pos = std::max(end_pos,
-                        vars[i>>1][i&1]->poss[
-                            vars[i>>1][i&1]->clusters[cluster_end_indices[i]]-1] +
-                        vars[i>>1][i&1]->rlens[
-                            vars[i>>1][i&1]->clusters[cluster_end_indices[i]]-1] + 1);
-            }
+            end_pos = std::max(end_pos,
+                    vars[i>>1][i&1]->poss[
+                        vars[i>>1][i&1]->clusters[cluster_end_indices[i]]-1] +
+                    vars[i>>1][i&1]->rlens[
+                        vars[i>>1][i&1]->clusters[cluster_end_indices[i]]-1] + 1);
         }
     }
     std::vector<int> range = {beg_pos, end_pos};
@@ -617,67 +625,16 @@ std::vector< std::vector<int> > split_large_supercluster(
             int beg_pos = poss[0];
             int end_pos = poss[1];
             if (end_pos - beg_pos > g.max_supercluster_size) {
-                if (print) printf("\n");
-                if (print) printf("splitting %d-%d\n", beg_pos, end_pos);
+                if (print) printf("\nsplitting %d-%d\n", beg_pos, end_pos);
                 large_supercluster_exists = true;
                 next_breakpoints.push_back(breakpoints[i]);
-                if (print) printf("cluster_start_indices: clusters = (%d, %d, %d, %d), vars = [%d, %d, %d, %d]\n",
-                        cluster_start_indices[0],
-                        cluster_start_indices[1],
-                        cluster_start_indices[2],
-                        cluster_start_indices[3],
-                        vars[0][0]->clusters[cluster_start_indices[0]],
-                        vars[0][1]->clusters[cluster_start_indices[1]],
-                        vars[1][0]->clusters[cluster_start_indices[2]],
-                        vars[1][1]->clusters[cluster_start_indices[3]]
-                        );
-                if (print) printf("cluster_end_indices: clusters = (%d, %d, %d, %d), vars = [%d, %d, %d, %d]\n",
-                        cluster_end_indices[0],
-                        cluster_end_indices[1],
-                        cluster_end_indices[2],
-                        cluster_end_indices[3],
-                        vars[0][0]->clusters[cluster_end_indices[0]],
-                        vars[0][1]->clusters[cluster_end_indices[1]],
-                        vars[1][0]->clusters[cluster_end_indices[2]],
-                        vars[1][1]->clusters[cluster_end_indices[3]]
-                        );
 
                 // variant indices of optimal split location
                 std::vector<int> best_var_split = get_supercluster_split_location(
                             vars, breakpoints[i], breakpoints[i+1], print);
-                if (print) printf("best_var_split: vars = [%d, %d, %d, %d]\n",
-                        best_var_split[0],
-                        best_var_split[1],
-                        best_var_split[2],
-                        best_var_split[3]);
 
                 if (int(best_var_split.size()) == HAPS*CALLSETS) { // found valid split
-                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, cluster_end_indices, print);
-                if (print) printf("cluster_split_indices: clusters = (%d, %d, %d, %d), vars = [%d, %d, %d, %d]\n",
-                        cluster_split_indices[0],
-                        cluster_split_indices[1],
-                        cluster_split_indices[2],
-                        cluster_split_indices[3],
-                        vars[0][0]->clusters[cluster_split_indices[0]],
-                        vars[0][1]->clusters[cluster_split_indices[1]],
-                        vars[1][0]->clusters[cluster_split_indices[2]],
-                        vars[1][1]->clusters[cluster_split_indices[3]]
-                        );
-                if (print) printf("cluster_split_indices: %d, %d, %d, %d\n",
-                        cluster_split_indices[0],
-                        cluster_split_indices[1],
-                        cluster_split_indices[2],
-                        cluster_split_indices[3]);
-                if (print) printf("new cluster_end_indices: clusters = (%d, %d, %d, %d), vars = [%d, %d, %d, %d]\n",
-                        cluster_end_indices[0],
-                        cluster_end_indices[1],
-                        cluster_end_indices[2],
-                        cluster_end_indices[3],
-                        vars[0][0]->clusters[cluster_end_indices[0]],
-                        vars[0][1]->clusters[cluster_end_indices[1]],
-                        vars[1][0]->clusters[cluster_end_indices[2]],
-                        vars[1][1]->clusters[cluster_end_indices[3]]
-                        );
+                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints[i+1], print);
                     next_breakpoints.push_back(cluster_split_indices);
 
                 } else { // no valid splits (shouldn't happen?)
@@ -690,7 +647,8 @@ std::vector< std::vector<int> > split_large_supercluster(
             }
         }
         // add last breakpoint
-        next_breakpoints.push_back(breakpoints[breakpoints.size()-1]);
+        cluster_end_indices = breakpoints[breakpoints.size()-1];
+        next_breakpoints.push_back(cluster_end_indices);
         breakpoints = next_breakpoints;
     }
     if (print) printf("%d breakpoints\n", int(breakpoints.size()));
