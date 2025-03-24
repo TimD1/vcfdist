@@ -174,7 +174,7 @@ superclusterData::superclusterData(
             ERROR("Truth VCF does not contain contig '%s'", ctg.data());
         }
     }
-    this->supercluster(false);
+    this->supercluster(true);
     this->transfer_phase_sets();
 }
 
@@ -634,7 +634,7 @@ std::vector< std::vector<int> > split_large_supercluster(
                             vars, breakpoints[i], breakpoints[i+1], print);
 
                 if (int(best_var_split.size()) == HAPS*CALLSETS) { // found valid split
-                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints[i+1], print);
+                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints, i, print);
                     next_breakpoints.push_back(cluster_split_indices);
 
                 } else { // no valid splits (shouldn't happen?)
@@ -666,7 +666,9 @@ std::vector< std::vector<int> > split_large_supercluster(
 std::vector<int> split_cluster(
         std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
         const std::vector<int> & variant_split_indices,
-        std::vector<int> & cluster_end_indices, bool print) {
+        std::vector< std::vector<int> > & breakpoints,
+        int breakpoint_idx,
+        bool print) {
     if (print) printf("Splitting cluster at (%d, %d, %d, %d)\n", 
             variant_split_indices[0], variant_split_indices[1],
             variant_split_indices[2], variant_split_indices[3]);
@@ -694,7 +696,11 @@ std::vector<int> split_cluster(
             vars[i>>1][i&1]->right_reaches.insert(vars[i>>1][i&1]->right_reaches.begin() + clust_idx,
                     right_reach);
             vars[i>>1][i&1]->clusters.insert(vars[i>>1][i&1]->clusters.begin() + clust_idx, var_idx);
-            cluster_end_indices[i]++;
+
+            // increment breakpoint for all remaining clusters in this supercluster
+            for (int j = breakpoint_idx+1; j < int(breakpoints.size()); j++) {
+                breakpoints[j][i]++;
+            }
         }
     }
     return cluster_curr_indices;

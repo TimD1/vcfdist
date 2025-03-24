@@ -102,7 +102,7 @@ std::vector<int> get_supercluster_split_location(
 std::vector<int> split_cluster(
         std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
         const std::vector<int> & variant_split_indices,
-        std::vector<int> & cluster_end_indices, bool print = false);
+        std::vector< std::vector<int> > & breakpoints, int breakpoint_idx, bool print = false);
 var_info get_next_variant_info(
         const std::vector< std::vector< std::shared_ptr<ctgVariants> > > & vars,
         const std::vector<int> & var_curr_indices,
