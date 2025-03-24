@@ -1104,8 +1104,8 @@ void calc_prec_recall(
         }
 
         if (print) {
-            printf("\n\nSupercluster: %d\n", sc_idx);
             std::shared_ptr<ctgSuperclusters> sc = clusterdata_ptr->superclusters[ctg];
+            printf("\n\nSupercluster: %d (%d-%d)\n", sc_idx, sc->begs[sc_idx], sc->ends[sc_idx]);
             for (int j = 0; j < CALLSETS*HAPS; j++) {
                 int callset = j >> 1;
                 int hap = j % 2;
@@ -1749,7 +1749,7 @@ void precision_recall_wrapper(
         /////////////////////////////////////////////////////////////////////
         if (false) {
             // print cluster info
-            printf("\n\nSupercluster: %d\n", sc_idx);
+            printf("\n\nSupercluster: %d (%d-%d)\n", sc_idx, sc->begs[sc_idx], sc->ends[sc_idx]);
             for (int i = 0; i < CALLSETS*HAPS; i++) {
                 int callset = i >> 1;
                 int hap = i % 2;

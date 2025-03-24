@@ -174,7 +174,7 @@ superclusterData::superclusterData(
             ERROR("Truth VCF does not contain contig '%s'", ctg.data());
         }
     }
-    this->supercluster(true);
+    this->supercluster(false);
     this->transfer_phase_sets();
 }
 
@@ -675,6 +675,7 @@ std::vector<int> split_cluster(
 
     std::vector<int> cluster_curr_indices(CALLSETS*HAPS, 0);
     for (int i = 0; i < CALLSETS*HAPS; i++) {
+        if(print) printf("index: %d\n", i);
 
         // find the cluster index corresponding to this variant index
         int var_idx = variant_split_indices[i];
@@ -682,14 +683,15 @@ std::vector<int> split_cluster(
                 vars[i>>1][i&1]->clusters.end(), var_idx);
         int clust_idx = std::distance(vars[i>>1][i&1]->clusters.begin(), clust_itr);
         cluster_curr_indices[i] = clust_idx;
+        if (print) printf("\tvar_idx: %d, clust_idx: %d, *clust_itr: %d\n", var_idx, clust_idx, *clust_itr);
 
         if (*clust_itr == var_idx) {
             // there is already a cluster break at this variant on this haplotype, do nothing
         } else {
             // we need to split the current cluster in two, save and adjust existing cluster end
-            int right_reach = vars[i>>1][i&1]->right_reaches[clust_idx];
-            int var_pos = vars[i>>1][i&1]->poss[variant_split_indices[i]];
-            vars[i>>1][i&1]->right_reaches[clust_idx] = var_pos;
+            int right_reach = vars[i>>1][i&1]->right_reaches[clust_idx-1];
+            int var_pos = vars[i>>1][i&1]->poss[var_idx];
+            vars[i>>1][i&1]->right_reaches[clust_idx-1] = var_pos;
 
             // add new cluster
             vars[i>>1][i&1]->left_reaches.insert(vars[i>>1][i&1]->left_reaches.begin() + clust_idx, var_pos);
