@@ -576,14 +576,14 @@ std::vector<int> get_supercluster_range(
     int end_pos = -1;
 
     for (int i = 0; i < CALLSETS*HAPS; i++) {
-        if (cluster_start_indices[i] >= int(vars[i>>1][i&1]->clusters.size())) {
-            ERROR("Cluster start indices invalid in get_supercluster_range()");
-        }
-        if (cluster_end_indices[i] >= int(vars[i>>1][i&1]->clusters.size())) {
-            ERROR("Cluster end indices invalid in get_supercluster_range()");
-        }
         // if there is a cluster on this hap, update beginning and end positions
         if (cluster_end_indices[i] - cluster_start_indices[i]) {
+            if (cluster_start_indices[i] >= int(vars[i>>1][i&1]->clusters.size())) {
+                ERROR("Cluster start indices invalid in get_supercluster_range()");
+            }
+            if (cluster_end_indices[i] >= int(vars[i>>1][i&1]->clusters.size())) {
+                ERROR("Cluster end indices invalid in get_supercluster_range()");
+            }
 
             // one position left of the leftmost variant
             beg_pos = std::min(beg_pos,
