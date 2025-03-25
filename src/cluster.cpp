@@ -465,18 +465,6 @@ void superclusterData::supercluster(bool print) {
             int beg_pos = poss[0];
             int end_pos = poss[1];
 
-            // update summary metrics
-            largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
-            total_bases += end_pos-beg_pos;
-            int this_vars = 0;
-            for (int i = 0; i < CALLSETS*HAPS; i++) {
-                if (vars[i>>1][i&1]->clusters.size())
-                    this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
-                        vars[i>>1][i&1]->clusters[ brks[i] ];
-            }
-            most_vars = std::max(most_vars, this_vars);
-            total_vars += this_vars;
-
             // debug print
             if (print) {
                 printf("\nSUPERCLUSTER: %d\n", this->superclusters[ctg]->n);
@@ -497,26 +485,11 @@ void superclusterData::supercluster(bool print) {
                 }
                 printf("curr_right: %d, lefts: %d %d %d %d\n",
                     curr_right, lefts[0], lefts[1], lefts[2], lefts[3]);
-                printf("variants: %d, bases: %d\n", this_vars, end_pos-beg_pos);
             }
 
             // split large supercluster if necessary
             if (end_pos - beg_pos > g.max_supercluster_size) {
-                if (print) printf("next_brks: clusters = (%d, %d, %d, %d), vars = [%d, %d, %d, %d]\n",
-                        next_brks[0], next_brks[1], next_brks[2], next_brks[3],
-                        vars[0][0]->clusters[next_brks[0]],
-                        vars[0][1]->clusters[next_brks[1]],
-                        vars[1][0]->clusters[next_brks[2]],
-                        vars[1][1]->clusters[next_brks[3]]
-                        );
                 std::vector< std::vector<int> > all_brks = split_large_supercluster(vars, brks, next_brks, print);
-                if (print) printf("new next_brks: clusters = (%d, %d, %d, %d), vars = [%d, %d, %d, %d]\n",
-                        next_brks[0], next_brks[1], next_brks[2], next_brks[3],
-                        vars[0][0]->clusters[next_brks[0]],
-                        vars[0][1]->clusters[next_brks[1]],
-                        vars[1][0]->clusters[next_brks[2]],
-                        vars[1][1]->clusters[next_brks[3]]
-                        );
                 WARN("Max supercluster size (%d) exceeded (%d) at %s:%d-%d, breaking up into %d superclusters", 
                         g.max_supercluster_size, end_pos-beg_pos, ctg.data(), beg_pos, end_pos, 
                         int(all_brks.size()-1));
@@ -527,18 +500,23 @@ void superclusterData::supercluster(bool print) {
                     beg_pos = poss[0];
                     end_pos = poss[1];
                     this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
-                    if (print) printf("BREAK: | %d | %d | %d | %d |\n",
-                            brks[0], brks[1], brks[2], brks[3]);
-                    if (print) printf("NEXT: | %d | %d | %d | %d |\n",
-                            next_brks[0], next_brks[1], next_brks[2], next_brks[3]);
+
+                    // update summary metrics
+                    largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
+                    total_bases += end_pos-beg_pos;
+                    int this_vars = 0;
+                    for (int i = 0; i < CALLSETS*HAPS; i++) {
+                        if (vars[i>>1][i&1]->clusters.size())
+                            this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
+                                vars[i>>1][i&1]->clusters[ brks[i] ];
+                    }
+                    most_vars = std::max(most_vars, this_vars);
+                    total_vars += this_vars;
                 }
 
             } else {
                 // save alignment information
                 this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
-                if (print) printf("BREAK: | %d | %d | %d | %d |\n", brks[0], brks[1], brks[2], brks[3]);
-                if (print) printf("NEXT: | %d | %d | %d | %d |\n",
-                        next_brks[0], next_brks[1], next_brks[2], next_brks[3]);
             }
 
             // reset for next active cluster
