@@ -517,6 +517,17 @@ void superclusterData::supercluster(bool print) {
             } else {
                 // save alignment information
                 this->superclusters[ctg]->add_supercluster(brks, beg_pos, end_pos);
+
+				// update summary statistics
+				total_bases += end_pos-beg_pos;
+				int this_vars = 0;
+				for (int i = 0; i < CALLSETS*HAPS; i++) {
+					if (vars[i>>1][i&1]->clusters.size())
+						this_vars += vars[i>>1][i&1]->clusters[ next_brks[i] ] - 
+							vars[i>>1][i&1]->clusters[ brks[i] ];
+				}
+				most_vars = std::max(most_vars, this_vars);
+				total_vars += this_vars;
             }
 
             // reset for next active cluster
