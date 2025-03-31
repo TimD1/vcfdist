@@ -215,7 +215,8 @@ void superclusterData::transfer_phase_sets() {
         for (; q1i < q1v->n; q1i++) {
             if (q1v->phase_sets[q1i] != 0) {
                 if (q1v->poss[q1i] < first_pos) {
-                    first_pos = q1v->poss[q1i]; phase_set = q1v->phase_sets[q1i];
+                    first_pos = q1v->poss[q1i];
+                    phase_set = q1v->phase_sets[q1i];
                 }
                 break;
             }
@@ -223,7 +224,8 @@ void superclusterData::transfer_phase_sets() {
         for (; q2i < q2v->n; q2i++) {
             if (q2v->phase_sets[q2i] != 0) {
                 if (q2v->poss[q2i] < first_pos) {
-                    first_pos = q2v->poss[q2i]; phase_set = q2v->phase_sets[q2i];
+                    first_pos = q2v->poss[q2i];
+                    phase_set = q2v->phase_sets[q2i];
                 }
                 break;
             }
@@ -231,7 +233,8 @@ void superclusterData::transfer_phase_sets() {
         for (; t1i < t1v->n; t1i++) {
             if (t1v->phase_sets[t1i] != 0) {
                 if (t1v->poss[t1i] < first_pos) {
-                    first_pos = t1v->poss[t1i]; phase_set = t1v->phase_sets[t1i];
+                    first_pos = t1v->poss[t1i];
+                    phase_set = t1v->phase_sets[t1i];
                 }
                 break;
             }
@@ -239,7 +242,8 @@ void superclusterData::transfer_phase_sets() {
         for (; t2i < t2v->n; t2i++) {
             if (t2v->phase_sets[t2i] != 0) {
                 if (t2v->poss[t2i] < first_pos) {
-                    first_pos = t2v->poss[t2i]; phase_set = t2v->phase_sets[t2i];
+                    first_pos = t2v->poss[t2i];
+                    phase_set = t2v->phase_sets[t2i];
                 }
                 break;
             }
@@ -815,13 +819,13 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     bool print = false;
 
     // cluster each contig
-    for (std::string ctg : vcf->contigs) {
+    for (const std::string & ctg : vcf->contigs) {
 
         // cluster per-haplotype variants: vcf->variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
 
             std::shared_ptr<ctgVariants> vars = vcf->variants[hap][ctg];
-            if (!vars->n) break;
+            if (!vars->n) continue;
 
             // mark variant boundary between clusters (hence n+1), 
             // with initially one variant per cluster
