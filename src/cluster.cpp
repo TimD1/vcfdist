@@ -618,13 +618,13 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     bool print = false;
 
     // cluster each contig
-    for (std::string ctg : vcf->contigs) {
+    for (const std::string & ctg : vcf->contigs) {
 
         // cluster per-haplotype variants: vcf->variants[hap]
         for (int hap = 0; hap < HAPS; hap++) {
 
             std::shared_ptr<ctgVariants> vars = vcf->variants[hap][ctg];
-            if (!vars->n) break;
+            if (!vars->n) continue;
 
             // mark variant boundary between clusters (hence n+1), 
             // with initially one variant per cluster
