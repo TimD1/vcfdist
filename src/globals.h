@@ -32,6 +32,7 @@ public:
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
+    int max_supercluster_size = 10000;
 
     // re-alignment
     bool realign_truth = false;
@@ -75,7 +76,7 @@ public:
     void init_timers(std::vector<std::string> timer_strs);
 
     // program data
-    const std::string VERSION = "2.5.3";
+    const std::string VERSION = "2.6.0";
     const std::string PROGRAM = "vcfdist";
     std::vector<timer> timers;
 };

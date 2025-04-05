@@ -101,7 +101,7 @@ If you do already have HTSlib installed elsewhere, make sure you've added it to 
 > make
 > sudo make install
 > vcfdist --version
-vcfdist v2.5.3
+vcfdist v2.6.0
 ```
 
 ## Usage

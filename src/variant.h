@@ -41,7 +41,7 @@ public:
     std::vector<int> phase_sets;    // integer representing variant phase set (0 = missing)
     int n = 0;
 
-    // set during clustering
+    // set during clustering (reaches are not valid afterwards)
     std::vector<int> clusters;      // indices of clusters in this struct's vectors
     std::vector<int> left_reaches;  // cluster leftmost reach
     std::vector<int> right_reaches; // cluster rightmost reach
