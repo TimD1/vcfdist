@@ -868,7 +868,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 
                                 beg_pos, end_pos);
-                    ref = vcf->ref->fasta.at(ctg).substr(end_pos-ref_len, ref_len);
+                    ref = vcf->ref->fasta.at(ctg).substr(std::max(0, end_pos-ref_len), ref_len);
                     std::reverse(query.begin(), query.end());
                     std::reverse(ref.begin(), ref.end());
                     // manage buffer for storing offsets
@@ -932,7 +932,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 
                                 beg_pos, end_pos);
-                    ref = vcf->ref->fasta.at(ctg).substr(beg_pos, ref_len);
+                    ref = vcf->ref->fasta.at(ctg).substr(beg_pos, std::min(ref_len, end_pos - beg_pos));
                     // manage buffer for storing offsets
                     size_t offs_size = MATS * (std::max(sub, open+extend)+1) * 
                         (query.size() + ref.size() - 1);
