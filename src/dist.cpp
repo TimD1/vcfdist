@@ -628,6 +628,12 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
             done = true;
         }
 
+        // clear pointer and offset matrices as soon as possible
+        wfa_ptrs.clear();
+        wfa_offs.clear();
+        wfa_ptrs.shrink_to_fit();
+        wfa_offs.shrink_to_fit();
+
         // NOTE: if alignment failed because it was too expensive, this can only be caused by a FN
         // truth variant, since query variants can be skipped and the reference sections match.
         // Try alignments without some of the largest truth variants
