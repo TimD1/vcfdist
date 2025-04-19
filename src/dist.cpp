@@ -203,7 +203,7 @@ int wfa_calc_prec_recall_aln(
     offs[0][0][s][graph->qseqs[0].length()-1] = -1; // main diag
     ptrs[0][0][s][graph->qseqs[0].length()-1] = PTR_MAT;
 
-    while (true) {
+    while (s <= g.max_dist) {
 
         // EXTEND WAVEFRONT
         // NOTE: because the graph is a topologically sorted DAG, we can safely assume that all
@@ -620,14 +620,11 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         std::vector< std::vector< std::vector< std::vector<uint32_t> > > > wfa_ptrs;
         std::vector< std::vector< std::vector< std::vector<int> > > > wfa_offs;
 
-        std::unordered_map<idx4, idx4> ptrs;
-        int aln_score = calc_prec_recall_aln(graph, ptrs, false);
         int wfa_score = wfa_calc_prec_recall_aln(graph, wfa_ptrs, wfa_offs, print);
-        assert(aln_score == wfa_score);
-        std::vector<idx4> path = parse_wfa_path(graph, wfa_score, wfa_ptrs, wfa_offs, false);
         bool aligned = wfa_score <= g.max_dist;
         if (aligned) { // alignment succeeded
-            calc_prec_recall(graph, path, truth_hi, false);
+            std::vector<idx4> path = parse_wfa_path(graph, wfa_score, wfa_ptrs, wfa_offs, print);
+            calc_prec_recall(graph, path, truth_hi, print);
             done = true;
         }
 
@@ -635,7 +632,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         // truth variant, since query variants can be skipped and the reference sections match.
         // Try alignments without some of the largest truth variants
 
-        // NOTE: if we did align successfully and found a FN variant, re-evaluate all FP and FN variants 
+        // NOTE: if we did align successfully and found a FN INDEL, re-evaluate all FP and FN variants 
         // besides the largest FN. The motivation for this is that large FN truth SVs will have a sync 
         // group that extends pretty far left and right, "swallowing" other correct variant calls. 
         // Since correctness is determined per sync group, many TP SNP calls can't be identified unless
@@ -644,7 +641,9 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         for (int tni = 0; tni < graph->tnodes; tni++) {
             if (graph->ttypes[tni] != TYPE_REF) {
                 int tvar_idx = graph->tidxs[tni];
-                if (not aligned || tvars->errtypes[truth_hi][tvar_idx] == ERRTYPE_FN) {
+                if (not aligned or (tvars->errtypes[truth_hi][tvar_idx] == ERRTYPE_FN
+                            and std::max(tvars->refs[tvar_idx].size(), 
+                                         tvars->alts[tvar_idx].size()) > 1)){
                     done = false;
                     int tvar_size = std::max(tvars->alts[tvar_idx].size(), tvars->refs[tvar_idx].size());
                     exclude_sizes.push_back(std::make_pair(tvar_size, tvar_idx));
@@ -686,8 +685,9 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
                 // retry alignment (with one large variant excluded, as well as all TPs)
                 std::shared_ptr<Graph> retry_graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
                 if (print) retry_graph->print();
-                std::unordered_map<idx4, idx4> retry_ptrs;
-                int dist = calc_prec_recall_aln(retry_graph, retry_ptrs, false);
+                std::vector< std::vector< std::vector< std::vector<uint32_t> > > > retry_ptrs;
+                std::vector< std::vector< std::vector< std::vector<int> > > > retry_offs;
+                int dist = wfa_calc_prec_recall_aln(retry_graph, retry_ptrs, retry_offs, print);
                 exclude_dists.push_back(std::make_pair(dist, exclude_sizes[retry].second));
             }
 
