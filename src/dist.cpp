@@ -354,6 +354,16 @@ int wfa_calc_prec_recall_aln(
         bool print
         ) {
 
+    // fail if the graph contains too many nodes
+    if (graph->tnodes >= int(1 << NODE_BITS)) {
+        ERROR("Alignment graph for supercluster exceeds maximum truth nodes (%d > %d)",
+                graph->tnodes, int(1 << NODE_BITS)-1);
+    }
+    if (graph->qnodes >= int(1 << NODE_BITS)) {
+        ERROR("Alignment graph for supercluster exceeds maximum query nodes (%d > %d)",
+                graph->qnodes, int(1 << NODE_BITS)-1);
+    }
+
     // init: offs/ptrs [query_node][truth_node][score][diagonal] = offset/pointer
     int s = 0;
     bool done = false;
@@ -384,49 +394,56 @@ int wfa_calc_prec_recall_aln(
                     int off = offs[qni][tni][s][d];
                     int diag = d + 1 - query_len;
 
-                    // extend
+                    // extend within matrix
                     while (off != -2 && diag + off >= -1 && 
                            off < query_len - 1 && 
                            diag + off < truth_len - 1) {
-                        if (graph->qseqs[qni][off+1] == graph->tseqs[tni][diag+off+1]) off++;
+                        if (graph->qseqs[qni][off+1] == graph->tseqs[tni][diag+off+1]) {
+                            off++;
+                            if (print) printf("(%d, %d, %d, %d) extend\n", qni, tni, off, off+diag);
+                        }
                         else break;
                     }
-                    if (off == query_len - 1) { // extend into next query matrices
+                    // extend into next query and truth matrices
+                    if (off == query_len - 1 and diag + off == truth_len - 1) {
                         for (int next_qni : graph->qnexts[qni]) {
+                            for (int next_tni : graph->tnexts[tni]) {
+                                if (print) printf("(%d, %d, 0, 0) query and truth extend\n", 
+                                            next_qni, next_tni);
+                                int next_query_len = graph->qseqs[next_qni].length();
+                                int next_d = next_query_len - 1;
+                                if (offs[next_qni][next_tni][s][next_d] == -2) {
+                                    offs[next_qni][next_tni][s][next_d] = 0;
+                                    ptrs[next_qni][next_tni][s][next_d] = PTR_MAT |
+                                        (qni << (PTR_BITS + NODE_BITS)) | (tni << PTR_BITS);
+                                }
+                            }
+                        }
+                    }
+                    // extend into next query matrices
+                    else if (off == query_len - 1) {
+                        for (int next_qni : graph->qnexts[qni]) {
+                            if (print) printf("(%d, %d, 0, %d) query extend\n", next_qni, tni, d);
                             int next_query_len = graph->qseqs[next_qni].length();
                             int next_d = d + next_query_len - 1;  // derived
                             if (offs[next_qni][tni][s][next_d] == -2) {
                                 offs[next_qni][tni][s][next_d] = 0;
-                                // INS just to denote movement on query, row = 0 means it's a match
-                                ptrs[next_qni][tni][s][next_d] = PTR_MAT | PTR_INS | (qni << PTR_BITS);
+                                // PTR_MAT | PTR_INS means vertical match
+                                ptrs[next_qni][tni][s][next_d] = PTR_MAT | PTR_INS |
+                                    (qni << (PTR_BITS + NODE_BITS)) | (tni << PTR_BITS);
                             }
                         }
                     }
-                    if (diag + off == truth_len - 1) {
+                    // extend into next truth matrices
+                    else if (diag + off == truth_len - 1) {
                         for (int next_tni : graph->tnexts[tni]) {
-                            int next_query_len = graph->qseqs[qni].length();
-                            int next_d = next_query_len - off - 1;
+                            if (print) printf("(%d, %d, %d, 0) truth extend\n", qni, next_tni, off);
+                            int next_d = query_len - off - 1;
                             if (offs[qni][next_tni][s][next_d] == -2) {
                                 offs[qni][next_tni][s][next_d] = off;
-                                // DEL just to denote movement on truth, col = 0 means it's a match
-                                ptrs[qni][next_tni][s][next_d] = PTR_MAT | PTR_DEL | (tni << PTR_BITS);
-                            }
-                        }
-                    }
-
-                    // debug printing
-                    if (print) {
-                        if (off > offs[qni][tni][s][d]) {
-                            printf("(%d, %d, %d, %d) extend\n", qni, tni, off, off+diag);
-                        }
-                        if (off == query_len - 1) {
-                            for (int next_qni : graph->qnexts[qni]) {
-                                printf("(%d, %d, 0, %d) query extend\n", next_qni, tni, d);
-                            }
-                        }
-                        if (diag + off == truth_len - 1) {
-                            for (int next_tni : graph->tnexts[tni]) {
-                                printf("(%d, %d, %d, 0) truth extend\n", qni, next_tni, off);
+                                // PTR_MAT | PTR_DEL means horizontal match
+                                ptrs[qni][next_tni][s][next_d] = PTR_MAT | PTR_DEL |
+                                    (qni << (PTR_BITS + NODE_BITS)) | (tni << PTR_BITS);
                             }
                         }
                     }
@@ -664,8 +681,9 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
     if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
 
     while (qni > 0 || tni > 0 || diag+off > 0) {
-        if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u]\n",
-                qni, tni, off, diag + off, ptr >> PTR_BITS, ptr & PTR_MASK);
+        if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u|%u]\n",
+                qni, tni, off, diag + off, (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS),
+                (ptr & TNODE_MASK) >> PTR_BITS, ptr & PTR_MASK);
 
         // pointer movement into other matrix
         if (ptr & PTR_MAT) {
@@ -678,7 +696,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     path.push_back(idx4(qni, tni, off, diag+off));
                     if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
                 }
-                int prev_qni = ptr >> PTR_BITS;
+                int prev_qni = (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS);
                 if (print) printf("hit top row\n");
                 path.push_back(idx4(prev_qni, tni, graph->qseqs[prev_qni].length()-1, diag));
                 if (print) printf("path {%d, %d} (%d, %d)\n", prev_qni, tni, 
@@ -696,16 +714,18 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     path.push_back(idx4(qni, tni, off, diag+off));
                         if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
                 }
-                int prev_tni = ptr >> PTR_BITS;
+                int prev_tni = (ptr & TNODE_MASK) >> PTR_BITS;
                 if (print) printf("hit left col\n");
                 path.push_back(idx4(qni, prev_tni, -diag, graph->tseqs[prev_tni].length()-1));
                 if (print) printf("path {%d, %d} (%d, %d)\n", qni, prev_tni, -diag,
-                        int(graph->tseqs[prev_tni].length()-1));
+                        int(graph->tseqs[prev_tni].length())-1);
                 tni = prev_tni;
                 diag = diag + graph->tseqs[prev_tni].length()-1;
                 d = diag + graph->qseqs[qni].length()-1;
             }
-            else if (qni == 0 && tni == 0 && diag == 0) { // final matrix, MAT, no INS/DEL
+
+            // check if final backtracking matrix, main diagonal
+            else if (qni == 0 && tni == 0 && diag == 0) { 
                 if (print) printf("final matrix\n");
                 while (--off >= -1) {
                     path.push_back(idx4(qni, tni, off, diag+off));
@@ -713,9 +733,37 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                 }
                 break;
             }
+
+            // move into new truth and query matrix (main diagonal, exact top left corner)
+            else if (diag == 0) {
+                if (print) printf("match, new truth and query matrices\n");
+                while (off > 0) {
+                    off--;
+                    path.push_back(idx4(qni, tni, off, diag+off));
+                    if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
+                }
+                int prev_qni = (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS);
+                int prev_tni = (ptr & TNODE_MASK) >> PTR_BITS;
+                if (print) printf("hit top left corner\n");
+                path.push_back(idx4(prev_qni, prev_tni, 
+                            graph->qseqs[prev_qni].length()-1,
+                            graph->tseqs[prev_tni].length()-1));
+                if (print) printf("path {%d, %d} (%d, %d)\n", prev_qni, prev_tni, 
+                        int(graph->qseqs[prev_qni].length())-1,
+                        int(graph->tseqs[prev_tni].length())-1);
+                qni = prev_qni;
+                tni = prev_tni;
+                diag = graph->tseqs[tni].length() - graph->qseqs[qni].length();
+                d = diag + graph->qseqs[qni].length()-1;
+            }
+
             else {
-                ERROR("Unexpected pointer value (prev=%d, ptr=%d) during WFA backtrack.", 
-                        ptr >> PTR_BITS, ptr & PTR_MASK);
+                ERROR("Unexpected pointer value at {%d, %d} (%d, %d) "
+                        "(prev=(%u, %u), ptr=%u) during WFA backtrack.", 
+                        qni, tni, off, diag + off,
+                        (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS),
+                        (ptr & TNODE_MASK) >> PTR_BITS,
+                        ptr & PTR_MASK);
             }
         }
 
@@ -754,8 +802,12 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     diag--;
                     break;
                 default:
-                    ERROR("Unexpected pointer value (prev=%d, ptr=%d) during WFA backtrack.", 
-                            ptr >> PTR_BITS, ptr & PTR_MASK);
+                    ERROR("Unexpected pointer value at {%d, %d} (%d, %d) "
+                            "(prev=(%u, %u), ptr=%u) during WFA backtrack.", 
+                            qni, tni, off, diag + off,
+                            (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS),
+                            (ptr & TNODE_MASK) >> PTR_BITS,
+                            ptr & PTR_MASK);
                     break;
             }
         }
