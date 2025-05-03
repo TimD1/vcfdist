@@ -814,8 +814,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
             if (graph->ttypes[tni] != TYPE_REF) {
                 int tvar_idx = graph->tidxs[tni];
                 if (not aligned or (tvars->errtypes[truth_hi][tvar_idx] == ERRTYPE_FN
-                            and std::max(tvars->refs[tvar_idx].size(), 
-                                         tvars->alts[tvar_idx].size()) > 1)){
+                            and tvars->types[tvar_idx] != TYPE_SUB)) {
                     done = false;
                     int tvar_size = std::max(tvars->alts[tvar_idx].size(), tvars->refs[tvar_idx].size());
                     exclude_sizes.push_back(std::make_pair(tvar_size, tvar_idx));
