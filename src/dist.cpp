@@ -377,6 +377,8 @@ int wfa_calc_prec_recall_aln(
     offs.insert(offs.end(), init_mat_len, -2);
     offs[init_query_len-1] = -1; // main diag
     ptrs[init_query_len-1] = PTR_MAT;
+    if (print) printf("{%d, %d} score %d = %lu-%lu\n", 0, 0, s,
+            node_offs[idx3(0, 0, 0)], ptrs.size());
 
     while (s <= g.max_dist) {
 
@@ -386,7 +388,11 @@ int wfa_calc_prec_recall_aln(
         // fully extended later in this double for loop
         for (int qni = 0; qni < graph->qnodes; qni++) {
             for (int tni = 0; tni < graph->tnodes; tni++) {
+                if (print) printf("processing node {%d, %d}\n", qni, tni);
                 idx3 node(qni, tni, s);
+                if (!contains(node_offs, node)) {
+                    continue;
+                }
                 int query_len = graph->qseqs[qni].length();
                 int truth_len = graph->tseqs[tni].length();
                 int mat_len = query_len + truth_len - 1;
@@ -421,6 +427,8 @@ int wfa_calc_prec_recall_aln(
                                     node_offs[next_node] = ptrs.size();
                                     ptrs.insert(ptrs.end(), next_mat_len, PTR_NONE);
                                     offs.insert(offs.end(), next_mat_len, -2);
+                                    if (print) printf("{%d, %d} score %d = %lu-%lu\n", next_qni,
+                                            next_tni, s, node_offs[next_node], ptrs.size());
                                 }
                                 // align into new node
                                 int next_d = next_query_len - 1;
@@ -434,7 +442,7 @@ int wfa_calc_prec_recall_aln(
                     }
 
                     // extend into next query matrices
-                    else if (off == query_len - 1) {
+                    if (off == query_len - 1) {
                         for (int next_qni : graph->qnexts[qni]) {
                             if (print) printf("(%d, %d, 0, %d) query extend\n", next_qni, tni, d);
 
@@ -446,6 +454,8 @@ int wfa_calc_prec_recall_aln(
                                 node_offs[next_node] = ptrs.size();
                                 ptrs.insert(ptrs.end(), next_mat_len, PTR_NONE);
                                 offs.insert(offs.end(), next_mat_len, -2);
+                                if (print) printf("{%d, %d} score %d = %lu-%lu\n", next_qni, 
+                                        tni, s, node_offs[next_node], ptrs.size());
                             }
 
                             // align into new node
@@ -461,7 +471,7 @@ int wfa_calc_prec_recall_aln(
                     }
 
                     // extend into next truth matrices
-                    else if (diag + off == truth_len - 1) {
+                    if (diag + off == truth_len - 1) {
                         for (int next_tni : graph->tnexts[tni]) {
                             if (print) printf("(%d, %d, %d, 0) truth extend\n", qni, next_tni, off);
 
@@ -473,6 +483,8 @@ int wfa_calc_prec_recall_aln(
                                 node_offs[next_node] = ptrs.size();
                                 ptrs.insert(ptrs.end(), next_mat_len, PTR_NONE);
                                 offs.insert(offs.end(), next_mat_len, -2);
+                                if (print) printf("{%d, %d} score %d = %lu-%lu\n", qni, next_tni, s,
+                                        node_offs[next_node], ptrs.size());
                             }
 
                             // align into new node
@@ -504,16 +516,22 @@ int wfa_calc_prec_recall_aln(
         if (print)
         for (int qni = 0; qni < graph->qnodes; qni++) {
             for (int tni = 0; tni < graph->tnodes; tni++) {
-                printf("\n(%d, %d) matrix\n", qni, tni);
-                printf("offs %d:", s);
                 idx3 node(qni, tni, s);
-                int query_len = graph->qseqs[qni].length();
-                int truth_len = graph->tseqs[tni].length();
-                int mat_len = query_len + truth_len - 1;
-                for (int di = 0; di < mat_len; di++) {
-                    printf("\t%d", offs[node_offs[node] + di]);
+                printf("\n(%d, %d) matrix\n", qni, tni);
+                printf("contains(%d, %d, %d) = %s\n", qni, tni, s, contains(node_offs, node) ? "true" : "false");
+                if (contains(node_offs, node)) {
+                    printf("node offset: %lu\n", node_offs[node]);
+                    printf("offs %d:", s);
+                    int query_len = graph->qseqs[qni].length();
+                    int truth_len = graph->tseqs[tni].length();
+                    int mat_len = query_len + truth_len - 1;
+                    for (int di = 0; di < mat_len; di++) {
+                        printf("\t%d", offs[node_offs[node] + di]);
+                    }
+                    printf("\n");
+                } else {
+                    printf("unallocated\n");
                 }
-                printf("\n");
             }
         }
 
