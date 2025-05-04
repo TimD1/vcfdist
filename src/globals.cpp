@@ -18,9 +18,7 @@ std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CT
 std::vector<std::string> switch_strs = 
     {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
 std::vector<std::string> timer_strs = 
-    {"reading", "exact clustering (small vars)", "alignment eval (small vars)", 
-        "simple clustering (large vars)", "alignment eval (large and FP/FN vars)", "phasing", 
-        "writing", "total"};
+    {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
 std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
 std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};

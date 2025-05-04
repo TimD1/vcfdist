@@ -28,7 +28,7 @@ double timer::total() {
 }
 
 void timer::print(int i) {
-    INFO("  [%d] %-37s: %8.3fs", i, name.data(), total());
+    INFO("  [%d] %-17s: %8.3fs", i, name.data(), total());
 }
 
 std::string timer::get_name() {
