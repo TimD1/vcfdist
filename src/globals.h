@@ -32,7 +32,6 @@ public:
     int cluster_min_gap = 50;
     int reach_min_gap = 10;
     int max_cluster_itrs = 4;
-    int max_cluster_var_size = 1000;
     int sub = 5;
     int open = 6;
     int extend = 2;

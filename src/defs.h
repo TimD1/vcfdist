@@ -88,14 +88,12 @@ class idx4;
 #define SWITCHTYPES           7
 
 // runtime timers
-#define TIME_READ           0
-#define TIME_EXACT_CLUSTER  1
-#define TIME_ALIGN_EVAL_1   2
-#define TIME_SIMPLE_CLUSTER 3
-#define TIME_ALIGN_EVAL_2   4
-#define TIME_PHASE          5
-#define TIME_WRITE          6
-#define TIME_TOTAL          7
+#define TIME_READ       0
+#define TIME_CLUSTER    1
+#define TIME_ALIGN_EVAL 2
+#define TIME_PHASE      3
+#define TIME_WRITE      4
+#define TIME_TOTAL      5
 
 // alignment
 #define QUERY    0

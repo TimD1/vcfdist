@@ -108,7 +108,6 @@ public:
 
 void parse_variants(const std::string & vcf_fn, 
         std::shared_ptr<variantData> variant_data,
-        std::shared_ptr<variantData> large_variant_data,
         std::shared_ptr<fastaData> reference, int callset);
 
 #endif

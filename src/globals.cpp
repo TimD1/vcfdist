@@ -180,18 +180,6 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant size provided");
             }
-        } else if (std::string(argv[i]) == "-lcv" || 
-                std::string(argv[i]) == "--largest-cluster-variant") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--largest-cluster-variant' used without providing variant size");
-            }
-            try {
-                this->max_cluster_var_size = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid maximum cluster variant size provided");
-            }
-/*******************************************************************************/
 /*******************************************************************************/
         } else if (std::string(argv[i]) == "-sv" || 
                 std::string(argv[i]) == "--sv-threshold") {
@@ -489,10 +477,7 @@ void Globals::print_usage() const
     printf("  -mq, --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality; higher variant qualities are thresholded\n");
 
-    printf("\n  Clustering:\n");
-    printf("  -lcv, --largest-cluster-variant <INTEGER> [%d]\n", g.max_cluster_var_size);
-    printf("      maximum variant size to be clustered dynamically (larger variants use a\n");
-    printf("      simpler clustering algorithm but correctness is evaluated in the same manner)\n");
+    /* printf("\n  Clustering:\n"); */
     /* printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs); */
     /* printf("      maximum iterations for expanding/merging clusters\n"); */
     /* printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n"); */
