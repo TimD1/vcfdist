@@ -106,14 +106,12 @@ class idx4;
 #define PTR_DEL  2
 #define PTR_MAT  4
 #define PTR_SUB  8
-// [14 QUERY NODE BITS] [14 TRUTH NODE BITS] [4 POINTER BITS]
-// NOTE: 2^14-1 = 16383 is a fairly safe upper limit on the number of nodes in a supercluster. If we
-// do hit this limit, vcfdist reports an error.
+// [30 QUERY NODE BITS] [30 TRUTH NODE BITS] [4 POINTER BITS]
 #define PTR_BITS   4  // INS, DEL, MAT, SUB
-#define NODE_BITS  14 // for pointer to previous node (up to 16,383)
-#define PTR_MASK   0x0000000F
-#define TNODE_MASK 0x0003FFF0
-#define QNODE_MASK 0xFFFC0000
+#define NODE_BITS  30 // for pointer to previous node
+#define PTR_MASK   0x000000000000000F
+#define TNODE_MASK 0x00000003FFFFFFF0
+#define QNODE_MASK 0xFFFFFFFC00000000
 
 #define MAT_SUB 0 // three matrices for Smith-Waterman
 #define MAT_INS 1

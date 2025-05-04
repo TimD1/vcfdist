@@ -350,7 +350,7 @@ int gwfa_aln(
 
 int wfa_calc_prec_recall_aln(
         const std::shared_ptr<Graph> graph,
-        std::vector<uint32_t> & ptrs,
+        std::vector<uint64_t> & ptrs,
         std::vector<int> & offs,
         std::unordered_map<idx3, uint64_t> & node_offs,
         bool print
@@ -386,9 +386,9 @@ int wfa_calc_prec_recall_aln(
         // NOTE: because the graph is a topologically sorted DAG, we can safely assume that all
         // extensions that reach into other matrices will always have a larger qni/tni, and be 
         // fully extended later in this double for loop
-        for (int qni = 0; qni < graph->qnodes; qni++) {
-            for (int tni = 0; tni < graph->tnodes; tni++) {
-                if (print) printf("processing node {%d, %d}\n", qni, tni);
+        for (uint64_t qni = 0; int(qni) < graph->qnodes; qni++) {
+            for (uint64_t tni = 0; int(tni) < graph->tnodes; tni++) {
+                if (print) printf("processing node {%lu, %lu}\n", qni, tni);
                 idx3 node(qni, tni, s);
                 if (!contains(node_offs, node)) {
                     continue;
@@ -406,7 +406,7 @@ int wfa_calc_prec_recall_aln(
                            diag + off < truth_len - 1) {
                         if (graph->qseqs[qni][off+1] == graph->tseqs[tni][diag+off+1]) {
                             off++;
-                            if (print) printf("(%d, %d, %d, %d) extend\n", qni, tni, off, off+diag);
+                            if (print) printf("(%lu, %lu, %d, %d) extend\n", qni, tni, off, off+diag);
                         }
                         else break;
                     }
@@ -444,7 +444,7 @@ int wfa_calc_prec_recall_aln(
                     // extend into next query matrices
                     if (off == query_len - 1) {
                         for (int next_qni : graph->qnexts[qni]) {
-                            if (print) printf("(%d, %d, 0, %d) query extend\n", next_qni, tni, d);
+                            if (print) printf("(%d, %lu, 0, %d) query extend\n", next_qni, tni, d);
 
                             // allocate memory for new node
                             idx3 next_node(next_qni, tni, s);
@@ -454,7 +454,7 @@ int wfa_calc_prec_recall_aln(
                                 node_offs[next_node] = ptrs.size();
                                 ptrs.insert(ptrs.end(), next_mat_len, PTR_NONE);
                                 offs.insert(offs.end(), next_mat_len, -2);
-                                if (print) printf("{%d, %d} score %d = %lu-%lu\n", next_qni, 
+                                if (print) printf("{%d, %lu} score %d = %lu-%lu\n", next_qni, 
                                         tni, s, node_offs[next_node], ptrs.size());
                             }
 
@@ -473,7 +473,7 @@ int wfa_calc_prec_recall_aln(
                     // extend into next truth matrices
                     if (diag + off == truth_len - 1) {
                         for (int next_tni : graph->tnexts[tni]) {
-                            if (print) printf("(%d, %d, %d, 0) truth extend\n", qni, next_tni, off);
+                            if (print) printf("(%lu, %d, %d, 0) truth extend\n", qni, next_tni, off);
 
                             // allocate memory for new node
                             idx3 next_node(qni, next_tni, s);
@@ -483,7 +483,7 @@ int wfa_calc_prec_recall_aln(
                                 node_offs[next_node] = ptrs.size();
                                 ptrs.insert(ptrs.end(), next_mat_len, PTR_NONE);
                                 offs.insert(offs.end(), next_mat_len, -2);
-                                if (print) printf("{%d, %d} score %d = %lu-%lu\n", qni, next_tni, s,
+                                if (print) printf("{%lu, %d} score %d = %lu-%lu\n", qni, next_tni, s,
                                         node_offs[next_node], ptrs.size());
                             }
 
@@ -502,8 +502,8 @@ int wfa_calc_prec_recall_aln(
                     offs[node_offs[node] + d] = off;
 
                     // finish if done
-                    if (qni == graph->qnodes - 1 && 
-                        tni == graph->tnodes - 1 &&
+                    if (int(qni) == graph->qnodes - 1 && 
+                        int(tni) == graph->tnodes - 1 &&
                         off == query_len - 1 && 
                         off + diag == truth_len - 1)
                     { done = true; break; }
@@ -727,7 +727,7 @@ int calc_prec_recall_aln(
 
 
 std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
-        const std::vector<uint32_t> & ptrs,
+        const std::vector<uint64_t> & ptrs,
         const std::vector<int> & offs,
         const std::unordered_map<idx3, uint64_t> & node_offs, bool print) {
 
@@ -738,12 +738,12 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
     int d = diag + graph->qseqs[qni].length() - 1;
     idx3 init_node(qni, tni, s);
     int off = offs[node_offs.at(init_node) + d];
-    uint32_t ptr = ptrs[node_offs.at(init_node) + d];
+    uint64_t ptr = ptrs[node_offs.at(init_node) + d];
     path.push_back(idx4(qni, tni, off, diag+off));
     if (print) printf("path {%d, %d} (%d, %d)\n", qni, tni, off, diag+off);
 
     while (qni > 0 || tni > 0 || diag+off > 0) {
-        if (print) printf("at {%d, %d} (%d, %d) ptr [%u|%u|%u]\n",
+        if (print) printf("at {%d, %d} (%d, %d) ptr [%lu|%lu|%lu]\n",
                 qni, tni, off, diag + off, (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS),
                 (ptr & TNODE_MASK) >> PTR_BITS, ptr & PTR_MASK);
 
@@ -821,7 +821,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
 
             else {
                 ERROR("Unexpected pointer value at {%d, %d} (%d, %d) "
-                        "(prev=(%u, %u), ptr=%u) during WFA backtrack.", 
+                        "(prev=(%lu, %lu), ptr=%lu) during WFA backtrack.", 
                         qni, tni, off, diag + off,
                         (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS),
                         (ptr & TNODE_MASK) >> PTR_BITS,
@@ -872,7 +872,7 @@ std::vector<idx4> parse_wfa_path(const std::shared_ptr<Graph> graph, int s,
                     break;
                 default:
                     ERROR("Unexpected pointer value at {%d, %d} (%d, %d) "
-                            "(prev=(%u, %u), ptr=%u) during WFA backtrack.", 
+                            "(prev=(%lu, %lu), ptr=%lu) during WFA backtrack.", 
                             qni, tni, off, diag + off,
                             (ptr & QNODE_MASK) >> (PTR_BITS + NODE_BITS),
                             (ptr & TNODE_MASK) >> PTR_BITS,
@@ -904,7 +904,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         if (print) graph->print();
 
         // init empty pointers/offsets
-        std::vector<uint32_t> wfa_ptrs;
+        std::vector<uint64_t> wfa_ptrs;
         std::vector<int> wfa_offs;
         std::unordered_map<idx3, uint64_t> node_offs;
 
