@@ -217,13 +217,18 @@ int calc_prec_recall_aln(
             prev_wave.insert(x);
 
             // allow match on query
-            idx4 y(x.qni, x.tni, x.qi+1, x.ti+1);
-            if (y.qi < int(graph->qseqs[y.qni].length()) && y.ti < int(graph->tseqs[y.tni].length()) &&
-                    graph->qseqs[y.qni][y.qi] == graph->tseqs[y.tni][y.ti]) {
-                if (!contains(done, y) && !contains(curr_wave, y)) {
-                    /* if (print) printf("      y = node (%d, %d) cell (%d, %d)\n", y.qni, y.tni, y.qi, y.ti); */
-                    queue.push(y); curr_wave.insert(y); ptrs[y] = x;
-                }
+            idx4 y(x.qni, x.tni, x.qi, x.ti);
+            bool match = false;
+            while (y.qi+1 < int(graph->qseqs[y.qni].length()) &&
+                   y.ti+1 < int(graph->tseqs[y.tni].length()) &&
+                   graph->qseqs[y.qni][y.qi+1] == graph->tseqs[y.tni][y.ti+1]) {
+                y.qi++;
+                y.ti++;
+                match = true;
+            }
+            if (match && !contains(done, y) && !contains(curr_wave, y)) {
+                /* if (print) printf("      y = node (%d, %d) cell (%d, %d)\n", y.qni, y.tni, y.qi, y.ti); */
+                queue.push(y); curr_wave.insert(y); ptrs[y] = x;
             }
 
             // allow bottom-right corner to move diagonally into next truth and query nodes
@@ -517,10 +522,10 @@ void calc_prec_recall(
         bool diff_submatrix = curr.qni != prev.qni && curr.tni != prev.tni; // both must differ
         bool ref_query_move = graph->qtypes[curr.qni] == TYPE_REF 
             && prev.qni == curr.qni
-            && prev.qi+1 == curr.qi;
+            && prev.qi < curr.qi;
         bool ref_truth_move = graph->ttypes[curr.tni] == TYPE_REF 
             && prev.tni == curr.tni
-            && prev.ti+1 == curr.ti;
+            && prev.ti < curr.ti;
         bool sync_point = on_main_diag && (
                 (same_submatrix && ref_query_move && ref_truth_move) || diff_submatrix);
         if (sync_point) {
