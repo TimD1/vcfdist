@@ -36,8 +36,8 @@ int main(int argc, char **argv) {
     // write parsed per-variant information
     g.timers[TIME_WRITE].start();
     if (g.write) {
-        query_ptr->write_vcf(g.out_prefix + "query-small.vcf");
-        truth_ptr->write_vcf(g.out_prefix + "truth-small.vcf");
+        query_ptr->write_vcf(g.out_prefix + "query.vcf");
+        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
     }
     g.timers[TIME_WRITE].stop();
 
@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
     // cluster query VCF
     g.timers[TIME_CLUSTER].start();
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[Q %d/%d] Exact clustering %s VCF (small vars)%s '%s'", 
+    if (g.verbosity >= 1) INFO("%s[Q %d/%d] Clustering %s VCF%s '%s'", 
             COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, callset_strs[QUERY].data(), 
             COLOR_WHITE, query_ptr->filename.data());
     std::vector<std::thread> threads;
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 
     // cluster truth VCF
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[T %d/%d] Exact clustering %s VCF (small vars)%s '%s'", 
+    if (g.verbosity >= 1) INFO("%s[T %d/%d] Clustering %s VCF%s '%s'", 
             COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, callset_strs[TRUTH].data(), 
             COLOR_WHITE, truth_ptr->filename.data());
     threads.clear();
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 
     // superclustering
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants (small vars)%s",
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants%s",
             COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, COLOR_WHITE);
     std::shared_ptr<superclusterData> sc_data_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
