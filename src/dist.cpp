@@ -40,87 +40,6 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases) {
 /******************************************************************************/
 
 
-/* Extract the FP and FN variants from evaluated superclusters into new variant lists. 
- * These variants will be re-evaluated in combination with larger variants that skipped
- * the first round of evaluation.
- */
-void extract_errors(std::shared_ptr<superclusterData> sc_data_ptr,
-        std::shared_ptr<variantData> query_fp_ptr,
-        std::shared_ptr<variantData> truth_fn_ptr) {
-
-    // initialize query variant data
-    query_fp_ptr->ref = sc_data_ptr->ref;
-    query_fp_ptr->callset = QUERY;
-    query_fp_ptr->contigs = sc_data_ptr->contigs;
-    query_fp_ptr->lengths = sc_data_ptr->lengths;
-    query_fp_ptr->ploidy = sc_data_ptr->ploidy;
-    query_fp_ptr->sample = sc_data_ptr->samples[QUERY];
-    query_fp_ptr->filename = sc_data_ptr->filenames[QUERY];
-
-    // initialize truth variant data
-    truth_fn_ptr->ref = sc_data_ptr->ref;
-    truth_fn_ptr->callset = TRUTH;
-    truth_fn_ptr->contigs = sc_data_ptr->contigs;
-    truth_fn_ptr->lengths = sc_data_ptr->lengths;
-    truth_fn_ptr->ploidy = sc_data_ptr->ploidy;
-    truth_fn_ptr->sample = sc_data_ptr->samples[TRUTH];
-    truth_fn_ptr->filename = sc_data_ptr->filenames[TRUTH];
-
-    for (const std::string & ctg : sc_data_ptr->contigs) {
-        // create empty query contig variants
-        for (int hi = 0; hi < HAPS; hi++) {
-            std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
-            query_fp_ptr->variants[hi][ctg] = ctg_vars;
-        }
-
-        // copy FP query variants over to new list
-        std::shared_ptr<ctgVariants> qvars = sc_data_ptr->superclusters[ctg]->callset_vars[QUERY];
-        std::vector<int> qvars_to_remove;
-        for (int qi = 0; qi < qvars->n; qi++) {
-            // TODO: for now, only pull out variants that are FP on both haps
-            if (qvars->errtypes[HAP1][qi] == ERRTYPE_FP && qvars->errtypes[HAP2][qi] == ERRTYPE_FP) {
-                qvars_to_remove.push_back(qi);
-                for (int hi = 0; hi < HAPS; hi++) {
-                    if (qvars->var_on_hap(qi, hi)) {
-                        query_fp_ptr->variants[hi][ctg]->add_var(qvars, qi);
-                    }
-                }
-            }
-        }
-
-        // remove FP query variants from evaluated variants
-        qvars->remove_vars(qvars_to_remove);
-        
-        // create empty truth contig variants
-        for (int hi = 0; hi < HAPS; hi++) {
-            std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
-            truth_fn_ptr->variants[hi][ctg] = ctg_vars;
-        }
-
-        // copy FN truth variants over to new list
-        std::shared_ptr<ctgVariants> tvars = sc_data_ptr->superclusters[ctg]->callset_vars[TRUTH];
-        std::vector<int> tvars_to_remove;
-        for (int ti = 0; ti < tvars->n; ti++) {
-            // TODO: for now, only pull out variants that are FN on both haps
-            if (tvars->errtypes[HAP1][ti] == ERRTYPE_FN && tvars->errtypes[HAP2][ti] == ERRTYPE_FN) {
-                tvars_to_remove.push_back(ti);
-                for (int hi = 0; hi < HAPS; hi++) {
-                    if (tvars->var_on_hap(ti, hi)) {
-                        truth_fn_ptr->variants[hi][ctg]->add_var(tvars, ti);
-                    }
-                }
-            }
-        }
-
-        // remove FN truth variants from evaluated variants
-        tvars->remove_vars(tvars_to_remove);
-    }
-}
-
-
-/******************************************************************************/
-
-
 /* Generate the new sequence by applying variants to the reference. */
 std::string generate_str(
         std::shared_ptr<fastaData> ref, 
@@ -1070,39 +989,6 @@ void precision_recall_wrapper(
 
 /******************************************************************************/
 
-
-int calc_cig_swg_score(const std::vector<int> & cigar, 
-        int sub, int open, int extend) {
-    int score = 0;
-    int prev = PTR_MAT;
-    for (int i = 0; i < int(cigar.size()); i++) {
-        switch (cigar[i]) {
-            case PTR_MAT:
-                i++; // increment by 2
-                prev = PTR_MAT;
-                break;
-            case PTR_SUB:
-                score += sub;
-                prev = PTR_SUB;
-                i++; // increment by 2
-                break;
-            case PTR_INS:
-                score += (prev == PTR_INS ? extend : open + extend);
-                prev = PTR_INS;
-                break;
-            case PTR_DEL:
-                score += (prev == PTR_DEL ? extend : open + extend);
-                prev = PTR_DEL;
-                break;
-            default:
-                ERROR("Unexpected variant type in calc_cig_swg_score()");
-        }
-    }
-    return score;
-}
-
-
-/******************************************************************************/
 
 /* Perform WaveFront Smith-Waterman-Gotoh alignment of two strings, returning 
  * the farthest-reaching reference index of lesser or equal score to that provided.

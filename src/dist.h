@@ -193,21 +193,11 @@ void wf_ed(const std::string & query, const std::string & truth, int & score, bo
 
 /******************************************************************************/
 
-void extract_errors(std::shared_ptr<superclusterData> superclusters,
-        std::shared_ptr<variantData> query_ptr_fp,
-        std::shared_ptr<variantData> truth_ptr_fn);
-
-/******************************************************************************/
-
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups);
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print = false);
-
-int calc_cig_swg_score(
-        const std::vector<int> & cigar,
-        int sub, int open, int extend);
 
 #endif
