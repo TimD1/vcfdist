@@ -831,9 +831,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
                         vars->poss[end_idx-1] + vars->rlens[end_idx-1] + 1);
                 std::string query = generate_str(vcf->ref, vars, ctg, beg_idx, end_idx, beg, end);
                 std::string ref = vcf->ref->fasta.at(ctg).substr(beg, end-beg);
-                std::vector< std::vector< std::vector<uint8_t> > > ptrs(MATS);
-                std::vector< std::vector< std::vector<int> > > offs(MATS);
-                wf_swg_align(query, ref, ptrs, offs, score, sub, open, extend, false);
+                wf_swg_align(query, ref, score, sub, open, extend, false);
                 if (print) printf("   align score: %d\n", score);
             }
 

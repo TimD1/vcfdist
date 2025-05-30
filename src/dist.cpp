@@ -536,11 +536,10 @@ void calc_prec_recall(
 
                 // calculate edit distance without variants
                 int ref_dist = 0;
-                std::vector< std::vector<int> > ed_offs, ed_ptrs;
                 int truth_pos = graph->get_truth_pos(curr.tni, curr.ti);
                 wf_ed(graph->ref.substr(query_ref_pos, prev_query_ref_pos - query_ref_pos), 
                         graph->truth.substr(truth_pos, prev_truth_pos - truth_pos),
-                        ref_dist, ed_offs, ed_ptrs);
+                        ref_dist);
                 if (print) printf("syncing\n");
                 float credit = 0;
                 if (ref_dist == 0) {
@@ -598,8 +597,6 @@ void calc_prec_recall(
 
 void wf_swg_align(
         const std::string & query, const std::string & truth, 
-        std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        std::vector< std::vector< std::vector<int> > > & offs,
         int & s, int x, int o, int e, bool print
         ) {
 
@@ -608,13 +605,12 @@ void wf_swg_align(
     int truth_len = truth.size();
     int mat_len = query_len + truth_len - 1;
     bool done = false;
+    std::vector< std::vector< std::vector<int> > > offs(MATS);
     for (int m = 0; m < MATS; m++) {
         offs[m].push_back(std::vector<int>(mat_len, -2));
-        ptrs[m].push_back(std::vector<uint8_t>(mat_len, PTR_NONE));
     }
     s = 0;
     offs[MAT_SUB][s][query_len-1] = -1; // main diag
-    ptrs[MAT_SUB][s][query_len-1] = PTR_MAT;
 
     while (true) {
 
@@ -628,7 +624,6 @@ void wf_swg_align(
                         diag+off >= 0 && diag+off < truth_len &&
                         offs[m][s][d] >= offs[MAT_SUB][s][d]) {
                     offs[MAT_SUB][s][d] = offs[m][s][d];
-                    ptrs[MAT_SUB][s][d] |= (m == MAT_INS) ? PTR_INS : PTR_DEL;
                     if(print) printf("(S, %d, %d) swap\n", offs[MAT_SUB][s][d], 
                             offs[MAT_SUB][s][d]+d+1-query_len);
                 }
@@ -672,7 +667,6 @@ void wf_swg_align(
         if(print) printf("\nscore = %d\n", s);
         for (int m = 0; m < MATS; m++) {
             offs[m].push_back(std::vector<int>(mat_len, -2));
-            ptrs[m].push_back(std::vector<uint8_t>(mat_len, PTR_NONE));
         }
 
         for (int d = 0; d < mat_len; d++) {
@@ -684,7 +678,6 @@ void wf_swg_align(
                      diag + offs[MAT_SUB][s-x][d]+1 < truth_len &&
                             offs[MAT_SUB][s-x][d]+1 >= offs[MAT_SUB][s][d]) {
                 offs[MAT_SUB][s][d] = offs[MAT_SUB][s-x][d] + 1;
-                ptrs[MAT_SUB][s][d] |= PTR_SUB;
                 if(print) printf("(S, %d, %d) sub\n", offs[MAT_SUB][s][d], 
                         offs[MAT_SUB][s][d]+diag);
             }
@@ -695,7 +688,6 @@ void wf_swg_align(
                     diag + offs[MAT_SUB][s-(o+e)][d-1] < truth_len &&
                            offs[MAT_SUB][s-(o+e)][d-1] >= offs[MAT_DEL][s][d]) {
                 offs[MAT_DEL][s][d] = offs[MAT_SUB][s-(o+e)][d-1];
-                ptrs[MAT_DEL][s][d] |= PTR_SUB;
                 if(print) printf("(D, %d, %d) open\n", offs[MAT_DEL][s][d], 
                         offs[MAT_DEL][s][d]+diag);
             }
@@ -708,7 +700,6 @@ void wf_swg_align(
                     diag + offs[MAT_SUB][s-(o+e)][d+1]+1 >= 0 &&
                            offs[MAT_SUB][s-(o+e)][d+1]+1 >= offs[MAT_INS][s][d]) {
                 offs[MAT_INS][s][d] = offs[MAT_SUB][s-(o+e)][d+1]+1;
-                ptrs[MAT_INS][s][d] |= PTR_SUB;
                 if(print) printf("(I, %d, %d) open\n", offs[MAT_INS][s][d], 
                         offs[MAT_INS][s][d]+diag);
             }
@@ -719,7 +710,6 @@ void wf_swg_align(
                     diag + offs[MAT_DEL][s-e][d-1] < truth_len &&
                            offs[MAT_DEL][s-e][d-1] >= offs[MAT_DEL][s][d]) {
                 offs[MAT_DEL][s][d] = offs[MAT_DEL][s-e][d-1];
-                ptrs[MAT_DEL][s][d] |= PTR_DEL;
                 if(print) printf("(D, %d, %d) extend\n", offs[MAT_DEL][s][d], 
                         offs[MAT_DEL][s][d]+diag);
             }
@@ -732,7 +722,6 @@ void wf_swg_align(
                     diag + offs[MAT_INS][s-e][d+1]+1 >= 0 &&
                            offs[MAT_INS][s-e][d+1]+1 >= offs[MAT_INS][s][d]) {
                 offs[MAT_INS][s][d] = offs[MAT_INS][s-e][d+1]+1;
-                ptrs[MAT_INS][s][d] |= PTR_INS;
                 if(print) printf("(I, %d, %d) extend\n", offs[MAT_INS][s][d], 
                         offs[MAT_INS][s][d]+diag);
             }
@@ -1311,150 +1300,7 @@ int wf_swg_max_reach(
 /******************************************************************************/
 
 
-/* After alignment, backtrack using pointers and save cigar. */
-std::vector<int> wf_swg_backtrack(
-        const std::string & query,
-        const std::string & ref,
-        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs, 
-        const std::vector< std::vector< std::vector<int> > > & offs, 
-        int s, int x, int o, int e,
-        bool print) {
-
-    /* if (print) print_wfa_ptrs(query, ref, s, ptrs, offs); */
-    /* for (int mi = 0; mi < MATS; mi++) { */
-    /*     if(print) printf("\n%s matrix\n", type_strs[mi+1].data()); */
-    /*     for (int si = 0; si <= s; si++) { */
-    /*         if(print) printf("%d:\n", si); */
-    /*         for (int di = 0; di < int(query.size() + ref.size()-1); di++) { */
-    /*             if(print) printf("\t%d", offs[mi][si][di]); */
-    /*         } */
-    /*         if(print) printf("\n"); */
-    /*     } */
-    /* } */
-
-    // initialize backtrack position and cigar string
-    std::vector<int> cigar(query.size() + ref.size(), 0);
-    int cigar_ptr = cigar.size()-1;
-    idx3 pos(MAT_SUB, query.size()-1, ref.size()-1);
-
-    if (print) printf("\nWF SWG Backtrack:\n");
-    while (pos.qi >= 0 || pos.ri >= 0) {
-
-        // debug print
-        if (s < 0) ERROR("Negative wf_swg_backtrack() score at (%c, %d, %d)",
-                std::string("SID")[pos.mi], pos.qi, pos.ri);
-
-        // init
-        int diag = pos.ri - pos.qi;
-        int d = query.size()-1 + diag;
-        
-        if (pos.mi == MAT_SUB) {
-            if (ptrs[MAT_SUB][s][d] & PTR_INS) { // end INS freely
-                int prev_off = offs[MAT_INS][s][d];
-                while (pos.qi > prev_off) { // match
-                    if (print) printf("(%c, %d, %d) match ins\n",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
-                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
-                    if (pos.qi < 0 || pos.ri < 0) ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                }
-                pos.mi = MAT_INS;
-            } else if (ptrs[MAT_SUB][s][d] & PTR_DEL) { // end DEL freely
-                int prev_off = offs[MAT_DEL][s][d];
-                while (pos.qi > prev_off) { // match
-                    if (print) printf("(%c, %d, %d) match del\n",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
-                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
-                    if (pos.qi < 0 || pos.ri < 0) ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                }
-                pos.mi = MAT_DEL;
-            } else if (ptrs[MAT_SUB][s][d] & PTR_SUB) { // sub
-                if (s-x < 0) ERROR("Unexpected PTR_SUB");
-                int prev_off = offs[MAT_SUB][s-x][d];
-                while (pos.qi > prev_off+1) { // match
-                    if (print) printf("(%c, %d, %d) match sub\n",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
-                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
-                    if (pos.qi < 0 || pos.ri < 0) ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                }
-                if (print) printf("(%c, %d, %d) sub\n",
-                        std::string("SID")[pos.mi], pos.qi, pos.ri);
-                pos.qi--; cigar[cigar_ptr--] = PTR_SUB;
-                pos.ri--; cigar[cigar_ptr--] = PTR_SUB;
-                s -= x;
-            } else if (ptrs[MAT_SUB][s][d] & PTR_MAT) { // only matches remain
-                while (pos.qi >= 0 && pos.ri >= 0) { // match
-                    if (print) printf("(%c, %d, %d) match mat\n",
-                            std::string("SID")[pos.mi], pos.qi, pos.ri);
-                    pos.qi--; cigar[cigar_ptr--] = PTR_MAT;
-                    pos.ri--; cigar[cigar_ptr--] = PTR_MAT;
-                }
-                if (pos.qi >= 0 || pos.ri >= 0)
-                    ERROR("PTR_MAT expected all matches, now at (%c, %d, %d)",
-                        std::string("SID")[pos.mi], pos.qi, pos.ri);
-            } else {
-                ERROR("Unexpected pointer '%d' in wf_swg_backtrack() at (%c, %d, %d)",
-                    ptrs[MAT_SUB][s][d], std::string("SID")[pos.mi], pos.qi, pos.ri);
-            }
-
-        } else if (pos.mi == MAT_INS) {
-            if (ptrs[MAT_INS][s][d] & PTR_INS) { // extend INS
-                if (print) printf("(%c, %d, %d) ext ins\n",
-                        std::string("SID")[pos.mi], pos.qi, pos.ri);
-                pos.qi--; cigar[cigar_ptr--] = PTR_INS;
-                s -= e;
-            } else if (ptrs[MAT_INS][s][d] & PTR_SUB) { // start INS
-                if (print) printf("(%c, %d, %d) start ins\n",
-                        std::string("SID")[pos.mi], pos.qi, pos.ri);
-                pos.qi--; cigar[cigar_ptr--] = PTR_INS;
-                pos.mi = MAT_SUB;
-                s -= o + e;
-            } else {
-                ERROR("Unexpected pointer '%d' in wf_swg_backtrack() at (%c, %d, %d)",
-                    ptrs[MAT_INS][s][d], std::string("SID")[pos.mi], pos.qi, pos.ri);
-            }
-
-        } else if (pos.mi == MAT_DEL) {
-            if (ptrs[MAT_DEL][s][d] & PTR_DEL) { // extend DEL
-                if (print) printf("(%c, %d, %d) ext del\n",
-                        std::string("SID")[pos.mi], pos.qi, pos.ri);
-                pos.ri--; cigar[cigar_ptr--] = PTR_DEL;
-                s -= e;
-            } else if (ptrs[MAT_DEL][s][d] & PTR_SUB) { // start DEL
-                if (print) printf("(%c, %d, %d) start del\n",
-                        std::string("SID")[pos.mi], pos.qi, pos.ri);
-                pos.ri--; cigar[cigar_ptr--] = PTR_DEL;
-                pos.mi = MAT_SUB;
-                s -= o + e;
-            } else {
-                ERROR("Unexpected pointer '%d' in wf_swg_backtrack() at (%c, %d, %d)",
-                    ptrs[MAT_DEL][s][d], std::string("SID")[pos.mi], pos.qi, pos.ri);
-            }
-
-        } else {
-            ERROR("Unexpected MAT type in wf_swg_backtrack()");
-        }
-        if (!(pos.qi == -1 && pos.ri == -1) && (pos.qi < 0 || pos.ri < 0)) 
-            ERROR("During wf_swg_backtrack() at (%c, %d, %d)",
-                std::string("SID")[pos.mi], pos.qi, pos.ri);
-    }
-    return cigar;
-}
-
-
-/******************************************************************************/
-
-
-void wf_ed(
-        const std::string & query, const std::string & truth, int & s,
-        std::vector< std::vector<int> > & offs,
-        std::vector< std::vector<int> > & ptrs, bool print
-        ) {
+void wf_ed(const std::string & query, const std::string & truth, int & s, bool print) {
 
     // alignment
     int query_len = query.size();
@@ -1466,9 +1312,9 @@ void wf_ed(
     s = 0;
 
     int mat_len = query_len + truth_len - 1;
+    std::vector< std::vector<int> > offs;
     offs.push_back(std::vector<int>(mat_len, -2));
     offs[0][query_len-1] = -1;
-    ptrs.push_back(std::vector<int>(mat_len, PTR_NONE));
     bool done = false;
     while (true) {
 
@@ -1511,7 +1357,6 @@ void wf_ed(
 
         // NEXT WAVEFRONT
         offs.push_back(std::vector<int>(mat_len, -2));
-        ptrs.push_back(std::vector<int>(mat_len, PTR_NONE));
         s++;
         if(print) printf("\nscore = %d\n", s);
         for (int d = 0; d < mat_len; d++) {
@@ -1523,7 +1368,6 @@ void wf_ed(
                      diag + offs[s-1][d]+1 < truth_len &&
                             offs[s-1][d]+1 >= offs[s][d]) {
                 offs[s][d] = offs[s-1][d] + 1;
-                ptrs[s][d] |= PTR_SUB;
                 if(print) printf("(%d, %d) sub\n", offs[s][d], offs[s][d]+diag);
             }
 
@@ -1533,7 +1377,6 @@ void wf_ed(
                     diag + offs[s-1][d-1] < truth_len &&
                            offs[s-1][d-1] >= offs[s][d]) {
                 offs[s][d] = offs[s-1][d-1];
-                ptrs[s][d] |= PTR_DEL;
                 if(print) printf("(%d, %d) del\n", offs[s][d], offs[s][d]+diag);
             }
 
@@ -1545,7 +1388,6 @@ void wf_ed(
                     diag + offs[s-1][d+1]+1 >= -1 &&
                            offs[s-1][d+1]+1 >= offs[s][d]) {
                 offs[s][d] = offs[s-1][d+1]+1;
-                ptrs[s][d] |= PTR_INS;
                 if(print) printf("(%d, %d) ins\n", offs[s][d], offs[s][d]+diag);
             }
         }

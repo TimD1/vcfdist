@@ -187,22 +187,9 @@ int wf_swg_max_reach(
 void wf_swg_align(
         const std::string & query, 
         const std::string & truth,
-        std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        std::vector< std::vector< std::vector<int> > > & offs,
-        int & s, int sub, int open, int extend, bool print = false);
+        int & score, int sub, int open, int extend, bool print = false);
 
-std::vector<int> wf_swg_backtrack(
-        const std::string & query, 
-        const std::string & truth,
-        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        const std::vector< std::vector< std::vector<int> > > & offs,
-        int s, int sub, int open, int extend, bool print = false);
-
-
-void wf_ed(
-        const std::string & query, const std::string & truth, int & s, 
-        std::vector< std::vector<int> > & offs,
-        std::vector< std::vector<int> > & ptrs, bool print = false);
+void wf_ed(const std::string & query, const std::string & truth, int & score, bool print = false);
 
 /******************************************************************************/
 
