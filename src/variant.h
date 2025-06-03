@@ -89,7 +89,6 @@ public:
     void add_variants(const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query, 
             const std::string & ref, int qual, int phase_set);
-    void merge(std::shared_ptr<variantData> other_variants);
 
     // data
     std::shared_ptr<fastaData> ref;
