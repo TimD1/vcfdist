@@ -79,12 +79,13 @@ int main(int argc, char **argv) {
     }
     for (std::thread & thread : threads) thread.join();
 
-    // superclustering
+    // superclustering: merge per-hap variant info in constructor, then supercluster
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants%s",
             COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, COLOR_WHITE);
     std::shared_ptr<superclusterData> sc_data_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
+    sc_data_ptr->supercluster(false);
     auto sc_groups = sort_superclusters(sc_data_ptr);
     g.timers[TIME_CLUSTER].stop();
 

@@ -342,6 +342,19 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum alignment retries provided");
             }
 /*******************************************************************************/
+        } else if (std::string(argv[i]) == "-s" || 
+                std::string(argv[i]) == "--max-supercluster-size") {
+            i++;
+            if (i == argc) ERROR("Option '-s' used without providing max supercluster size");
+            try {
+                this->max_supercluster_size = std::stoi(argv[i++]);
+            } catch (const std::exception & e) {
+                ERROR("Invalid max supercluster size provided");
+            }
+            if (this->max_supercluster_size < 1) {
+                ERROR("Max supercluster size must be positive");
+            }
+/*******************************************************************************/
         } else if (std::string(argv[i]) == "-t" ||
                 std::string(argv[i]) == "--max-threads") {
             i++;
@@ -413,11 +426,15 @@ void Globals::parse_args(int argc, char ** argv) {
 
     // warn about variant size exclusions and categories
     if (g.max_size < g.sv_threshold) {
-        WARN("No SVs will be evaluated, since --largest %d < --sv-threshold %d", 
+        WARN("No SVs will be evaluated, since --largest-variant %d < --sv-threshold %d", 
                 g.max_size, g.sv_threshold);
     }
+    if (g.max_supercluster_size < g.max_size + 2) {
+        ERROR("Invalid option selected: --max-supercluster-size %d < --largest-variant %d + 2",
+                g.max_supercluster_size, g.max_size);
+    }
     if (g.max_size == 1) {
-        WARN("Only SNPs will be evaluated with --largest %d", g.max_size);
+        WARN("Only SNPs will be evaluated with --largest-variant %d", g.max_size);
     }
 
     // calculate thread/RAM steps
@@ -475,7 +492,9 @@ void Globals::print_usage() const
     printf("  -mq, --max-qual <INTEGER> [%d]\n", g.max_qual);
     printf("      maximum variant quality; higher variant qualities are thresholded\n");
 
-    /* printf("\n  Clustering:\n"); */
+    printf("\n  Clustering:\n");
+    printf("  -s, --max-supercluster-size <INTEGER> [%d]\n", g.max_supercluster_size);
+    printf("      maximum supercluster size (larger superclusters are split)\n");
     /* printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs); */
     /* printf("      maximum iterations for expanding/merging clusters\n"); */
     /* printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n"); */
