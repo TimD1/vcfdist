@@ -30,7 +30,7 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases) {
     std::sort(phase_blocks.begin(), phase_blocks.end(), std::greater<>());
     for (size_t i = 0; i < phase_blocks.size(); i++) {
         total_phased += phase_blocks[i];
-        if (total_phased >= total_bases / 2)
+        if (total_phased >= double(total_bases) / 2)
             return phase_blocks[i];
     }
     return 0;
