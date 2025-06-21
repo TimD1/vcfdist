@@ -669,6 +669,7 @@ std::vector<int> split_cluster(
     std::vector<int> cluster_curr_indices(CALLSETS*HAPS, 0);
     for (int i = 0; i < CALLSETS*HAPS; i++) {
         if(print) printf("index: %d\n", i);
+        if (not vars[i>>1][i&1]->clusters.size()) continue;
 
         // find the cluster index corresponding to this variant index
         int var_idx = variant_split_indices[i];
@@ -749,12 +750,17 @@ std::vector<int> get_supercluster_split_location(
     int orig_sc_beg_pos = orig_sc_range[0];
     int orig_sc_end_pos = orig_sc_range[1];
     int orig_sc_size = orig_sc_end_pos - orig_sc_beg_pos;
+    if (print) printf("original range: %d-%d, size %d\n", orig_sc_beg_pos, orig_sc_end_pos, orig_sc_size);
 
     std::vector<int> var_start_indices(CALLSETS*HAPS, 0);
     std::vector<int> var_end_indices(CALLSETS*HAPS, 0);
     for (int i = 0; i < CALLSETS*HAPS; i++) {
-        var_start_indices[i] = vars[i>>1][i&1]->clusters[cluster_start_indices[i]];
-        var_end_indices[i] = vars[i>>1][i&1]->clusters[cluster_end_indices[i]];
+        if (vars[i>>1][i&1]->clusters.size()) {
+            var_start_indices[i] = vars[i>>1][i&1]->clusters[cluster_start_indices[i]];
+            var_end_indices[i] = vars[i>>1][i&1]->clusters[cluster_end_indices[i]];
+            if (print) printf("start/end var indices on %s hap %d: %d-%d\n",
+                    callset_strs[i>>1].data(), i&1, var_start_indices[i], var_end_indices[i]);
+        }
     }
 
     std::vector<int> split_indices = var_start_indices;
@@ -766,12 +772,15 @@ std::vector<int> get_supercluster_split_location(
     for (int i = 0; i < CALLSETS*HAPS; i++) {
         total_vars += var_end_indices[i] - var_start_indices[i];
     }
+    if (print) printf("total vars: %d\n", total_vars);
     if (total_vars < 2) return var_best_split_indices; // empty
 
     // get position and hap of next variant
     var_info curr_var = get_next_variant_info(vars, split_indices, var_end_indices);
+    if (print) printf("curr var: on hap %d, range %d-%d\n", curr_var.hap_idx, curr_var.start_pos, curr_var.end_pos);
     split_indices[curr_var.hap_idx]++;
     var_info next_var = get_next_variant_info(vars, split_indices, var_end_indices);
+    if (print) printf("next var: on hap %d, range %d-%d\n", next_var.hap_idx, next_var.start_pos, next_var.end_pos);
     while (next_var.hap_idx >= 0) {
 
         // calculate max split size reduction factor
@@ -790,8 +799,10 @@ std::vector<int> get_supercluster_split_location(
         }
 
         curr_var = next_var;
+        if (print) printf("curr var: on hap %d, range %d-%d\n", curr_var.hap_idx, curr_var.start_pos, curr_var.end_pos);
         split_indices[curr_var.hap_idx]++;
         next_var = get_next_variant_info(vars, split_indices, var_end_indices);
+        if (print) printf("next var: on hap %d, range %d-%d\n", next_var.hap_idx, next_var.start_pos, next_var.end_pos);
     }
     return var_best_split_indices;
 }
