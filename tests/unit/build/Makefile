@@ -42,8 +42,8 @@ gtest_main.a: gtest-all.o gtest_main.o
 ##################
 # BUILD MY TESTS #
 ##################
-test_dist.o: ../dist/test_dist.cpp $(SRC)/dist.h $(GTEST_HEADERS)
-	$(CXX) $(CXXFLAGS) -c ../dist/test_dist.cpp
+test_dist.o: ../src/test_dist.cpp $(SRC)/dist.h $(GTEST_HEADERS)
+	$(CXX) $(CXXFLAGS) -c ../src/test_dist.cpp
 
 #################
 # BUILD VCFDIST #
