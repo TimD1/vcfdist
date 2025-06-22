@@ -25,7 +25,6 @@ std::string PURPLE(char c);
 std::string PURPLE(const std::string & str);
 
 float qscore(double p_error);
-void print_cigar(const std::vector<int> & cigar); 
 
 std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs);
 void print_graph_ptrs(const std::shared_ptr<Graph> query_graph,

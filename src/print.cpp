@@ -489,37 +489,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-void print_cigar(const std::vector<int> & cigar) {
-    for (int i = 0; i < int(cigar.size()); i++) {
-        switch (cigar[i]) {
-        case PTR_MAT:
-            i++;
-            printf("=");
-            break;
-        case PTR_SUB:
-            i++;
-            printf("X");
-            break;
-        case PTR_INS:
-            printf("I");
-            break;
-        case PTR_DEL:
-            printf("D");
-            break;
-        default:
-            printf("?");
-            break;
-            /* ERROR("Unexpected CIGAR type in print_cigar(): %d", cigar[i]); */
-        }
-    }
-    printf("\n");
-}
-
-
-/*******************************************************************************/
-
-/* Helper function for printing a query graph alignment.
- */ 
+/* Helper function for printing a query graph alignment. */ 
 std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs) {
     if (ptrs.find(cell) == ptrs.end()) return "  .";
     idx4 prev = ptrs.at(cell);
