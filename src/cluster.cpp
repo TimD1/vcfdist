@@ -482,18 +482,18 @@ void superclusterData::supercluster(bool print) {
                 printf("\nSUPERCLUSTER: %d\n", sc_idx);
                 printf("POS: %s:%d-%d\n", ctg.data(), beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
-                for (int c = 0; c < CALLSETS; c++) {
-                    printf("%s: clusters %d-%d of %d\n",
-                            callset_strs[c].data(),
-                            brks[c], next_brks[c], vars[c]->nc);
-                    if (vars[c]->nc)
-                    for (int v = vars[c]->clusters[ brks[c]]; 
-                            v < vars[c]->clusters[ next_brks[c] ]; v++) {
-                        printf("    var %d = %s:%d\t%s\t%s\t%s\n", v, ctg.data(),
-                                vars[c]->poss[v], 
-                                vars[c]->refs[v].data(),
-                                vars[c]->alts[v].data(),
-                                gt_strs[vars[c]->orig_gts[v]].data());
+                for (int ci = 0; ci < CALLSETS; ci++) {
+                    printf("%s: clusters %d-%d of %d = %d\n",
+                            callset_strs[ci].data(),
+                            brks[ci], next_brks[ci], vars[ci]->nc, int(vars[ci]->clusters.size()));
+                    if (vars[ci]->nc)
+                    for (int vi = vars[ci]->clusters[ brks[ci]]; 
+                            vi < vars[ci]->clusters[ next_brks[ci] ]; vi++) {
+                        printf("    var %d of %d = %s:%d\t%s\t%s\t%s\n", vi, vars[ci]->n, ctg.data(),
+                                vars[ci]->poss[vi], 
+                                vars[ci]->refs[vi].data(),
+                                vars[ci]->alts[vi].data(),
+                                gt_strs[vars[ci]->orig_gts[vi]].data());
                     }
                 }
                 printf("curr_right: %d, lefts: %d %d\n", curr_right, lefts[0], lefts[1]);
@@ -524,9 +524,9 @@ void superclusterData::supercluster(bool print) {
                     largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
                     total_bases += end_pos-beg_pos;
                     int this_vars = 0;
-                    for (int c = 0; c < CALLSETS; c++) {
-                        if (vars[c]->nc)
-                            this_vars += vars[c]->clusters[next_brks[c]] - vars[c]->clusters[brks[c]];
+                    for (int ci = 0; ci < CALLSETS; ci++) {
+                        if (vars[ci]->nc)
+                            this_vars += vars[ci]->clusters[next_brks[ci]] - vars[ci]->clusters[brks[ci]];
                     }
                     most_vars = std::max(most_vars, this_vars);
                     total_vars += this_vars;
@@ -546,9 +546,9 @@ void superclusterData::supercluster(bool print) {
                 largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
                 total_bases += end_pos-beg_pos;
                 int this_vars = 0;
-                for (int c = 0; c < CALLSETS; c++) {
-                    if (vars[c]->nc)
-                        this_vars += vars[c]->clusters[next_brks[c]] - vars[c]->clusters[brks[c]];
+                for (int ci = 0; ci < CALLSETS; ci++) {
+                    if (vars[ci]->nc)
+                        this_vars += vars[ci]->clusters[next_brks[ci]] - vars[ci]->clusters[brks[ci]];
                 }
                 most_vars = std::max(most_vars, this_vars);
                 total_vars += this_vars;
@@ -681,37 +681,37 @@ std::vector<int> split_cluster(
         std::vector< std::vector<int> > & breakpoints,
         int breakpoint_idx,
         bool print) {
-    if (print) printf("Splitting cluster at (%d, %d)\n", 
+    if (print) printf("Splitting cluster at variant indices (%d, %d)\n", 
             variant_split_indices[0], variant_split_indices[1]);
 
     std::vector<int> cluster_curr_indices(CALLSETS, 0);
-    for (int c = 0; c < CALLSETS; c++) {
-        if(print) printf("callset: %s\n", callset_strs[c].data());
+    for (int ci = 0; ci < CALLSETS; ci++) {
+        if(print) printf("callset: %s\n", callset_strs[ci].data());
 
         // find the cluster index corresponding to this variant index
-        int var_idx = variant_split_indices[c];
-        auto clust_itr = std::lower_bound(vars[c]->clusters.begin(),
-                vars[c]->clusters.end(), var_idx);
-        int clust_idx = std::distance(vars[c]->clusters.begin(), clust_itr);
-        cluster_curr_indices[c] = clust_idx;
+        int var_idx = variant_split_indices[ci];
+        auto clust_itr = std::lower_bound(vars[ci]->clusters.begin(),
+                vars[ci]->clusters.end(), var_idx);
+        int clust_idx = std::distance(vars[ci]->clusters.begin(), clust_itr);
+        cluster_curr_indices[ci] = clust_idx;
         if (print) printf("\tvar_idx: %d, clust_idx: %d, *clust_itr: %d\n", var_idx, clust_idx, *clust_itr);
 
         if (*clust_itr == var_idx) {
             // there is already a cluster break at this variant on this haplotype, do nothing
         } else {
             // we need to split the current cluster in two, save and adjust existing cluster end
-            int right_reach = vars[c]->right_reaches[clust_idx-1];
-            int var_pos = vars[c]->poss[var_idx];
-            vars[c]->right_reaches[clust_idx-1] = var_pos;
+            int right_reach = vars[ci]->right_reaches[clust_idx-1];
+            int var_pos = vars[ci]->poss[var_idx];
+            vars[ci]->right_reaches[clust_idx-1] = var_pos;
 
             // add new cluster
-            vars[c]->left_reaches.insert(vars[c]->left_reaches.begin() + clust_idx, var_pos);
-            vars[c]->right_reaches.insert(vars[c]->right_reaches.begin() + clust_idx, right_reach);
-            vars[c]->clusters.insert(vars[c]->clusters.begin() + clust_idx, var_idx);
+            vars[ci]->left_reaches.insert(vars[ci]->left_reaches.begin() + clust_idx, var_pos);
+            vars[ci]->right_reaches.insert(vars[ci]->right_reaches.begin() + clust_idx, right_reach);
+            vars[ci]->clusters.insert(vars[ci]->clusters.begin() + clust_idx, var_idx);
 
             // increment breakpoint for all remaining clusters in this supercluster
-            for (int i = breakpoint_idx+1; i < int(breakpoints.size()); i++) {
-                breakpoints[i][c]++;
+            for (int bi = breakpoint_idx+1; bi < int(breakpoints.size()); bi++) {
+                breakpoints[bi][ci]++;
             }
         }
     }
