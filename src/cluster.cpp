@@ -708,6 +708,7 @@ std::vector<int> split_cluster(
             vars[ci]->left_reaches.insert(vars[ci]->left_reaches.begin() + clust_idx, var_pos);
             vars[ci]->right_reaches.insert(vars[ci]->right_reaches.begin() + clust_idx, right_reach);
             vars[ci]->clusters.insert(vars[ci]->clusters.begin() + clust_idx, var_idx);
+            vars[ci]->nc++;
 
             // increment breakpoint for all remaining clusters in this supercluster
             for (int bi = breakpoint_idx+1; bi < int(breakpoints.size()); bi++) {
