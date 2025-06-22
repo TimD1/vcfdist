@@ -16,7 +16,6 @@
 vcfdist is a distance-based **germline variant calling evaluation tool** that:
 - simultaneously evaluates **SNPS, INDELs, and SVs** up to 10Kb
 - requires **local phasing information** for truth and query variants
-- can **standardize** query and truth VCF **variant representations**
 - can evaluate **flip** and **switch phasing errors**
 
 vcfdist provides more accurate SNP, INDEL, and SV precision-recall curves than previous work, particularly when complex variants are involved.
@@ -54,7 +53,7 @@ Please cite the following works if you use vcfdist:
 </summary>
 
 <pre>
-@article{dunn2024jointly,
+@article{dunn2024vcfdist,
   title={Jointly benchmarking small and structural variant calls with vcfdist},
   author={Dunn, Tim and Zook, Justin M and Holt, James M and Narayanasamy, Satish},
   journal={Genome Biology},

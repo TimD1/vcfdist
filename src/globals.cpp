@@ -541,19 +541,19 @@ void Globals::init_timers(const std::vector<std::string> & timer_strs) {
 void Globals::print_citation() const
 {
     printf("\nMLA Format:\n\n");
-    printf("Dunn, T., Narayanasamy, S. \"vcfdist: accurately benchmarking phased small variant calls in human genomes.\" Nature Communications 14, 8149 (2023). https://doi.org/10.1038/s41467-023-43876-x\n");
+    printf("Dunn, Tim, et al. \"Jointly benchmarking small and structural variant calls with vcfdist.\" Genome Biology 25.1 (2024): 253.\n");
     printf("\nBibTeX Format:\n\n");
-    printf("@article{dunn2023vcfdist,\n");
-    printf("  author={Dunn, Tim and Narayanasamy, Satish},\n");
-    printf("  title={vcfdist: Accurately benchmarking phased small variant calls in human genomes},\n");
-    printf("  journal={Nature Communications},\n");
-    printf("  year={2023},\n");
-    printf("  volume={14},\n");
+    printf("@article{dunn2024vcfdist,\n");
+    printf("  title={Jointly benchmarking small and structural variant calls with vcfdist},\n");
+    printf("  author={Dunn, Tim and Zook, Justin M and Holt, James M and Narayanasamy, Satish},\n");
+    printf("  journal={Genome Biology},\n");
+    printf("  year={2024},\n");
+    printf("  volume={25},\n");
     printf("  number={1},\n");
-    printf("  pages={8149},\n");
-    printf("  issn={2041-1723},\n");
-    printf("  doi={10.1038/s41467-023-43876-x},\n");
-    printf("  URL={https://doi.org/10.1038/s41467-023-43876-x}\n");
+    printf("  pages={253},\n");
+    printf("  publisher={Springer},\n");
+    printf("  doi={10.1186/s13059-024-03394-5},\n");
+    printf("  URL={https://doi.org/10.1186/s13059-024-03394-5}\n");
     printf("}\n");
 }
 
