@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,7 +27,7 @@ ctgVariants::ctgVariants() {
 void ctgVariants::add_cluster(int g) { this->clusters.push_back(g); }
 
 void ctgVariants::add_var(int pos, int rlen, uint8_t hap, uint8_t type, uint8_t loc,
-        std::string ref, std::string alt, uint8_t orig_gt, float gq, float vq, int ps) {
+        const std::string & ref, const std::string & alt, uint8_t orig_gt, float gq, float vq, int ps) {
     this->poss.push_back(pos);
     this->rlens.push_back(rlen);
     this->haps.push_back(hap);
@@ -860,6 +861,8 @@ variantData::variantData(std::string vcf_fn,
             }
 
             // add to haplotype-specific query info
+            std::transform(ref.begin(), ref.end(), ref.begin(), ::toupper);
+            std::transform(alt.begin(), alt.end(), alt.begin(), ::toupper);
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 this->variants[hap][ctg]->add_var(pos, 0, // INS
                     hap, TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);

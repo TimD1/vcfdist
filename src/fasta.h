@@ -1,6 +1,7 @@
 #ifndef _FASTA_H_
 #define _FASTA_H_
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 
@@ -15,6 +16,8 @@ public:
         kseq_t * seq = kseq_init(fileno(ref_fasta_fp));
         while (kseq_read(seq) >= 0) {
             this->fasta[seq->name.s] = seq->seq.s;
+            std::transform(this->fasta[seq->name.s].begin(), this->fasta[seq->name.s].end(),
+                    this->fasta[seq->name.s].begin(), ::toupper);
             this->lengths[seq->name.s] = this->fasta.at(seq->name.s).size();
         }
         kseq_destroy(seq);
