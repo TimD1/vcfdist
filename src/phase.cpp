@@ -434,6 +434,7 @@ void phaseblockData::fix_allele_counts() {
 
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Genotype Error Summary:");
+    if (g.verbosity >= 1) INFO("  Truth -> Query");
     if (g.verbosity >= 1) INFO("    0/0 -> 0/1: %-8d  1 FP", 
             allele_error_counts[AC_ERR_0_TO_1][VARTYPE_ALL]);
     if (g.verbosity >= 1) INFO("    0/0 -> 1/1: %-8d  2 FP", 
