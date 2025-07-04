@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -102,7 +103,7 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
 
 // TODO: remove assumption that no variants match
 void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
-        std::string ref, std::string alt, uint8_t orig_gt, float gt_qual, float var_qual, 
+        const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual, 
         int phase_set, int supercluster /* -1 */, uint8_t calc_gt /* GT_REF_REF */, 
         uint8_t hap1_errtype /* ERRTYPE_UN */, uint8_t hap2_errtype /* ERRTYPE_UN */, 
         int hap1_sync_group /* 0 */, int hap2_sync_group /* 0 */, 
@@ -1066,7 +1067,9 @@ void parse_variants(const std::string & vcf_fn,
                 simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF;
             }
 
-            // add variant
+            // add to haplotype-specific query info
+            std::transform(ref.begin(), ref.end(), ref.begin(), ::toupper);
+            std::transform(alt.begin(), alt.end(), alt.begin(), ::toupper);
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 variant_data->variants[hap][ctg]->add_var(pos, 0, // INS
                     TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);

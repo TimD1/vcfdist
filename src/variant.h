@@ -21,7 +21,7 @@ public:
     void remove_vars(const std::vector<int> & indices);
     void add_var(std::shared_ptr<ctgVariants> other_vars, int idx);
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
-        std::string ref, std::string alt, uint8_t orig_gt, float gt_qual, float var_qual, 
+        const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual, 
         int phase_set, int supercluster = -1, uint8_t calc_gt = GT_REF_REF, 
         uint8_t hap1_errtype = ERRTYPE_UN, uint8_t hap2_errtype = ERRTYPE_UN, 
         int hap1_sync_group = 0, int hap2_sync_group = 0, float hap1_callq = 0, float hap2_callq = 0, 
