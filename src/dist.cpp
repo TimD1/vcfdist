@@ -2206,8 +2206,7 @@ int wf_swg_max_reach(
                 return truth_len-1;
             }
             if (off == query_len - 1 && off+diag >= 0 && off+diag < truth_len-1)  {
-                ERROR("Reached end of query (len %d) before ref (len %d) in max_reach() at (%d, %d)",
-                        query_len, truth_len, off, diag+off);
+                return off + diag;
             }
 
         }
