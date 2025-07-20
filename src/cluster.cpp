@@ -1041,6 +1041,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
             // calculate alignment score
             int l_reach = 0, r_reach = 0, score = 0;
             if (left_compute || right_compute) {
+
                 int beg_idx = vars->clusters[clust];
                 int end_idx = vars->clusters[clust+1];
                 int beg = std::max(0, vars->poss[beg_idx] - 1);
