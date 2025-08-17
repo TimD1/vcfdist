@@ -41,7 +41,7 @@ Reports detailed information regarding each variant.
 | ALT | string | Alternate allele of this variant. |
 | QUAL | float | Quality score of this variant. |
 | TYPE | categorical | Type of variant (REF/SNP/INS/DEL/CPX). |
-| ERR_TYPE | categorical | Classification error type (TP/FP/FN). |
+| ERRTYPE | categorical | Classification error type (TP/FP/FN). |
 | CREDIT | float | Fraction of partial credit (in terms of correctness) that this variant received. --credit-threshold determines whether it is a true or false positive. |
 | CLUSTER | integer | 0-based index of the cluster on the current haplotype of this contig containing this variant. |
 | SUPERCLUSTER | integer | 0-based index of the supercluster on this contig containing this variant. |
