@@ -125,7 +125,7 @@ int calc_prec_recall_aln(
     // continue looping until full alignment found
     std::unordered_set<idx4> curr_wave; // everything explored this wave
     std::unordered_set<idx4> prev_wave; // everything explored prev wave
-    while (score <= g.max_dist) {
+    while (score <= g.max_dist or g.max_retries == 0) {
         /* if (print) printf("  score = %d\n", score); */
         if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
 
@@ -251,11 +251,14 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
         std::unordered_map<idx4, idx4> ptrs;
         int score = calc_prec_recall_aln(graph, ptrs, print);
         bool aligned = score <= g.max_dist;
-        if (aligned) { // alignment succeeded
+        if (aligned or g.max_retries == 0) { // alignment succeeded
             calc_prec_recall(graph, ptrs, truth_hi, print);
             done = true;
         }
         ptrs.clear();
+        if (g.max_retries == 0) {
+            return;
+        }
 
         // NOTE: if alignment failed because it was too expensive, this can only be caused by a FN
         // truth variant, since query variants can be skipped and the reference sections match.
