@@ -411,7 +411,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_query_fn = g.out_prefix + "query.tsv";
         if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
         FILE* out_query = fopen(out_query_fn.data(), "w");
-        fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERR_TYPE"
+        fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
                 "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (const std::string & ctg : phasedata_ptr->contigs) {
 
