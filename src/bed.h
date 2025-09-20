@@ -12,12 +12,23 @@
 #include "fasta.h"
 #include "variant.h"
 
+/**
+ * @struct contigRegions
+ * @brief Stores n sorted [start, stop) intervals present on a given contig in a BED file.
+ */
 struct contigRegions {
-    std::vector<int> starts;
-    std::vector<int> stops;
-    int n;
+    std::vector<int> starts; ///< 0-based start coordinates for intervals
+    std::vector<int> stops; ///< 0-based non-inclusive end coordinates for intervals
+    int n; ///< number of intervals
 };
 
+/**
+ * @class bedData
+ * @brief Loads and stores interval information contained in a BED file (first 3 columns).
+ *
+ * This class is used for defining regions of interest to evaluate (masking ground truth low
+ * confidence regions), and therefore does not store additional BED columns.
+ */
 class bedData {
 public:
 
@@ -25,19 +36,20 @@ public:
     bedData() {;}
     bedData(const std::string & bed_fn);
 
+    // member functions
     void add(const std::string & contig, const int & start, const int & stop);
     void check();
     int contains(std::string contig, const int & start, const int & stop, const int & type);
 
     operator std::string() const;
 
-    long size;
-
-    std::unordered_map<std::string, contigRegions> regions;
-    std::vector<std::string> contigs;
+    // member variables
+    long size = 0;  ///< total size of all regions in BED file, in bases
+    std::vector<std::string> contigs; ///< list of contigs in BED file
+    std::unordered_map<std::string, contigRegions> regions; ///< mapping from contigs to struct storing all intervals on a contig
 };
 
-void check_contigs(
+void intersect_contigs(
         std::shared_ptr<variantData> query_ptr,
         std::shared_ptr<variantData> truth_ptr,
         std::shared_ptr<fastaData> ref_ptr);

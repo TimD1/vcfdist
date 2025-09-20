@@ -1,6 +1,13 @@
 #include "bed.h"
 #include "print.h"
 
+/**
+ * Construct a bedData class from a BED filename.
+ *
+ * The first three columns are read and the remainder are ignored.
+ * @param bed_fn The BED filename.
+ * @throw ERROR if the BED file cannot be opened.
+ */
 bedData::bedData(const std::string & bed_fn) {
 
     // fail if file doesn't exist
@@ -20,48 +27,63 @@ bedData::bedData(const std::string & bed_fn) {
         getline(ss, stop, '\t');
         this->add(contig, std::stoi(start), std::stoi(stop));
     }
+    this->check();
 }
 
+/**
+ * Add a single region to a bedData object.
+ *
+ * @param contig The name of the contig.
+ * @param start The 0-based inclusive start position of the interval.
+ * @param stop The 0-based exclusive end position of the interval.
+ */
 void bedData::add(const std::string & contig, const int & start, const int & stop) {
+    // add a new contig if needed
     if (this->regions.find(contig) == this->regions.end()) {
         this->regions[contig] = contigRegions();
         this->contigs.push_back(contig);
     }
+    // add the region
     this->regions[contig].starts.push_back(start);
     this->regions[contig].stops.push_back(stop);
     this->regions[contig].n++;
     this->size += stop-start;
 }
 
+/**
+ * Check that all BED intervals are valid, sorted, and non-overlapping.
+ *
+ * @throws ERROR if a BED region is flipped, length 0, overlaps, or is not sorted.
+ */
 void bedData::check() {
-    for (size_t i = 0; i < this->contigs.size(); i++) {
+    for (size_t ctg_idx = 0; ctg_idx < this->contigs.size(); ctg_idx++) {
         int prev_start = -1;
         int prev_stop = -1;
-        for (int j = 0; j < this->regions[this->contigs[i]].n; j++) {
+        for (int region_idx = 0; region_idx < this->regions[this->contigs[ctg_idx]].n; region_idx++) {
 
             // check this region is positive size
-            int start = this->regions[this->contigs[i]].starts[j];
-            int stop = this->regions[this->contigs[i]].stops[j];
+            int start = this->regions[this->contigs[ctg_idx]].starts[region_idx];
+            int stop = this->regions[this->contigs[ctg_idx]].stops[region_idx];
             if (stop < start) ERROR("BED region %s:%d-%d stop precedes start.", 
-                    this->contigs[i].data(), start, stop);
+                    this->contigs[ctg_idx].data(), start, stop);
             if (stop == start) ERROR("BED region %s:%d-%d length zero.",
-                    this->contigs[i].data(), start, stop);
+                    this->contigs[ctg_idx].data(), start, stop);
 
             // check for overlaps/etc
-            if (j) { // not first region on contig
+            if (region_idx) { // not first region on contig
 
                 if (stop < prev_start)
                     ERROR("BED is unsorted; region %s:%d-%d precedes %s:%d-%d.",
-                        this->contigs[i].data(), prev_start, prev_stop, 
-                        this->contigs[i].data(), start, stop);
+                        this->contigs[ctg_idx].data(), prev_start, prev_stop, 
+                        this->contigs[ctg_idx].data(), start, stop);
                 if (start < prev_stop)
                     ERROR("BED overlap detected: regions %s:%d-%d and %s:%d-%d.",
-                        this->contigs[i].data(), prev_start, prev_stop, 
-                        this->contigs[i].data(), start, stop);
+                        this->contigs[ctg_idx].data(), prev_start, prev_stop, 
+                        this->contigs[ctg_idx].data(), start, stop);
                 if (prev_stop == start) 
                     WARN("BED regions %s:%d-%d and %s:%d-%d should be merged.",
-                        this->contigs[i].data(), prev_start, prev_stop, 
-                        this->contigs[i].data(), start, stop);
+                        this->contigs[ctg_idx].data(), prev_start, prev_stop, 
+                        this->contigs[ctg_idx].data(), start, stop);
             }
 
             prev_start = start;
@@ -70,6 +92,16 @@ void bedData::check() {
     }
 }
 
+/**
+ * Detect if a variant is fully contained within one of several BED regions.
+ *
+ * @param contig The contig containing the variant.
+ * @param start The 0-based inclusive start position of the variant.
+ * @param stop The 0-based exclusive end position of the variant.
+ * @param type The type of the variant.
+ * @throws ERROR if the variant stop precedes the variant start.
+ * @returns one of the following: BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG
+ */
 int bedData::contains(std::string contig, const int & start, const int & stop, const int & type) {
 
     if (!g.bed_exists) return BED_INSIDE;
@@ -116,11 +148,14 @@ int bedData::contains(std::string contig, const int & start, const int & stop, c
     return BED_BORDER; // spans multiple regions
 }
 
+/**
+ * Define a string representation of the bedData class.
+ */
 bedData::operator std::string() const {
     std::string bed_regions = "";
     for (const auto &[contig, region_list]: this->regions) {
         bed_regions += contig + ":\n";
-        for (size_t i = 0; i < region_list.starts.size(); i++) {
+        for (int i = 0; i < region_list.n; i++) {
             bed_regions += "\t" + std::to_string(region_list.starts[i]) + "-" + \
                            std::to_string(region_list.stops[i]) + "\n";
         }
@@ -132,7 +167,18 @@ bedData::operator std::string() const {
 /******************************************************************************/
 
 
-void check_contigs(
+/**
+ * Intersect the reference FASTA, query VCF, truth VCF, and (optionally) BED regions and retain
+ * only the relevant contigs.
+ * 
+ * @param query_ptr A pointer to the query variantData.
+ * @param truth_ptr A pointer to the truth variantData.
+ * @param ref_ptr A pointer to the reference fastaData.
+ * @throws WARNING if contigs in either VCF are not present in either the other VCF or BED file.
+ * @throws WARNING if corresponding contigs in the truth and query VCFs differ in ploidy.
+ * @throws ERROR if a contig to be evaluated is not present in the reference FASTA.
+ */
+void intersect_contigs(
         std::shared_ptr<variantData> query_ptr,
         std::shared_ptr<variantData> truth_ptr,
         std::shared_ptr<fastaData> ref_ptr) {
@@ -141,7 +187,7 @@ void check_contigs(
 
     if (g.bed_exists) { // use BED to determine contigs
 
-        // remove all extraneous contigs not in BED
+        // remove all extraneous contigs in query VCF not in BED
         std::vector<std::string>::iterator itr = query_ptr->contigs.begin();
         while (itr != query_ptr->contigs.end()) { // query
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
@@ -155,8 +201,9 @@ void check_contigs(
                 itr = query_ptr->contigs.erase(itr);
                 if (g.verbosity >= 2) 
                     WARN("Ignoring %s from QUERY VCF, not in BED file.", (*itr).data());
-            } else itr++;
+            } else ++itr;
         }
+        // remove all extraneous contigs in truth VCF not in BED
         itr = truth_ptr->contigs.begin();
         while (itr != truth_ptr->contigs.end()) { // truth
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
@@ -170,8 +217,9 @@ void check_contigs(
                 itr = truth_ptr->contigs.erase(itr);
                 if (g.verbosity >= 2) 
                     WARN("Ignoring %s from TRUTH VCF, not in BED file.", (*itr).data());
-            } else itr++;
+            } else ++itr;
         }
+        // remove all extraneous contigs in ref FASTA not in BED
         auto itr2 = ref_ptr->fasta.begin();
         while (itr2 != ref_ptr->fasta.end()) { // fasta
             if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
@@ -184,12 +232,14 @@ void check_contigs(
         for (std::string ctg : query_ptr->contigs) {
             if (std::find(truth_ptr->contigs.begin(), 
                         truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end())
-                WARN("Contig '%s' found in query VCF but not truth VCF.", ctg.data());
+                WARN("Contig '%s' found in query VCF but not truth VCF."
+                     " All query variants on '%s' will be false positives.", ctg.data(), ctg.data());
         }
         for (std::string ctg : truth_ptr->contigs) {
             if (std::find(query_ptr->contigs.begin(), 
                         query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
-                WARN("Contig '%s' found in truth VCF but not query VCF.", ctg.data());
+                WARN("Contig '%s' found in truth VCF but not query VCF."
+                     " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
         }
 
         // ensure all inputs contain required contigs (even if empty)
@@ -229,21 +279,6 @@ void check_contigs(
         }
 
         // ensure query/truth VCFs contain the same contigs (even if devoid of variants)
-        for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
-            std::string ctg = truth_ptr->contigs[i];
-            if (std::find(query_ptr->contigs.begin(), 
-                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
-                WARN("Contig '%s' found in truth VCF but not query VCF."
-                     " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
-                query_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-                query_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-                query_ptr->contigs.push_back(ctg);
-                query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                query_ptr->ploidy.push_back(truth_ptr->ploidy[i]);
-            }
-        }
         for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
             std::string ctg = query_ptr->contigs[i];
             if (std::find(truth_ptr->contigs.begin(), 
@@ -259,8 +294,23 @@ void check_contigs(
                 truth_ptr->ploidy.push_back(query_ptr->ploidy[i]);
             }
         }
+        for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
+            std::string ctg = truth_ptr->contigs[i];
+            if (std::find(query_ptr->contigs.begin(), 
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
+                WARN("Contig '%s' found in truth VCF but not query VCF."
+                     " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
+                query_ptr->variants[HAP1][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
+                query_ptr->variants[HAP2][ctg] = 
+                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
+                query_ptr->contigs.push_back(ctg);
+                query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+                query_ptr->ploidy.push_back(truth_ptr->ploidy[i]);
+            }
+        }
 
-        // remove extra contigs from fasta
+        // remove extra contigs from ref FASTA
         auto itr = ref_ptr->fasta.begin();
         while (itr != ref_ptr->fasta.end()) {
             if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
@@ -284,5 +334,4 @@ void check_contigs(
     }
 
     if (g.verbosity >= 1) INFO("    All contig checks passed!");
-
 }

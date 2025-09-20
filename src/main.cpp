@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     g.timers[TIME_WRITE].stop();
 
     // ensure each input contains all contigs in BED
-    check_contigs(query_ptr, truth_ptr, ref_ptr);
+    intersect_contigs(query_ptr, truth_ptr, ref_ptr);
 
     // cluster query VCF
     g.timers[TIME_CLUSTER].start();
