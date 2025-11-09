@@ -1,6 +1,9 @@
 #include "bed.h"
 #include "print.h"
 
+
+/* bedData ****************************************************************************************/
+
 /**
  * Construct a bedData class from a BED filename.
  *
@@ -164,8 +167,7 @@ bedData::operator std::string() const {
 }
 
 
-/******************************************************************************/
-
+/* BED helper functions ***************************************************************************/
 
 /**
  * Intersect the reference FASTA, query VCF, truth VCF, and (optionally) BED regions and retain
