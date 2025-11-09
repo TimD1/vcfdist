@@ -10,14 +10,25 @@
 #include "variant.h"
 
 
+/* ctgSuperclusters *******************************************************************************/
+
+/**
+ * Initialize an empty ctgSuperclusters object.
+ */
 ctgSuperclusters::ctgSuperclusters() {
     this->callset_vars = std::vector< std::shared_ptr<ctgVariants> > (CALLSETS, nullptr);
 }
 
-
-/******************************************************************************/
-
-
+/**
+ * Calculate the leftmost position of a group of query and truth variants.
+ *
+ * @param qvi_start The 0-based inclusive start index of the query variant interval.
+ * @param qvi_end The 0-based exclusive end index of the query variant interval.
+ * @param tvi_start The 0-based inclusive start index of the truth variant interval.
+ * @param qvi_end The 0-based exclusive end index of the truth variant interval.
+ * @returns The 0-based inclusive leftmost position, or int::max() if no variants are present.
+ * @todo should this return int::min()? not for sentinel, but maybe if empty?
+ */
 int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
     // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
     return std::min( (qvi_start == qvi_end) ? std::numeric_limits<int>::max() : 
@@ -26,7 +37,15 @@ int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start,
                 this->callset_vars[TRUTH]->poss[tvi_start]) - 1;
 }
 
-
+/**
+ * Calculate the rightmost position of a group of query and truth variants.
+ *
+ * @param qvi_start The 0-based inclusive start index of the query variant interval.
+ * @param qvi_end The 0-based exclusive end index of the query variant interval.
+ * @param tvi_start The 0-based inclusive start index of the truth variant interval.
+ * @param qvi_end The 0-based exclusive end index of the truth variant interval.
+ * @returns The 0-based exclusive rightmost position, or int::max() if no variants are present.
+ */
 int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
     // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
     int max_ref_pos = -1;
@@ -42,81 +61,17 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
 }
 
 
-/******************************************************************************/
+/* superclusterData *******************************************************************************/
 
-
-std::vector< std::vector< std::vector<int> > > 
-sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
-
-    if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("  Sorting superclusters by size");
-    std::vector< std::vector< std::vector<int> > > sc_groups(g.thread_nsteps,
-            std::vector< std::vector<int> >(2));
-
-    for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
-        std::string ctg = sc_data->contigs[ctg_idx];
-        std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
-        std::shared_ptr<ctgVariants> qvars = sc_data->superclusters[ctg]->callset_vars[QUERY];
-        std::shared_ptr<ctgVariants> tvars = sc_data->superclusters[ctg]->callset_vars[TRUTH];
-        if (!qvars->n) continue;
-        // superclusters are numbered 0...n-1, so we need +1 to get the total count
-        int nscs =  std::max(qvars->superclusters[qvars->n-1], tvars->superclusters[tvars->n-1]) + 1;
-
-        for (int sc_idx = 0; sc_idx < nscs; sc_idx++) {
-
-            std::vector<size_t> max_lens(CALLSETS, 0);
-            std::vector<size_t> lens(HAPS, 0);
-            for (int c = 0; c < CALLSETS; c++) {
-                auto vars = ctg_scs->callset_vars[c];
-                if (ctg_scs->callset_vars[c]->nc == 0) continue;
-                int var_beg = std::distance(vars->superclusters.begin(),
-                    std::lower_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
-                int var_end = std::distance(vars->superclusters.begin(),
-                    std::upper_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
-
-                // calculate query len as reference length plus alternate lengths
-                for (int hi = 0; hi < HAPS; hi++) {
-                    lens[hi] = var_beg == var_end ? 0 : vars->poss[var_end-1] - vars->poss[var_beg];
-                    for (int vi = var_beg; vi < var_end; vi++) {
-                        if (!vars->var_on_hap(vi, hi)) continue;
-                        lens[hi] += int(vars->alts[vi].size());
-                    }
-                    max_lens[c] = std::max(max_lens[c], lens[hi]);
-                }
-            }
-
-            // calculate memory usage
-            int FRAG_FACTOR = 2;
-            size_t mem = (max_lens[QUERY] + max_lens[TRUTH]) * (sizeof(uint32_t) + sizeof(int)) * 
-                g.max_dist * FRAG_FACTOR;
-            double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
-            if (mem_gb > g.max_ram) {
-                WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %d, running anyways. Lower --max-supercluster-size if this fails.", 
-                        g.max_ram, mem_gb, sc_idx);
-                sc_groups[g.thread_nsteps-1][CTG_IDX].push_back(ctg_idx);
-                sc_groups[g.thread_nsteps-1][SC_IDX].push_back(sc_idx);
-                continue;
-            }
-            
-            // place into correct group
-            for (int i = 0; i < g.thread_nsteps; i++) {
-                if (mem_gb < g.ram_steps[i]) {
-                    sc_groups[i][CTG_IDX].push_back(ctg_idx);
-                    sc_groups[i][SC_IDX].push_back(sc_idx);
-                    break;
-                }
-            }
-        }
-    }
-
-    return sc_groups;
-}
-
-/******************************************************************************/
-
-void superclusterData::add_callset_vars(int callset,
-        std::vector< std::unordered_map< std::string, 
-        std::shared_ptr<ctgVariants> > > & vars) {
+/**
+ * Merge ctgVariants across haplotypes, set genotypes, update clusters, and add to this superclusterData.
+ *
+ * @param callset The variant callset that is being added, either TRUTH or QUERY.
+ * @param vars For each haplotype, a mapping from contig names to ctgVariants.
+ */
+void superclusterData::load_and_merge_callset_vars_across_haps(
+        int callset,
+        std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > & vars) {
     bool print = false;
 
     for (int ctg_idx = 0; ctg_idx < int(this->contigs.size()); ctg_idx++) {
@@ -360,8 +315,14 @@ void superclusterData::add_callset_vars(int callset,
     } // for each contig
 }
 
-/******************************************************************************/
-
+/**
+ * Initialize a superclusterData object from a reference FASTA and query and truth VCFs.
+ *
+ * After loading the variants, they are merged across haplotypes and then superclustered.
+ * @param query_ptr A pointer to the query variantData.
+ * @param truth_ptr A pointer to the truth variantData.
+ * @param ref_ptr A pointer to the reference fastaData.
+ */
 superclusterData::superclusterData(
         std::shared_ptr<variantData> query_ptr,
         std::shared_ptr<variantData> truth_ptr,
@@ -401,15 +362,19 @@ superclusterData::superclusterData(
    }
 
     // for each contig, merge variants and clusters across haplotypes
-    this->add_callset_vars(QUERY, query_ptr->variants);
-    this->add_callset_vars(TRUTH, truth_ptr->variants);
+    this->load_and_merge_callset_vars_across_haps(QUERY, query_ptr->variants);
+    this->load_and_merge_callset_vars_across_haps(TRUTH, truth_ptr->variants);
+    this->supercluster(/* print = */ false);
 }
 
-
-/******************************************************************************/
-
-/* Supercluster using left_reach and right_reach of each cluster, calculated
- * during wf_swg_cluster().
+/** 
+ * Supercluster variants, grouping across the QUERY and TRUTH callsets.
+ *
+ * This function uses the left_reach and right_reach of each cluster, precalculated by wf_swg_cluster().
+ * Superclusters are created from clusters by grouping across callsets whenever there is any overlap.
+ * Afterwards, large superclusters are split if necessary.
+ *
+ * @param print Boolean to enable debug printing.
  */
 void superclusterData::supercluster(bool print) {
 
@@ -428,7 +393,7 @@ void superclusterData::supercluster(bool print) {
         }
         if (!nvars) continue;
 
-        // for each cluster of variants (merge query and truth haps)
+        // for each cluster of variants (merge query and truth)
         auto & vars = this->superclusters[ctg]->callset_vars;
         std::vector<int> brks(CALLSETS, 0); // start of current supercluster
         int sc_idx = 0;
@@ -501,7 +466,8 @@ void superclusterData::supercluster(bool print) {
 
             // split large supercluster if necessary
             if (end_pos - beg_pos > g.max_supercluster_size) {
-                std::vector< std::vector<int> > all_brks = split_large_supercluster(vars, brks, next_brks, print);
+                std::vector< std::vector<int> > all_brks = 
+                    split_large_supercluster(vars, brks, next_brks, print);
                 WARN("Max supercluster size (%d) exceeded (%d) at %s:%d-%d, breaking up into %d superclusters",
                         g.max_supercluster_size, end_pos - beg_pos, ctg.data(), beg_pos, end_pos, int(all_brks.size()-1));
                 for (int brk_idx = 0; brk_idx < int(all_brks.size())-1; brk_idx++) {
@@ -531,7 +497,7 @@ void superclusterData::supercluster(bool print) {
                     most_vars = std::max(most_vars, this_vars);
                     total_vars += this_vars;
                 }
-            } else {
+            } else { // don't split supercluster
 
                 // save supercluster information
                 for (int ci = 0; ci < CALLSETS; ci++) {
@@ -552,7 +518,6 @@ void superclusterData::supercluster(bool print) {
                 }
                 most_vars = std::max(most_vars, this_vars);
                 total_vars += this_vars;
-
             }
 
             // reset for next active cluster
@@ -576,247 +541,88 @@ void superclusterData::supercluster(bool print) {
 }
 
 
-/******************************************************************************/
+/* clustering helper functions ********************************************************************/
 
-
-/* Calculate the size of a supercluster from a list of variants and the start/stop indices of the
- * clusters that compose the supercluster. Returns a vector containing the (start, end) positions.
+/**
+ * Sort superclusters into size-based buckets.
+ * 
+ * The number of active threads will be inversely related to the size of the clusters to control 
+ * RAM usage during precision-recall evaluation.
+ * @param sc_data A pointer to the superclusterData.
+ * @returns A 3D vector of shape (n_buckets, 2, n_i) where each size bucket stores 
+ * (ctg_idx, sc_idx) for each supercluster.
+ * @throws WARNING if supercluster size is predicted to cause exceeding maximum RAM usage.
  */
-std::vector<int> get_supercluster_range(
-        const std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & cluster_start_indices, // inclusive
-        const std::vector<int> & cluster_end_indices) { // exclusive
+std::vector< std::vector< std::vector<int> > > 
+sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
-    int beg_pos = std::numeric_limits<int>::max();
-    int end_pos = -1;
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Sorting superclusters by size");
+    std::vector< std::vector< std::vector<int> > > sc_groups(g.thread_nsteps,
+            std::vector< std::vector<int> >(2));
 
-    for (int c = 0; c < CALLSETS; c++) {
-        // if there is a cluster on this hap, update beginning and end positions
-        if (cluster_end_indices[c] - cluster_start_indices[c]) {
-            if (cluster_start_indices[c] > vars[c]->nc) {
-                ERROR("Cluster start indices invalid in get_supercluster_range()");
-            }
-            if (cluster_end_indices[c] > vars[c]->nc) {
-                ERROR("Cluster end indices invalid in get_supercluster_range()");
-            }
+    for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
+        std::string ctg = sc_data->contigs[ctg_idx];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
+        std::shared_ptr<ctgVariants> qvars = sc_data->superclusters[ctg]->callset_vars[QUERY];
+        std::shared_ptr<ctgVariants> tvars = sc_data->superclusters[ctg]->callset_vars[TRUTH];
+        if (!qvars->n) continue;
+        // superclusters are numbered 0...n-1, so we need +1 to get the total count
+        int nscs =  std::max(qvars->superclusters[qvars->n-1], tvars->superclusters[tvars->n-1]) + 1;
 
-            // one position left of the leftmost variant
-            beg_pos = std::min(beg_pos,
-                vars[c]->poss[vars[c]->clusters[cluster_start_indices[c]]]-1);
+        for (int sc_idx = 0; sc_idx < nscs; sc_idx++) {
 
-            // one position right of the rightmost variant end in the last included cluster
-            end_pos = std::max(end_pos,
-                    vars[c]->poss[vars[c]->clusters[cluster_end_indices[c]]-1] +
-                    vars[c]->rlens[vars[c]->clusters[cluster_end_indices[c]]-1] + 1);
-        }
-    }
-    std::vector<int> range = {beg_pos, end_pos};
-    return range;
-}
+            std::vector<size_t> max_lens(CALLSETS, 0);
+            std::vector<size_t> lens(HAPS, 0);
+            for (int c = 0; c < CALLSETS; c++) {
+                auto vars = ctg_scs->callset_vars[c];
+                if (ctg_scs->callset_vars[c]->nc == 0) continue;
+                int var_beg = std::distance(vars->superclusters.begin(),
+                    std::lower_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
+                int var_end = std::distance(vars->superclusters.begin(),
+                    std::upper_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
 
-
-/******************************************************************************/
-
-
-/* Split the supercluster as many times as necessary until it is within the size limits.
- * Note: this function is only called when initial supercluster is too large.
- */
-std::vector< std::vector<int> > split_large_supercluster(
-        std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & cluster_start_indices,
-        std::vector<int> & cluster_end_indices, bool print) {
-
-    std::vector< std::vector<int> > breakpoints = {cluster_start_indices, cluster_end_indices};
-    bool large_supercluster_exists = true;
-    while (large_supercluster_exists) {
-        large_supercluster_exists = false;
-        
-        std::vector< std::vector<int> > next_breakpoints;
-        for (int i = 0; i < int(breakpoints.size())-1; i++) {
-            std::vector<int> poss = get_supercluster_range(vars, breakpoints[i], breakpoints[i+1]);
-            int beg_pos = poss[0];
-            int end_pos = poss[1];
-            if (end_pos - beg_pos > g.max_supercluster_size) {
-                if (print) printf("\nsplitting %d-%d\n", beg_pos, end_pos);
-                large_supercluster_exists = true;
-                next_breakpoints.push_back(breakpoints[i]);
-
-                // variant indices of optimal split location
-                std::vector<int> best_var_split = get_supercluster_split_location(
-                            vars, breakpoints[i], breakpoints[i+1], print);
-
-                if (int(best_var_split.size()) == CALLSETS) { // found valid split
-                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints, i, print);
-                    next_breakpoints.push_back(cluster_split_indices);
-
-                } else { // no valid splits (shouldn't happen?)
-                    printf("WARNING: no valid splits at %d-%d\n", beg_pos, end_pos);
-                    large_supercluster_exists = false;
+                // calculate query len as reference length plus alternate lengths
+                for (int hi = 0; hi < HAPS; hi++) {
+                    lens[hi] = var_beg == var_end ? 0 : vars->poss[var_end-1] - vars->poss[var_beg];
+                    for (int vi = var_beg; vi < var_end; vi++) {
+                        if (!vars->var_on_hap(vi, hi)) continue;
+                        lens[hi] += int(vars->alts[vi].size());
+                    }
+                    max_lens[c] = std::max(max_lens[c], lens[hi]);
                 }
-
-            } else { // this supercluster is small enough
-                next_breakpoints.push_back(breakpoints[i]);
             }
-        }
-        // add last breakpoint
-        cluster_end_indices = breakpoints[breakpoints.size()-1];
-        next_breakpoints.push_back(cluster_end_indices);
-        breakpoints = next_breakpoints;
-    }
-    if (print) printf("%d breakpoints\n", int(breakpoints.size()));
-     
-    return breakpoints;
-}
 
-
-/******************************************************************************/
-
-/* Given a 2-tuple of variant indices (on each callset), at which to split a supercluster, split the
- * clusters as necessary and return the new cluster indices of this split.
- * Update the end indices of clusters in this supercluster as well.
- */
-std::vector<int> split_cluster(
-        std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & variant_split_indices,
-        std::vector< std::vector<int> > & breakpoints,
-        int breakpoint_idx,
-        bool print) {
-    if (print) printf("Splitting cluster at variant indices (%d, %d)\n", 
-            variant_split_indices[0], variant_split_indices[1]);
-
-    std::vector<int> cluster_curr_indices(CALLSETS, 0);
-    for (int ci = 0; ci < CALLSETS; ci++) {
-        if(print) printf("callset: %s\n", callset_strs[ci].data());
-
-        // find the cluster index corresponding to this variant index
-        int var_idx = variant_split_indices[ci];
-        auto clust_itr = std::lower_bound(vars[ci]->clusters.begin(),
-                vars[ci]->clusters.end(), var_idx);
-        int clust_idx = std::distance(vars[ci]->clusters.begin(), clust_itr);
-        cluster_curr_indices[ci] = clust_idx;
-        if (print) printf("\tvar_idx: %d, clust_idx: %d, *clust_itr: %d\n", var_idx, clust_idx, *clust_itr);
-
-        if (*clust_itr == var_idx) {
-            // there is already a cluster break at this variant on this haplotype, do nothing
-        } else {
-            // we need to split the current cluster in two, save and adjust existing cluster end
-            int right_reach = vars[ci]->right_reaches[clust_idx-1];
-            int var_pos = vars[ci]->poss[var_idx];
-            vars[ci]->right_reaches[clust_idx-1] = var_pos;
-
-            // add new cluster
-            vars[ci]->left_reaches.insert(vars[ci]->left_reaches.begin() + clust_idx, var_pos);
-            vars[ci]->right_reaches.insert(vars[ci]->right_reaches.begin() + clust_idx, right_reach);
-            vars[ci]->clusters.insert(vars[ci]->clusters.begin() + clust_idx, var_idx);
-            vars[ci]->nc++;
-
-            // increment breakpoint for all remaining clusters in this supercluster
-            for (int bi = breakpoint_idx+1; bi < int(breakpoints.size()); bi++) {
-                breakpoints[bi][ci]++;
+            // calculate memory usage
+            int FRAG_FACTOR = 2;
+            size_t mem = (max_lens[QUERY] + max_lens[TRUTH]) * (sizeof(uint32_t) + sizeof(int)) * 
+                g.max_dist * FRAG_FACTOR;
+            double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
+            if (mem_gb > g.max_ram) {
+                WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %d, running anyways. Lower --max-supercluster-size if this fails.", 
+                        g.max_ram, mem_gb, sc_idx);
+                sc_groups[g.thread_nsteps-1][CTG_IDX].push_back(ctg_idx);
+                sc_groups[g.thread_nsteps-1][SC_IDX].push_back(sc_idx);
+                continue;
+            }
+            
+            // place into correct group
+            for (int i = 0; i < g.thread_nsteps; i++) {
+                if (mem_gb < g.ram_steps[i]) {
+                    sc_groups[i][CTG_IDX].push_back(ctg_idx);
+                    sc_groups[i][SC_IDX].push_back(sc_idx);
+                    break;
+                }
             }
         }
     }
-    return cluster_curr_indices;
+
+    return sc_groups;
 }
 
-
-/******************************************************************************/
-
-
-/* Get the callset index of the next variant, with a start and end range. */
-var_info get_next_variant_info(
-        const std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & var_curr_indices,
-        const std::vector<int> & var_end_indices) {
-
-    int next_callset = -1;
-    int next_start_pos = std::numeric_limits<int>::max();
-    int next_end_pos = std::numeric_limits<int>::max();
-    
-    for (int c = 0; c < CALLSETS; c++) {
-        if (var_curr_indices[c] < var_end_indices[c]) {
-            int start_pos = vars[c]->poss[var_curr_indices[c]];
-            int end_pos = vars[c]->poss[var_curr_indices[c]] +
-                vars[c]->rlens[var_curr_indices[c]];
-            if (start_pos < next_start_pos) {
-                next_start_pos = start_pos;
-                next_end_pos = end_pos;
-                next_callset = c;
-            }
-        }
-    }
-    return var_info(next_callset, next_start_pos, next_end_pos);
-}
-
-
-/******************************************************************************/
-
-/* Return the optimal location to split the supercluster.
- */
-std::vector<int> get_supercluster_split_location(
-        const std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & cluster_start_indices,
-        const std::vector<int> & cluster_end_indices, bool print) {
-    if (print) printf("Finding supercluster split location\n");
-
-    // get original start/end positions of supercluster
-    std::vector<int> orig_sc_range = 
-        get_supercluster_range(vars, cluster_start_indices, cluster_end_indices);
-    int orig_sc_beg_pos = orig_sc_range[0];
-    int orig_sc_end_pos = orig_sc_range[1];
-    int orig_sc_size = orig_sc_end_pos - orig_sc_beg_pos;
-
-    std::vector<int> var_start_indices(CALLSETS, 0);
-    std::vector<int> var_end_indices(CALLSETS, 0);
-    for (int c = 0; c < CALLSETS; c++) {
-        var_start_indices[c] = vars[c]->clusters[cluster_start_indices[c]];
-        var_end_indices[c] = vars[c]->clusters[cluster_end_indices[c]];
-    }
-
-    std::vector<int> split_indices = var_start_indices;
-    double best_split_score = 0;
-    std::vector<int> var_best_split_indices = {};
-
-    // check that there are 2+ variants (this supercluster can be split)
-    int total_vars = 0;
-    for (int c = 0; c < CALLSETS; c++) {
-        total_vars += var_end_indices[c] - var_start_indices[c];
-    }
-    if (total_vars < 2) return var_best_split_indices; // empty
-
-    // get position and hap of next variant
-    var_info curr_var = get_next_variant_info(vars, split_indices, var_end_indices);
-    split_indices[curr_var.callset_idx]++;
-    var_info next_var = get_next_variant_info(vars, split_indices, var_end_indices);
-    while (next_var.callset_idx >= 0) {
-
-        // calculate max split size reduction factor
-        int gap = std::max(0, next_var.start_pos - curr_var.end_pos);
-        double size_reduction_factor = std::max(double((curr_var.end_pos + gap/2) - orig_sc_beg_pos) / orig_sc_size,
-                double(orig_sc_end_pos - (curr_var.end_pos + gap/2)) / orig_sc_size);
-        double splits_to_halve_size = -1 / log2(size_reduction_factor);
-
-        // calculate overlap (could weight by number of haps overlapping)
-        double split_score = gap / splits_to_halve_size;
-        if (print) printf("indices: [%d, %d], gap: %d, frac: %f, splits: %f, score: %f\n",
-                split_indices[0], split_indices[1], gap, size_reduction_factor, splits_to_halve_size, split_score);
-        if (split_score > best_split_score) {
-            best_split_score = split_score;
-            var_best_split_indices = split_indices;
-        }
-
-        curr_var = next_var;
-        split_indices[curr_var.callset_idx]++;
-        next_var = get_next_variant_info(vars, split_indices, var_end_indices);
-    }
-    return var_best_split_indices;
-}
-
-
-/******************************************************************************/
-
-
-/* Cluster variants using one of two simple heuristic-based methods:
+/** 
+ * Cluster variants using one of two simple heuristic-based methods.
+ * 
  * 1. "gap N" based clustering
  *     split clusters when genomic distance exceeds N
  *
@@ -824,9 +630,11 @@ std::vector<int> get_supercluster_split_location(
  *     split clusters when genomic distance exceeds max(N, sizeof(X))
  *     for all nearby variants X
  *
- * This function adds `clusters`, `left_reaches`, `right_reaches` metadata
- * to all `VariantData`
- * */
+ * Adds `clusters`, `left_reaches`, `right_reaches` metadata to all `VariantData`.
+ * @param vcf A pointer to the variantData.
+ * @param callset The variant callset, either TRUTH or QUERY.
+ * @throws ERROR if an unexpected variant type is encountered, or the number of variants mismatches.
+ */
 void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     bool print = false;
 
@@ -951,12 +759,17 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     } // ctg
 }
 
-
-/******************************************************************************/
-
-
-/* Add single-VCF cluster indices to `variantData`. This version assumes that
- * all variant calls are true positives (doesn't allow skipping)
+/**
+ * The default wavefront Smith-Waterman-Gotoh alignment based clustering algorithm.
+ * 
+ * Add `clusters`, `left_reaches`, `right_reaches` metadata to all `VariantData`.
+ * This version assumes that all variant calls are true positives (doesn't allow skipping)
+ * @param vcf A pointer to the variantData.
+ * @param ctg_idx The index of the contig being evaluated.
+ * @param hap The haplotype being evaluated.
+ * @param sub The Smith-Waterman-Gotoh base substitution penalty.
+ * @param open The Smith-Waterman-Gotoh gap-opening penalty.
+ * @param extend The Smith-Waterman-Gotoh gap-extension penalty.
  */
 void wf_swg_cluster(variantData * vcf, int ctg_idx, 
         int hap, int sub, int open, int extend) {
@@ -1268,4 +1081,267 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
     vars->nc = int(vars->clusters.size())-1;
     vars->left_reaches = left_reach;
     vars->right_reaches = right_reach;
+}
+
+
+/* supercluster splitting helper functions ********************************************************/
+
+/**
+ * Calculate the range of a supercluster on the reference contig.
+ *
+ * Uses a list of variants and the start/stop indices of the clusters that compose the supercluster.
+ * @param vars A list of pointers to the query and truth ctgVariants.
+ * @param cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
+ * @param cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
+ * @returns a length two vector containing the [start, end) reference range of the supercluster.
+ * @throws ERROR if the cluster indices are invalid.
+ */
+std::vector<int> get_supercluster_range(
+        const std::vector< std::shared_ptr<ctgVariants> > & vars,
+        const std::vector<int> & cluster_start_indices, // inclusive
+        const std::vector<int> & cluster_end_indices) { // exclusive
+
+    int beg_pos = std::numeric_limits<int>::max();
+    int end_pos = -1;
+
+    for (int c = 0; c < CALLSETS; c++) {
+        // if there is a cluster on this hap, update beginning and end positions
+        if (cluster_end_indices[c] - cluster_start_indices[c]) {
+            if (cluster_start_indices[c] > vars[c]->nc) {
+                ERROR("Cluster start indices invalid in get_supercluster_range()");
+            }
+            if (cluster_end_indices[c] > vars[c]->nc) {
+                ERROR("Cluster end indices invalid in get_supercluster_range()");
+            }
+
+            // one position left of the leftmost variant
+            beg_pos = std::min(beg_pos,
+                vars[c]->poss[vars[c]->clusters[cluster_start_indices[c]]]-1);
+
+            // one position right of the rightmost variant end in the last included cluster
+            end_pos = std::max(end_pos,
+                    vars[c]->poss[vars[c]->clusters[cluster_end_indices[c]]-1] +
+                    vars[c]->rlens[vars[c]->clusters[cluster_end_indices[c]]-1] + 1);
+        }
+    }
+    std::vector<int> range = {beg_pos, end_pos};
+    return range;
+}
+
+/**
+ * Split the supercluster as many times as necessary until it is within the size limits.
+ * 
+ * This function is only called when initial supercluster is too large.
+ * @param vars A list of pointers to the query and truth ctgVariants.
+ * @param cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
+ * @param cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
+ * @param print Boolean indicating whether debug printing is enabled.
+ * @throws WARNING if there are no valid locations to split the supercluster.
+ */
+std::vector< std::vector<int> > split_large_supercluster(
+        std::vector< std::shared_ptr<ctgVariants> > & vars,
+        const std::vector<int> & cluster_start_indices,
+        std::vector<int> & cluster_end_indices, bool print) {
+
+    std::vector< std::vector<int> > breakpoints = {cluster_start_indices, cluster_end_indices};
+    bool large_supercluster_exists = true;
+    while (large_supercluster_exists) {
+        large_supercluster_exists = false;
+        
+        std::vector< std::vector<int> > next_breakpoints;
+        for (int i = 0; i < int(breakpoints.size())-1; i++) {
+            std::vector<int> poss = get_supercluster_range(vars, breakpoints[i], breakpoints[i+1]);
+            int beg_pos = poss[0];
+            int end_pos = poss[1];
+            if (end_pos - beg_pos > g.max_supercluster_size) {
+                if (print) printf("\nsplitting %d-%d\n", beg_pos, end_pos);
+                large_supercluster_exists = true;
+                next_breakpoints.push_back(breakpoints[i]);
+
+                // variant indices of optimal split location
+                std::vector<int> best_var_split = get_supercluster_split_location(
+                            vars, breakpoints[i], breakpoints[i+1], print);
+
+                if (int(best_var_split.size()) == CALLSETS) { // found valid split
+                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints, i, print);
+                    next_breakpoints.push_back(cluster_split_indices);
+
+                } else { // no valid splits (shouldn't happen?)
+                    printf("WARNING: no valid splits at %d-%d\n", beg_pos, end_pos);
+                    large_supercluster_exists = false;
+                }
+
+            } else { // this supercluster is small enough
+                next_breakpoints.push_back(breakpoints[i]);
+            }
+        }
+        // add last breakpoint
+        cluster_end_indices = breakpoints[breakpoints.size()-1];
+        next_breakpoints.push_back(cluster_end_indices);
+        breakpoints = next_breakpoints;
+    }
+    if (print) printf("%d breakpoints\n", int(breakpoints.size()));
+     
+    return breakpoints;
+}
+
+/**
+ * Split a cluster (if necessary) at the designated variant indices.
+ *
+ * Given a 2-tuple of variant indices (on each callset) at which to split a supercluster, split the
+ * clusters if needed and return the cluster indices of this split.
+ * Update the end cluster indices of all other clusters in this supercluster as well (`breakpoints`).
+ * @param vars A list of pointers to the query and truth ctgVariants.
+ * @param variant_split_indices A 2-tuple of the 0-based variant indices on each callset at which to split.
+ * @param breakpoints A list of all 2-tuple breakpoints in the supercluster.
+ * @param breakpoint_idx The index of the current breakpoint in the supercluster.
+ * @param print Boolean indicating whether debug printing is enabled.
+ * @return the index of the cluster on each callset.
+ */
+std::vector<int> split_cluster(
+        std::vector< std::shared_ptr<ctgVariants> > & vars,
+        const std::vector<int> & variant_split_indices,
+        std::vector< std::vector<int> > & breakpoints,
+        int breakpoint_idx,
+        bool print) {
+    if (print) printf("Splitting cluster at variant indices (%d, %d)\n", 
+            variant_split_indices[0], variant_split_indices[1]);
+
+    std::vector<int> cluster_curr_indices(CALLSETS, 0);
+    for (int ci = 0; ci < CALLSETS; ci++) {
+        if(print) printf("callset: %s\n", callset_strs[ci].data());
+
+        // find the cluster index corresponding to this variant index
+        int var_idx = variant_split_indices[ci];
+        auto clust_itr = std::lower_bound(vars[ci]->clusters.begin(),
+                vars[ci]->clusters.end(), var_idx);
+        int clust_idx = std::distance(vars[ci]->clusters.begin(), clust_itr);
+        cluster_curr_indices[ci] = clust_idx;
+        if (print) printf("\tvar_idx: %d, clust_idx: %d, *clust_itr: %d\n", var_idx, clust_idx, *clust_itr);
+
+        if (*clust_itr == var_idx) {
+            // there is already a cluster break at this variant on this haplotype, do nothing
+        } else {
+            // we need to split the current cluster in two, save and adjust existing cluster end
+            int right_reach = vars[ci]->right_reaches[clust_idx-1];
+            int var_pos = vars[ci]->poss[var_idx];
+            vars[ci]->right_reaches[clust_idx-1] = var_pos;
+
+            // add new cluster
+            vars[ci]->left_reaches.insert(vars[ci]->left_reaches.begin() + clust_idx, var_pos);
+            vars[ci]->right_reaches.insert(vars[ci]->right_reaches.begin() + clust_idx, right_reach);
+            vars[ci]->clusters.insert(vars[ci]->clusters.begin() + clust_idx, var_idx);
+            vars[ci]->nc++;
+
+            // increment breakpoint for all remaining clusters in this supercluster
+            for (int bi = breakpoint_idx+1; bi < int(breakpoints.size()); bi++) {
+                breakpoints[bi][ci]++;
+            }
+        }
+    }
+    return cluster_curr_indices;
+}
+
+/**
+ * Get the callset index (TRUTH or QUERY) and reference positional range of the next variant.
+ *
+ * If there are no more variants remaining in the supercluster, the callset index returned is -1.
+ *
+ * @param vars A list of pointers to the query and truth ctgVariants.
+ * @param var_curr_indices A 2-tuple storing the 0-based inclusive indices of
+ *     the current query and truth variants.
+ * @param var_end_indices A 2-tuple storing the 0-based exclusive end indices
+ *     of the current supercluster.
+ */
+var_info get_next_variant_info(
+        const std::vector< std::shared_ptr<ctgVariants> > & vars,
+        const std::vector<int> & var_curr_indices,
+        const std::vector<int> & var_end_indices) {
+
+    int next_callset = -1;
+    int next_start_pos = std::numeric_limits<int>::max();
+    int next_end_pos = std::numeric_limits<int>::max();
+    
+    for (int c = 0; c < CALLSETS; c++) {
+        if (var_curr_indices[c] < var_end_indices[c]) {
+            int start_pos = vars[c]->poss[var_curr_indices[c]];
+            int end_pos = vars[c]->poss[var_curr_indices[c]] +
+                vars[c]->rlens[var_curr_indices[c]];
+            if (start_pos < next_start_pos) {
+                next_start_pos = start_pos;
+                next_end_pos = end_pos;
+                next_callset = c;
+            }
+        }
+    }
+    return var_info(next_callset, next_start_pos, next_end_pos);
+}
+
+/**
+ * Get the optimal variant indices at which to split the supercluster as a 2-tuple (QUERY, TRUTH).
+ *
+ * An empty list is returned if no splits are possible.
+ *
+ * @param vars A 2-tuple of pointers to the QUERY and TRUTH ctgVariants.
+ * @param cluster_start_indices A 2-tuple of QUERY and TRUTH cluster start indices.
+ * @param cluster_end_indices A 2-tuple of QUERY and TRUTH cluster end indices.
+ * @param print Whether to enable debug printing.
+ */
+std::vector<int> get_supercluster_split_location(
+        const std::vector< std::shared_ptr<ctgVariants> > & vars,
+        const std::vector<int> & cluster_start_indices,
+        const std::vector<int> & cluster_end_indices, bool print) {
+    if (print) printf("Finding supercluster split location\n");
+
+    // get original start/end positions of supercluster
+    std::vector<int> orig_sc_range = 
+        get_supercluster_range(vars, cluster_start_indices, cluster_end_indices);
+    int orig_sc_beg_pos = orig_sc_range[0];
+    int orig_sc_end_pos = orig_sc_range[1];
+    int orig_sc_size = orig_sc_end_pos - orig_sc_beg_pos;
+
+    std::vector<int> var_start_indices(CALLSETS, 0);
+    std::vector<int> var_end_indices(CALLSETS, 0);
+    for (int c = 0; c < CALLSETS; c++) {
+        var_start_indices[c] = vars[c]->clusters[cluster_start_indices[c]];
+        var_end_indices[c] = vars[c]->clusters[cluster_end_indices[c]];
+    }
+
+    std::vector<int> split_indices = var_start_indices;
+    double best_split_score = 0;
+    std::vector<int> var_best_split_indices = {};
+
+    // check that there are 2+ variants (this supercluster can be split)
+    int total_vars = 0;
+    for (int c = 0; c < CALLSETS; c++) {
+        total_vars += var_end_indices[c] - var_start_indices[c];
+    }
+    if (total_vars < 2) return var_best_split_indices; // empty
+
+    // get position and hap of next variant
+    var_info curr_var = get_next_variant_info(vars, split_indices, var_end_indices);
+    split_indices[curr_var.callset_idx]++;
+    var_info next_var = get_next_variant_info(vars, split_indices, var_end_indices);
+    while (next_var.callset_idx >= 0) {
+
+        // calculate max split size reduction factor
+        int gap = std::max(0, next_var.start_pos - curr_var.end_pos);
+        double size_reduction_factor = std::max(double((curr_var.end_pos + gap/2) - orig_sc_beg_pos) / orig_sc_size,
+                double(orig_sc_end_pos - (curr_var.end_pos + gap/2)) / orig_sc_size);
+        double splits_to_halve_size = -1 / log2(size_reduction_factor);
+
+        // calculate overlap (could weight by number of haps overlapping)
+        double split_score = gap / splits_to_halve_size;
+        if (print) printf("indices: [%d, %d], gap: %d, frac: %f, splits: %f, score: %f\n",
+                split_indices[0], split_indices[1], gap, size_reduction_factor, splits_to_halve_size, split_score);
+        if (split_score > best_split_score) {
+            best_split_score = split_score;
+            var_best_split_indices = split_indices;
+        }
+
+        curr_var = next_var;
+        split_indices[curr_var.callset_idx]++;
+        next_var = get_next_variant_info(vars, split_indices, var_end_indices);
+    }
+    return var_best_split_indices;
 }
