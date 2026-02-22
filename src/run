@@ -16,7 +16,7 @@ REMOVE_FIELDS="FORMAT/SC,FORMAT/SG,FORMAT/RD,FORMAT/QD,FORMAT/BC,FORMAT/BK,FORMA
     ../data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta \
     -b ../tests/integration/data/chr20.bed \
     -t 1 \
-    -lcv 10 \
+    # -lcv 10 \
     -p ../out/${HEAD}.
 
 bcftools annotate --remove ${REMOVE_FIELDS} ../out/10eda9.summary.vcf -o 3.0.0-a0.summary.vcf

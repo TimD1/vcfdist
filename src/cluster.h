@@ -25,6 +25,8 @@ public:
     int get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end);
 };
 
+/**************************************************************************************************/
+
 /**
  * @class superclusterData
  * @brief Store superclustered variant data.
@@ -40,15 +42,37 @@ public:
             std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > & vars);
     void supercluster(bool print = false);
 
-    std::vector<std::string> samples;  ///< list containing QUERY and TRUTH VCF SAMPLE names
+    std::vector<std::string> samples;    ///< list containing QUERY and TRUTH VCF SAMPLE names
     std::vector<std::string> filenames;  ///< list containing QUERY and TRUTH VCF filenames
-    std::vector<std::string> contigs;  ///< list of all contig names
-    std::vector<int> lengths;  ///< list of all contig lengths
-    std::vector<int> ploidy;  ///< list of all contig ploidies
-    std::unordered_map<std::string, 
-        std::shared_ptr<ctgSuperclusters> > superclusters;  ///< map from contig names to ctgSuperclusters
-    std::shared_ptr<fastaData> ref;  ///< pointer to reference fastaData
+    std::vector<std::string> contigs;    ///< list of all contig names
+    std::vector<int> lengths;            ///< list of all contig lengths
+    std::vector<int> ploidy;             ///< list of all contig ploidies
+    std::unordered_map<std::string,      ///< map from contig names to ctgSuperclusters
+        std::shared_ptr<ctgSuperclusters> > superclusters;
+    std::shared_ptr<fastaData> ref;      ///< pointer to reference fastaData
 };
+
+/**************************************************************************************************/
+
+/**
+ * @struct var_info
+ * @brief Stores the interval of a variant on the reference.
+ *
+ * Supercluster splits are considered directly prior to each variant.
+ */
+struct var_info {
+    int callset_idx = 0; ///< whether the variant is on the TRUTH or QUERY
+    int start_pos = 0;   ///< the 0-based inclusive start position of the variant
+    int end_pos = 0;     ///< the 0-based exclusive end position of the variant
+
+    var_info(int _callset_idx, int _start_pos, int _end_pos) {
+        this->callset_idx = _callset_idx;
+        this->start_pos = _start_pos;
+        this->end_pos = _end_pos;
+    }
+};
+
+/**************************************************************************************************/
 
 // for single haplotype clustering (one VCF)
 void simple_cluster(std::shared_ptr<variantData> vcf, int callset);
@@ -59,23 +83,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx, int hap,
 std::vector< std::vector< std::vector<int> > > 
         sort_superclusters(std::shared_ptr<superclusterData>);
 
-/**
- * @struct var_info
- * @brief Stores the interval of a variant on the reference.
- *
- * Supercluster splits are considered directly prior to each variant.
- */
-struct var_info {
-    int callset_idx = 0; ///< whether the variant is on the TRUTH or QUERY
-    int start_pos = 0;  ///< the 0-based inclusive start position of the variant
-    int end_pos = 0;  ///< the 0-based exclusive end position of the variant
-
-    var_info(int _callset_idx, int _start_pos, int _end_pos) {
-        this->callset_idx = _callset_idx;
-        this->start_pos = _start_pos;
-        this->end_pos = _end_pos;
-    }
-};
+/***************************************************************************************************/
 
 // helper functions for splitting large superclusters
 std::vector< std::vector<int> > split_large_supercluster(

@@ -7,7 +7,6 @@
 #include <unordered_map>
 
 class timer;
-class idx3;
 class idx4;
 
 // misc

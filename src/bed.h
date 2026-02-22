@@ -22,6 +22,8 @@ struct contigRegions {
     int n; ///< number of intervals
 };
 
+/**************************************************************************************************/
+
 /**
  * @class bedData
  * @brief Loads and stores interval information contained in a BED file (first 3 columns).

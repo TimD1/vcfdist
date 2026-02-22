@@ -36,3 +36,6 @@ out/
 # don't track test cases
 test/
 issues/
+
+# ignore auto-generated documentation
+src/docs/
