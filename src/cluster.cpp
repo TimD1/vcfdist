@@ -1,3 +1,7 @@
+/**
+ * @file cluster.cpp
+ * @brief Supercluster data structures and variant clustering algorithms.
+ */
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -22,11 +26,11 @@ ctgSuperclusters::ctgSuperclusters() {
 /**
  * Calculate the leftmost position of a group of query and truth variants.
  *
- * @param qvi_start The 0-based inclusive start index of the query variant interval.
- * @param qvi_end The 0-based exclusive end index of the query variant interval.
- * @param tvi_start The 0-based inclusive start index of the truth variant interval.
- * @param tvi_end The 0-based exclusive end index of the truth variant interval.
- * @returns The 0-based inclusive leftmost position, or int::max() if no variants are present.
+ * @param[in] qvi_start The 0-based inclusive start index of the query variant interval.
+ * @param[in] qvi_end The 0-based exclusive end index of the query variant interval.
+ * @param[in] tvi_start The 0-based inclusive start index of the truth variant interval.
+ * @param[in] tvi_end The 0-based exclusive end index of the truth variant interval.
+ * @return The 0-based inclusive leftmost position, or int::max() if no variants are present.
  * @todo should this return int::min()? not for sentinel, but maybe if empty?
  */
 int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
@@ -40,11 +44,11 @@ int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start,
 /**
  * Calculate the rightmost position of a group of query and truth variants.
  *
- * @param qvi_start The 0-based inclusive start index of the query variant interval.
- * @param qvi_end The 0-based exclusive end index of the query variant interval.
- * @param tvi_start The 0-based inclusive start index of the truth variant interval.
- * @param tvi_end The 0-based exclusive end index of the truth variant interval.
- * @returns The 0-based exclusive rightmost position, or int::max() if no variants are present.
+ * @param[in] qvi_start The 0-based inclusive start index of the query variant interval.
+ * @param[in] qvi_end The 0-based exclusive end index of the query variant interval.
+ * @param[in] tvi_start The 0-based inclusive start index of the truth variant interval.
+ * @param[in] tvi_end The 0-based exclusive end index of the truth variant interval.
+ * @return The 0-based exclusive rightmost position, or int::max() if no variants are present.
  */
 int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
     // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
@@ -66,8 +70,9 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
 /**
  * Merge ctgVariants across haplotypes, set genotypes, update clusters, and add to this superclusterData.
  *
- * @param callset The variant callset that is being added, either TRUTH or QUERY.
- * @param vars For each haplotype, a mapping from contig names to ctgVariants.
+ * @param[in] callset The variant callset that is being added, either TRUTH or QUERY.
+ * @param[in] vars For each haplotype, a mapping from contig names to ctgVariants.
+ * @throws ERROR if no variants are present on the contig.
  */
 void superclusterData::load_and_merge_callset_vars_across_haps(
         int callset,
@@ -319,9 +324,9 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
  * Initialize a superclusterData object from a reference FASTA and query and truth VCFs.
  *
  * After loading the variants, they are merged across haplotypes and then superclustered.
- * @param query_ptr A pointer to the query variantData.
- * @param truth_ptr A pointer to the truth variantData.
- * @param ref_ptr A pointer to the reference fastaData.
+ * @param[in] query_ptr A pointer to the query variantData.
+ * @param[in] truth_ptr A pointer to the truth variantData.
+ * @param[in] ref_ptr A pointer to the reference fastaData.
  */
 superclusterData::superclusterData(
         std::shared_ptr<variantData> query_ptr,
@@ -374,7 +379,8 @@ superclusterData::superclusterData(
  * Superclusters are created from clusters by grouping across callsets whenever there is any overlap.
  * Afterwards, large superclusters are split if necessary.
  *
- * @param print Boolean to enable debug printing.
+ * @param[in] print Boolean to enable debug printing.
+ * @throws WARNING if a supercluster exceeds the maximum allowed size.
  */
 void superclusterData::supercluster(bool print) {
 
@@ -548,10 +554,10 @@ void superclusterData::supercluster(bool print) {
  * 
  * The number of active threads will be inversely related to the size of the clusters to control 
  * RAM usage during precision-recall evaluation.
- * @param sc_data A pointer to the superclusterData.
- * @returns A 3D vector of shape (n_buckets, 2, n_i) where each size bucket stores 
- * (ctg_idx, sc_idx) for each supercluster.
- * @throws WARNING if supercluster size is predicted to cause exceeding maximum RAM usage.
+ * @param[in] sc_data A pointer to the superclusterData.
+ * @return A 3D vector of shape (n_buckets, 2, n_i) where each size bucket stores
+ *   (ctg_idx, sc_idx) for each supercluster.
+ * @throws WARNING if a supercluster's predicted RAM usage exceeds the configured maximum.
  */
 std::vector< std::vector< std::vector<int> > > 
 sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
@@ -631,9 +637,9 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
  *     for all nearby variants X
  *
  * Adds `clusters`, `left_reaches`, `right_reaches` metadata to all `VariantData`.
- * @param vcf A pointer to the variantData.
- * @param callset The variant callset, either TRUTH or QUERY.
- * @throws ERROR if an unexpected variant type is encountered, or the number of variants mismatches.
+ * @param[in] vcf A pointer to the variantData.
+ * @param[in] callset The variant callset, either TRUTH or QUERY.
+ * @throws ERROR if an unexpected variant type is encountered or the variant count mismatches after merging.
  */
 void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
     bool print = false;
@@ -764,12 +770,12 @@ void simple_cluster(std::shared_ptr<variantData> vcf, int callset) {
  * 
  * Add `clusters`, `left_reaches`, `right_reaches` metadata to all `VariantData`.
  * This version assumes that all variant calls are true positives (doesn't allow skipping)
- * @param vcf A pointer to the variantData.
- * @param ctg_idx The index of the contig being evaluated.
- * @param hap The haplotype being evaluated.
- * @param sub The Smith-Waterman-Gotoh base substitution penalty.
- * @param open The Smith-Waterman-Gotoh gap-opening penalty.
- * @param extend The Smith-Waterman-Gotoh gap-extension penalty.
+ * @param[in] vcf A pointer to the variantData.
+ * @param[in] ctg_idx The index of the contig being evaluated.
+ * @param[in] hap The haplotype being evaluated.
+ * @param[in] sub The Smith-Waterman-Gotoh base substitution penalty.
+ * @param[in] open The Smith-Waterman-Gotoh gap-opening penalty.
+ * @param[in] extend The Smith-Waterman-Gotoh gap-extension penalty.
  */
 void wf_swg_cluster(variantData * vcf, int ctg_idx, 
         int hap, int sub, int open, int extend) {
@@ -1090,10 +1096,10 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
  * Calculate the range of a supercluster on the reference contig.
  *
  * Uses a list of variants and the start/stop indices of the clusters that compose the supercluster.
- * @param vars A list of pointers to the query and truth ctgVariants.
- * @param cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
- * @param cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
- * @returns a length two vector containing the [start, end) reference range of the supercluster.
+ * @param[in] vars A list of pointers to the query and truth ctgVariants.
+ * @param[in] cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
+ * @param[in] cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
+ * @return A length two vector containing the [start, end) reference range of the supercluster.
  * @throws ERROR if the cluster indices are invalid.
  */
 std::vector<int> get_supercluster_range(
@@ -1132,10 +1138,10 @@ std::vector<int> get_supercluster_range(
  * Split the supercluster as many times as necessary until it is within the size limits.
  * 
  * This function is only called when initial supercluster is too large.
- * @param vars A list of pointers to the query and truth ctgVariants.
- * @param cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
- * @param cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
- * @param print Boolean indicating whether debug printing is enabled.
+ * @param[in] vars A list of pointers to the query and truth ctgVariants.
+ * @param[in] cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
+ * @param[in] cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
+ * @param[in] print Boolean indicating whether debug printing is enabled.
  * @throws WARNING if there are no valid locations to split the supercluster.
  */
 std::vector< std::vector<int> > split_large_supercluster(
@@ -1191,11 +1197,11 @@ std::vector< std::vector<int> > split_large_supercluster(
  * Given a 2-tuple of variant indices (on each callset) at which to split a supercluster, split the
  * clusters if needed and return the cluster indices of this split.
  * Update the end cluster indices of all other clusters in this supercluster as well (`breakpoints`).
- * @param vars A list of pointers to the query and truth ctgVariants.
- * @param variant_split_indices A 2-tuple of the 0-based variant indices on each callset at which to split.
- * @param breakpoints A list of all 2-tuple breakpoints in the supercluster.
- * @param breakpoint_idx The index of the current breakpoint in the supercluster.
- * @param print Boolean indicating whether debug printing is enabled.
+ * @param[in] vars A list of pointers to the query and truth ctgVariants.
+ * @param[in] variant_split_indices A 2-tuple of the 0-based variant indices on each callset at which to split.
+ * @param[in] breakpoints A list of all 2-tuple breakpoints in the supercluster.
+ * @param[in] breakpoint_idx The index of the current breakpoint in the supercluster.
+ * @param[in] print Boolean indicating whether debug printing is enabled.
  * @return the index of the cluster on each callset.
  */
 std::vector<int> split_cluster(
@@ -1247,10 +1253,10 @@ std::vector<int> split_cluster(
  *
  * If there are no more variants remaining in the supercluster, the callset index returned is -1.
  *
- * @param vars A list of pointers to the query and truth ctgVariants.
- * @param var_curr_indices A 2-tuple storing the 0-based inclusive indices of
+ * @param[in] vars A list of pointers to the query and truth ctgVariants.
+ * @param[in] var_curr_indices A 2-tuple storing the 0-based inclusive indices of
  *     the current query and truth variants.
- * @param var_end_indices A 2-tuple storing the 0-based exclusive end indices
+ * @param[in] var_end_indices A 2-tuple storing the 0-based exclusive end indices
  *     of the current supercluster.
  */
 var_info get_next_variant_info(
@@ -1282,10 +1288,10 @@ var_info get_next_variant_info(
  *
  * An empty list is returned if no splits are possible.
  *
- * @param vars A 2-tuple of pointers to the QUERY and TRUTH ctgVariants.
- * @param cluster_start_indices A 2-tuple of QUERY and TRUTH cluster start indices.
- * @param cluster_end_indices A 2-tuple of QUERY and TRUTH cluster end indices.
- * @param print Whether to enable debug printing.
+ * @param[in] vars A 2-tuple of pointers to the QUERY and TRUTH ctgVariants.
+ * @param[in] cluster_start_indices A 2-tuple of QUERY and TRUTH cluster start indices.
+ * @param[in] cluster_end_indices A 2-tuple of QUERY and TRUTH cluster end indices.
+ * @param[in] print Whether to enable debug printing.
  */
 std::vector<int> get_supercluster_split_location(
         const std::vector< std::shared_ptr<ctgVariants> > & vars,

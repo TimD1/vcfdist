@@ -1,3 +1,7 @@
+/**
+ * @file cluster.h
+ * @brief Supercluster data structures and clustering algorithm declarations.
+ */
 #ifndef _CLUSTER_H_
 #define _CLUSTER_H_
 
@@ -94,7 +98,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx, int hap,
 std::vector< std::vector< std::vector<int> > >
         sort_superclusters(std::shared_ptr<superclusterData>);
 
-/***************************************************************************************************/
+/**************************************************************************************************/
 
 /** @brief Splits an oversized supercluster into smaller pieces at optimal breakpoints. */
 std::vector< std::vector<int> > split_large_supercluster(

@@ -19,6 +19,7 @@
 *.aux
 src/test
 __pycache__
+**/.DS_Store
 
 # ignore binaries
 src/vcfdist

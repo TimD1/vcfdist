@@ -153,7 +153,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid BED filename provided");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-p" || 
                 std::string(argv[i]) == "--prefix") {
             i++;
@@ -171,7 +171,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-f" || 
                 std::string(argv[i]) == "--filter") {
             i++;
@@ -189,7 +189,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-l" || 
                 std::string(argv[i]) == "--largest-variant") {
             i++;
@@ -201,7 +201,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant size provided");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-sv" || 
                 std::string(argv[i]) == "--sv-threshold") {
             i++;
@@ -216,7 +216,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (g.sv_threshold < 2) {
                 ERROR("Must provide larger SV threshold size");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-q" ||
                 std::string(argv[i]) == "--min-qual") {
             i++;
@@ -231,7 +231,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (g.min_qual < 0) {
                 ERROR("Must provide non-negative minimum variant quality");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-mq" ||
                 std::string(argv[i]) == "--max-qual") {
             i++;
@@ -243,21 +243,21 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum variant quality provided");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-n" || 
                 std::string(argv[i]) == "--no-output-files") {
             i++;
             g.write = false;
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-h" || 
                 std::string(argv[i]) == "--help") {
             i++;
             print_help = true;
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "--version") {
             i++;
             this->print_version();
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-c" || 
                 std::string(argv[i]) == "--cluster") {
             i++;
@@ -286,7 +286,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid clustering option '%s' provided, must be one of: biwfa, size, gap", argv[i]);
             }
 
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-x" || 
                 std::string(argv[i]) == "--mismatch-penalty") {
             i++;
@@ -299,7 +299,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->sub < 0) {
                 ERROR("Must provide non-negative mismatch penalty");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-o" || 
                 std::string(argv[i]) == "--gap-open-penalty") {
             i++;
@@ -312,7 +312,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->open < 0) {
                 ERROR("Must provide non-negative gap-opening penalty");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-e" || 
                 std::string(argv[i]) == "--gap-extend-penalty") {
             i++;
@@ -325,7 +325,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->extend < 0) {
                 ERROR("Must provide non-negative gap-extension penalty");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-i" || 
                 std::string(argv[i]) == "--max-iterations") {
             i++;
@@ -340,7 +340,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->max_cluster_itrs < 1) {
                 ERROR("Max cluster iterations must be positive");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-md" || 
                 std::string(argv[i]) == "--max-dist") {
             i++;
@@ -352,7 +352,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum alignment distance provided");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-mr" || 
                 std::string(argv[i]) == "--max-retries") {
             i++;
@@ -364,7 +364,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid maximum alignment retries provided");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-s" || 
                 std::string(argv[i]) == "--max-supercluster-size") {
             i++;
@@ -377,7 +377,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->max_supercluster_size < 1) {
                 ERROR("Max supercluster size must be positive");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-t" ||
                 std::string(argv[i]) == "--max-threads") {
             i++;
@@ -392,7 +392,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->max_threads < 1) {
                 ERROR("Max threads must be positive");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-ct" ||
                 std::string(argv[i]) == "--credit-threshold") {
             i++;
@@ -407,7 +407,7 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->credit_threshold <= 0 || this->credit_threshold > 1) {
                 ERROR("Provided credit threshold must be on the interval (0,1]");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-r" ||
                 std::string(argv[i]) == "--max-ram") {
             i++;
@@ -428,12 +428,12 @@ void Globals::parse_args(int argc, char ** argv) {
             if (this->max_ram < 0) {
                 ERROR("Max RAM must be positive");
             }
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-ci" || 
                 std::string(argv[i]) == "--citation") {
             i++;
             print_cite = true;
-/*******************************************************************************/
+/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-v" ||
                 std::string(argv[i]) == "--verbosity") {
             i += 2; // already handled

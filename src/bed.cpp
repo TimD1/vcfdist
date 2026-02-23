@@ -1,3 +1,7 @@
+/**
+ * @file bed.cpp
+ * @brief BED file loading, interval storage, and contig intersection utilities.
+ */
 #include "bed.h"
 #include "print.h"
 
@@ -5,11 +9,11 @@
 /* bedData ****************************************************************************************/
 
 /**
- * Construct a bedData class from a BED filename.
+ * @brief Constructs a bedData object by reading intervals from a BED file.
  *
  * The first three columns are read and the remainder are ignored.
- * @param bed_fn The BED filename.
- * @throw ERROR if the BED file cannot be opened.
+ * @param[in] bed_fn The BED filename.
+ * @throws ERROR if the BED file cannot be opened.
  */
 bedData::bedData(const std::string & bed_fn) {
 
@@ -34,11 +38,11 @@ bedData::bedData(const std::string & bed_fn) {
 }
 
 /**
- * Add a single region to a bedData object.
+ * @brief Adds a single [start, stop) region on a named contig to this bedData.
  *
- * @param contig The name of the contig.
- * @param start The 0-based inclusive start position of the interval.
- * @param stop The 0-based exclusive end position of the interval.
+ * @param[in] contig The name of the contig.
+ * @param[in] start The 0-based inclusive start position of the interval.
+ * @param[in] stop The 0-based exclusive end position of the interval.
  */
 void bedData::add(const std::string & contig, const int & start, const int & stop) {
     // add a new contig if needed
@@ -54,9 +58,10 @@ void bedData::add(const std::string & contig, const int & start, const int & sto
 }
 
 /**
- * Check that all BED intervals are valid, sorted, and non-overlapping.
+ * @brief Validates that all BED intervals are sorted and non-overlapping.
  *
- * @throws ERROR if a BED region is flipped, length 0, overlaps, or is not sorted.
+ * @throws ERROR if a BED region is flipped (stop < start), zero-length, unsorted, or overlapping.
+ * @throws WARNING if adjacent BED regions share a boundary and should be merged.
  */
 void bedData::check() {
     for (size_t ctg_idx = 0; ctg_idx < this->contigs.size(); ctg_idx++) {
@@ -96,14 +101,14 @@ void bedData::check() {
 }
 
 /**
- * Detect if a variant is fully contained within one of several BED regions.
+ * @brief Returns BED location type for a variant interval.
  *
- * @param contig The contig containing the variant.
- * @param start The 0-based inclusive start position of the variant.
- * @param stop The 0-based exclusive end position of the variant.
- * @param type The type of the variant.
+ * @param[in] contig The contig containing the variant.
+ * @param[in] start The 0-based inclusive start position of the variant.
+ * @param[in] stop The 0-based exclusive end position of the variant.
+ * @param[in] type The type of the variant.
+ * @return One of: BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG.
  * @throws ERROR if the variant stop precedes the variant start.
- * @returns one of the following: BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG
  */
 int bedData::contains(std::string contig, const int & start, const int & stop, const int & type) {
 
@@ -152,7 +157,7 @@ int bedData::contains(std::string contig, const int & start, const int & stop, c
 }
 
 /**
- * Define a string representation of the bedData class.
+ * @brief Returns a formatted string listing all stored BED regions by contig.
  */
 bedData::operator std::string() const {
     std::string bed_regions = "";
@@ -170,12 +175,11 @@ bedData::operator std::string() const {
 /* BED helper functions ***************************************************************************/
 
 /**
- * Intersect the reference FASTA, query VCF, truth VCF, and (optionally) BED regions and retain
- * only the relevant contigs.
- * 
- * @param query_ptr A pointer to the query variantData.
- * @param truth_ptr A pointer to the truth variantData.
- * @param ref_ptr A pointer to the reference fastaData.
+ * @brief Intersects reference FASTA, query VCF, truth VCF, and optional BED regions, retaining only common contigs.
+ *
+ * @param[in] query_ptr A pointer to the query variantData.
+ * @param[in] truth_ptr A pointer to the truth variantData.
+ * @param[in] ref_ptr A pointer to the reference fastaData.
  * @throws WARNING if contigs in either VCF are not present in either the other VCF or BED file.
  * @throws WARNING if corresponding contigs in the truth and query VCFs differ in ploidy.
  * @throws ERROR if a contig to be evaluated is not present in the reference FASTA.

@@ -15,6 +15,10 @@
 #include "fasta.h"
 #include "defs.h"
 
+/**
+ * @class ctgVariants
+ * @brief Store all variant information for a single contig and callset.
+ */
 class ctgVariants {
 public:
 
@@ -98,6 +102,10 @@ public:
     std::vector<int> ac_errtype; ///< allele count error type (e.g. 0|1 -> 1|1)
 };
 
+/**
+ * @class variantData
+ * @brief Store variant data across all haplotypes and contigs for a single callset.
+ */
 class variantData {
 public:
     /** @brief Constructs an empty variant data container defaulting to QUERY callset. */
