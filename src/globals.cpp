@@ -1,3 +1,7 @@
+/**
+ * @file globals.cpp
+ * @brief Global configuration object, string table definitions, and utility functions.
+ */
 #include "htslib/vcf.h"
 
 #include <sstream>
@@ -8,21 +12,41 @@
 #include "timer.h"
 
 Globals g;
+/** @brief String representations of QUERY/TRUTH callset indices. */
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
+/** @brief String representations of ERRTYPE_* constants (TP, FP, FN, unknown). */
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "??"};
-std::vector<std::string> gt_strs = 
+/** @brief String representations of GT_* genotype constants. */
+std::vector<std::string> gt_strs =
     {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "M|N" };
+/** @brief String representations of PHASE_* constants (keep, swap, missing). */
 std::vector<std::string> phase_strs = {"0", "1", "."};
+/** @brief String representations of AC_ERR_* allele count error types. */
 std::vector<std::string> ac_strs = {".", ".", ".", ".", "+", ".", "-", ".", "."};
+/** @brief String representations of BED_* location constants. */
 std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CTG"};
-std::vector<std::string> switch_strs = 
+/** @brief String representations of SWITCHTYPE_* switch/flip error type constants. */
+std::vector<std::string> switch_strs =
     {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
-std::vector<std::string> timer_strs = 
+/** @brief String names for pipeline stage timers in TIME_* index order. */
+std::vector<std::string> timer_strs =
     {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};
+/** @brief String representations of TYPE_* variant type constants. */
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
+/** @brief Alternate string representations of TYPE_* constants (ALL/SNP/INS/DEL/INDEL). */
 std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
+/** @brief String representations of VARTYPE_* size-class constants. */
 std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
- 
+
+/**
+ * @brief Parses command-line arguments and initializes global configuration.
+ * @param[in] argc Argument count
+ * @param[in] argv Argument vector
+ * @note Required args: query.vcf, truth.vcf, ref.fasta (must be first 3). Optional flag groups:
+ *       input/output (-b, -v, -p, -n), variant filtering (-f, -l, -sv, -q, -mq),
+ *       clustering (-s), precision-recall (-ct, -md), resources (-t, -r), misc (-h, -ci).
+ * @throws Errors on invalid file paths, out-of-range parameters, or format errors.
+ */
 void Globals::parse_args(int argc, char ** argv) {
 
     /* if required arguments are not provided, you can only print help and exit */
@@ -454,11 +478,13 @@ void Globals::parse_args(int argc, char ** argv) {
 
 /* --------------------------------------------------------------------------- */
 
+/** @brief Prints program version string to stdout. */
 void Globals::print_version() const
 {
     printf("%s v%s\n", this->PROGRAM.data(), this->VERSION.data());
 }
 
+/** @brief Prints usage information and all command-line options to stdout. */
 void Globals::print_usage() const
 {
     printf("Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
@@ -530,6 +556,10 @@ void Globals::print_usage() const
 
 
 
+/**
+ * @brief Initializes one named timer object per pipeline stage.
+ * @param[in] timer_strs Vector of timer names matching TIME_* constant indices
+ */
 void Globals::init_timers(const std::vector<std::string> & timer_strs) {
     for (const std::string & timer_name : timer_strs) {
         g.timers.push_back( timer(timer_name) );
@@ -537,6 +567,7 @@ void Globals::init_timers(const std::vector<std::string> & timer_strs) {
 }
 
 
+/** @brief Prints publication citation in MLA and BibTeX formats. */
 void Globals::print_citation() const
 {
     printf("\nMLA Format:\n\n");
@@ -557,6 +588,11 @@ void Globals::print_citation() const
 }
 
 
+/**
+ * @brief Extracts the parent directory path from a file path string.
+ * @param[in] out_prefix Full file path or prefix string
+ * @return Parent directory path with trailing slash, or empty string if no parent
+ */
 std::string parent_path(const std::string & out_prefix) {
     for (int i = out_prefix.size()-1; i >= 0; i--) {
         if (out_prefix[i] == '/')
@@ -566,6 +602,11 @@ std::string parent_path(const std::string & out_prefix) {
 }
 
 
+/**
+ * @brief Creates a directory and all necessary parent directories.
+ * @param[in] dir Full directory path to create
+ * @throws Errors if directory creation fails for reasons other than EEXIST
+ */
 void create_directory(const std::string & dir) {
     char *p = strdup(dir.data());
     char *sep = strchr(p+1, '/');
