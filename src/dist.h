@@ -1,3 +1,7 @@
+/**
+ * @file dist.h
+ * @brief Graph-based alignment and precision/recall evaluation declarations.
+ */
 #ifndef _DIST_H_
 #define _DIST_H_
 
@@ -45,12 +49,14 @@ public:
     std::vector< std::vector<int> > tprevs; ///< directed pointers to prev truth nodes
     std::vector< std::vector<int> > tnexts; ///< directed pointers to next truth nodes
 
-    // constructors
-	Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi);
+    /** @brief Constructs alignment graph from supercluster variants and reference sequence. */
+    Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
+            std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi);
 
-    // methods
+    /** @brief Prints graph node sequences and connectivity to console for debugging. */
     void print();
+
+    /** @brief Maps a truth graph node and variant index to its 0-based reference position. */
     int get_truth_pos(int truth_node_idx, int truth_idx);
 };
 
@@ -69,10 +75,28 @@ public:
     int qi;  ///< query idx
     int ti;  ///< truth idx
 
+    /** @brief Default constructor; initializes all indices to zero. */
     idx4() : qni(0), tni(0), qi(0), ti(0) {};
+
+    /**
+     * @brief Constructs idx4 with specified node and position indices.
+     * @param[in] qn Query node index
+     * @param[in] tn Truth node index
+     * @param[in] q Query position index within node
+     * @param[in] t Truth position index within node
+     */
     idx4(int qn, int tn, int q, int t) : qni(qn), tni(tn), qi(q), ti(t) {};
+
+    /**
+     * @brief Copy constructor.
+     * @param[in] i2 Source idx4 to copy
+     */
     idx4(const idx4 & i2) : qni(i2.qni), tni(i2.tni), qi(i2.qi), ti(i2.ti) {};
 
+    /**
+     * @brief Lexicographic less-than comparison for use in ordered containers.
+     * @return True if this cell precedes other in (qni, tni, qi, ti) order
+     */
     bool operator<(const idx4 & other) const {
         if (this->qni < other.qni) return true;
         if (this->tni < other.tni) return true;
@@ -80,13 +104,28 @@ public:
         if (this->ti < other.ti) return true;
         return false;
     }
+
+    /**
+     * @brief Equality comparison; true when all four indices match.
+     * @return True if all fields are equal
+     */
     bool operator==(const idx4 & other) const {
-        return this->qni == other.qni && this->tni == other.tni && 
+        return this->qni == other.qni && this->tni == other.tni &&
             this->qi == other.qi && this->ti == other.ti;
     }
+
+    /**
+     * @brief Inequality comparison.
+     * @return True if any field differs
+     */
     bool operator!=(const idx4 & other) const {
         return !(*this == other);
     }
+
+    /**
+     * @brief Copy assignment operator.
+     * @return Reference to this after assignment
+     */
     idx4 & operator=(const idx4 & other) {
         if (this == &other) return *this;
         this->qni = other.qni;
@@ -97,6 +136,9 @@ public:
     }
 };
 
+/**
+ * @brief Hash specialization enabling idx4 as unordered_map key.
+ */
 namespace std {
     template<> struct hash<idx4> {
         uint64_t operator()(const idx4& x) const noexcept {
@@ -110,33 +152,40 @@ namespace std {
 
 /**************************************************************************************************/
 
+/** @brief Returns true if set contains the given element. */
 template <typename T>
 inline bool contains(const std::unordered_set<T> & wave, const T & idx);
 
+/** @brief Returns true if map contains the given key. */
 template <typename T, typename U>
 bool contains(const std::unordered_map<T,U> & wave, const T & idx);
 
+/** @brief Generates a haplotype sequence string by applying variants to the reference. */
 std::string generate_str(
-        std::shared_ptr<fastaData> ref, 
+        std::shared_ptr<fastaData> ref,
         std::shared_ptr<ctgVariants> vars, const std::string & ctg,
         int var_idx, int end_idx, int beg_pos, int end_pos, int min_qual=0);
 
 /**************************************************************************************************/
 
+/** @brief Calculates the NG50 statistic for a set of phase block lengths. */
 int calc_ng50(std::vector<int> phase_blocks, size_t total_bases);
 
 /**************************************************************************************************/
 
+/** @brief Evaluates query variants against truth for one supercluster and haplotype combination. */
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, 
+			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi,
             bool print = false);
 
+/** @brief Runs graph-based alignment and returns the optimal alignment score. */
 int calc_prec_recall_aln(
         const std::shared_ptr<Graph> query_graph,
         std::unordered_map<idx4, idx4> & ptrs,
         bool print = false
         );
 
+/** @brief Assigns TP/FP/FN error types and credit scores to variants from an alignment. */
 void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
         const std::unordered_map<idx4, idx4> & ptrs,
@@ -144,28 +193,33 @@ void calc_prec_recall(
         bool print = false
         );
 
+/** @brief Launches threaded precision/recall evaluation across all superclusters. */
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
         std::vector< std::vector< std::vector<int> > > sc_groups);
 
+/** @brief Evaluates a subset of superclusters within a single thread. */
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
         const std::vector< std::vector< std::vector<int> > > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print = false);
 
 /**************************************************************************************************/
 
+/** @brief Extends a wavefront diagonal to its maximum reach using Smith-Waterman gap scoring. */
 int wf_swg_max_reach(
-        const std::string & query, const std::string & truth, 
+        const std::string & query, const std::string & truth,
         std::vector<int> & offs,
-        int main_diag, int main_diag_start, int max_score, 
+        int main_diag, int main_diag_start, int max_score,
         int x, int o, int e, bool print = false, bool reverse = false
         );
 
+/** @brief Computes Smith-Waterman gap-affine alignment score between two sequences. */
 void wf_swg_align(
-        const std::string & query, 
+        const std::string & query,
         const std::string & truth,
         int & score, int sub, int open, int extend, bool print = false);
 
+/** @brief Computes the edit distance between two sequences using wavefront alignment. */
 void wf_ed(const std::string & query, const std::string & truth, int & score, bool print = false);
 
 #endif
