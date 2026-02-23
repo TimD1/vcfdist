@@ -567,23 +567,6 @@ void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, 
     }
 }
 
-/**
- * @brief Copies header info (sample name, contigs, ploidy) and initializes variant containers.
- * @param[in] vcf Source variantData to copy header from
- */
-void variantData::set_header(const std::shared_ptr<variantData> vcf) {
-    this->filename = vcf->filename;
-    this->sample = vcf->sample;
-    this->contigs = vcf->contigs;
-    this->lengths = vcf->lengths;
-    this->ploidy = vcf->ploidy;
-    this->ref = vcf->ref;
-    for (const std::string & ctg : this->contigs)
-        for (int hap = 0; hap < 2; hap++)
-            this->variants[hap][ctg] = 
-                std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-}
-
 
 /**
  * @brief Parses a CIGAR string and adds resulting variants to the container.

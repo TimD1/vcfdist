@@ -116,9 +116,6 @@ public:
         const std::string & ref, const std::string & alt, float qual, int phase_set,
         const std::string & gt);
 
-    /** @brief Copies header info (sample name, contigs, ploidy) and initializes variant containers. */
-    void set_header(const std::shared_ptr<variantData> vcf);
-
     /** @brief Parses a CIGAR string and adds resulting variants to the container. */
     void add_variants(const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query,
