@@ -38,63 +38,6 @@ ctgVariants::ctgVariants(const std::string & ctg) {
 
 
 /**
- * @brief Removes elements at specified indices from a vector in a single compaction pass.
- * @tparam T Vector element type
- * @param[in,out] vector Vector to compact; modified in-place
- * @param[in] to_remove Sorted ascending vector of indices to remove
- */
-template<typename T>
-void _remove_indices(std::vector<T> & vector, const std::vector<int> & to_remove)
-{
-    auto vector_base = vector.begin();
-    size_t down_by = 0;
-
-    for (auto iter = to_remove.cbegin(); iter < to_remove.cend(); iter++, down_by++)
-        {
-        size_t next = (iter + 1 == to_remove.cend() ? vector.size() : *(iter + 1));
-        std::move(vector_base + *iter + 1, vector_base + next, vector_base + *iter - down_by);
-    }
-    vector.resize(vector.size() - to_remove.size());
-}
-
-
-/**
- * @brief Removes multiple variants from this container by index.
- * @param[in] indices Sorted vector of variant indices to remove
- */
-void ctgVariants::remove_vars(const std::vector<int> & indices) {
-    // set for all variants
-    _remove_indices(this->poss, indices);
-    _remove_indices(this->rlens, indices);
-    _remove_indices(this->types, indices);
-    _remove_indices(this->locs, indices);
-    _remove_indices(this->refs, indices);
-    _remove_indices(this->alts, indices);
-    _remove_indices(this->orig_gts, indices);
-    _remove_indices(this->gt_quals, indices);
-    _remove_indices(this->var_quals, indices);
-    _remove_indices(this->phase_sets, indices);
-    _remove_indices(this->superclusters, indices);
-    this->n -= int(indices.size());
-
-    // added during precision/recall analysis
-    _remove_indices(this->calc_gts, indices);
-    for (int hi = 0; hi < HAPS; hi++) {
-        _remove_indices(this->errtypes[hi], indices);
-        _remove_indices(this->sync_group[hi], indices);
-        _remove_indices(this->callq[hi], indices);
-        _remove_indices(this->ref_ed[hi], indices);
-        _remove_indices(this->query_ed[hi], indices);
-        _remove_indices(this->credit[hi], indices);
-    }
-
-    // added during phasing analysis
-    _remove_indices(this->phases, indices);
-    _remove_indices(this->pb_phases, indices);
-    _remove_indices(this->ac_errtype, indices);
-}
-
-/**
  * @brief Appends a variant copied from another ctgVariants container.
  * @param[in] other_vars Source variant container
  * @param[in] idx Index of variant in source container

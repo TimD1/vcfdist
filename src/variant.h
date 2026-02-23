@@ -25,9 +25,6 @@ public:
     /** @brief Constructs a contig-specific variant container with empty data structures. */
     ctgVariants(const std::string & ctg);
 
-    /** @brief Removes multiple variants from this container by index. */
-    void remove_vars(const std::vector<int> & indices);
-
     /** @brief Appends a variant copied from another ctgVariants container. */
     void add_var(std::shared_ptr<ctgVariants> other_vars, int idx);
 
