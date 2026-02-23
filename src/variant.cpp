@@ -1,3 +1,7 @@
+/**
+ * @file variant.cpp
+ * @brief Per-contig and per-callset variant containers with VCF parsing and output utilities.
+ */
 #include <algorithm>
 #include <string>
 #include <unordered_map>
@@ -12,8 +16,11 @@
 
 /******************************************************************************/
 
-
-ctgVariants::ctgVariants(const std::string & ctg) { 
+/**
+ * @brief Constructs a contig-specific variant container with empty data structures.
+ * @param[in] ctg Contig name
+ */
+ctgVariants::ctgVariants(const std::string & ctg) {
     this->ctg = ctg;
     this->n = 0; 
     for (int i = 0; i < PHASES; i++) {
@@ -30,7 +37,12 @@ ctgVariants::ctgVariants(const std::string & ctg) {
 /******************************************************************************/
 
 
-/* Efficiently remove many elements from a vector. */
+/**
+ * @brief Removes elements at specified indices from a vector in a single compaction pass.
+ * @tparam T Vector element type
+ * @param[in,out] vector Vector to compact; modified in-place
+ * @param[in] to_remove Sorted ascending vector of indices to remove
+ */
 template<typename T>
 void _remove_indices(std::vector<T> & vector, const std::vector<int> & to_remove)
 {
@@ -46,7 +58,10 @@ void _remove_indices(std::vector<T> & vector, const std::vector<int> & to_remove
 }
 
 
-/* Remove many variants at once. */
+/**
+ * @brief Removes multiple variants from this container by index.
+ * @param[in] indices Sorted vector of variant indices to remove
+ */
 void ctgVariants::remove_vars(const std::vector<int> & indices) {
     // set for all variants
     _remove_indices(this->poss, indices);
@@ -79,9 +94,14 @@ void ctgVariants::remove_vars(const std::vector<int> & indices) {
     _remove_indices(this->ac_errtype, indices);
 }
 
+/**
+ * @brief Appends a variant copied from another ctgVariants container.
+ * @param[in] other_vars Source variant container
+ * @param[in] idx Index of variant in source container
+ */
 void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
     this->add_var(
-        other_vars->poss[idx], 
+        other_vars->poss[idx],
         other_vars->rlens[idx], 
         other_vars->types[idx], 
         other_vars->locs[idx],
@@ -101,6 +121,33 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
         other_vars->credit[HAP1][idx], other_vars->credit[HAP2][idx]);
 }
 
+/**
+ * @brief Appends a variant with all fields explicitly specified.
+ * @param[in] pos Reference start position (0-based)
+ * @param[in] rlen Reference allele length
+ * @param[in] type Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL)
+ * @param[in] loc BED location type (BED_INSIDE, BED_BORDER, BED_OUTSIDE)
+ * @param[in] ref Reference allele sequence
+ * @param[in] alt Alternate allele sequence
+ * @param[in] orig_gt Original genotype from VCF
+ * @param[in] gt_qual Genotype quality score
+ * @param[in] var_qual Variant quality score (capped at g.max_qual)
+ * @param[in] phase_set Phase set identifier from VCF PS tag
+ * @param[in] supercluster Supercluster index (-1 = not yet assigned)
+ * @param[in] calc_gt Calculated genotype (defaults to GT_REF_REF)
+ * @param[in] hap1_errtype Error type for haplotype 1 (defaults to ERRTYPE_UN)
+ * @param[in] hap2_errtype Error type for haplotype 2 (defaults to ERRTYPE_UN)
+ * @param[in] hap1_sync_group Sync group index for haplotype 1
+ * @param[in] hap2_sync_group Sync group index for haplotype 2
+ * @param[in] hap1_callq Call quality for haplotype 1
+ * @param[in] hap2_callq Call quality for haplotype 2
+ * @param[in] hap1_ref_ed Reference edit distance for haplotype 1
+ * @param[in] hap2_ref_ed Reference edit distance for haplotype 2
+ * @param[in] hap1_query_ed Query edit distance for haplotype 1
+ * @param[in] hap2_query_ed Query edit distance for haplotype 2
+ * @param[in] hap1_credit Credit score for haplotype 1
+ * @param[in] hap2_credit Credit score for haplotype 2
+ */
 // TODO: remove assumption that no variants match
 void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual, 
@@ -151,7 +198,12 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
 /******************************************************************************/
 
 
-int ctgVariants::get_vartype(int vi) { 
+/**
+ * @brief Classifies variant as SNP, INDEL, or SV based on reference length and g.sv_threshold.
+ * @param[in] vi Variant index
+ * @return VARTYPE_SNP, VARTYPE_INDEL, or VARTYPE_SV
+ */
+int ctgVariants::get_vartype(int vi) {
     if (this->types[vi] == TYPE_SUB) { // SNP
         return VARTYPE_SNP;
     } else if ((this->types[vi] == TYPE_INS && // small INDEL
@@ -168,10 +220,12 @@ int ctgVariants::get_vartype(int vi) {
 /******************************************************************************/
 
 
-/* Precision/Recall calculation allows dynamically adjusting the variant genotype.
- * Afterwards, this functions records how the genotype allele count has changed.
+/**
+ * @brief Records allele count error type by comparing original and calculated genotypes.
+ * @param[in] vi Variant index
+ * @return Allele count error type (AC_ERR_*_TO_* or AC_UNKNOWN); also stored in ac_errtype[vi]
  */
-int ctgVariants::set_allele_errtype(int vi) { 
+int ctgVariants::set_allele_errtype(int vi) {
     if (this->calc_gts[vi] == GT_ALT1_REF || this->calc_gts[vi] == GT_REF_ALT1) {
         if (this->orig_gts[vi] == GT_ALT1_ALT1) {
             return this->ac_errtype[vi] = AC_ERR_1_TO_2;
@@ -202,6 +256,10 @@ int ctgVariants::set_allele_errtype(int vi) {
 /******************************************************************************/
 
 
+/**
+ * @brief Writes all parsed variants to a phased VCF file.
+ * @param[in] out_vcf_fn Output VCF filename
+ */
 void variantData::write_vcf(std::string out_vcf_fn) {
 
     // VCF header
@@ -308,10 +366,12 @@ void variantData::write_vcf(std::string out_vcf_fn) {
 
 
 /*******************************************************************************/
-/* This function is used to map haplotypes between orig_gt and calc_gt, in order to determine which
-   calc_gt data should be reported for the initial orig_gt variant, and is complicated by the
-   fact that the two may contain a different number of non-reference alleles. 
- */ 
+
+/**
+ * @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt.
+ * @param[in] vi Variant index
+ * @return False for matching genotypes, homozygous calls, or when calc_gt is 0/0
+ */
 bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
     // 0|0,0|0 and 0|1,0|1 and 1|0,1|0 and 1|1,1|1
     if (this->orig_gts[vi] == this->calc_gts[vi]) {
@@ -346,6 +406,13 @@ bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
     }
 }
 
+/**
+ * @brief Returns true if a variant is present on the specified haplotype.
+ * @param[in] var_idx Variant index
+ * @param[in] hap Haplotype index (0 or 1)
+ * @param[in] calc If true, check calc_gts; if false, check orig_gts
+ * @return True if variant is on the specified haplotype
+ */
 bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
     int gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx]; // simple gt, always (0|1, 1|0, or 1|1)
     if (hap == 0 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
@@ -362,7 +429,12 @@ bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
 
 /*******************************************************************************/
 
-/* Set (or unset) the presence of an alternate allele in a variant's genotype.
+/**
+ * @brief Sets or unsets the alternate allele on one haplotype for a calculated genotype.
+ * @param[in] var_idx Variant index
+ * @param[in] hap Haplotype index (0 or 1)
+ * @param[in] set If true, set alternate; if false, unset it
+ * @param[in] ignore_errors If true, suppress error messages for invalid transitions
  */
 void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ignore_errors) {
     if (hap > 1) ERROR("Unexpected hap idx %d in set_var_calcgt_on_hap()", hap);
@@ -425,7 +497,14 @@ void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ign
 
 /*******************************************************************************/
 
-void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref, 
+/**
+ * @brief Writes fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) for one variant.
+ * @param[in] out_fp Open file pointer to output VCF
+ * @param[in] ref Reference FASTA data for retrieving flanking bases for indels
+ * @param[in] ctg Contig name
+ * @param[in] idx Variant index in this container
+ */
+void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
         const std::string & ctg, int idx) {
     char ref_base;
     switch (this->types[idx]) {
@@ -447,12 +526,31 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
 }
 
 
-void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx, 
+/**
+ * @brief Writes dot-separated empty sample fields for a variant with no call on this haplotype.
+ * @param[in] out_fp Open file pointer to output VCF
+ * @param[in] sc_idx Supercluster index for SC field
+ * @param[in] phase_block Phase block index for PB field
+ * @param[in] query If true, append newline (end of record); if false, tab (more samples follow)
+ */
+void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
         int phase_block, bool query /* = false */) {
     fprintf(out_fp, "\t.:.:.:.:.:.:.:%d:.:.:%d:.:.:.:.%s", sc_idx, phase_block, query ? "\n" : "");
 }
 
 
+/**
+ * @brief Writes sample-specific FORMAT fields for one variant to output VCF.
+ * @param[in] out_fp Open file pointer to output VCF
+ * @param[in] vi Variant index in this container
+ * @param[in] hi Haplotype index (0 or 1)
+ * @param[in] gt Genotype string (e.g., "0|1", "1|1")
+ * @param[in] sc_idx Supercluster index for SC field
+ * @param[in] phase_block Phase block index for PB field
+ * @param[in] phase_switch True if phase switched at this position
+ * @param[in] phase_flip True if phase flipped (error) at this position
+ * @param[in] query If true, format as query sample; if false, as truth sample
+ */
 void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::string & gt,
         int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query /* = false */) {
 
@@ -488,6 +586,18 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
 /*******************************************************************************/
 
 
+/**
+ * @brief Writes a single variant record to a VCF file with GT and PS FORMAT fields.
+ * @param[in] out_fp Open file pointer to output VCF
+ * @param[in] ctg Contig name
+ * @param[in] pos Reference position
+ * @param[in] type Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL)
+ * @param[in] ref Reference allele
+ * @param[in] alt Alternate allele
+ * @param[in] qual Variant quality score
+ * @param[in] phase_set Phase set identifier
+ * @param[in] gt Genotype string (e.g., "0|1")
+ */
 void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
         const std::string & ref, const std::string & alt, float qual, int phase_set,
         const std::string & gt) {
@@ -514,6 +624,10 @@ void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, 
     }
 }
 
+/**
+ * @brief Copies header info (sample name, contigs, ploidy) and initializes variant containers.
+ * @param[in] vcf Source variantData to copy header from
+ */
 void variantData::set_header(const std::shared_ptr<variantData> vcf) {
     this->filename = vcf->filename;
     this->sample = vcf->sample;
@@ -528,13 +642,23 @@ void variantData::set_header(const std::shared_ptr<variantData> vcf) {
 }
 
 
-/* Copy variants from `cigar` string to `variantData`. */
+/**
+ * @brief Parses a CIGAR string and adds resulting variants to the container.
+ * @param[in] cigar CIGAR operation vector (alternating operation codes and lengths)
+ * @param[in] hap Haplotype index (0 or 1)
+ * @param[in] ref_pos Starting reference position
+ * @param[in] ctg Contig name
+ * @param[in] query Query sequence
+ * @param[in] ref Reference sequence
+ * @param[in] qual Quality score for all variants
+ * @param[in] phase_set Phase set identifier for all variants
+ */
 void variantData::add_variants(
-        const std::vector<int> & cigar, 
+        const std::vector<int> & cigar,
         int hap, int ref_pos,
-        const std::string & ctg, 
-        const std::string & query, 
-        const std::string & ref, 
+        const std::string & ctg,
+        const std::string & query,
+        const std::string & ref,
         int qual, int phase_set) {
 
     int query_idx = 0;
@@ -592,11 +716,22 @@ void variantData::add_variants(
 
 /******************************************************************************/
 
+/**
+ * @brief Constructs an empty variant data container defaulting to QUERY callset.
+ */
 variantData::variantData() : callset(QUERY), variants(HAPS) { ; }
 
-void parse_variants(const std::string & vcf_fn, 
+/**
+ * @brief Parses variants from a VCF file into a variantData container, with filtering and validation.
+ * @param[in] vcf_fn Input VCF filename
+ * @param[out] variant_data Container to populate with parsed variants
+ * @param[in] reference Reference FASTA data for coordinate validation
+ * @param[in] callset QUERY or TRUTH callset identifier
+ * @throws Various errors for malformed VCF or invalid reference coordinates
+ */
+void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
-        std::shared_ptr<fastaData> reference, 
+        std::shared_ptr<fastaData> reference,
         int callset) {
 
     // set reference fasta pointer
