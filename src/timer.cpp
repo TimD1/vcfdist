@@ -1,7 +1,15 @@
+/**
+ * @file timer.cpp
+ * @brief Wall-clock timer implementation for named pipeline stages.
+ */
 #include "timer.h"
 #include "defs.h"
 #include "globals.h"
 
+/**
+ * @brief Records current system time and marks timer as running.
+ * @throws Error if timer is already running.
+ */
 void timer::start() {
     if (running) {
         ERROR("Cannot start an already-running timer (%s).", name.data());
@@ -10,6 +18,10 @@ void timer::start() {
     running = true;
 }
 
+/**
+ * @brief Stops timer and accumulates elapsed time since last start().
+ * @throws Error if timer is not running.
+ */
 void timer::stop() {
     if (!running) {
         ERROR("Cannot stop an already-stopped timer (%s).", name.data());
@@ -20,21 +32,37 @@ void timer::stop() {
     running = false;
 }
 
-double timer::total() { 
+/**
+ * @brief Returns total accumulated elapsed time in seconds.
+ * @return Total elapsed seconds across all start/stop intervals
+ * @throws Error if timer is still running.
+ */
+double timer::total() {
     if (running) {
         ERROR("Must stop timer before calculating total time (%s).", name.data());
     }
-    return total_time / 1000000000.0; 
+    return total_time / 1000000000.0;
 }
 
+/**
+ * @brief Prints timer index, name, and total elapsed time to console.
+ * @param[in] i Timer index used for labeling output
+ */
 void timer::print(int i) {
     INFO("  [%d] %-17s: %8.3fs", i, name.data(), total());
 }
 
+/**
+ * @brief Returns the timer's name string.
+ * @return Timer name provided at construction
+ */
 std::string timer::get_name() {
     return name;
 }
 
+/**
+ * @brief Writes all pipeline stage timer names and elapsed times to TSV file.
+ */
 void write_runtime() {
     std::string runtimes_fn = g.out_prefix + "runtime.tsv";
     if (g.verbosity >= 1) INFO("  Writing stage runtimes '%s'", runtimes_fn.data());
