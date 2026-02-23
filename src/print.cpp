@@ -1,3 +1,7 @@
+/**
+ * @file print.cpp
+ * @brief Terminal color utilities, quality scoring, and output writing functions.
+ */
 #include <string>
 #include <vector>
 #include <cmath>
@@ -6,31 +10,114 @@
 #include "print.h"
 #include "dist.h"
 
+/** @brief Wraps an integer in ANSI green codes for terminal output.
+ *  @param[in] i Value to colorize
+ *  @return Colored string (ANSI escape prefix + value + reset suffix)
+ */
 std::string GREEN(int i) { return "\033[32m" + std::to_string(i) + "\033[0m"; }
+
+/** @brief Wraps a char in ANSI green codes for terminal output.
+ *  @param[in] c Value to colorize
+ *  @return Colored string
+ */
 std::string GREEN(char c) { return "\033[32m" + std::string(1,c) + "\033[0m"; }
+
+/** @brief Wraps a string in ANSI green codes for terminal output.
+ *  @param[in] str Value to colorize
+ *  @return Colored string
+ */
 std::string GREEN(const std::string & str) { return "\033[32m" + str + "\033[0m"; }
+
+/** @brief Wraps an integer in ANSI red codes for terminal output.
+ *  @param[in] i Value to colorize
+ *  @return Colored string
+ */
 std::string RED(int i) { return "\033[31m" + std::to_string(i) + "\033[0m"; }
+
+/** @brief Wraps a char in ANSI red codes for terminal output.
+ *  @param[in] c Value to colorize
+ *  @return Colored string
+ */
 std::string RED(char c) { return "\033[31m" + std::string(1,c) + "\033[0m"; }
+
+/** @brief Wraps a string in ANSI red codes for terminal output.
+ *  @param[in] str Value to colorize
+ *  @return Colored string
+ */
 std::string RED(const std::string & str) { return "\033[31m" + str + "\033[0m"; }
+
+/** @brief Wraps an integer in ANSI blue codes for terminal output.
+ *  @param[in] i Value to colorize
+ *  @return Colored string
+ */
 std::string BLUE(int i) { return "\033[34m" + std::to_string(i) + "\033[0m"; }
+
+/** @brief Wraps a char in ANSI blue codes for terminal output.
+ *  @param[in] c Value to colorize
+ *  @return Colored string
+ */
 std::string BLUE(char c) { return "\033[34m" + std::string(1,c) + "\033[0m"; }
+
+/** @brief Wraps a string in ANSI blue codes for terminal output.
+ *  @param[in] str Value to colorize
+ *  @return Colored string
+ */
 std::string BLUE(const std::string & str) { return "\033[34m" + str + "\033[0m"; }
+
+/** @brief Wraps an integer in ANSI yellow codes for terminal output.
+ *  @param[in] i Value to colorize
+ *  @return Colored string
+ */
 std::string YELLOW(int i) { return "\033[33m" + std::to_string(i) + "\033[0m"; }
+
+/** @brief Wraps a char in ANSI yellow codes for terminal output.
+ *  @param[in] c Value to colorize
+ *  @return Colored string
+ */
 std::string YELLOW(char c) { return "\033[33m" + std::string(1,c) + "\033[0m"; }
+
+/** @brief Wraps a string in ANSI yellow codes for terminal output.
+ *  @param[in] str Value to colorize
+ *  @return Colored string
+ */
 std::string YELLOW(const std::string & str) { return "\033[33m" + str + "\033[0m"; }
+
+/** @brief Wraps an integer in ANSI purple codes for terminal output.
+ *  @param[in] i Value to colorize
+ *  @return Colored string
+ */
 std::string PURPLE(int i) { return "\033[35m" + std::to_string(i) + "\033[0m"; }
+
+/** @brief Wraps a char in ANSI purple codes for terminal output.
+ *  @param[in] c Value to colorize
+ *  @return Colored string
+ */
 std::string PURPLE(char c) { return "\033[35m" + std::string(1,c) + "\033[0m"; }
+
+/** @brief Wraps a string in ANSI purple codes for terminal output.
+ *  @param[in] str Value to colorize
+ *  @return Colored string
+ */
 std::string PURPLE(const std::string & str) { return "\033[35m" + str + "\033[0m"; }
 
 
 /*******************************************************************************/
 
+/**
+ * @brief Converts error probability to Phred quality score.
+ * @param[in] p_error Error probability in (0, 1]
+ * @return Quality score in [0, 100], clamped at 100 for high confidence
+ * @note Formula: Q = -10 * log10(p_error)
+ */
 float qscore(double p_error) {
     return std::min(100.0, std::max(0.0, -10 * std::log10(p_error)));
 }
 
 inline std::string b2s(bool b) { return b ? "true" : "false"; }
 
+/**
+ * @brief Writes all pipeline configuration parameters to TSV file.
+ */
 void write_params() {
 
     // concatenate filters into string
@@ -61,6 +148,14 @@ void write_params() {
 /*******************************************************************************/
 
 
+/**
+ * @brief Prints WFA substitution/insertion/deletion matrices for debugging.
+ * @param[in] query Query sequence
+ * @param[in] truth Truth sequence
+ * @param[in] s Maximum score wavefront to display
+ * @param[in] ptrs 3D pointer array [matrix_type][score][diagonal]
+ * @param[in] offs 3D offset array [matrix_type][score][diagonal]
+ */
 void print_wfa_ptrs(
         const std::string & query,
         const std::string & truth,
@@ -160,6 +255,11 @@ void print_wfa_ptrs(
 /*******************************************************************************/
 
 
+/**
+ * @brief Computes precision/recall statistics across all variant types and quality thresholds,
+ *        writes full per-threshold results and summary table to TSV files, and prints to console.
+ * @param[in] phasedata_ptr Phase block data with evaluated query and truth variants
+ */
 void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
     // for each class, store variant counts above each quality threshold
@@ -369,6 +469,10 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 /*******************************************************************************/
 
 
+/**
+ * @brief Writes precision-recall TSV results and prints console summary.
+ * @param[in] phasedata_ptr Phase block data with variant evaluation results
+ */
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%d/%d] Writing results%s", COLOR_PURPLE, 
@@ -489,7 +593,12 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 /*******************************************************************************/
 
 
-/* Helper function for printing a query graph alignment. */ 
+/**
+ * @brief Returns string representation of a graph cell's alignment pointer.
+ * @param[in] cell Current cell (query_node, truth_node, query_pos, truth_pos)
+ * @param[in] ptrs Map from cell to previous cell in alignment
+ * @return Pointer symbol: ".", "|", "_", "\", "^N", "<N", or "?" for invalid
+ */
 std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs) {
     if (ptrs.find(cell) == ptrs.end()) return "  .";
     idx4 prev = ptrs.at(cell);
@@ -509,6 +618,11 @@ std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs) 
     } else { return "?2"; } // invalid
 }
 
+/**
+ * @brief Prints alignment matrix for graph-based alignment (debug utility).
+ * @param[in] graph Graph with query/truth node sequences
+ * @param[in] ptrs Map from cell to previous cell
+ */
 void print_graph_ptrs(const std::shared_ptr<Graph> graph,
         const std::unordered_map<idx4,idx4> & ptrs) {
     printf("    TRUTH");
