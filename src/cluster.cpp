@@ -25,7 +25,7 @@ ctgSuperclusters::ctgSuperclusters() {
  * @param qvi_start The 0-based inclusive start index of the query variant interval.
  * @param qvi_end The 0-based exclusive end index of the query variant interval.
  * @param tvi_start The 0-based inclusive start index of the truth variant interval.
- * @param qvi_end The 0-based exclusive end index of the truth variant interval.
+ * @param tvi_end The 0-based exclusive end index of the truth variant interval.
  * @returns The 0-based inclusive leftmost position, or int::max() if no variants are present.
  * @todo should this return int::min()? not for sentinel, but maybe if empty?
  */
@@ -43,7 +43,7 @@ int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start,
  * @param qvi_start The 0-based inclusive start index of the query variant interval.
  * @param qvi_end The 0-based exclusive end index of the query variant interval.
  * @param tvi_start The 0-based inclusive start index of the truth variant interval.
- * @param qvi_end The 0-based exclusive end index of the truth variant interval.
+ * @param tvi_end The 0-based exclusive end index of the truth variant interval.
  * @returns The 0-based exclusive rightmost position, or int::max() if no variants are present.
  */
 int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
