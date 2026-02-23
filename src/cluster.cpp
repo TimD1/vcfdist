@@ -809,12 +809,6 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
         if (iter > g.max_cluster_itrs) break;
         /* if (print) printf("Iteration %d\n", iter); */
 
-        // count clusters currently being expanded
-        int active = 0;
-        for (size_t i = 0; i < prev_active.size()-1; i++) {
-            if (prev_active[i]) active++;
-        }
-
         // save temp clustering (generate_str assumes clustered)
         vars->clusters = prev_clusters;
 
