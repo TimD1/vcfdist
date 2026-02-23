@@ -1,3 +1,7 @@
+/**
+ * @file main.cpp
+ * @brief Vcfdist main entry point.
+ */
 #include <thread>
 
 #include "variant.h"
@@ -10,6 +14,17 @@
 #include "phase.h"
 #include "timer.h"
 
+/**
+ * @brief Orchestrates the vcfdist variant benchmarking pipeline in five stages:
+ *   (1) read/parse input VCFs and reference,
+ *   (2) cluster variants into superclusters,
+ *   (3) align and evaluate precision/recall per supercluster,
+ *   (4) compute phasing statistics and detect switch/flip errors,
+ *   (5) write all output files and print summary.
+ * @param[in] argc Argument count
+ * @param[in] argv Argument vector
+ * @return EXIT_SUCCESS
+ */
 int main(int argc, char **argv) {
 
     // parse and store command-line args
