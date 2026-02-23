@@ -1,3 +1,7 @@
+/**
+ * @file phase.cpp
+ * @brief Phase block detection, switch/flip error classification, and phasing summary output.
+ */
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
@@ -7,6 +11,11 @@
 #include "globals.h"
 
 
+/**
+ * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
+ * @param[in] out_vcf_fn Output VCF filename
+ * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
+ */
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // VCF header
@@ -212,6 +221,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 /*******************************************************************************/
 
 
+/**
+ * @brief Constructs phaseblock container from supercluster data and runs phasing pipeline.
+ * @param[in] clusterdata_ptr Supercluster data with contigs, lengths, ploidy, and variants
+ */
 phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr)
 {
     // copy contigs and reference
@@ -256,7 +269,11 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
 /******************************************************************************/
 
 
-/* Add phase set tags to homozygous variants. */
+/**
+ * @brief Propagates phase set tags to unphased and homozygous variants.
+ * @note Must run before phase() and fix_allele_counts().
+ * @todo Only set phase sets for 1|1 variants when unphased evaluation is added.
+ */
 void phaseblockData::fix_phase_set_tags() {
 
     for (int ci = 0; ci < CALLSETS; ci++) {
@@ -337,8 +354,9 @@ void phaseblockData::fix_phase_set_tags() {
 /*******************************************************************************/
 
 
-/* The precision-recall calculation allows the calculated GT to be anything (including 0|0 or 1|1).
-   We need to do some post-processing to fix this and force the allele counts to be unchanged.
+/**
+ * @brief Corrects calculated genotypes to preserve allele counts matching original calls.
+ * @note Tracks and reports genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
  */
 void phaseblockData::fix_allele_counts() {
     std::vector< std::vector<int> > allele_error_counts(AC_ERRTYPES, std::vector<int>(VARTYPES, 0));
@@ -459,6 +477,10 @@ void phaseblockData::fix_allele_counts() {
 /*******************************************************************************/
 
 
+/**
+ * @brief Writes allele count error cross-tabulation table to TSV file.
+ * @param[in] allele_error_counts 2D array indexed as [allele_count_errtype][vartype]
+ */
 void phaseblockData::write_genotype_error_summary(
         const std::vector< std::vector<int> > & allele_error_counts) {
     std::string out_genotype_errors_fn = g.out_prefix + "genotype-errors.tsv";
@@ -485,6 +507,10 @@ void phaseblockData::write_genotype_error_summary(
 /*******************************************************************************/
 
 
+/**
+ * @brief Uses dynamic programming to find optimal phasing and detect switch/flip errors per contig.
+ * @note Results stored in qvars->pb_phases and error lists in ctgPhaseblocks. Switches at phase set boundaries incur no cost.
+ */
 void phaseblockData::phase()
 {
     // phase each contig separately
@@ -630,6 +656,10 @@ void phaseblockData::phase()
 /*******************************************************************************/
 
 
+/**
+ * @brief Writes detected switch and flip error locations and classifications to TSV file.
+ * @note Error types: SWITCH_ERR, FLIP, SWITCH_AND_FLIP
+ */
 void phaseblockData::write_switchflips() {
 
     std::string out_sf_fn = g.out_prefix + "switchflips.tsv";
@@ -739,6 +769,16 @@ void phaseblockData::write_switchflips() {
 /*******************************************************************************/
 
 
+/**
+ * @brief Writes phasing summary statistics to TSV file.
+ * @param[in] phase_blocks Total count of phase blocks across all contigs
+ * @param[in] switch_errors Total count of phase switch errors
+ * @param[in] flip_errors Total count of phase flip errors
+ * @param[in] variants Total number of phased query variants
+ * @param[in] ng50 NG50 of phase blocks without any error breaks
+ * @param[in] s_ngc50 NGC50 of phase blocks broken on switch errors
+ * @param[in] sf_ngc50 NGC50 of phase blocks broken on switch and flip errors
+ */
 void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
         int flip_errors, int variants, int ng50, int s_ngc50, int sf_ngc50) {
     std::string out_phasing_summary_fn = g.out_prefix + "phasing-summary.tsv";
@@ -759,6 +799,12 @@ void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
 /*******************************************************************************/
 
 
+/**
+ * @brief Calculates NGC50 of phase blocks, optionally broken at switch or flip errors.
+ * @param[in] break_on_switch If true, split blocks at switch errors
+ * @param[in] break_on_flip If true, split blocks at flip errors
+ * @return NGC50 value (block length at 50% cumulative length), or 0 if no blocks exist
+ */
 int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
 
     // get total bases in genome
