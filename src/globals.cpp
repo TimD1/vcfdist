@@ -258,35 +258,6 @@ void Globals::parse_args(int argc, char ** argv) {
             i++;
             this->print_version();
 /**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-c" || 
-                std::string(argv[i]) == "--cluster") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '-c' used without providing clustering method.");
-            }
-            if (std::string(argv[i]) == "biwfa") {
-                g.cluster_method = argv[i];
-                i++;
-            } else if (std::string(argv[i]) == "size" || 
-                    std::string(argv[i]) == "gap") {
-                g.cluster_method = argv[i];
-                i++;
-                if (i == argc) {
-                    ERROR("Option '--cluster %s' used without providing minimum gap between (super)clusters", g.cluster_method.data());
-                }
-                try {
-                    this->cluster_min_gap = std::stoi(argv[i++]);
-                } catch (const std::exception & e) {
-                    ERROR("Invalid minimum gap between (super)clusters provided");
-                }
-                if (g.cluster_min_gap <= 0) {
-                    ERROR("Must provide positive minimum gap between (super)clusters");
-                }
-            } else {
-                ERROR("Invalid clustering option '%s' provided, must be one of: biwfa, size, gap", argv[i]);
-            }
-
-/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-x" || 
                 std::string(argv[i]) == "--mismatch-penalty") {
             i++;
@@ -522,8 +493,6 @@ void Globals::print_usage() const
     printf("      maximum supercluster size (larger superclusters are split)\n");
     /* printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs); */
     /* printf("      maximum iterations for expanding/merging clusters\n"); */
-    /* printf("  -c, --cluster (biwfa | size <INTEGER> | gap <INTEGER>) [biwfa]\n"); */
-    /* printf("      select clustering method (see Github Wiki for details)\n"); */
     /* printf("  -x, --mismatch-penalty <INTEGER> [%d]\n", g.sub); */
     /* printf("      Smith-Waterman mismatch (substitution) penalty\n"); */
     /* printf("  -o, --gap-open-penalty <INTEGER> [%d]\n", g.open); */

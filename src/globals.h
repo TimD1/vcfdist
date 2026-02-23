@@ -38,7 +38,6 @@ public:
     int max_size = 10000;             ///< Maximum variant size in bp; larger variants are ignored
 
     // clustering
-    std::string cluster_method = "biwfa"; ///< Clustering method: "biwfa", "size", or "gap"
     int max_supercluster_size = 15000;    ///< Maximum allowed supercluster size in bp before splitting
     int cluster_min_gap = 50;             ///< Minimum gap between clusters (for gap/size methods)
     int reach_min_gap = 10;               ///< Minimum gap for reach-based cluster merging

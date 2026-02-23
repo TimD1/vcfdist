@@ -132,15 +132,14 @@ void write_params() {
         "program\t%s\nversion\t%s\nout_prefix\t%s\ncommand\t%s\nreference_fasta\t%s\n"
         "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nwrite_outputs\t%s\nfilters\t%s\n"
         "min_var_qual\t%d\nmax_var_qual\t%d\nmax_var_size\t%d\nsv_threshold\t%d\n"
-        "credit_threshold\t%f\ncluster_method\t%s\ncluster_min_gap\t%d\n"
+        "credit_threshold\t%f\ncluster_min_gap\t%d\n"
         "reach_min_gap\t%d\nmax_cluster_itrs\t%d\nmax_threads\t%d\nmax_ram\t%f\n"
         "sub\t%d\nopen\t%d\nextend\t%d\n",
         g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
         g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
         filters_str.data(), g.min_qual, g.max_qual, g.max_size, g.sv_threshold,
-        g.credit_threshold, g.cluster_method.data(), g.cluster_min_gap,
-        g.reach_min_gap, g.max_cluster_itrs, g.max_threads, g.max_ram,
-        g.sub, g.open, g.extend);
+        g.credit_threshold, g.cluster_min_gap, g.reach_min_gap, g.max_cluster_itrs,
+        g.max_threads, g.max_ram, g.sub, g.open, g.extend);
     fclose(out_params);
 }
 

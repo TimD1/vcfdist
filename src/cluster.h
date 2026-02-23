@@ -87,9 +87,6 @@ struct var_info {
 
 /**************************************************************************************************/
 
-/** @brief Clusters variants on a single haplotype using gap-based methods. */
-void simple_cluster(std::shared_ptr<variantData> vcf, int callset);
-
 /** @brief Clusters variants using wavefront Smith-Waterman alignment. */
 void wf_swg_cluster(variantData * vcf, int ctg_idx, int hap,
         int sub, int open, int extend);
