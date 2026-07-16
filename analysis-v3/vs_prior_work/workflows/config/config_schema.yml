@@ -1,0 +1,34 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+type: object
+required: [data_dir, outdir, bench_bed, cache_dir, reference, truth, datasets, params]
+properties:
+  data_dir: {type: string}
+  outdir: {type: string}
+  bench_bed: {type: string}
+  cache_dir: {type: string}
+  reference:
+    type: object
+    required: [name, url]
+    properties:
+      name: {type: string}
+      url: {type: string}
+  truth:
+    type: object
+    required: [id, version, sample, vcf_url, bed_url]
+  datasets:
+    type: object
+    minProperties: 1
+    additionalProperties:
+      type: object
+      required: [version, label, vcf_url]
+  params:
+    type: object
+    required: [sv_threshold, max_sv_len, credit_threshold, max_dist, max_retries, sample, threads, max_ram_gb, vcfdist_v3_bin]
+    properties:
+      sv_threshold: {type: integer}
+      max_sv_len: {type: integer}
+      credit_threshold: {type: number}
+      max_dist: {type: integer}
+      max_retries: {type: integer}
+      threads: {type: integer}
+      max_ram_gb: {type: integer}

@@ -1,0 +1,53 @@
+[workspace]
+authors = ["Tim Dunn <timdunn@fulcrumgenomics.com>"]
+channels = ["conda-forge", "bioconda"]
+name = "vcfdist-vs-prior-work"
+platforms = ["osx-arm64", "linux-64"]
+version = "0.1.0"
+
+# Cross-platform analysis deps: parsers, plotters, workflow engine, tests.
+[feature.analysis.dependencies]
+python = ">=3.12,<3.13"
+snakemake-minimal = ">=8.28,<9"
+numpy = ">=1.26"
+matplotlib = ">=3.8"
+pytest = ">=8"
+
+# Bioinformatics tools (excluding hap.py) run on both linux-64 and osx-arm64:
+# vcfdist 2.6.4 has an osx-arm64 build, rtg-tools ships noarch (Java), and
+# bcftools/htslib/samtools/bedtools have osx-arm64 builds.
+[feature.tools]
+platforms = ["linux-64", "osx-arm64"]
+
+[feature.tools.dependencies]
+bcftools = ">=1.19"
+htslib = ">=1.19"
+bedtools = ">=2.31"
+samtools = ">=1.19"
+rtg-tools = ">=3.12"
+vcfdist = "==2.6.4"
+time = ">=1.9"          # GNU time (`command time -v`); macOS /usr/bin/time is BSD and lacks -v
+
+# hap.py is Python-2-only on bioconda (pins python >=2.7,<2.8); it CANNOT share
+# an environment with the Python-3 analysis feature. Isolate it in its own env,
+# invoked from the eval rule via `pixi run -e happy hap.py ...`.
+[feature.happy]
+platforms = ["linux-64"]
+
+[feature.happy.dependencies]
+"hap.py" = ">=0.3.15"
+
+[environments]
+default = ["analysis"]             # osx-arm64 + linux-64 (local dev)
+bench = ["analysis", "tools"]     # osx-arm64 + linux-64; snakemake + non-happy tools
+happy = ["happy"]                 # linux-64 only; hap.py (py2), used via `pixi run -e happy`
+
+[tasks]
+test = "pytest -q tests"
+
+# Pipeline tasks need the bench env; run with `pixi run -e bench <task>`.
+[feature.tools.tasks]
+download = "snakemake -j1 -s workflows/download.smk"
+benchmark = "snakemake -j1 -s workflows/benchmark.smk"
+# Fast chr20-only end-to-end check into a separate results-chr20/ tree.
+smoke = "snakemake -j1 -s workflows/benchmark.smk --config outdir=results-chr20 bench_bed=bench-chr20.bed"
