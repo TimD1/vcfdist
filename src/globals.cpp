@@ -531,7 +531,7 @@ void Globals::print_usage() const
  */
 void Globals::init_timers(const std::vector<std::string> & timer_strs) {
     for (const std::string & timer_name : timer_strs) {
-        g.timers.push_back( timer(timer_name) );
+        this->timers.push_back( timer(timer_name) );
     }
 }
 
