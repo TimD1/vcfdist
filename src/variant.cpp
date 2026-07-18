@@ -582,6 +582,7 @@ void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, 
  * @param[in] ref Reference sequence
  * @param[in] qual Quality score for all variants
  * @param[in] phase_set Phase set identifier for all variants
+ * @throws ERROR Unexpected CIGAR/pointer operation not in {PTR_MAT, PTR_SUB, PTR_DEL, PTR_INS}
  */
 void variantData::add_variants(
         const std::vector<int> & cigar,
@@ -640,6 +641,9 @@ void variantData::add_variants(
                         GT_REF_REF, g.max_qual, qual, phase_set);
                 query_idx += indel_len;
                 break;
+
+            default:
+                ERROR("Unexpected CIGAR operation (%d) in add_variants", cigar[cig_idx]);
         }
     }
 }
