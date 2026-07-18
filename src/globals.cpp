@@ -100,10 +100,10 @@ void Globals::parse_args(int argc, char ** argv) {
         }
     }
 
-    g.cmd = std::string(argv[0]);
+    this->cmd = std::string(argv[0]);
     for (int i = 1; i < argc; i++)
-        g.cmd += " " + std::string(argv[i]);
-    if (g.verbosity >= 1) INFO("Command: '%s'", g.cmd.data());
+        this->cmd += " " + std::string(argv[i]);
+    if (this->verbosity >= 1) INFO("Command: '%s'", this->cmd.data());
 
     if (argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-') {
         WARN("Optional arguments should be provided AFTER mandatory arguments, cannot use STDIN");
@@ -129,7 +129,7 @@ void Globals::parse_args(int argc, char ** argv) {
 
     // load reference FASTA
     this->ref_fasta_fn = std::string(argv[3]);
-    if (g.verbosity >= 1) {
+    if (this->verbosity >= 1) {
         INFO(" ");
         INFO("%s[%d/%d] Loading reference FASTA%s '%s'", COLOR_PURPLE,
                 TIME_READ, TIME_TOTAL-1, COLOR_WHITE, ref_fasta_fn.data());
@@ -213,7 +213,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid SV threshold size provided");
             }
-            if (g.sv_threshold < 2) {
+            if (this->sv_threshold < 2) {
                 ERROR("Must provide larger SV threshold size");
             }
 /**************************************************************************************************/
@@ -228,7 +228,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid minimum variant quality provided");
             }
-            if (g.min_qual < 0) {
+            if (this->min_qual < 0) {
                 ERROR("Must provide non-negative minimum variant quality");
             }
 /**************************************************************************************************/
@@ -247,7 +247,7 @@ void Globals::parse_args(int argc, char ** argv) {
         } else if (std::string(argv[i]) == "-n" || 
                 std::string(argv[i]) == "--no-output-files") {
             i++;
-            g.write = false;
+            this->write = false;
 /**************************************************************************************************/
         } else if (std::string(argv[i]) == "-h" || 
                 std::string(argv[i]) == "--help") {
@@ -414,21 +414,21 @@ void Globals::parse_args(int argc, char ** argv) {
     }
 
     // final checks, independent of order command-line params are set
-    if (g.max_qual < g.min_qual) {
+    if (this->max_qual < this->min_qual) {
         ERROR("Maximum variant quality must exceed minimum variant quality");
     }
 
     // warn about variant size exclusions and categories
-    if (g.max_size < g.sv_threshold) {
+    if (this->max_size < this->sv_threshold) {
         WARN("No SVs will be evaluated, since --largest-variant %d < --sv-threshold %d", 
-                g.max_size, g.sv_threshold);
+                this->max_size, this->sv_threshold);
     }
-    if (g.max_supercluster_size < g.max_size + 2) {
+    if (this->max_supercluster_size < this->max_size + 2) {
         ERROR("Invalid option selected: --max-supercluster-size %d < --largest-variant %d + 2",
-                g.max_supercluster_size, g.max_size);
+                this->max_supercluster_size, this->max_size);
     }
-    if (g.max_size == 1) {
-        WARN("Only SNPs will be evaluated with --largest-variant %d", g.max_size);
+    if (this->max_size == 1) {
+        WARN("Only SNPs will be evaluated with --largest-variant %d", this->max_size);
     }
 
     // calculate thread/RAM steps
@@ -469,7 +469,7 @@ void Globals::print_usage() const
     printf("\n  Inputs/Outputs:\n");
     printf("  -b, --bed <STRING>\n");
     printf("      BED file containing regions to evaluate\n");
-    printf("  -v, --verbosity <INTEGER> [%d]\n", g.verbosity);
+    printf("  -v, --verbosity <INTEGER> [%d]\n", this->verbosity);
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
     printf("  -p, --prefix <STRING> [./]\n");
     printf("      prefix for output files (directories need a trailing slash)\n");
@@ -479,17 +479,17 @@ void Globals::print_usage() const
     printf("\n  Variant Filtering/Selection:\n");
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
     printf("      select just variants with these FILTER values (OR operation)\n");
-    printf("  -l, --largest-variant <INTEGER> [%d]\n", g.max_size);
+    printf("  -l, --largest-variant <INTEGER> [%d]\n", this->max_size);
     printf("      maximum variant size; larger variants are ignored\n");
-    printf("  -sv, --sv-threshold <INTEGER> [%d]\n", g.sv_threshold);
+    printf("  -sv, --sv-threshold <INTEGER> [%d]\n", this->sv_threshold);
     printf("      variants of this size or larger are considered SVs, not INDELs\n");
-    printf("  -q, --min-qual <INTEGER> [%d]\n", g.min_qual);
+    printf("  -q, --min-qual <INTEGER> [%d]\n", this->min_qual);
     printf("      minimum variant quality; lower quality variants are ignored\n");
-    printf("  -mq, --max-qual <INTEGER> [%d]\n", g.max_qual);
+    printf("  -mq, --max-qual <INTEGER> [%d]\n", this->max_qual);
     printf("      maximum variant quality; higher variant qualities are thresholded\n");
 
     printf("\n  Clustering:\n");
-    printf("  -s, --max-supercluster-size <INTEGER> [%d]\n", g.max_supercluster_size);
+    printf("  -s, --max-supercluster-size <INTEGER> [%d]\n", this->max_supercluster_size);
     printf("      maximum supercluster size (larger superclusters are split)\n");
     /* printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs); */
     /* printf("      maximum iterations for expanding/merging clusters\n"); */
@@ -501,17 +501,17 @@ void Globals::print_usage() const
     /* printf("      Smith-Waterman gap extension penalty\n"); */
 
     printf("\n  Precision-Recall:\n");
-    printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", g.credit_threshold);
+    printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", this->credit_threshold);
     printf("      minimum partial credit to consider a variant a true positive\n");
-    printf("  -md, --max-dist <INTEGER> [%d]\n", g.max_dist);
+    printf("  -md, --max-dist <INTEGER> [%d]\n", this->max_dist);
     printf("      maximum alignment edit distance allowed for each supercluster\n");
     /* printf("  -mr, --max-retries <INTEGER> [%d]\n", g.max_retries); */
     /* printf("      maximum retries for aligning each supercluster after removing each large variant\n"); */
 
     printf("\n  Resource Usage:\n");
-    printf("  -t, --max-threads <INTEGER> [%d]\n", g.max_threads);
+    printf("  -t, --max-threads <INTEGER> [%d]\n", this->max_threads);
     printf("      maximum threads to use for clustering and precision/recall alignment\n");
-    printf("  -r, --max-ram <FLOAT> [%.2fGB]\n", g.max_ram);
+    printf("  -r, --max-ram <FLOAT> [%.2fGB]\n", this->max_ram);
     printf("      (approximate) maximum RAM to use for precision/recall alignment\n");
 
     printf("\n  Miscellaneous:\n");
