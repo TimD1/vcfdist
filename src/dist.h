@@ -98,11 +98,10 @@ public:
      * @return True if this cell precedes other in (qni, tni, qi, ti) order
      */
     bool operator<(const idx4 & other) const {
-        if (this->qni < other.qni) return true;
-        if (this->tni < other.tni) return true;
-        if (this->qi < other.qi) return true;
-        if (this->ti < other.ti) return true;
-        return false;
+        if (this->qni != other.qni) return this->qni < other.qni;
+        if (this->tni != other.tni) return this->tni < other.tni;
+        if (this->qi  != other.qi)  return this->qi  < other.qi;
+        return this->ti < other.ti;
     }
 
     /**
