@@ -450,18 +450,25 @@ void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ign
  * @param[in] ref Reference FASTA data for retrieving flanking bases for indels
  * @param[in] ctg Contig name
  * @param[in] idx Variant index in this container
+ * @throws ERROR An INS/DEL sits at the contig start (0-based pos 0), leaving no preceding base to anchor
+ * @throws ERROR The variant type is not TYPE_SUB, TYPE_INS, or TYPE_DEL
  */
 void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
         const std::string & ctg, int idx) {
     char ref_base;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE", 
-                ctg.data(), this->poss[idx]+1, this->refs[idx].data(), 
+        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE",
+                ctg.data(), this->poss[idx]+1, this->refs[idx].data(),
                 this->alts[idx].data());
         break;
     case TYPE_INS:
     case TYPE_DEL:
+        // INS/DEL are left-anchored on the preceding reference base; at contig start (0-based
+        // pos 0) there is no preceding base, so guard against the out-of-bounds read of index -1
+        if (this->poss[idx] == 0)
+            ERROR("Cannot left-anchor INS/DEL at contig start (0-based pos 0) on '%s' in print_var_info",
+                    ctg.data());
         ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
         fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE", ctg.data(), 
                 this->poss[idx], (ref_base + this->refs[idx]).data(), 
