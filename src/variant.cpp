@@ -192,7 +192,7 @@ int ctgVariants::set_allele_errtype(int vi) {
             return this->ac_errtype[vi] = AC_ERR_0_TO_1;
         }
     }
-    return AC_UNKNOWN;
+    return this->ac_errtype[vi] = AC_UNKNOWN;
 }
 
 
