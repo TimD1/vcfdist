@@ -396,7 +396,7 @@ void Globals::parse_args(int argc, char ** argv) {
             } catch (const std::exception & e) {
                 ERROR("Invalid max RAM provided");
             }
-            if (this->max_ram < 0) {
+            if (this->max_ram <= 0) {
                 ERROR("Max RAM must be positive");
             }
 /**************************************************************************************************/
