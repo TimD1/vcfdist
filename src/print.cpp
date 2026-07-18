@@ -117,6 +117,7 @@ inline std::string b2s(bool b) { return b ? "true" : "false"; }
 
 /**
  * @brief Writes all pipeline configuration parameters to TSV file.
+ * @throws ERROR if the output parameters TSV file cannot be opened for writing
  */
 void write_params() {
 
@@ -128,7 +129,10 @@ void write_params() {
     // write all params to file
     std::string out_params_fn = g.out_prefix + "parameters.tsv";
     FILE* out_params = fopen(out_params_fn.data(), "w");
-    fprintf(out_params, 
+    if (out_params == NULL) {
+        ERROR("Failed to open parameters TSV file '%s'", out_params_fn.data());
+    }
+    fprintf(out_params,
         "program\t%s\nversion\t%s\nout_prefix\t%s\ncommand\t%s\nreference_fasta\t%s\n"
         "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nwrite_outputs\t%s\nfilters\t%s\n"
         "min_var_qual\t%d\nmax_var_qual\t%d\nmax_var_size\t%d\nsv_threshold\t%d\n"

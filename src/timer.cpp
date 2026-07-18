@@ -62,11 +62,15 @@ std::string timer::get_name() {
 
 /**
  * @brief Writes all pipeline stage timer names and elapsed times to TSV file.
+ * @throws ERROR if the output runtime TSV file cannot be opened for writing
  */
 void write_runtime() {
     std::string runtimes_fn = g.out_prefix + "runtime.tsv";
     if (g.verbosity >= 1) INFO("  Writing stage runtimes '%s'", runtimes_fn.data());
     FILE* out_runtimes = fopen(runtimes_fn.data(), "w");
+    if (out_runtimes == NULL) {
+        ERROR("Failed to open runtime TSV file '%s'", runtimes_fn.data());
+    }
     for (int i = 0; i <= TIME_TOTAL; i++) {
         fprintf(out_runtimes, "%s\t%lf\n", g.timers[i].get_name().data(), g.timers[i].total());
     }
