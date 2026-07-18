@@ -604,6 +604,12 @@ void wf_swg_align(
     // init
     int query_len = query.size();
     int truth_len = truth.size();
+
+    // early exit if either string is empty
+    if (!query_len && !truth_len) { s = 0; return; }
+    if (!query_len) { s = o + e*truth_len; return; }
+    if (!truth_len) { s = o + e*query_len; return; }
+
     int mat_len = query_len + truth_len - 1;
     bool done = false;
     std::vector< std::vector< std::vector<int> > > offs(MATS);
