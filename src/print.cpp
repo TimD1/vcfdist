@@ -104,9 +104,14 @@ std::string PURPLE(const std::string & str) { return "\033[35m" + str + "\033[0m
 /**************************************************************************************************/
 
 /**
- * @brief Converts error probability to Phred quality score.
- * @param[in] p_error Error probability in (0, 1]
- * @return Quality score in [0, 100], clamped at 100 for high confidence
+ * @brief Converts an error probability to a Phred-scaled quality score.
+ *
+ * Used for the F1-Qscore accuracy metric (called as `qscore(1 - f1_score)`). This is a
+ * benchmarking summary statistic and is intentionally capped at 100 — a value distinct from the
+ * per-variant quality cap `g.max_qual` (default 60) applied to VCF QUAL values in
+ * `var_quals`/`gt_quals`. The two caps govern unrelated quantities and are not meant to match.
+ * @param[in] p_error Error probability; values <= 0 map to 100 (via +inf), values >= 1 map to 0
+ * @return Phred quality score, clamped to the range [0, 100]
  * @note Formula: Q = -10 * log10(p_error)
  */
 float qscore(double p_error) {
