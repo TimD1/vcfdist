@@ -604,6 +604,15 @@ void wf_swg_align(
     // init
     int query_len = query.size();
     int truth_len = truth.size();
+
+    // early exit if either string is empty, else mat_len underflows and the
+    // wavefront indexes out of range. An empty string turns the whole alignment
+    // into a single gap over the other string, costing o + e per base (gap open
+    // once, gap extend per base).
+    if (!query_len && !truth_len) { s = 0; return; }
+    if (!query_len) { s = o + e*truth_len; return; }
+    if (!truth_len) { s = o + e*query_len; return; }
+
     int mat_len = query_len + truth_len - 1;
     bool done = false;
     std::vector< std::vector< std::vector<int> > > offs(MATS);
