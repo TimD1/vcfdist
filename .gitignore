@@ -20,6 +20,8 @@
 src/test
 __pycache__
 **/.DS_Store
+**/*.dSYM/
+.claude/
 
 # ignore binaries
 src/vcfdist
@@ -40,3 +42,4 @@ issues/
 
 # ignore auto-generated documentation
 src/docs/
+docs/deliverables/

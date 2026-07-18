@@ -35,21 +35,21 @@ public:
     std::vector<int> filter_ids;      ///< htslib integer IDs corresponding to filters
     int min_qual = 0;                 ///< Minimum variant quality score (inclusive)
     int max_qual = 60;                ///< Maximum variant quality score (variants above are clamped)
-    int max_size = 10000;             ///< Maximum variant size in bp; larger variants are ignored
+    int max_size = 1000;              ///< Maximum variant size in bp; larger variants are ignored
 
     // clustering
-    int max_supercluster_size = 15000;    ///< Maximum allowed supercluster size in bp before splitting
-    int cluster_min_gap = 50;             ///< Minimum gap between clusters (for gap/size methods)
-    int reach_min_gap = 10;               ///< Minimum gap for reach-based cluster merging
-    int max_cluster_itrs = 4;             ///< Maximum iterations for expanding/merging clusters
-    int sub = 5;                          ///< Smith-Waterman substitution penalty
-    int open = 6;                         ///< Smith-Waterman gap-open penalty
-    int extend = 2;                       ///< Smith-Waterman gap-extend penalty
+    int max_supercluster_size = 15000; ///< Maximum allowed supercluster size in bp before splitting
+    int cluster_min_gap = 50;          ///< Minimum gap between clusters (for gap/size methods)
+    int reach_min_gap = 10;            ///< Minimum gap for reach-based cluster merging
+    int max_cluster_itrs = 1;          ///< Maximum iterations for expanding/merging clusters
+    int sub = 5;                       ///< Smith-Waterman substitution penalty
+    int open = 6;                      ///< Smith-Waterman gap-open penalty
+    int extend = 2;                    ///< Smith-Waterman gap-extend penalty
 
     // precision-recall
-    double credit_threshold = 0.7; ///< Minimum partial credit to count a variant as TP
-    int max_dist = 1000;           ///< Maximum alignment edit distance per supercluster
-    int max_retries = 5;           ///< Maximum retries for alignment after removing large variants
+    double credit_threshold = 0.98; ///< Minimum partial credit to count a variant as TP
+    int max_dist = 100;             ///< Maximum alignment edit distance per supercluster
+    int max_retries = 0;            ///< Maximum retries for alignment after removing large variants
 
     // memory params
     int max_threads = 64;          ///< Maximum number of threads to use
