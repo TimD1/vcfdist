@@ -789,8 +789,6 @@ void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
     fprintf(out_phasing_summary,
             "PHASE_BLOCKS\tSWITCH_ERRORS\tFLIP_ERRORS\tSWITCH_ERROR_RATE\tFLIP_ERROR_RATE\t"
             "NG_50\tSWITCH_NGC50\tSWITCHFLIP_NGC50\n");
-    // guard against divide-by-zero: with no phased variants, report a 0 rate
-    // (the phase() console path skips these rate lines entirely when variants == 0)
     float switch_error_rate = variants ? 100*switch_errors/float(variants) : 0;
     float flip_error_rate = variants ? 100*flip_errors/float(variants) : 0;
     fprintf(out_phasing_summary, "%d\t%d\t%d\t%.6f%%\t%.6f%%\t%d\t%d\t%d", phase_blocks,
