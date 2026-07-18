@@ -997,7 +997,8 @@ std::vector<int> get_supercluster_range(
  * @param[in] cluster_start_indices The 0-based inclusive index of the first cluster on each callset.
  * @param[in] cluster_end_indices The 0-based exclusive index of the last cluster on each callset.
  * @param[in] print Boolean indicating whether debug printing is enabled.
- * @throws WARNING if there are no valid locations to split the supercluster.
+ * @throws WARNING if no valid split location is found, in which case the oversized supercluster is
+ *     retained (its size and the --max-supercluster-size limit are reported) and processing continues.
  */
 std::vector< std::vector<int> > split_large_supercluster(
         std::vector< std::shared_ptr<ctgVariants> > & vars,
@@ -1027,8 +1028,11 @@ std::vector< std::vector<int> > split_large_supercluster(
                     std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints, i, print);
                     next_breakpoints.push_back(cluster_split_indices);
 
-                } else { // no valid splits (shouldn't happen?)
-                    printf("WARNING: no valid splits at %d-%d\n", beg_pos, end_pos);
+                } else { // no valid split location found; retain oversized supercluster
+                    WARN("No valid split location for oversized supercluster at %d-%d "
+                            "(size %d exceeds --max-supercluster-size %d); retaining "
+                            "oversized supercluster and continuing",
+                            beg_pos, end_pos, end_pos - beg_pos, g.max_supercluster_size);
                     large_supercluster_exists = false;
                 }
 
