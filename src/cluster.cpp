@@ -1186,13 +1186,26 @@ std::vector<int> get_supercluster_split_location(
     while (next_var.callset_idx >= 0) {
 
         // calculate max split size reduction factor
+        // best case: it splits the supercluster exactly in half (0.5)
+        // worst case: it splits at the end, supercluster is same size (1.0)
         int gap = std::max(0, next_var.start_pos - curr_var.end_pos);
-        double size_reduction_factor = std::max(double((curr_var.end_pos + gap/2) - orig_sc_beg_pos) / orig_sc_size,
+        double size_reduction_factor = orig_sc_size == 0 ? 1.0 :
+            std::max(double((curr_var.end_pos + gap/2) - orig_sc_beg_pos) / orig_sc_size,
                 double(orig_sc_end_pos - (curr_var.end_pos + gap/2)) / orig_sc_size);
-        double splits_to_halve_size = -1 / log2(size_reduction_factor);
 
-        // calculate overlap (could weight by number of haps overlapping)
-        double split_score = gap / splits_to_halve_size;
+        // log2_srf ranges from -1 (best) to 0 (worst)
+        double log2_srf = log2(size_reduction_factor);
+        double splits_to_halve_size = 0;
+        double split_score = 0;
+        if (size_reduction_factor > 0 && size_reduction_factor < 1.0 && log2_srf != 0) {
+            // ranges from 1 (best) to inf (worst)
+            splits_to_halve_size = -1 / log2_srf;
+
+            // Idea 1: split supercluster at largest gap
+            // Idea 2: split as close to middle as possible
+            // Final score: weigh both of these factors
+            split_score = gap / splits_to_halve_size;
+        }
         if (print) printf("indices: [%d, %d], gap: %d, frac: %f, splits: %f, score: %f\n",
                 split_indices[0], split_indices[1], gap, size_reduction_factor, splits_to_halve_size, split_score);
         if (split_score > best_split_score) {
