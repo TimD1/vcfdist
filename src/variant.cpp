@@ -202,11 +202,15 @@ int ctgVariants::set_allele_errtype(int vi) {
 /**
  * @brief Writes all parsed variants to a phased VCF file.
  * @param[in] out_vcf_fn Output VCF filename
+ * @throws ERROR if the output VCF file cannot be opened for writing
  */
 void variantData::write_vcf(std::string out_vcf_fn) {
 
     // VCF header
     FILE* out_vcf = fopen(out_vcf_fn.data(), "w");
+    if (out_vcf == NULL) {
+        ERROR("Failed to open VCF file '%s'", out_vcf_fn.data());
+    }
     const std::chrono::time_point now{std::chrono::system_clock::now()};
     time_t tt = std::chrono::system_clock::to_time_t(now);
     tm local_time = *localtime(&tt);
