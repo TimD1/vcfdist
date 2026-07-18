@@ -117,6 +117,7 @@ inline std::string b2s(bool b) { return b ? "true" : "false"; }
 
 /**
  * @brief Writes all pipeline configuration parameters to TSV file.
+ * @throws ERROR if the output parameters TSV file cannot be opened for writing
  */
 void write_params() {
 
@@ -128,7 +129,10 @@ void write_params() {
     // write all params to file
     std::string out_params_fn = g.out_prefix + "parameters.tsv";
     FILE* out_params = fopen(out_params_fn.data(), "w");
-    fprintf(out_params, 
+    if (out_params == NULL) {
+        ERROR("Failed to open parameters TSV file '%s'", out_params_fn.data());
+    }
+    fprintf(out_params,
         "program\t%s\nversion\t%s\nout_prefix\t%s\ncommand\t%s\nreference_fasta\t%s\n"
         "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nwrite_outputs\t%s\nfilters\t%s\n"
         "min_var_qual\t%d\nmax_var_qual\t%d\nmax_var_size\t%d\nsv_threshold\t%d\n"
@@ -258,6 +262,7 @@ void print_wfa_ptrs(
  * @brief Computes precision/recall statistics across all variant types and quality thresholds,
  *        writes full per-threshold results and summary table to TSV files, and prints to console.
  * @param[in] phasedata_ptr Phase block data with evaluated query and truth variants
+ * @throws ERROR if an output precision-recall TSV file cannot be opened for writing
  */
 void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
@@ -340,6 +345,9 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
         if (g.verbosity >= 1) INFO(" ");
         if (g.verbosity >= 1) INFO("  Writing precision-recall results to '%s'", out_pr_fn.data());
         out_pr = fopen(out_pr_fn.data(), "w");
+        if (out_pr == NULL) {
+            ERROR("Failed to open precision-recall TSV file '%s'", out_pr_fn.data());
+        }
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
                 "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     }
@@ -394,6 +402,9 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
         if (g.verbosity >= 1) 
             INFO("  Writing precision-recall summary to '%s'", out_pr_summ_fn.data());
         out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
+        if (out_pr_summ == NULL) {
+            ERROR("Failed to open precision-recall summary TSV file '%s'", out_pr_summ_fn.data());
+        }
         fprintf(out_pr_summ, "VAR_TYPE\tTHRESHOLD\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\n");
     }
     INFO(" ");
@@ -471,6 +482,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 /**
  * @brief Writes precision-recall TSV results and prints console summary.
  * @param[in] phasedata_ptr Phase block data with variant evaluation results
+ * @throws ERROR if an output results TSV file cannot be opened for writing
  */
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
@@ -485,6 +497,9 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         // print phasing information
         std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";
         FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
+        if (out_phaseblocks == NULL) {
+            ERROR("Failed to open phase-blocks TSV file '%s'", out_phaseblocks_fn.data());
+        }
         if (g.verbosity >= 1) INFO("  Writing phasing results to '%s'", out_phaseblocks_fn.data());
         fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tVARIANTS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
         for (const std::string & ctg : phasedata_ptr->contigs) {
@@ -514,6 +529,9 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_query_fn = g.out_prefix + "query.tsv";
         if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
         FILE* out_query = fopen(out_query_fn.data(), "w");
+        if (out_query == NULL) {
+            ERROR("Failed to open query variant TSV file '%s'", out_query_fn.data());
+        }
         fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
                 "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (const std::string & ctg : phasedata_ptr->contigs) {
@@ -552,6 +570,9 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
         std::string out_truth_fn = g.out_prefix + "truth.tsv";
         if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
         FILE* out_truth = fopen(out_truth_fn.data(), "w");
+        if (out_truth == NULL) {
+            ERROR("Failed to open truth variant TSV file '%s'", out_truth_fn.data());
+        }
         fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
                 "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
         for (const std::string & ctg : phasedata_ptr->contigs) {

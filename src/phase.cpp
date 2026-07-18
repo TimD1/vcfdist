@@ -15,12 +15,16 @@
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
  * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
+ * @throws ERROR if the output summary VCF file cannot be opened for writing
  */
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // VCF header
     if (g.verbosity >= 1) INFO("  Writing summary VCF to '%s'", out_vcf_fn.data());
     FILE* out_vcf = fopen(out_vcf_fn.data(), "w");
+    if (out_vcf == NULL) {
+        ERROR("Failed to open summary VCF file '%s'", out_vcf_fn.data());
+    }
     const std::chrono::time_point<std::chrono::system_clock> now{std::chrono::system_clock::now()};
     time_t tt = std::chrono::system_clock::to_time_t(now);
     tm local_time = *localtime(&tt);
@@ -480,6 +484,7 @@ void phaseblockData::fix_allele_counts() {
 /**
  * @brief Writes allele count error cross-tabulation table to TSV file.
  * @param[in] allele_error_counts 2D array indexed as [allele_count_errtype][vartype]
+ * @throws ERROR if the output genotype error TSV file cannot be opened for writing
  */
 void phaseblockData::write_genotype_error_summary(
         const std::vector< std::vector<int> > & allele_error_counts) {
@@ -487,6 +492,9 @@ void phaseblockData::write_genotype_error_summary(
     FILE* out_genotype_errors = 0;
     if (g.verbosity >= 1) INFO("  Writing genotype error results to '%s'", out_genotype_errors_fn.data());
     out_genotype_errors = fopen(out_genotype_errors_fn.data(), "w");
+    if (out_genotype_errors == NULL) {
+        ERROR("Failed to open genotype error TSV file '%s'", out_genotype_errors_fn.data());
+    }
     fprintf(out_genotype_errors, "VAR_TYPE\tALLELE_COUNT_0_TO_1\tALLELE_COUNT_0_TO_2\tALLELE_COUNT_1_TO_0\tALLELE_COUNT_1_TO_1\tALLELE_COUNT_1_TO_2\tALLELE_COUNT_2_TO_0\tALLELE_COUNT_2_TO_1\tALLELE_COUNT_2_TO_2\n");
     for (int vartype = 0; vartype < VARTYPES; vartype++) {
         fprintf(out_genotype_errors, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
@@ -659,6 +667,7 @@ void phaseblockData::phase()
 /**
  * @brief Writes detected switch and flip error locations and classifications to TSV file.
  * @note Error types: SWITCH_ERR, FLIP, SWITCH_AND_FLIP
+ * @throws ERROR if the output switchflip TSV file cannot be opened for writing
  */
 void phaseblockData::write_switchflips() {
 
@@ -666,6 +675,9 @@ void phaseblockData::write_switchflips() {
     FILE* out_sf = 0;
     if (g.verbosity >= 1) INFO("  Writing switchflip results to '%s'", out_sf_fn.data());
     out_sf = fopen(out_sf_fn.data(), "w");
+    if (out_sf == NULL) {
+        ERROR("Failed to open switchflip TSV file '%s'", out_sf_fn.data());
+    }
     fprintf(out_sf, "CONTIG\tSTART\tSTOP\tSWITCH_TYPE\tVARIANT\tPHASE_BLOCK\n");
 
     // get sizes of each correct phase block (split on flips, not just switch)
@@ -778,6 +790,7 @@ void phaseblockData::write_switchflips() {
  * @param[in] ng50 NG50 of phase blocks without any error breaks
  * @param[in] s_ngc50 NGC50 of phase blocks broken on switch errors
  * @param[in] sf_ngc50 NGC50 of phase blocks broken on switch and flip errors
+ * @throws ERROR if the output phasing summary TSV file cannot be opened for writing
  */
 void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
         int flip_errors, int variants, int ng50, int s_ngc50, int sf_ngc50) {
@@ -786,6 +799,9 @@ void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
     if (g.verbosity >= 1) INFO("  Writing phasing summary to '%s'", 
             out_phasing_summary_fn.data());
     FILE* out_phasing_summary = fopen(out_phasing_summary_fn.data(), "w");
+    if (out_phasing_summary == NULL) {
+        ERROR("Failed to open phasing summary TSV file '%s'", out_phasing_summary_fn.data());
+    }
     fprintf(out_phasing_summary,
             "PHASE_BLOCKS\tSWITCH_ERRORS\tFLIP_ERRORS\tSWITCH_ERROR_RATE\tFLIP_ERROR_RATE\t"
             "NG_50\tSWITCH_NGC50\tSWITCHFLIP_NGC50\n");
