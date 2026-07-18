@@ -45,6 +45,12 @@ std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
  * @note Required args: query.vcf, truth.vcf, ref.fasta (must be first 3). Optional flag groups:
  *       input/output (-b, -v, -p, -n), variant filtering (-f, -l, -sv, -q, -mq),
  *       clustering (-s), precision-recall (-ct, -md), resources (-t, -r), misc (-h, -ci).
+ * @note The '-v' short flag is intentionally overloaded and disambiguated by argument count:
+ *       when the required args are absent (argc < 4) it aliases '--version' (print version and
+ *       exit); when the required args are present (argc >= 4) it aliases '--verbosity' (expects a
+ *       trailing 0/1/2). The two meanings never collide at runtime because they live in mutually
+ *       exclusive argc regimes, but the overload is confusing and both spellings are documented in
+ *       print_usage(). See issue #70 (sub-issue of #45, D2 defect #12) for a proposed flag change.
  * @throws Errors on invalid file paths, out-of-range parameters, or format errors.
  */
 void Globals::parse_args(int argc, char ** argv) {
@@ -61,6 +67,9 @@ void Globals::parse_args(int argc, char ** argv) {
                 print_help = true;
             } else if (std::string(argv[i]) == "-v" ||
                     std::string(argv[i]) == "--version") {
+                // NOTE (#70): here '-v' means '--version'. In the main option loop below (reached
+                // only when argc >= 4) the same '-v' short flag instead aliases '--verbosity'.
+                // The overload is intentional and argc-gated; see the parse_args @note above.
                 i++;
                 this->print_version();
             } else if (std::string(argv[i]) == "-ci" || 
@@ -80,8 +89,11 @@ void Globals::parse_args(int argc, char ** argv) {
     }
 
     // parse verbosity first
+    // NOTE (#70): here '-v' means '--verbosity' (reached only when argc >= 4). In the argc < 4
+    // pre-check above the same '-v' short flag instead aliases '--version'. The overload is
+    // intentional and argc-gated; see the parse_args @note above.
     for (int i = 0; i+1 < argc; i++) {
-        if (std::string(argv[i]) == "-v" || 
+        if (std::string(argv[i]) == "-v" ||
                 std::string(argv[i]) == "--verbosity") {
             i++;
             if (i == argc) {
