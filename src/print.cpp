@@ -605,7 +605,7 @@ std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs) 
         if (cell.qi == prev.qi+1 && cell.ti == prev.ti) { return "  |"; }
         else if (cell.qi == prev.qi && cell.ti == prev.ti+1) { return "  _"; }
         else if (cell.qi == prev.qi+1 && cell.ti == prev.ti+1) { return "  \\"; }
-        else { return "?1"; } // invalid
+        else { return " ?1"; } // invalid
     } else if (cell.qi == 0 && prev.qni < cell.qni) { // different query node, print node id
         std::ostringstream ostr;
         ostr << std::setfill('0') << std::setw(2) << (prev.qni);
@@ -614,7 +614,7 @@ std::string get_ptr_repr(idx4 cell, const std::unordered_map<idx4,idx4> & ptrs) 
         std::ostringstream ostr;
         ostr << std::setfill('0') << std::setw(2) << (prev.tni);
         return "<" + ostr.str();
-    } else { return "?2"; } // invalid
+    } else { return " ?2"; } // invalid
 }
 
 /**
