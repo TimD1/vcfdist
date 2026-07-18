@@ -35,10 +35,14 @@ ctgSuperclusters::ctgSuperclusters() {
  */
 int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
     // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
-    return std::min( (qvi_start == qvi_end) ? std::numeric_limits<int>::max() : 
-                this->callset_vars[QUERY]->poss[qvi_start], 
+    int min_ref_pos = std::min(
+            (qvi_start == qvi_end) ? std::numeric_limits<int>::max() :
+                this->callset_vars[QUERY]->poss[qvi_start],
             (tvi_start == tvi_end) ? std::numeric_limits<int>::max() :
-                this->callset_vars[TRUTH]->poss[tvi_start]) - 1;
+                this->callset_vars[TRUTH]->poss[tvi_start]);
+    // apply the -1 padding only to real positions, so the empty-range sentinel stays int::max()
+    // and is consistent with get_max_ref_pos (previously this returned int::max()-1)
+    return (min_ref_pos == std::numeric_limits<int>::max()) ? min_ref_pos : min_ref_pos - 1;
 }
 
 /**
