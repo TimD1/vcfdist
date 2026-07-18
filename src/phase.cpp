@@ -428,7 +428,7 @@ void phaseblockData::fix_allele_counts() {
         // false negative errors can only be counted from the truth VCF
         std::shared_ptr<ctgVariants> tvars = 
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[TRUTH];
-        for (int vi = 0; vi < qvars->n; vi++) {
+        for (int vi = 0; vi < tvars->n; vi++) {
             int vartype = tvars->get_vartype(vi);
             if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
