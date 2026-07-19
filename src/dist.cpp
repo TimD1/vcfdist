@@ -4,6 +4,7 @@
  */
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <map>
 #include <queue>
@@ -115,16 +116,66 @@ std::string generate_str(
 /**************************************************************************************************/
 
 /**
+ * @brief Flat penalty for bypassing (skipping) a truth variant during alignment.
+ *
+ * @param[in] credit_threshold Credit threshold on the interval (0,1].
+ * @param[in] truth_var_len Edit-distance size of the variant (1 for SNP, |alt| for INS, |ref| for DEL).
+ * @return The integer skip penalty, computed with a small magnitude-scaled
+ *   floating-point tolerance so exact-integer products are not spuriously rounded up.
+ */
+int skip_cost(double credit_threshold, int truth_var_len) {
+    // EPSILON subtracted before ceil() to avoid extra rounding up after floating point calculation
+    return int(std::ceil( (1.0 - credit_threshold) * truth_var_len - EPSILON));
+}
+
+/**************************************************************************************************/
+
+/**
+ * @brief Selects the largest bypassed non-SUB truth variant to lock as FN, or -1 if none.
+ *
+ * The un-swallow drop targets only variants the alignment actually bypassed (routed around via
+ * their reference-allele bypass node). A variant whose real node was on the path but which was
+ * dragged to FN by sync-group credit-splitting is NOT a candidate, since dropping it would
+ * permanently lock out a variant the query matched. SUBs are excluded because a 1 bp bypass
+ * region swallows no neighbors. Among the remaining candidates the largest is the biggest
+ * swallower, so removing it recovers the most neighbor credit per re-align.
+ *
+ * @param[in] tvar_idxs Truth variant indices, parallel to the other vectors.
+ * @param[in] tvar_sizes Edit-distance size of each variant (max of |ref|, |alt|).
+ * @param[in] is_sub Whether each variant is a substitution (SNP).
+ * @param[in] was_bypassed Whether the min-cost path bypassed each variant.
+ * @return The truth variant index of the largest bypassed non-SUB variant, or -1 if none.
+ */
+int select_fn_drop_candidate(
+        const std::vector<int> & tvar_idxs,
+        const std::vector<int> & tvar_sizes,
+        const std::vector<bool> & is_sub,
+        const std::vector<bool> & was_bypassed) {
+    int drop_idx = -1;
+    int drop_size = -1;
+    for (size_t i = 0; i < tvar_idxs.size(); i++) {
+        if (was_bypassed[i] and not is_sub[i] and tvar_sizes[i] > drop_size) {
+            drop_size = tvar_sizes[i];
+            drop_idx = tvar_idxs[i];
+        }
+    }
+    return drop_idx;
+}
+
+/**************************************************************************************************/
+
+/**
  * @brief Runs graph-based alignment and returns the optimal alignment score.
  *
- * Performs a forward-pass wavefront alignment between the truth sequence and the query graph,
- * filling a pointer map used for backtracking the optimal path.
+ * Performs a forward-pass weighted shortest-path alignment (Dial's bucket-queue algorithm)
+ * between the truth sequence and the query graph, filling a pointer map used for backtracking the
+ * optimal path.
  *
  * @param[in] graph The alignment graph containing query and truth nodes.
  * @param[in,out] ptrs Map populated with predecessor pointers for backtracking.
  * @param[in] print Whether to enable debug printing.
  * @return The edit distance score of the optimal alignment.
- * @throws ERROR if the alignment queue becomes empty before the endpoint is reached.
+ * @throws ERROR if the buckets drain before the endpoint cell is reached.
  */
 int calc_prec_recall_aln(
         const std::shared_ptr<Graph> graph,
@@ -132,31 +183,58 @@ int calc_prec_recall_aln(
         bool print
         ) {
 
-    // init matrices
-    std::unordered_set<idx4> done; // visited cells
-    std::queue<idx4> queue; // still to be explored in this wave
-    
-    // set first wavefront
+    // Weighted shortest path via Dial's algorithm (bucket queue). Every graph move is a
+    // non-negative-cost edge: match extensions and node transitions into non-bypass truth nodes
+    // cost 0, SUB/INS/DEL edits cost 1, and entering a bypass truth node costs skip_cost(). A cell
+    // reached by an edge of cost k is enqueued k buckets ahead of its predecessor's cost.
+    std::unordered_set<idx4> done; // finalized cells (shortest cost known)
+
+    // bucket[s] holds (cell, predecessor) pairs first reachable at cumulative cost s; a cell may be
+    // enqueued in several buckets, but is finalized only the first time it is popped (from its
+    // cheapest bucket), at which point its predecessor is recorded, guaranteeing ptrs follows a
+    // min-cost path.
+    std::vector< std::queue< std::pair<idx4, idx4> > > bucket(1);
     idx4 start(0, 0, 0, 0);
-    queue.push(start);
-    done.insert(start);
-    ptrs[start] = idx4(0, 0, -1, -1);
+    bucket[0].push({start, idx4(0, 0, -1, -1)});
     int score = 0;
 
-    // continue looping until full alignment found
-    std::unordered_set<idx4> curr_wave; // everything explored this wave
-    std::unordered_set<idx4> prev_wave; // everything explored prev wave
-    while (score <= g.max_dist or g.max_retries == 0) {
-        /* if (print) printf("  score = %d\n", score); */
-        if (queue.empty()) ERROR("Empty queue in 'prec_recall_aln()'.");
+    // enqueue a cell at a target cumulative cost, growing the bucket vector as needed
+    auto push_at = [&](const idx4 & to, const idx4 & from, int cost) {
+        if (contains(done, to)) return;
+        if (cost >= int(bucket.size())) bucket.resize(cost + 1);
+        bucket[cost].push({to, from});
+    };
 
-        // EXTEND WAVEFRONT (stay at same score)
-        while (!queue.empty()) {
-            idx4 x = queue.front(); queue.pop();
-            /* if (print) printf("    x = node (%d, %d) cell (%d, %d)\n", x.qni, x.tni, x.qi, x.ti); */
-            prev_wave.insert(x);
+    // toll for transitioning INTO truth node tni: skip_cost of the bypassed variant if tni is a
+    // bypass node (tskips[tni] >= 0), else 0
+    auto tni_toll = [&](int tni) -> int {
+        if (graph->tskips[tni] < 0) return 0;
+        std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
+        int vidx = graph->tskips[tni];
+        int len = std::max(int(tvars->refs[vidx].size()), int(tvars->alts[vidx].size()));
+        return skip_cost(g.credit_threshold, len);
+    };
 
-            // allow match on query
+    idx4 end = idx4(graph->qnodes-1, graph->tnodes-1,
+                int(graph->qseqs[graph->qnodes-1].length()-1),
+                int(graph->tseqs[graph->tnodes-1].length()-1));
+
+    int final_score = -1;
+    while (score < int(bucket.size())) {
+        while (!bucket[score].empty()) {
+            std::pair<idx4, idx4> item = bucket[score].front(); bucket[score].pop();
+            idx4 x = item.first;
+            if (contains(done, x)) continue; // already finalized via a cheaper bucket
+            done.insert(x);
+            ptrs[x] = item.second; // predecessor from the cheapest bucket that reached x
+            /* if (print) printf("    x = node (%d, %d) cell (%d, %d) score %d\n", x.qni, x.tni, x.qi, x.ti, score); */
+
+            // reached the endpoint: its cost is now finalized and optimal
+            if (x == end) { final_score = score; break; }
+
+            // COST-0 MOVES (same bucket) --------------------------------------------------------
+
+            // allow match on query (diagonal extension to its maximum reach)
             idx4 y(x.qni, x.tni, x.qi, x.ti);
             bool match = false;
             while (y.qi+1 < int(graph->qseqs[y.qni].length()) &&
@@ -166,83 +244,56 @@ int calc_prec_recall_aln(
                 y.ti++;
                 match = true;
             }
-            if (match && !contains(done, y) && !contains(curr_wave, y)) {
-                /* if (print) printf("      y = node (%d, %d) cell (%d, %d)\n", y.qni, y.tni, y.qi, y.ti); */
-                queue.push(y); curr_wave.insert(y); ptrs[y] = x;
-            }
+            if (match) push_at(y, x, score);
 
             // allow bottom-right corner to move diagonally into next truth and query nodes
-            // NOTE: separating this case out allows sync points between adjacent variants
+            // NOTE: separating this case out allows sync points between adjacent variants.
+            // Entering a bypass truth node charges the skip toll.
             if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti == int(graph->tseqs[x.tni].length())-1) {
                 for (int qni : graph->qnexts[x.qni]) { // for all next nodes
                     for (int tni : graph->tnexts[x.tni]) {
                         idx4 z(qni, tni, 0, 0);
-                        if (!contains(done, z) && !contains(curr_wave, z)) {
-                            /* if (print) printf("      z = node (%d, %d) cell (%d, %d)\n", z.qni, z.tni, z.qi, z.ti); */
-                            queue.push(z); curr_wave.insert(z); ptrs[z] = x;
-                        }
+                        push_at(z, x, score + tni_toll(tni));
                     }
                 }
             }
 
-            // allow last row to move into first row of all next query nodes
+            // allow last row to move into first row of all next query nodes (tni unchanged, so this
+            // never enters a bypass node: no toll)
             if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length())) {
                 for (int qni : graph->qnexts[x.qni]) { // for all next nodes
                     idx4 z(qni, x.tni, 0, x.ti);
-                    if (!contains(done, z) && !contains(curr_wave, z)) {
-                        /* if (print) printf("      z = node (%d, %d) cell (%d, %d)\n", z.qni, z.tni, z.qi, z.ti); */
-                        queue.push(z); curr_wave.insert(z); ptrs[z] = x;
-                    }
+                    push_at(z, x, score);
                 }
             }
 
-            // allow last col to move into first col of next truth node
+            // allow last col to move into first col of next truth node; entering a bypass truth node
+            // charges the skip toll
             if (x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
                 for (int tni : graph->tnexts[x.tni]) { // for all next nodes
                     idx4 z(x.qni, tni, x.qi, 0);
-                    if (!contains(done, z) && !contains(curr_wave, z)) {
-                        /* if (print) printf("      z = node (%d, %d) cell (%d, %d)\n", z.qni, z.tni, z.qi, z.ti); */
-                        queue.push(z); curr_wave.insert(z); ptrs[z] = x;
-                    }
+                    push_at(z, x, score + tni_toll(tni));
                 }
             }
-        }
 
-        // mark all cells visited this wave as done
-        for (idx4 x : curr_wave) { done.insert(x); }
-        curr_wave.clear();
-
-        // exit if we're done aligning
-        idx4 end = idx4(graph->qnodes-1, graph->tnodes-1, 
-                    int(graph->qseqs[graph->qnodes-1].length()-1), 
-                    int(graph->tseqs[graph->tnodes-1].length()-1));
-        if (contains(done, end)) break;
-
-        // NEXT WAVEFRONT (increase score by one)
-        for (idx4 x : prev_wave) {
+            // COST-1 EDITS (next bucket) --------------------------------------------------------
             if (x.qi+1 < int(graph->qseqs[x.qni].length())) { // INS
-                idx4 y(x.qni, x.tni, x.qi+1, x.ti);
-                if (!contains(done, y) && !contains(curr_wave, y)) {
-                    queue.push(y); curr_wave.insert(y); ptrs[y] = x;
-                }
+                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti), x, score + 1);
             }
             if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // DEL
-                idx4 y(x.qni, x.tni, x.qi, x.ti+1);
-                if (!contains(done, y) && !contains(curr_wave, y)) {
-                    queue.push(y); curr_wave.insert(y); ptrs[y] = x;
-                }
+                push_at(idx4(x.qni, x.tni, x.qi, x.ti+1), x, score + 1);
             }
-            if (x.qi+1 < int(graph->qseqs[x.qni].length()) && 
+            if (x.qi+1 < int(graph->qseqs[x.qni].length()) &&
                     x.ti+1 < int(graph->tseqs[x.tni].length())) { // SUB
-                idx4 y(x.qni, x.tni, x.qi+1, x.ti+1);
-                if (!contains(done, y) && !contains(curr_wave, y)) {
-                    queue.push(y); curr_wave.insert(y); ptrs[y] = x;
-                }
+                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, score + 1);
             }
         }
-        prev_wave.clear();
+        if (final_score >= 0) break;
         score++;
     }
+
+    if (final_score < 0) ERROR("Endpoint unreachable in 'calc_prec_recall_aln()'.");
+    score = final_score;
 
     if (print) {
         printf("Alignment score: %d\n", score);
@@ -258,8 +309,14 @@ int calc_prec_recall_aln(
 /**
  * @brief Evaluates query variants against truth for one supercluster and haplotype combination.
  *
- * Iteratively aligns the query graph to the truth sequence, classifying variants as TP/FP/FN
- * and re-evaluating after excluding large FN variants if the alignment exceeds the cost limit.
+ * Runs an outer re-align loop. Each pass builds the alignment graph from the still-unevaluated
+ * variants, computes the single-pass precision-recall alignment, and classifies variants as
+ * TP/FP/FN (missed truth variants become FN). If the pass bypassed any non-SUB truth variant
+ * (routed around it via its reference-allele node), the largest such indel/SV is locked out
+ * permanently as FN and every other variant is reset to unevaluated, so the next pass re-aligns
+ * without the swallowing variant and recovers its neighbors' credit. Variants dragged to FN by
+ * sync-group credit-splitting (not bypassed) are never dropped. The loop ends when no bypassed
+ * indel/SV candidate remains.
  *
  * @param[in] scs Supercluster data containing query and truth variant containers.
  * @param[in] sc_idx Index of the supercluster to evaluate.
@@ -270,114 +327,67 @@ int calc_prec_recall_aln(
  */
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
 			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, bool print) {
-
     bool done = false;
     while (not done) {
 
-        // graph is constructed only from unevaluated variants
+        // graph is constructed only from still-unevaluated variants
         std::shared_ptr<Graph> graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
         std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
         if (print) graph->print();
 
+        // single-pass alignment + backtrack: labels TP/FP and marks missed truth variants FN,
+        // recording which truth variants the path actually bypassed
         std::unordered_map<idx4, idx4> ptrs;
-        int score = calc_prec_recall_aln(graph, ptrs, print);
-        bool aligned = score <= g.max_dist;
-        if (aligned or g.max_retries == 0) { // alignment succeeded
-            calc_prec_recall(graph, ptrs, truth_hi, print);
-            done = true;
-        }
-        ptrs.clear();
-        if (g.max_retries == 0) {
-            return;
-        }
+        std::unordered_set<int> bypassed_tvars;
+        calc_prec_recall_aln(graph, ptrs, print);
+        calc_prec_recall(graph, ptrs, truth_hi, bypassed_tvars, print);
 
-        // NOTE: if alignment failed because it was too expensive, this can only be caused by a FN
-        // truth variant, since query variants can be skipped and the reference sections match.
-        // Try alignments without some of the largest truth variants
-
-        // NOTE: if we did align successfully and found a FN INDEL, re-evaluate all FP and FN variants 
-        // besides the largest FN. The motivation for this is that large FN truth SVs will have a sync 
-        // group that extends pretty far left and right, "swallowing" other correct variant calls. 
-        // Since correctness is determined per sync group, many TP SNP calls can't be identified unless
-        // evaluated without the presence of this FN SV. So we remove it and re-evaluate.
-        std::vector< std::pair<int, int> > exclude_sizes; // pairs of (truth_var_size, truth_var_idx)
+        // Choose the un-swallow candidate: the largest non-SUB truth variant the path BYPASSED.
+        // A bypassed indel/SV has a sync group that extends far left and right, "swallowing"
+        // correct neighboring calls; removing it and re-aligning lets those neighbors be credited.
+        // Only genuinely-bypassed variants qualify -- a variant whose real node was on the path but
+        // which was dragged to FN by sync-group credit-splitting must NOT be dropped, since that
+        // would permanently lock out a variant the query matched. A SNP never triggers the loop,
+        // since a 1 bp bypass region swallows nothing (matches the old retry loop's candidate filter).
+        std::vector<int> cand_idxs, cand_sizes;
+        std::vector<bool> cand_is_sub, cand_bypassed;
         for (int tni = 0; tni < graph->tnodes; tni++) {
             if (graph->ttypes[tni] != TYPE_REF) {
                 int tvar_idx = graph->tidxs[tni];
-                if (not aligned or (tvars->errtypes[truth_hi][tvar_idx] == ERRTYPE_FN
-                            and tvars->types[tvar_idx] != TYPE_SUB)) {
-                    done = false;
-                    int tvar_size = std::max(tvars->alts[tvar_idx].size(), tvars->refs[tvar_idx].size());
-                    exclude_sizes.push_back(std::make_pair(tvar_size, tvar_idx));
-                }
+                cand_idxs.push_back(tvar_idx);
+                cand_sizes.push_back(std::max(tvars->alts[tvar_idx].size(),
+                        tvars->refs[tvar_idx].size()));
+                cand_is_sub.push_back(tvars->types[tvar_idx] == TYPE_SUB);
+                cand_bypassed.push_back(bypassed_tvars.count(tvar_idx) > 0);
             }
         }
-        // NOTE: sort FNs (if aligned) or all truth vars (if not aligned) by decreasing variant size
-        std::sort(exclude_sizes.rbegin(), exclude_sizes.rend());
-        if (print) for (int i = 0; i < int(exclude_sizes.size()); i++) {
-            int tvar_idx = exclude_sizes[i].second;
-            printf("  exclude size %d, var %d = %s:%d (%s,%s)\n",
-                    exclude_sizes[i].first, tvar_idx, ctg.data(), 
-                    tvars->poss[tvar_idx], tvars->refs[tvar_idx].data(),
-                    tvars->alts[tvar_idx].data());
-        }
-        // try a number of alignments without some of the largest variants, choose the best one
-        if (not done) { // there are potential variants to exclude
-            std::vector< std::pair<int, int> > exclude_dists;
-            for (int retry = 0; retry < std::min(g.max_retries, int(exclude_sizes.size())); retry++) {
+        int drop_idx = select_fn_drop_candidate(cand_idxs, cand_sizes, cand_is_sub, cand_bypassed);
 
-                // retry with all variants except the chosen variant to exclude (FN)
-                for (int tni = 0; tni < graph->tnodes; tni++) {
-                    if (graph->ttypes[tni] != TYPE_REF) {
-                        int tvar_idx = graph->tidxs[tni];
-                        if (tvar_idx == exclude_sizes[retry].second) {
-                            tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_FN;
-                        } else {
-                            tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_UN;
-                        }
-                    }
-                }
-                for (int qni = 0; qni < graph->qnodes; qni++) {
-                    if (graph->qtypes[qni] != TYPE_REF) {
-                        int qvar_idx = graph->qidxs[qni];
-                        qvars->errtypes[truth_hi][qvar_idx] = ERRTYPE_UN;
-                    }
-                }
+        if (drop_idx < 0) { // no bypassed indel/SV candidate: converged, this pass's labels are final
+            done = true;
+        } else {
+            if (print) printf("  drop FN var %d = %s:%d (%s,%s)\n",
+                    drop_idx, ctg.data(), tvars->poss[drop_idx], tvars->refs[drop_idx].data(),
+                    tvars->alts[drop_idx].data());
 
-                // retry alignment (with one large variant excluded, as well as all TPs)
-                std::shared_ptr<Graph> retry_graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
-                if (print) retry_graph->print();
-                std::unordered_map<idx4, idx4> retry_ptrs;
-                int dist = calc_prec_recall_aln(retry_graph, retry_ptrs, print);
-                exclude_dists.push_back(std::make_pair(dist, exclude_sizes[retry].second));
-            }
-
-            // sort retried alignments in order of resulting edit distance
-            std::sort(exclude_dists.begin(), exclude_dists.end());
-            if (print) for (int i = 0; i < int(exclude_dists.size()); i++) {
-                int tvar_idx = exclude_dists[i].second;
-                printf("  exclude dist %d, var %d = %s:%d (%s,%s)\n",
-                        exclude_dists[i].first, tvar_idx, ctg.data(), 
-                        tvars->poss[tvar_idx], tvars->refs[tvar_idx].data(),
-                        tvars->alts[tvar_idx].data());
-            }
-
-            // the variant for which excluding resulted in lowest edit dist should be considered FN
-            // prepare variants for the next iteration
+            // Lock the dropped FN out of all future graph builds and reset every other variant so
+            // the next pass re-evaluates them without the swallowing variant. Exactly one truth
+            // variant is marked FN permanently per iteration, so the loop terminates in at most
+            // (number of truth indels/SVs) iterations.
             for (int tni = 0; tni < graph->tnodes; tni++) {
                 if (graph->ttypes[tni] != TYPE_REF) {
                     int tvar_idx = graph->tidxs[tni];
-                    if (tvar_idx == exclude_dists[0].second) { // remove this variant from eval
+                    if (tvar_idx == drop_idx) { // kept FN; omitted from the next graph build
                         tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_FN;
-                    } else {
+                    } else { // re-evaluate on the next pass
                         tvars->errtypes[truth_hi][tvar_idx] = ERRTYPE_UN;
-                        tvars->sync_group[truth_hi][tvar_idx] = 0;
-                        tvars->callq[truth_hi][tvar_idx] = 0;
-                        tvars->ref_ed[truth_hi][tvar_idx] = 0;
-                        tvars->query_ed[truth_hi][tvar_idx] = 0;
-                        tvars->credit[truth_hi][tvar_idx] = 0;
                     }
+                    tvars->sync_group[truth_hi][tvar_idx] = 0;
+                    tvars->callq[truth_hi][tvar_idx] = 0;
+                    tvars->ref_ed[truth_hi][tvar_idx] = 0;
+                    tvars->query_ed[truth_hi][tvar_idx] = 0;
+                    tvars->credit[truth_hi][tvar_idx] = 0;
                 }
             }
             for (int qni = 0; qni < graph->qnodes; qni++) {
@@ -402,18 +412,25 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
  * @brief Assigns TP/FP/FN error types and credit scores to variants from an alignment.
  *
  * Backtracks through the pointer map produced by calc_prec_recall_aln() to identify sync
- * groups and compute per-variant edit distance credit relative to the reference.
+ * groups and compute per-variant edit distance credit relative to the reference. A truth variant
+ * whose reference-allele bypass node lies on the path is labeled a false negative, and each bypass
+ * region acts as a hard sync-group boundary excluded from all credit computation, so no credit span
+ * ever includes a bypassed (off-path) alt. Any truth variant left unlabeled by the trace is swept
+ * to false negative.
  *
  * @param[in] graph The alignment graph used during the forward pass.
  * @param[in] ptrs Predecessor pointer map from calc_prec_recall_aln().
  * @param[in] truth_hap Truth haplotype index (0 or 1).
+ * @param[out] bypassed_tvars Cleared, then filled with the indices of truth variants the path
+ *   bypassed (routed around via their reference-allele bypass node); the un-swallow drop candidates.
  * @param[in] print Whether to enable debug printing.
  */
 void calc_prec_recall(
         const std::shared_ptr<Graph> graph,
         const std::unordered_map<idx4, idx4> & ptrs,
-        int truth_hap, bool print
+        int truth_hap, std::unordered_set<int> & bypassed_tvars, bool print
         ) {
+    bypassed_tvars.clear();
 
     idx4 end(graph->qnodes-1, graph->tnodes-1,
             graph->qseqs[graph->qnodes-1].length()-1,
@@ -437,9 +454,81 @@ void calc_prec_recall(
         }
     }
 
+    // Emit the accumulated sync group: compute its edit distance relative to reference over the
+    // truth span [t_pos, prev_truth_pos) x ref span [q_ref_pos, prev_query_ref_pos), assign
+    // TP/FP/FN credit to its query/truth variants, then reset the accumulators to (q_ref_pos,
+    // t_pos). t_pos must be a valid this->truth offset (never derived from a bypass node).
+    auto emit_sync_group = [&](int q_ref_pos, int t_pos) {
+        int ref_dist = 0;
+        wf_ed(graph->ref.substr(q_ref_pos, prev_query_ref_pos - q_ref_pos),
+                graph->truth.substr(t_pos, prev_truth_pos - t_pos), ref_dist);
+        if (print) printf("syncing\n");
+        float credit = 0;
+        if (ref_dist == 0) {
+            // false positive with no nearby truth variant, credit = 0
+        } else {
+            credit = 1 - float(query_dist) / ref_dist;
+        }
+        uint8_t errtype = (credit >= g.credit_threshold) ? ERRTYPE_TP : ERRTYPE_FP;
+        float qual = g.max_qual;
+        for (int qvar_idx : sync_qvars) {
+            qual = std::min(qual, qvars->var_quals[qvar_idx]);
+        }
+        for (int qvar_idx : sync_qvars) {
+            if (print) printf("QUERY var %d: BD=%s, BC=%f, Q=%f, SG=%d, RD=%d, QD=%d\n",
+                    qvar_idx, error_strs[errtype].data(), credit,
+                    qual, sync_group, ref_dist, query_dist);
+            qvars->errtypes[truth_hap][qvar_idx] = errtype;
+            qvars->callq[truth_hap][qvar_idx] = qual;
+            qvars->sync_group[truth_hap][qvar_idx] = sync_group;
+            qvars->ref_ed[truth_hap][qvar_idx] = ref_dist;
+            qvars->query_ed[truth_hap][qvar_idx] = query_dist;
+            qvars->credit[truth_hap][qvar_idx] = credit;
+            if (errtype == ERRTYPE_TP)
+                qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap, true);
+        }
+        if (errtype == ERRTYPE_FP) errtype = ERRTYPE_FN;
+        for (int tvar_idx : sync_tvars) {
+            if (print) printf("TRUTH var %d: BD=%s, BC=%f, Q=%f, SG=%d, RD=%d, QD=%d\n",
+                    tvar_idx, error_strs[errtype].data(), credit,
+                    qual, sync_group, ref_dist, query_dist);
+            tvars->errtypes[truth_hap][tvar_idx] = errtype;
+            tvars->callq[truth_hap][tvar_idx] = qual;
+            tvars->sync_group[truth_hap][tvar_idx] = sync_group;
+            tvars->ref_ed[truth_hap][tvar_idx] = ref_dist;
+            tvars->query_ed[truth_hap][tvar_idx] = query_dist;
+            tvars->credit[truth_hap][tvar_idx] = credit;
+        }
+        sync_group++;
+        sync_qvars.clear();
+        sync_tvars.clear();
+        prev_query_ref_pos = q_ref_pos;
+        prev_truth_pos = t_pos;
+        query_dist = 0;
+    };
+
+    // Close out a sync group at a bypass boundary and jump the accumulators to the bypass's LOW
+    // (start) edge, so the neighboring group below never spans the bypassed variant's alt. The
+    // bypassed alt is present in this->truth (built before alignment) but is off-path, so it must
+    // be excluded from every credit span. The variant node is always emitted immediately before
+    // its bypass node (see Graph constructor), so get_truth_pos on that variant node (never on the
+    // bypass node itself) yields the truth offset just before the bypassed alt.
+    auto reset_across_bypass = [&](int bypass_tni) {
+        int var_tni = bypass_tni - 1;
+        assert(graph->tidxs[var_tni] == graph->tskips[bypass_tni]);
+        sync_group++;
+        sync_qvars.clear();
+        sync_tvars.clear();
+        prev_query_ref_pos = graph->tbegs[bypass_tni];
+        prev_truth_pos = graph->get_truth_pos(var_tni, 0);
+        query_dist = 0;
+    };
+
     while (curr != idx4(0, 0, -1, -1)) {
 
         idx4 prev = ptrs.at(curr);
+        bool curr_bypass = graph->tskips[curr.tni] >= 0;
+        bool prev_bypass = graph->tskips[prev.tni] >= 0;
 
         if (print) printf("curr = node (%d, %d) cell (%d, %d) poss (%d, %d)",
                 curr.qni, curr.tni, curr.qi, curr.ti, 
@@ -467,7 +556,18 @@ void calc_prec_recall(
             int tvar_idx = graph->tidxs[curr.tni];
             sync_tvars.push_back(tvar_idx);
             if (print) printf("new truth variant: %d\n", tvar_idx);
-        } 
+        }
+        // if we move into a bypass node, the skipped truth variant is a false negative
+        if (prev.tni != curr.tni && curr_bypass) {
+            int tvar_idx = graph->tskips[curr.tni];
+            tvars->errtypes[truth_hap][tvar_idx] = ERRTYPE_FN;
+            tvars->credit[truth_hap][tvar_idx] = 0;
+            tvars->ref_ed[truth_hap][tvar_idx] = 0;
+            tvars->query_ed[truth_hap][tvar_idx] = 0;
+            tvars->sync_group[truth_hap][tvar_idx] = sync_group;
+            bypassed_tvars.insert(tvar_idx); // genuinely skipped: an un-swallow drop candidate
+            if (print) printf("bypassed (FN) truth variant: %d\n", tvar_idx);
+        }
         // if the alignment is a substitution, insertion, or deletion
         if (prev.qni == curr.qni && prev.tni == curr.tni && // same matrix
                 (prev.qi == curr.qi || prev.ti == curr.ti || // insertion or deletion
@@ -491,66 +591,44 @@ void calc_prec_recall(
             && prev.ti < curr.ti;
         bool sync_point = on_main_diag && (
                 (same_submatrix && ref_query_move && ref_truth_move) || diff_submatrix);
-        if (sync_point) {
+
+        // A bypass region makes the truth locally equal to reference (the bypassed variant is an
+        // off-path false negative), so it must be excluded from all credit computation and act as a
+        // hard sync-group boundary. No get_truth_pos/wf_ed span may include a bypassed alt or be
+        // taken with curr inside a bypass node (get_truth_pos would overshoot this->truth).
+        if (prev.tni != curr.tni && prev_bypass && !curr_bypass) {
+            // ENTRY (backtrack rising out of the bypass into the real node above it): close out the
+            // sync group above the bypass at this real boundary, then jump the accumulators over the
+            // bypass to its low edge for the group below.
+            if (print) printf("bypass entry boundary\n");
+            if (sync_tvars.size() || sync_qvars.size())
+                emit_sync_group(query_ref_pos, graph->get_truth_pos(curr.tni, curr.ti));
+            reset_across_bypass(prev.tni);
+        } else if (prev.tni != curr.tni && curr_bypass && !prev_bypass) {
+            // EXIT (backtrack dropping out of the bypass into the real node below it): the bypassed
+            // variant is FN (marked above); discard any query variants aligned inside the bypass
+            // (they keep their default FP label) and set the accumulators to the bypass low edge.
+            if (print) printf("bypass exit boundary\n");
+            reset_across_bypass(curr.tni);
+        } else if (sync_point && !curr_bypass) {
             if (print) printf("potential sync point\n");
-
             // add sync point
-            if (sync_tvars.size() || sync_qvars.size()) {
-
-                // calculate edit distance without variants
-                int ref_dist = 0;
-                int truth_pos = graph->get_truth_pos(curr.tni, curr.ti);
-                wf_ed(graph->ref.substr(query_ref_pos, prev_query_ref_pos - query_ref_pos), 
-                        graph->truth.substr(truth_pos, prev_truth_pos - truth_pos),
-                        ref_dist);
-                if (print) printf("syncing\n");
-                float credit = 0;
-                if (ref_dist == 0) {
-                    // false positive with no nearby truth variant, credit = 0
-                } else {
-                    credit = 1 - float(query_dist) / ref_dist;
-                }
-                uint8_t errtype = (credit >= g.credit_threshold) ? ERRTYPE_TP : ERRTYPE_FP;
-                float qual = g.max_qual;
-                for (int qvar_idx : sync_qvars) {
-                    qual = std::min(qual, qvars->var_quals[qvar_idx]);
-                }
-                for (int qvar_idx : sync_qvars) {
-                    if (print) printf("QUERY var %d: BD=%s, BC=%f, Q=%f, SG=%d, RD=%d, QD=%d\n",
-                            qvar_idx, error_strs[errtype].data(), credit, 
-                            qual, sync_group, ref_dist, query_dist);
-                    qvars->errtypes[truth_hap][qvar_idx] = errtype;
-                    qvars->callq[truth_hap][qvar_idx] = qual;
-                    qvars->sync_group[truth_hap][qvar_idx] = sync_group;
-                    qvars->ref_ed[truth_hap][qvar_idx] = ref_dist;
-                    qvars->query_ed[truth_hap][qvar_idx] = query_dist;
-                    qvars->credit[truth_hap][qvar_idx] = credit;
-                    if (errtype == ERRTYPE_TP)
-                        qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap, true);
-                }
-                if (errtype == ERRTYPE_FP) errtype = ERRTYPE_FN;
-                for (int tvar_idx : sync_tvars) {
-                    if (print) printf("TRUTH var %d: BD=%s, BC=%f, Q=%f, SG=%d, RD=%d, QD=%d\n",
-                            tvar_idx, error_strs[errtype].data(), credit, 
-                            qual, sync_group, ref_dist, query_dist);
-                    tvars->errtypes[truth_hap][tvar_idx] = errtype;
-                    tvars->callq[truth_hap][tvar_idx] = qual;
-                    tvars->sync_group[truth_hap][tvar_idx] = sync_group;
-                    tvars->ref_ed[truth_hap][tvar_idx] = ref_dist;
-                    tvars->query_ed[truth_hap][tvar_idx] = query_dist;
-                    tvars->credit[truth_hap][tvar_idx] = credit;
-                }
-
-                // reset sync group
-                sync_group++;
-                sync_qvars.clear();
-                sync_tvars.clear();
-                prev_query_ref_pos = query_ref_pos;
-                prev_truth_pos = truth_pos;
-                query_dist = 0;
-            } 
+            if (sync_tvars.size() || sync_qvars.size())
+                emit_sync_group(query_ref_pos, graph->get_truth_pos(curr.tni, curr.ti));
         }
         curr = prev;
+    }
+
+    // safety sweep: any truth variant node neither traversed (as a variant node) nor bypassed (via
+    // its bypass node) on the path is left ERRTYPE_UN by the trace; default it to FN so no truth
+    // variant is unlabeled. This also covers zero-width insertions, whose alt and bypass nodes can
+    // both be skipped by a direct ref-to-ref edge across their (empty) span.
+    for (int tni = 0; tni < graph->tnodes; tni++) {
+        if (graph->ttypes[tni] != TYPE_REF) {
+            int tvar_idx = graph->tidxs[tni];
+            if (tvars->errtypes[truth_hap][tvar_idx] == ERRTYPE_UN)
+                tvars->errtypes[truth_hap][tvar_idx] = ERRTYPE_FN;
+        }
     }
 }
 
@@ -824,6 +902,9 @@ void Graph::print() {
 /**
  * @brief Maps a truth graph node and variant index to its 0-based position in the truth sequence.
  *
+ * Reference-allele bypass nodes (tskips[tn] >= 0) are skipped in the summation because they
+ * are alternative paths, not part of the concatenated this->truth haplotype string.
+ *
  * @param[in] truth_node_idx Truth node index in graph.
  * @param[in] truth_idx Position index within the truth node sequence.
  * @return 0-based position in the combined truth sequence.
@@ -831,6 +912,7 @@ void Graph::print() {
 int Graph::get_truth_pos(int truth_node_idx, int truth_idx) {
     int truth_pos = 0;
     for (int tn = 0; tn < truth_node_idx; tn++) {
+        if (this->tskips[tn] >= 0) continue; // bypass nodes are not part of this->truth
         truth_pos += this->tseqs[tn].size() - 1; // each tseq starts with '_'
     }
     truth_pos += truth_idx;
@@ -843,7 +925,10 @@ int Graph::get_truth_pos(int truth_node_idx, int truth_idx) {
  * @brief Constructs alignment graph from supercluster variants and reference sequence.
  *
  * Builds a DAG where query nodes represent all variant and reference paths, and truth
- * nodes represent the selected truth haplotype path, with connectivity between adjacent nodes.
+ * nodes represent the selected truth haplotype path as a truth DAG: each truth variant node
+ * is paired with a parallel reference-allele bypass node (tskips[tni] set to the bypassed
+ * variant's index) offering an alternate, tolled route past that variant, with reference end
+ * coordinates (tends) recorded for every truth node and connectivity set between adjacent nodes.
  *
  * @param[in] sc Supercluster data containing query and truth variant containers.
  * @param[in] sc_idx Supercluster index in the contig.
@@ -981,18 +1066,33 @@ Graph::Graph(
                 this->tnodes++;
                 this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, var_pos-ref_pos));
                 this->tbegs.push_back(ref_pos - ref_beg);
+                this->tends.push_back(var_pos - ref_beg);
                 this->ttypes.push_back(TYPE_REF);
                 this->tidxs.push_back(-1);
+                this->tskips.push_back(-1);
                 this->truth += ref->fasta.at(ctg).substr(ref_pos, var_pos-ref_pos);
             }
 
             // add the truth variant
             this->tnodes++;
             this->tseqs.push_back("_" + tvars->alts[var_idx]);
+            int tvar_rlen = tvars->rlens[var_idx];
             this->tbegs.push_back(var_pos - ref_beg);
+            this->tends.push_back(var_pos + tvar_rlen - ref_beg);
             this->ttypes.push_back(tvars->types[var_idx]);
             this->tidxs.push_back(var_idx);
+            this->tskips.push_back(-1);
             this->truth += tvars->alts[var_idx];
+
+            // parallel reference-allele bypass node (declares this truth variant FN if taken)
+            this->tnodes++;
+            this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(var_pos, tvar_rlen));
+            this->tbegs.push_back(var_pos - ref_beg);
+            this->tends.push_back(var_pos + tvar_rlen - ref_beg);
+            this->ttypes.push_back(TYPE_REF);
+            this->tidxs.push_back(-1);
+            this->tskips.push_back(var_idx);
+
             ref_pos = tvars->poss[var_idx] + tvars->rlens[var_idx];
         }
     }
@@ -1001,8 +1101,10 @@ Graph::Graph(
     this->tnodes++;
     this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, ref_end+1 - ref_pos));
     this->tbegs.push_back(ref_pos - ref_beg);
+    this->tends.push_back(ref_end+1 - ref_beg);
     this->ttypes.push_back(TYPE_REF);
     this->tidxs.push_back(-1);
+    this->tskips.push_back(-1);
     this->truth += ref->fasta.at(ctg).substr(ref_pos, ref_end+1 - ref_pos);
 
     /////////////////////////////////////
@@ -1011,11 +1113,34 @@ Graph::Graph(
 
     this->tprevs.resize(this->tnodes);
     this->tnexts.resize(this->tnodes);
-    for (int tni = 0; tni < this->tnodes; tni++) {
-        int last_tnode = this->tnodes-1;
-        if (tni != last_tnode) {
-            this->tnexts[tni].push_back(tni+1);
-            this->tprevs[tni+1].push_back(tni);
+
+    // coordinates hosting a zero-width truth insertion variant node; a direct ref->ref edge
+    // across such a locus would give a free (cost-0) path skipping both the alt (variant) and
+    // the tolled bypass node, circumventing skip_cost() and mislabeling matched insertions FN
+    std::unordered_set<int> insertion_coords;
+    for (int tn = 0; tn < this->tnodes; tn++)
+        if (this->tidxs[tn] >= 0 && this->tbegs[tn] == this->tends[tn])
+            insertion_coords.insert(this->tbegs[tn]);
+
+    for (int n1 = 0; n1 < this->tnodes; n1++) {
+        for (int n2 = 0; n2 < this->tnodes; n2++) {
+            if (n2 == n1) continue;
+            // a variant node and its own bypass node are parallel alternatives, never
+            // sequential; skip wiring them together (matters for zero-width insertions,
+            // where variant and bypass share tbegs == tends)
+            if (this->tskips[n2] >= 0 && this->tskips[n2] == this->tidxs[n1]) continue;
+            if (this->tskips[n1] >= 0 && this->tskips[n1] == this->tidxs[n2]) continue;
+            // suppress a direct ref->ref edge that would skip a zero-width insertion locus,
+            // forcing the path through the variant node (TP) or the tolled bypass node (FN);
+            // applied in both edge orientations so no A<->C shortcut survives (see insertion_coords)
+            bool both_ref = (this->tidxs[n1] < 0 && this->tskips[n1] < 0 &&
+                             this->tidxs[n2] < 0 && this->tskips[n2] < 0);
+            if (this->tbegs[n1] == this->tends[n2] && n2 < n1 &&
+                    !(both_ref && insertion_coords.count(this->tbegs[n1])))
+                this->tprevs[n1].push_back(n2);
+            if (this->tends[n1] == this->tbegs[n2] && n1 < n2 &&
+                    !(both_ref && insertion_coords.count(this->tends[n1])))
+                this->tnexts[n1].push_back(n2);
         }
     }
 

@@ -40,8 +40,10 @@ public:
     int tnodes;                     ///< each tvector is of size tnodes
     std::vector<std::string> tseqs; ///< seq data for each truth node (e.g. "ACCCGT")
     std::vector<int> tbegs;         ///< reference start position
+    std::vector<int> tends;         ///< reference end position
     std::vector<int> ttypes;        ///< truth node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> tidxs;         ///< store truth variant indices (-1 for TYPE_REF)
+    std::vector<int> tskips;        ///< truth variant idx this bypass node skips (-1 if not a bypass)
 
     // set during second pass of graph init
     std::vector< std::vector<int> > qprevs; ///< directed pointers to prev query nodes
@@ -187,6 +189,7 @@ void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
         const std::unordered_map<idx4, idx4> & ptrs,
         int truth_hap,
+        std::unordered_set<int> & bypassed_tvars,
         bool print = false
         );
 
@@ -218,5 +221,15 @@ void wf_swg_align(
 
 /** @brief Computes the edit distance between two sequences using wavefront alignment. */
 void wf_ed(const std::string & query, const std::string & truth, int & score, bool print = false);
+
+/** @brief Flat penalty for bypassing (skipping) a truth variant during alignment. */
+int skip_cost(double credit_threshold, int truth_var_len);
+
+/** @brief Selects the largest bypassed non-SUB truth variant to lock as FN, or -1 if none. */
+int select_fn_drop_candidate(
+        const std::vector<int> & tvar_idxs,
+        const std::vector<int> & tvar_sizes,
+        const std::vector<bool> & is_sub,
+        const std::vector<bool> & was_bypassed);
 
 #endif
