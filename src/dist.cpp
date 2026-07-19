@@ -415,8 +415,9 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
  * groups and compute per-variant edit distance credit relative to the reference. A truth variant
  * whose reference-allele bypass node lies on the path is labeled a false negative, and each bypass
  * region acts as a hard sync-group boundary excluded from all credit computation, so no credit span
- * ever includes a bypassed (off-path) alt. Any truth variant left unlabeled by the trace is swept
- * to false negative.
+ * ever includes a bypassed (off-path) alt. The graph forces every truth variant onto the path via
+ * either its alt node (labeled here) or its reference-allele bypass node (false negative), so the
+ * trace labels every truth variant; none is left unlabeled.
  *
  * @param[in] graph The alignment graph used during the forward pass.
  * @param[in] ptrs Predecessor pointer map from calc_prec_recall_aln().
@@ -617,18 +618,6 @@ void calc_prec_recall(
                 emit_sync_group(query_ref_pos, graph->get_truth_pos(curr.tni, curr.ti));
         }
         curr = prev;
-    }
-
-    // safety sweep: any truth variant node neither traversed (as a variant node) nor bypassed (via
-    // its bypass node) on the path is left ERRTYPE_UN by the trace; default it to FN so no truth
-    // variant is unlabeled. This also covers zero-width insertions, whose alt and bypass nodes can
-    // both be skipped by a direct ref-to-ref edge across their (empty) span.
-    for (int tni = 0; tni < graph->tnodes; tni++) {
-        if (graph->ttypes[tni] != TYPE_REF) {
-            int tvar_idx = graph->tidxs[tni];
-            if (tvars->errtypes[truth_hap][tvar_idx] == ERRTYPE_UN)
-                tvars->errtypes[truth_hap][tvar_idx] = ERRTYPE_FN;
-        }
     }
 }
 
@@ -1130,16 +1119,21 @@ Graph::Graph(
             // where variant and bypass share tbegs == tends)
             if (this->tskips[n2] >= 0 && this->tskips[n2] == this->tidxs[n1]) continue;
             if (this->tskips[n1] >= 0 && this->tskips[n1] == this->tidxs[n2]) continue;
-            // suppress a direct ref->ref edge that would skip a zero-width insertion locus,
-            // forcing the path through the variant node (TP) or the tolled bypass node (FN);
-            // applied in both edge orientations so no A<->C shortcut survives (see insertion_coords)
-            bool both_ref = (this->tidxs[n1] < 0 && this->tskips[n1] < 0 &&
-                             this->tidxs[n2] < 0 && this->tskips[n2] < 0);
+            // suppress any edge that leaps a zero-width insertion locus, forcing the path through
+            // the insertion's variant node (TP) or its tolled bypass node (FN). An edge joining two
+            // nodes at coordinate p leaps the insertion only if BOTH endpoints are reference-spanning
+            // (neither is zero-width at p): a zero-width endpoint IS the insertion's alt/bypass, so
+            // that edge routes into or out of the insertion rather than past it. Testing zero-width
+            // (rather than the old both-ref rule) also closes the leap when the insertion abuts
+            // another variant, whose alt/bypass node is reference-spanning but not a plain ref node.
+            bool n1_zero_width = this->tbegs[n1] == this->tends[n1];
+            bool n2_zero_width = this->tbegs[n2] == this->tends[n2];
+            bool leaps_insertion = !n1_zero_width && !n2_zero_width;
             if (this->tbegs[n1] == this->tends[n2] && n2 < n1 &&
-                    !(both_ref && insertion_coords.count(this->tbegs[n1])))
+                    !(leaps_insertion && insertion_coords.count(this->tbegs[n1])))
                 this->tprevs[n1].push_back(n2);
             if (this->tends[n1] == this->tbegs[n2] && n1 < n2 &&
-                    !(both_ref && insertion_coords.count(this->tends[n1])))
+                    !(leaps_insertion && insertion_coords.count(this->tends[n1])))
                 this->tnexts[n1].push_back(n2);
         }
     }
