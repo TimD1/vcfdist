@@ -42,4 +42,7 @@ issues/
 
 # ignore auto-generated documentation
 src/docs/
-docs/deliverables/
+
+# v3 design docs are tracked; the SOW and the executed benchmarking plan are not
+docs/deliverables/D0_vcfdist-v3-SOW.md
+docs/deliverables/D7_vcfdist-v3-benchmarking-plan.md
