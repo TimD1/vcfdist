@@ -154,15 +154,15 @@ double skip_cost_saved(double credit_threshold, int truth_var_len) {
 /**
  * @brief Runs graph-based alignment and returns the optimal alignment score.
  *
- * Performs a forward-pass weighted shortest-path alignment (Dial's bucket-queue algorithm)
- * between the truth sequence and the query graph, filling a pointer map used for backtracking the
- * optimal path.
+ * Performs a forward-pass weighted shortest-path alignment (Dijkstra over a binary-heap priority
+ * queue, ordered by true fractional cost) between the truth sequence and the query graph, filling a
+ * pointer map used for backtracking the optimal path.
  *
  * @param[in] graph The alignment graph containing query and truth nodes.
  * @param[in,out] ptrs Map populated with predecessor pointers for backtracking.
  * @param[in] print Whether to enable debug printing.
- * @return The edit distance score of the optimal alignment.
- * @throws ERROR if the buckets drain before the endpoint cell is reached.
+ * @return The optimal alignment cost, rounded up to an integer.
+ * @throws ERROR if the queue drains before the endpoint cell is reached.
  */
 int calc_prec_recall_aln(
         const std::shared_ptr<Graph> graph,
@@ -170,159 +170,113 @@ int calc_prec_recall_aln(
         bool print
         ) {
 
-    // Weighted shortest path via Dial's algorithm (bucket queue). Every graph move is a
-    // non-negative-cost edge: match extensions and node transitions into non-bypass truth nodes
-    // cost 0, SUB/INS/DEL edits cost 1, and entering a bypass truth node costs skip_cost(). A cell
-    // reached by an edge of cost k is enqueued k buckets ahead of its predecessor's cost.
-    std::unordered_set<idx4> done; // finalized cells (shortest cost known)
-    std::unordered_map<idx4, int> fin_score;     // integer cost each cell was finalized at
-    std::unordered_map<idx4, double> fin_rsaved; // rounding saved by the recorded path to each cell
+    // Dijkstra on TRUE fractional cost via a binary-heap priority queue. A bypass edge costs the
+    // exact (1-ct)*len rather than its ceil()'d skip_cost(), so the queue orders paths by true cost
+    // globally: a truly-cheaper bypass simply has lower cost (no integer-bucket rounding, no separate
+    // tie-break), and equal-integer-cost paths whose true costs differ by >= 1 can no longer be
+    // finalized in the wrong order. All edge costs are non-negative, so Dijkstra is valid.
+    std::unordered_set<idx4> done;         // finalized cells (true-cost-optimal)
+    std::unordered_map<idx4, double> best; // best known true cost per cell
 
-    // A queued path to a cell: its predecessor plus the total rounding saved (sum of
-    // skip_cost_saved() over bypasses taken). skip_cost() charges an integer bucket cost that
-    // rounds the true bypass cost up, so among equal-integer-cost paths the one saving more
-    // rounding is truly cheaper; rsaved is the lower-is-truer tie-break used to prefer bypass.
-    struct qentry { idx4 to; idx4 from; double rsaved; };
-
-    // bucket[s] holds paths first reachable at cumulative integer cost s; a cell is finalized the
-    // first time it is popped (from its cheapest bucket). An equal-cost path saving more rounding
-    // may re-enter an already-finalized cell to update its predecessor toward the bypass.
-    std::vector< std::queue<qentry> > bucket(1);
-    idx4 start(0, 0, 0, 0);
-    bucket[0].push({start, idx4(0, 0, -1, -1), 0.0});
-    int score = 0;
-
-    // enqueue a path at a target cumulative cost, growing the bucket vector as needed. A cell
-    // already finalized is re-enqueued only when this equal-cost path saved strictly more rounding
-    // (a truer, bypass-preferring route); otherwise the finalized cost is already optimal.
-    auto push_at = [&](const idx4 & to, const idx4 & from, int cost, double rsaved) {
-        if (contains(done, to)) {
-            if (cost == fin_score[to] && rsaved > fin_rsaved[to] + EPSILON)
-                bucket[cost].push({to, from, rsaved});
-            return;
-        }
-        if (cost >= int(bucket.size())) bucket.resize(cost + 1);
-        bucket[cost].push({to, from, rsaved});
-    };
-
-    // toll for transitioning INTO truth node tni: skip_cost of the bypassed variant if tni is a
-    // bypass node (tskips[tni] >= 0), else 0
-    auto tni_toll = [&](int tni) -> int {
-        if (graph->tskips[tni] < 0) return 0;
-        std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
-        int vidx = graph->tskips[tni];
-        int len = std::max(int(tvars->refs[vidx].size()), int(tvars->alts[vidx].size()));
-        return skip_cost(g.credit_threshold, len);
-    };
-
-    // rounding overcharged by tni_toll()'s ceil() when entering a bypass node tni (0 otherwise);
-    // accumulated into rsaved so an equal-cost bypass path wins the backtrack tie-break
-    auto tni_saved = [&](int tni) -> double {
+    // true (un-rounded) toll for transitioning INTO truth node tni: (1-ct)*len on a bypass node
+    auto tni_true_toll = [&](int tni) -> double {
         if (graph->tskips[tni] < 0) return 0.0;
         std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
         int vidx = graph->tskips[tni];
         int len = std::max(int(tvars->refs[vidx].size()), int(tvars->alts[vidx].size()));
-        return skip_cost_saved(g.credit_threshold, len);
+        return (1.0 - g.credit_threshold) * len;
+    };
+
+    struct qentry { double cost; idx4 to; idx4 from; };
+    struct qcmp { bool operator()(const qentry & a, const qentry & b) const { return a.cost > b.cost; } };
+    std::priority_queue<qentry, std::vector<qentry>, qcmp> pq;
+
+    idx4 start(0, 0, 0, 0);
+    pq.push({0.0, start, idx4(0, 0, -1, -1)});
+    best[start] = 0.0;
+
+    // relax an edge to cell `to` via `from` at cumulative true cost `cost`
+    auto relax = [&](const idx4 & to, const idx4 & from, double cost) {
+        auto it = best.find(to);
+        if (it == best.end() || cost < it->second - EPSILON) {
+            best[to] = cost;
+            pq.push({cost, to, from});
+        }
     };
 
     idx4 end = idx4(graph->qnodes-1, graph->tnodes-1,
                 int(graph->qseqs[graph->qnodes-1].length()-1),
                 int(graph->tseqs[graph->tnodes-1].length()-1));
 
-    int final_score = -1;
-    while (score < int(bucket.size())) {
-        while (!bucket[score].empty()) {
-            qentry item = bucket[score].front(); bucket[score].pop();
-            idx4 x = item.to;
-            if (contains(done, x)) {
-                // already finalized; adopt this predecessor only if it reaches x at the same cost
-                // while saving strictly more rounding (a truer, bypass-preferring route)
-                if (fin_score[x] == score && item.rsaved > fin_rsaved[x] + EPSILON) {
-                    ptrs[x] = item.from;
-                    fin_rsaved[x] = item.rsaved;
+    double final_cost = -1.0;
+    while (!pq.empty()) {
+        qentry item = pq.top(); pq.pop();
+        idx4 x = item.to;
+        if (contains(done, x)) continue; // stale heap entry (lazy deletion)
+        done.insert(x);
+        ptrs[x] = item.from; // predecessor on the true-cost-optimal path
+        double c = item.cost;
+
+        // reached the endpoint: its cost is now finalized and optimal
+        if (x == end) { final_cost = c; break; }
+
+        // COST-0: match on query (diagonal extension to its maximum reach)
+        idx4 y(x.qni, x.tni, x.qi, x.ti);
+        bool match = false;
+        while (y.qi+1 < int(graph->qseqs[y.qni].length()) &&
+               y.ti+1 < int(graph->tseqs[y.tni].length()) &&
+               graph->qseqs[y.qni][y.qi+1] == graph->tseqs[y.tni][y.ti+1]) {
+            y.qi++;
+            y.ti++;
+            match = true;
+        }
+        if (match) relax(y, x, c);
+
+        // bottom-right corner moves diagonally into next truth and query nodes (toll on bypass)
+        if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti == int(graph->tseqs[x.tni].length())-1) {
+            for (int qni : graph->qnexts[x.qni]) {
+                for (int tni : graph->tnexts[x.tni]) {
+                    relax(idx4(qni, tni, 0, 0), x, c + tni_true_toll(tni));
                 }
-                continue;
-            }
-            done.insert(x);
-            fin_score[x] = score;
-            fin_rsaved[x] = item.rsaved;
-            ptrs[x] = item.from; // predecessor from the cheapest bucket that reached x
-            double rsaved = item.rsaved;
-            /* if (print) printf("    x = node (%d, %d) cell (%d, %d) score %d\n", x.qni, x.tni, x.qi, x.ti, score); */
-
-            // reached the endpoint: its cost is now finalized and optimal
-            if (x == end) { final_score = score; break; }
-
-            // COST-0 MOVES (same bucket) --------------------------------------------------------
-
-            // allow match on query (diagonal extension to its maximum reach)
-            idx4 y(x.qni, x.tni, x.qi, x.ti);
-            bool match = false;
-            while (y.qi+1 < int(graph->qseqs[y.qni].length()) &&
-                   y.ti+1 < int(graph->tseqs[y.tni].length()) &&
-                   graph->qseqs[y.qni][y.qi+1] == graph->tseqs[y.tni][y.ti+1]) {
-                y.qi++;
-                y.ti++;
-                match = true;
-            }
-            if (match) push_at(y, x, score, rsaved);
-
-            // allow bottom-right corner to move diagonally into next truth and query nodes
-            // NOTE: separating this case out allows sync points between adjacent variants.
-            // Entering a bypass truth node charges the skip toll.
-            if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti == int(graph->tseqs[x.tni].length())-1) {
-                for (int qni : graph->qnexts[x.qni]) { // for all next nodes
-                    for (int tni : graph->tnexts[x.tni]) {
-                        idx4 z(qni, tni, 0, 0);
-                        push_at(z, x, score + tni_toll(tni), rsaved + tni_saved(tni));
-                    }
-                }
-            }
-
-            // allow last row to move into first row of all next query nodes (tni unchanged, so this
-            // never enters a bypass node: no toll)
-            if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length())) {
-                for (int qni : graph->qnexts[x.qni]) { // for all next nodes
-                    idx4 z(qni, x.tni, 0, x.ti);
-                    push_at(z, x, score, rsaved);
-                }
-            }
-
-            // allow last col to move into first col of next truth node; entering a bypass truth node
-            // charges the skip toll
-            if (x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
-                for (int tni : graph->tnexts[x.tni]) { // for all next nodes
-                    idx4 z(x.qni, tni, x.qi, 0);
-                    push_at(z, x, score + tni_toll(tni), rsaved + tni_saved(tni));
-                }
-            }
-
-            // COST-1 EDITS (next bucket) --------------------------------------------------------
-            if (x.qi+1 < int(graph->qseqs[x.qni].length())) { // INS
-                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti), x, score + 1, rsaved);
-            }
-            if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // DEL
-                push_at(idx4(x.qni, x.tni, x.qi, x.ti+1), x, score + 1, rsaved);
-            }
-            if (x.qi+1 < int(graph->qseqs[x.qni].length()) &&
-                    x.ti+1 < int(graph->tseqs[x.tni].length())) { // SUB
-                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, score + 1, rsaved);
             }
         }
-        if (final_score >= 0) break;
-        score++;
+
+        // last row moves into first row of all next query nodes (tni unchanged: no toll)
+        if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length())) {
+            for (int qni : graph->qnexts[x.qni]) {
+                relax(idx4(qni, x.tni, 0, x.ti), x, c);
+            }
+        }
+
+        // last col moves into first col of next truth node (toll on bypass)
+        if (x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
+            for (int tni : graph->tnexts[x.tni]) {
+                relax(idx4(x.qni, tni, x.qi, 0), x, c + tni_true_toll(tni));
+            }
+        }
+
+        // COST-1 EDITS
+        if (x.qi+1 < int(graph->qseqs[x.qni].length())) { // INS
+            relax(idx4(x.qni, x.tni, x.qi+1, x.ti), x, c + 1.0);
+        }
+        if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // DEL
+            relax(idx4(x.qni, x.tni, x.qi, x.ti+1), x, c + 1.0);
+        }
+        if (x.qi+1 < int(graph->qseqs[x.qni].length()) &&
+                x.ti+1 < int(graph->tseqs[x.tni].length())) { // SUB
+            relax(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, c + 1.0);
+        }
     }
 
-    if (final_score < 0) ERROR("Endpoint unreachable in 'calc_prec_recall_aln()'.");
-    score = final_score;
+    if (final_cost < 0) ERROR("Endpoint unreachable in 'calc_prec_recall_aln()'.");
 
     if (print) {
-        printf("Alignment score: %d\n", score);
+        printf("Alignment score: %f\n", final_cost);
         printf("Alignment:\n");
         print_graph_ptrs(graph, ptrs);
     }
 
-    return score;
+    return int(std::ceil(final_cost - EPSILON));
 }
 
 /**************************************************************************************************/
