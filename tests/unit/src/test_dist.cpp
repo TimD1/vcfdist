@@ -150,9 +150,8 @@ TEST(GraphInsertionEdges, AdjacentInsertionLabeledWithoutSweep) {
 
     auto graph = std::make_shared<Graph>(sc, 0, ref, "chr1", HAP1);
     std::unordered_map<idx4, idx4> ptrs;
-    std::unordered_set<int> bypassed;
     calc_prec_recall_aln(graph, ptrs, false);
-    calc_prec_recall(graph, ptrs, HAP1, bypassed, false);
+    calc_prec_recall(graph, ptrs, HAP1, false);
 
     // query == reference: neither truth variant is reproduced, both are FN (not left UNKNOWN)
     EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][0]) << "SUB should be a false negative";

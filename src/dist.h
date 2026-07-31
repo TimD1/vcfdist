@@ -189,7 +189,6 @@ void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
         const std::unordered_map<idx4, idx4> & ptrs,
         int truth_hap,
-        std::unordered_set<int> & bypassed_tvars,
         bool print = false
         );
 
@@ -227,12 +226,5 @@ int skip_cost(double credit_threshold, int truth_var_len);
 
 /** @brief Rounding overcharged by skip_cost()'s ceil(): integer toll minus true (1-ct)*len cost. */
 double skip_cost_saved(double credit_threshold, int truth_var_len);
-
-/** @brief Selects the largest bypassed non-SUB truth variant to lock as FN, or -1 if none. */
-int select_fn_drop_candidate(
-        const std::vector<int> & tvar_idxs,
-        const std::vector<int> & tvar_sizes,
-        const std::vector<bool> & is_sub,
-        const std::vector<bool> & was_bypassed);
 
 #endif
