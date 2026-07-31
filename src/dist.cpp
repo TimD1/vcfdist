@@ -2,6 +2,7 @@
  * @file dist.cpp
  * @brief Graph-based alignment and precision/recall evaluation implementations.
  */
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -386,6 +387,13 @@ void calc_prec_recall(
     int query_dist = 0;
     std::vector<int> sync_tvars;
     std::vector<int> sync_qvars;
+
+    // Bypassed-variant spans excised from the current group's credit measurement: reference
+    // intervals [beg, end) and the matching this->truth intervals holding the off-path alt.
+    std::vector< std::pair<int,int> > excised_ref;
+    std::vector< std::pair<int,int> > excised_truth;
+    bool in_bypass = false;         ///< backtrack is currently inside a bypass node
+    size_t qvars_before_bypass = 0; ///< sync_qvars size on entering it, to drop calls inside it
     std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
     std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
 
@@ -398,14 +406,36 @@ void calc_prec_recall(
         }
     }
 
+    // Returns s[lo, hi) with every interval in `cut` removed. `cut` intervals are disjoint and
+    // recorded high-to-low by the backtrack, so they are sorted ascending before splicing.
+    auto splice_out = [](const std::string & s, int lo, int hi,
+            std::vector<std::pair<int,int>> cut) -> std::string {
+        std::sort(cut.begin(), cut.end());
+        std::string out;
+        int pos = lo;
+        for (const auto & c : cut) {
+            int a = std::max(c.first, lo), b = std::min(c.second, hi);
+            if (b <= a) continue; // interval lies outside this span
+            if (a > pos) out += s.substr(pos, a - pos);
+            pos = std::max(pos, b);
+        }
+        if (hi > pos) out += s.substr(pos, hi - pos);
+        return out;
+    };
+
     // Emit the accumulated sync group: compute its edit distance relative to reference over the
     // truth span [t_pos, prev_truth_pos) x ref span [q_ref_pos, prev_query_ref_pos), assign
     // TP/FP/FN credit to its query/truth variants, then reset the accumulators to (q_ref_pos,
     // t_pos). t_pos must be a valid this->truth offset (never derived from a bypass node).
+    //
+    // Any bypassed truth variant inside the span is excised from BOTH sides before measuring
+    // ref_dist: its alt is present in this->truth but off-path, and the toll paid to route around
+    // it never enters query_dist, so leaving it in would inflate ref_dist without inflating
+    // query_dist -- handing the group's other variants free credit for a variant the query missed.
     auto emit_sync_group = [&](int q_ref_pos, int t_pos) {
         int ref_dist = 0;
-        wf_ed(graph->ref.substr(q_ref_pos, prev_query_ref_pos - q_ref_pos),
-                graph->truth.substr(t_pos, prev_truth_pos - t_pos), ref_dist);
+        wf_ed(splice_out(graph->ref, q_ref_pos, prev_query_ref_pos, excised_ref),
+                splice_out(graph->truth, t_pos, prev_truth_pos, excised_truth), ref_dist);
         if (print) printf("syncing\n");
         float credit = 0;
         if (ref_dist == 0) {
@@ -446,26 +476,24 @@ void calc_prec_recall(
         sync_group++;
         sync_qvars.clear();
         sync_tvars.clear();
+        excised_ref.clear();
+        excised_truth.clear();
         prev_query_ref_pos = q_ref_pos;
         prev_truth_pos = t_pos;
         query_dist = 0;
     };
 
-    // Close out a sync group at a bypass boundary and jump the accumulators to the bypass's LOW
-    // (start) edge, so the neighboring group below never spans the bypassed variant's alt. The
-    // bypassed alt is present in this->truth (built before alignment) but is off-path, so it must
-    // be excluded from every credit span. The variant node is always emitted immediately before
-    // its bypass node (see Graph constructor), so get_truth_pos on that variant node (never on the
-    // bypass node itself) yields the truth offset just before the bypassed alt.
-    auto reset_across_bypass = [&](int bypass_tni) {
+    // Record a bypassed variant's span for excision from the enclosing group, without splitting
+    // that group. The variant node is always emitted immediately before its bypass node (see Graph
+    // constructor), so get_truth_pos on that variant node (never on the bypass node itself) yields
+    // the truth offset of the off-path alt.
+    auto excise_bypass = [&](int bypass_tni) {
         int var_tni = bypass_tni - 1;
         assert(graph->tidxs[var_tni] == graph->tskips[bypass_tni]);
-        sync_group++;
-        sync_qvars.clear();
-        sync_tvars.clear();
-        prev_query_ref_pos = graph->tbegs[bypass_tni];
-        prev_truth_pos = graph->get_truth_pos(var_tni, 0);
-        query_dist = 0;
+        int truth_beg = graph->get_truth_pos(var_tni, 0);
+        int alt_len = int(graph->tseqs[var_tni].size()) - 1; // each tseq starts with '_'
+        excised_ref.push_back({graph->tbegs[bypass_tni], graph->tends[bypass_tni]});
+        excised_truth.push_back({truth_beg, truth_beg + alt_len});
     };
 
     while (curr != idx4(0, 0, -1, -1)) {
@@ -511,8 +539,11 @@ void calc_prec_recall(
             tvars->sync_group[truth_hap][tvar_idx] = sync_group;
             if (print) printf("bypassed (FN) truth variant: %d\n", tvar_idx);
         }
-        // if the alignment is a substitution, insertion, or deletion
+        // if the alignment is a substitution, insertion, or deletion. Edits taken inside a bypass
+        // node are against the bypassed reference allele, which is excised from the group's
+        // ref_dist, so charging them to query_dist would penalize a span not being measured.
         if (prev.qni == curr.qni && prev.tni == curr.tni && // same matrix
+                !curr_bypass &&
                 (prev.qi == curr.qi || prev.ti == curr.ti || // insertion or deletion
                  graph->tseqs[curr.tni][curr.ti] != graph->qseqs[curr.qni][curr.qi]) // substitution
                 ) {
@@ -535,24 +566,27 @@ void calc_prec_recall(
         bool sync_point = on_main_diag && (
                 (same_submatrix && ref_query_move && ref_truth_move) || diff_submatrix);
 
-        // A bypass region makes the truth locally equal to reference (the bypassed variant is an
-        // off-path false negative), so it must be excluded from all credit computation and act as a
-        // hard sync-group boundary. No get_truth_pos/wf_ed span may include a bypassed alt or be
-        // taken with curr inside a bypass node (get_truth_pos would overshoot this->truth).
+        // A bypassed variant is an off-path false negative, so its span is excised from the
+        // enclosing group's credit measurement rather than splitting the group in two. No
+        // get_truth_pos/wf_ed may be taken with curr inside a bypass node (get_truth_pos would
+        // overshoot this->truth), so sync points are still suppressed there.
         if (prev.tni != curr.tni && prev_bypass && !curr_bypass) {
-            // ENTRY (backtrack rising out of the bypass into the real node above it): close out the
-            // sync group above the bypass at this real boundary, then jump the accumulators over the
-            // bypass to its low edge for the group below.
+            // ENTRY (backtrack about to descend from the real node above into the bypass below):
+            // record the bypassed span for excision and remember how many query variants the
+            // enclosing group held, so calls aligned inside the bypass can be dropped on exit.
             if (print) printf("bypass entry boundary\n");
-            if (sync_tvars.size() || sync_qvars.size())
-                emit_sync_group(query_ref_pos, graph->get_truth_pos(curr.tni, curr.ti));
-            reset_across_bypass(prev.tni);
+            excise_bypass(prev.tni);
+            in_bypass = true;
+            qvars_before_bypass = sync_qvars.size();
         } else if (prev.tni != curr.tni && curr_bypass && !prev_bypass) {
-            // EXIT (backtrack dropping out of the bypass into the real node below it): the bypassed
-            // variant is FN (marked above); discard any query variants aligned inside the bypass
-            // (they keep their default FP label) and set the accumulators to the bypass low edge.
+            // EXIT (backtrack leaving the bottom of the bypass into the real node below): the
+            // bypassed variant is FN (marked above). Query variants aligned inside the bypass lie
+            // in the excised span, so they are dropped from the group and keep their default FP.
             if (print) printf("bypass exit boundary\n");
-            reset_across_bypass(curr.tni);
+            if (!in_bypass) excise_bypass(curr.tni); // defensive: never entered from above
+            if (sync_qvars.size() > qvars_before_bypass)
+                sync_qvars.resize(qvars_before_bypass);
+            in_bypass = false;
         } else if (sync_point && !curr_bypass) {
             if (print) printf("potential sync point\n");
             // add sync point
