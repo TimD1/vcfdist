@@ -131,6 +131,26 @@ int skip_cost(double credit_threshold, int truth_var_len) {
 /**************************************************************************************************/
 
 /**
+ * @brief Rounding overcharged by skip_cost()'s ceil(): integer toll minus true (1-ct)*len cost.
+ *
+ * skip_cost() charges an integer bucket cost, rounding the true fractional bypass cost
+ * (1-ct)*len up with ceil(). This returns that overcharge (in [0,1)), used as a lower-is-truer
+ * tie-break during backtracking: when a bypass path and an align path reach a cell at equal
+ * integer cost, the bypass's true cost is this much lower, so it should win the tie.
+ *
+ * @param[in] credit_threshold Credit threshold on the interval (0,1].
+ * @param[in] truth_var_len Edit-distance size of the variant.
+ * @return The rounding overcharge, clamped to be non-negative.
+ */
+double skip_cost_saved(double credit_threshold, int truth_var_len) {
+    double saved = skip_cost(credit_threshold, truth_var_len)
+            - (1.0 - credit_threshold) * truth_var_len;
+    return saved < 0.0 ? 0.0 : saved; // clamp float noise to non-negative
+}
+
+/**************************************************************************************************/
+
+/**
  * @brief Selects the largest bypassed non-SUB truth variant to lock as FN, or -1 if none.
  *
  * The un-swallow drop targets only variants the alignment actually bypassed (routed around via
@@ -188,21 +208,34 @@ int calc_prec_recall_aln(
     // cost 0, SUB/INS/DEL edits cost 1, and entering a bypass truth node costs skip_cost(). A cell
     // reached by an edge of cost k is enqueued k buckets ahead of its predecessor's cost.
     std::unordered_set<idx4> done; // finalized cells (shortest cost known)
+    std::unordered_map<idx4, int> fin_score;     // integer cost each cell was finalized at
+    std::unordered_map<idx4, double> fin_rsaved; // rounding saved by the recorded path to each cell
 
-    // bucket[s] holds (cell, predecessor) pairs first reachable at cumulative cost s; a cell may be
-    // enqueued in several buckets, but is finalized only the first time it is popped (from its
-    // cheapest bucket), at which point its predecessor is recorded, guaranteeing ptrs follows a
-    // min-cost path.
-    std::vector< std::queue< std::pair<idx4, idx4> > > bucket(1);
+    // A queued path to a cell: its predecessor plus the total rounding saved (sum of
+    // skip_cost_saved() over bypasses taken). skip_cost() charges an integer bucket cost that
+    // rounds the true bypass cost up, so among equal-integer-cost paths the one saving more
+    // rounding is truly cheaper; rsaved is the lower-is-truer tie-break used to prefer bypass.
+    struct qentry { idx4 to; idx4 from; double rsaved; };
+
+    // bucket[s] holds paths first reachable at cumulative integer cost s; a cell is finalized the
+    // first time it is popped (from its cheapest bucket). An equal-cost path saving more rounding
+    // may re-enter an already-finalized cell to update its predecessor toward the bypass.
+    std::vector< std::queue<qentry> > bucket(1);
     idx4 start(0, 0, 0, 0);
-    bucket[0].push({start, idx4(0, 0, -1, -1)});
+    bucket[0].push({start, idx4(0, 0, -1, -1), 0.0});
     int score = 0;
 
-    // enqueue a cell at a target cumulative cost, growing the bucket vector as needed
-    auto push_at = [&](const idx4 & to, const idx4 & from, int cost) {
-        if (contains(done, to)) return;
+    // enqueue a path at a target cumulative cost, growing the bucket vector as needed. A cell
+    // already finalized is re-enqueued only when this equal-cost path saved strictly more rounding
+    // (a truer, bypass-preferring route); otherwise the finalized cost is already optimal.
+    auto push_at = [&](const idx4 & to, const idx4 & from, int cost, double rsaved) {
+        if (contains(done, to)) {
+            if (cost == fin_score[to] && rsaved > fin_rsaved[to] + EPSILON)
+                bucket[cost].push({to, from, rsaved});
+            return;
+        }
         if (cost >= int(bucket.size())) bucket.resize(cost + 1);
-        bucket[cost].push({to, from});
+        bucket[cost].push({to, from, rsaved});
     };
 
     // toll for transitioning INTO truth node tni: skip_cost of the bypassed variant if tni is a
@@ -215,6 +248,16 @@ int calc_prec_recall_aln(
         return skip_cost(g.credit_threshold, len);
     };
 
+    // rounding overcharged by tni_toll()'s ceil() when entering a bypass node tni (0 otherwise);
+    // accumulated into rsaved so an equal-cost bypass path wins the backtrack tie-break
+    auto tni_saved = [&](int tni) -> double {
+        if (graph->tskips[tni] < 0) return 0.0;
+        std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
+        int vidx = graph->tskips[tni];
+        int len = std::max(int(tvars->refs[vidx].size()), int(tvars->alts[vidx].size()));
+        return skip_cost_saved(g.credit_threshold, len);
+    };
+
     idx4 end = idx4(graph->qnodes-1, graph->tnodes-1,
                 int(graph->qseqs[graph->qnodes-1].length()-1),
                 int(graph->tseqs[graph->tnodes-1].length()-1));
@@ -222,11 +265,22 @@ int calc_prec_recall_aln(
     int final_score = -1;
     while (score < int(bucket.size())) {
         while (!bucket[score].empty()) {
-            std::pair<idx4, idx4> item = bucket[score].front(); bucket[score].pop();
-            idx4 x = item.first;
-            if (contains(done, x)) continue; // already finalized via a cheaper bucket
+            qentry item = bucket[score].front(); bucket[score].pop();
+            idx4 x = item.to;
+            if (contains(done, x)) {
+                // already finalized; adopt this predecessor only if it reaches x at the same cost
+                // while saving strictly more rounding (a truer, bypass-preferring route)
+                if (fin_score[x] == score && item.rsaved > fin_rsaved[x] + EPSILON) {
+                    ptrs[x] = item.from;
+                    fin_rsaved[x] = item.rsaved;
+                }
+                continue;
+            }
             done.insert(x);
-            ptrs[x] = item.second; // predecessor from the cheapest bucket that reached x
+            fin_score[x] = score;
+            fin_rsaved[x] = item.rsaved;
+            ptrs[x] = item.from; // predecessor from the cheapest bucket that reached x
+            double rsaved = item.rsaved;
             /* if (print) printf("    x = node (%d, %d) cell (%d, %d) score %d\n", x.qni, x.tni, x.qi, x.ti, score); */
 
             // reached the endpoint: its cost is now finalized and optimal
@@ -244,7 +298,7 @@ int calc_prec_recall_aln(
                 y.ti++;
                 match = true;
             }
-            if (match) push_at(y, x, score);
+            if (match) push_at(y, x, score, rsaved);
 
             // allow bottom-right corner to move diagonally into next truth and query nodes
             // NOTE: separating this case out allows sync points between adjacent variants.
@@ -253,7 +307,7 @@ int calc_prec_recall_aln(
                 for (int qni : graph->qnexts[x.qni]) { // for all next nodes
                     for (int tni : graph->tnexts[x.tni]) {
                         idx4 z(qni, tni, 0, 0);
-                        push_at(z, x, score + tni_toll(tni));
+                        push_at(z, x, score + tni_toll(tni), rsaved + tni_saved(tni));
                     }
                 }
             }
@@ -263,7 +317,7 @@ int calc_prec_recall_aln(
             if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length())) {
                 for (int qni : graph->qnexts[x.qni]) { // for all next nodes
                     idx4 z(qni, x.tni, 0, x.ti);
-                    push_at(z, x, score);
+                    push_at(z, x, score, rsaved);
                 }
             }
 
@@ -272,20 +326,20 @@ int calc_prec_recall_aln(
             if (x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
                 for (int tni : graph->tnexts[x.tni]) { // for all next nodes
                     idx4 z(x.qni, tni, x.qi, 0);
-                    push_at(z, x, score + tni_toll(tni));
+                    push_at(z, x, score + tni_toll(tni), rsaved + tni_saved(tni));
                 }
             }
 
             // COST-1 EDITS (next bucket) --------------------------------------------------------
             if (x.qi+1 < int(graph->qseqs[x.qni].length())) { // INS
-                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti), x, score + 1);
+                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti), x, score + 1, rsaved);
             }
             if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // DEL
-                push_at(idx4(x.qni, x.tni, x.qi, x.ti+1), x, score + 1);
+                push_at(idx4(x.qni, x.tni, x.qi, x.ti+1), x, score + 1, rsaved);
             }
             if (x.qi+1 < int(graph->qseqs[x.qni].length()) &&
                     x.ti+1 < int(graph->tseqs[x.tni].length())) { // SUB
-                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, score + 1);
+                push_at(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, score + 1, rsaved);
             }
         }
         if (final_score >= 0) break;

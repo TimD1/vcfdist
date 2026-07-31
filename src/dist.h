@@ -225,6 +225,9 @@ void wf_ed(const std::string & query, const std::string & truth, int & score, bo
 /** @brief Flat penalty for bypassing (skipping) a truth variant during alignment. */
 int skip_cost(double credit_threshold, int truth_var_len);
 
+/** @brief Rounding overcharged by skip_cost()'s ceil(): integer toll minus true (1-ct)*len cost. */
+double skip_cost_saved(double credit_threshold, int truth_var_len);
+
 /** @brief Selects the largest bypassed non-SUB truth variant to lock as FN, or -1 if none. */
 int select_fn_drop_candidate(
         const std::vector<int> & tvar_idxs,

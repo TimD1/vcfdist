@@ -838,4 +838,44 @@ TEST(Idx4, LessStrictWeakOrdering) {
     }
 }
 
+/* skip_cost **************************************************************************************/
+
+TEST(TestSkipCost, TestSkipCostCalc) {
+    // ct=0.7, len=10 -> ceil(0.3*10)=3
+    EXPECT_EQ(3, skip_cost(0.7, 10));
+    // ct=0.7, len=1 (SNP) -> ceil(0.3*1)=1
+    EXPECT_EQ(1, skip_cost(0.7, 1));
+    // ct=1.0 -> skip is free (only exact matches stay on-path)
+    EXPECT_EQ(0, skip_cost(1.0, 100));
+    // ct just below 1 -> ceil rounds up to 1, never free for a real variant
+    EXPECT_EQ(1, skip_cost(0.99, 1));
+    // large SV: ct=0.5, len=500 -> 250
+    EXPECT_EQ(250, skip_cost(0.5, 500));
+    // ct=0.5, len=3 -> ceil(1.5)=2
+    EXPECT_EQ(2, skip_cost(0.5, 3));
+    // large len: FP tolerance must scale with magnitude, no spurious off-by-one
+    EXPECT_EQ(300000, skip_cost(0.7, 1000000));
+    EXPECT_EQ(3000000, skip_cost(0.7, 10000000));
+}
+
+TEST(TestSkipCostSaved, TestRoundingSaved) {
+    // skip_cost() rounds (1-ct)*len UP with ceil(); skip_cost_saved() reports how much the
+    // integer toll overcharges the true fractional cost. Used as a backtrack tie-break so a
+    // bypass whose real cost is below its rounded integer wins an equal-integer-cost tie.
+    // ct=0.7, len=1: skip_cost=1, true=0.3 -> saved 0.7
+    EXPECT_NEAR(0.7, skip_cost_saved(0.7, 1), 1e-9);
+    // ct=0.5, len=3: skip_cost=2, true=1.5 -> saved 0.5
+    EXPECT_NEAR(0.5, skip_cost_saved(0.5, 3), 1e-9);
+    // ct=0.7, len=10: skip_cost=3, true=3.0 -> no rounding, saved 0
+    EXPECT_NEAR(0.0, skip_cost_saved(0.7, 10), 1e-9);
+    // ct=1.0: skip is free and exact, saved 0
+    EXPECT_NEAR(0.0, skip_cost_saved(1.0, 100), 1e-9);
+    // saved is always in [0, 1): a ceil() can round up by less than one whole unit
+    for (int len = 1; len <= 50; len++) {
+        double s = skip_cost_saved(0.7, len);
+        EXPECT_GE(s, -1e-9);
+        EXPECT_LT(s, 1.0);
+    }
+}
+
 } // namespace
