@@ -6,7 +6,7 @@
 | **Authored By:** | Tim Dunn |
 | **Status:** | Draft — living document; expands as deliverables land |
 | **Companion SOW:** | `D0_vcfdist-v3-SOW.md` |
-| **Child design docs:** | [`D2_vcfdist-v3-unit-tests.md`](./D2_vcfdist-v3-unit-tests.md) (§5.2), [`D3_retain-info-format-fields.md`](./D3_retain-info-format-fields.md) (§5.3), [`D4_ga4gh-compatibility.md`](./D4_ga4gh-compatibility.md) (§5.4), [`D5_multi-bed-stratification.md`](./D5_multi-bed-stratification.md) (§5.5), [`D6_vcfdist-v3-unphased-eval.md`](./D6_vcfdist-v3-unphased-eval.md) (§5.6), [`D7_vcfdist-v3-benchmarking-design.md`](./D7_vcfdist-v3-benchmarking-design.md) (§5.7), [`D8_vcfdist-v3-release.md`](./D8_vcfdist-v3-release.md) (§5.8), [`D9_docs-and-tutorial.md`](./D9_docs-and-tutorial.md) (§5.9), [`D10_vcfdist-v3-multiqc-module.md`](./D10_vcfdist-v3-multiqc-module.md) (§5.10), [`D11_pipeline-ecosystem-integration.md`](./D11_pipeline-ecosystem-integration.md) (§5.11) |
+| **Child design docs:** | [`D2_vcfdist-v3-unit-tests.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D2_vcfdist-v3-unit-tests.md) (§5.2), [`D3_retain-info-format-fields.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D3_retain-info-format-fields.md) (§5.3), [`D4_ga4gh-compatibility.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D4_ga4gh-compatibility.md) (§5.4), [`D5_multi-bed-stratification.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D5_multi-bed-stratification.md) (§5.5), [`D6_vcfdist-v3-unphased-eval.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D6_vcfdist-v3-unphased-eval.md) (§5.6), [`D7_vcfdist-v3-benchmarking-design.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D7_vcfdist-v3-benchmarking-design.md) (§5.7), [`D8_vcfdist-v3-release.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D8_vcfdist-v3-release.md) (§5.8), [`D9_docs-and-tutorial.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D9_docs-and-tutorial.md) (§5.9), [`D10_vcfdist-v3-multiqc-module.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D10_vcfdist-v3-multiqc-module.md) (§5.10), [`D11_pipeline-ecosystem-integration.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D11_pipeline-ecosystem-integration.md) (§5.11) |
 
 ---
 
@@ -90,11 +90,11 @@ documented-only are not slated for v3.0.0.
 
 | Limitation | Addressed by |
 | :-- | :-- |
-| Requires locally-phased query input | #6 Unphased evaluation ([`D6`](./D6_vcfdist-v3-unphased-eval.md)) |
-| Requires locally-phased truth input | Documented; not fixed in v3 ([`D6`](./D6_vcfdist-v3-unphased-eval.md) §9.1) |
-| Single BED only | #5 Multi-BED stratification ([`D5`](./D5_multi-bed-stratification.md)) |
-| Drops annotations / unevaluated variants | #3 Retain fields + mark `N` ([`D3`](./D3_retain-info-format-fields.md)) |
-| Overlapping variants dropped | #6 for the query callset ([`D6`](./D6_vcfdist-v3-unphased-eval.md) §4.1.3); truth side documented only (D6 §9.3) |
+| Requires locally-phased query input | #6 Unphased evaluation ([`D6`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D6_vcfdist-v3-unphased-eval.md)) |
+| Requires locally-phased truth input | Documented; not fixed in v3 ([`D6`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D6_vcfdist-v3-unphased-eval.md) §9.1) |
+| Single BED only | #5 Multi-BED stratification ([`D5`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D5_multi-bed-stratification.md)) |
+| Drops annotations / unevaluated variants | #3 Retain fields + mark `N` ([`D3`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D3_retain-info-format-fields.md)) |
+| Overlapping variants dropped | #6 for the query callset ([`D6`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D6_vcfdist-v3-unphased-eval.md) §4.1.3); truth side documented only (D6 §9.3) |
 | Phase groups require adjacent variants | Documented; not fixed in v3 |
 | 10 kb practical SV limit | #12 Faster alignment (future work) |
 | Sequence-resolved alleles only (no `<DEL>`/BND) | #13 Large & symbolic SV (future work) |
@@ -114,7 +114,7 @@ updates its own subsection to describe what it implemented.
 
 ### 5.2 Deliverable #2 — Comprehensive Unit Tests
 
-Detailed design: [`D2_vcfdist-v3-unit-tests.md`](./D2_vcfdist-v3-unit-tests.md), which enumerates the
+Detailed design: [`D2_vcfdist-v3-unit-tests.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D2_vcfdist-v3-unit-tests.md), which enumerates the
 suite test-by-test — name, input, expected result, and the branch, boundary, or bug each case exists to
 catch — for every function in every `src/*.cpp`.
 
@@ -133,7 +133,7 @@ catch — for every function in every `src/*.cpp`.
 
 ### 5.3 Deliverable #3 — Retain Original INFO/FORMAT Fields
 
-Detailed design: [`D3_retain-info-format-fields.md`](./D3_retain-info-format-fields.md). This deliverable
+Detailed design: [`D3_retain-info-format-fields.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D3_retain-info-format-fields.md). This deliverable
 establishes the `summary.vcf` record layout that #4 annotates, #5 stratifies, and #6 extends.
 
 - **Changes:** `summary.vcf` emits **one record per variant** rather than one per haplotype copy — a
@@ -152,7 +152,7 @@ establishes the `summary.vcf` record layout that #4 annotates, #5 stratifies, an
 
 ### 5.4 Deliverable #4 — GA4GH Benchmarking VCF Compatibility
 
-Detailed design: [`D4_ga4gh-compatibility.md`](./D4_ga4gh-compatibility.md). Brings `summary.vcf` into
+Detailed design: [`D4_ga4gh-compatibility.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D4_ga4gh-compatibility.md). Brings `summary.vcf` into
 conformance with the GA4GH benchmarking (intermediate) VCF contract, so a consumer of that format can
 read vcfdist's per-variant decisions. vcfdist's own metrics remain its native TSVs.
 
@@ -177,7 +177,7 @@ read vcfdist's per-variant decisions. vcfdist's own metrics remain its native TS
 
 ### 5.5 Deliverable #5 — Multi-BED Stratification Support
 
-Detailed design: [`D5_multi-bed-stratification.md`](./D5_multi-bed-stratification.md). N named
+Detailed design: [`D5_multi-bed-stratification.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D5_multi-bed-stratification.md). N named
 stratification region sets that **label** variants without removing any; `-b` remains the sole filter.
 
 - **Additions:** `-st`/`--stratification <manifest.tsv>`, a hap.py-compatible two-column manifest whose
@@ -200,7 +200,7 @@ stratification region sets that **label** variants without removing any; `-b` re
 
 ### 5.6 Deliverable #6 — Unphased Variant Evaluation
 
-Detailed design: [`D6_vcfdist-v3-unphased-eval.md`](./D6_vcfdist-v3-unphased-eval.md). Removes the hard
+Detailed design: [`D6_vcfdist-v3-unphased-eval.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D6_vcfdist-v3-unphased-eval.md). Removes the hard
 local-phasing requirement for the **query** VCF. No haplotype-pairing search is needed: the v3 alignment
 core is already phase-blind on the query side — `Graph` builds the query as a DAG containing every
 unevaluated query variant with no haplotype filter, and query phase is read nowhere in the alignment,
@@ -230,7 +230,7 @@ credit, or P/R tally.
 
 ### 5.7 Deliverable #7 — Benchmarking v3 vs. v2 / vcfeval / hap.py
 
-Detailed design: [`D7_vcfdist-v3-benchmarking-design.md`](./D7_vcfdist-v3-benchmarking-design.md).
+Detailed design: [`D7_vcfdist-v3-benchmarking-design.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D7_vcfdist-v3-benchmarking-design.md).
 
 - **Additions:** a reproducible pixi + Snakemake harness running vcfdist v3, vcfdist v2.6.4, `vcfeval`,
   and `hap.py` (`xcmp`) over the T2T-Q100 HG002 truth set with the HPRC, PAV, and GIAB-TR query
@@ -246,7 +246,7 @@ Detailed design: [`D7_vcfdist-v3-benchmarking-design.md`](./D7_vcfdist-v3-benchm
 
 ### 5.8 Deliverable #8 — v3.0.0 Release & Launch Announcement
 
-Detailed design: [`D8_vcfdist-v3-release.md`](./D8_vcfdist-v3-release.md).
+Detailed design: [`D8_vcfdist-v3-release.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D8_vcfdist-v3-release.md).
 
 - **Additions:** `CHANGELOG.md` at the repository root, with v3.0.0 as the first entry; a
   `3.0.0-rc1` pre-release with a two-week feedback window and a stated output-format freeze; a
@@ -262,7 +262,7 @@ Detailed design: [`D8_vcfdist-v3-release.md`](./D8_vcfdist-v3-release.md).
 
 ### 5.9 Deliverable #9 — Documentation & sandbox.bio Tutorial
 
-Detailed design: [`D9_docs-and-tutorial.md`](./D9_docs-and-tutorial.md).
+Detailed design: [`D9_docs-and-tutorial.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D9_docs-and-tutorial.md).
 
 - **Removals:** the `04-VCF-Normalization` and `08-Alignment-Distance` wiki pages, whose code paths no
   longer exist.
@@ -280,7 +280,7 @@ Detailed design: [`D9_docs-and-tutorial.md`](./D9_docs-and-tutorial.md).
 
 ### 5.10 Deliverable #10 — MultiQC Module
 
-Detailed design: [`D10_vcfdist-v3-multiqc-module.md`](./D10_vcfdist-v3-multiqc-module.md). A native
+Detailed design: [`D10_vcfdist-v3-multiqc-module.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D10_vcfdist-v3-multiqc-module.md). A native
 module contributed upstream to MultiQC, with a standalone pip-installable plugin as the fallback if
 upstream review stalls. Both build the same module class; the plugin adds packaging and hooks.
 
@@ -299,7 +299,7 @@ upstream review stalls. Both build the same module class; the plugin adds packag
 ### 5.11 Deliverable #11 — nf-core & snakemake-wrappers Integration
 
 Detailed design:
-[`D11_pipeline-ecosystem-integration.md`](./D11_pipeline-ecosystem-integration.md). Three upstream
+[`D11_pipeline-ecosystem-integration.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D11_pipeline-ecosystem-integration.md). Three upstream
 contributions; no vcfdist source changes.
 
 - **Additions:** an `nf-core/modules` `VCFDIST` module — `main.nf`, `meta.yml`, `environment.yml`, and
@@ -347,11 +347,11 @@ is a convention rather than a declaration; an explicit CLI flag or embedded fiel
 ## 7. References
 
 - Companion SOW: `D0_vcfdist-v3-SOW.md`
-- Deliverable #2 unit-test design: [`D2_vcfdist-v3-unit-tests.md`](./D2_vcfdist-v3-unit-tests.md) (expands §5.2)
-- Deliverable #3 field-retention / record-shape design: [`D3_retain-info-format-fields.md`](./D3_retain-info-format-fields.md) (expands §5.3)
-- Deliverable #4 GA4GH-compatibility design: [`D4_ga4gh-compatibility.md`](./D4_ga4gh-compatibility.md) (expands §5.4)
-- Deliverable #5 stratification design: [`D5_multi-bed-stratification.md`](./D5_multi-bed-stratification.md) (expands §5.5)
-- Deliverable #6 unphased-evaluation design: [`D6_vcfdist-v3-unphased-eval.md`](./D6_vcfdist-v3-unphased-eval.md) (expands §5.6)
+- Deliverable #2 unit-test design: [`D2_vcfdist-v3-unit-tests.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D2_vcfdist-v3-unit-tests.md) (expands §5.2)
+- Deliverable #3 field-retention / record-shape design: [`D3_retain-info-format-fields.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D3_retain-info-format-fields.md) (expands §5.3)
+- Deliverable #4 GA4GH-compatibility design: [`D4_ga4gh-compatibility.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D4_ga4gh-compatibility.md) (expands §5.4)
+- Deliverable #5 stratification design: [`D5_multi-bed-stratification.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D5_multi-bed-stratification.md) (expands §5.5)
+- Deliverable #6 unphased-evaluation design: [`D6_vcfdist-v3-unphased-eval.md`](https://github.com/TimD1/vcfdist/blob/e7e18058b27e2a8dbb69ec59280d94d5ef1f6338/docs/deliverables/D6_vcfdist-v3-unphased-eval.md) (expands §5.6)
 - Krusche et al. 2019, *Best practices for benchmarking germline small-variant calls in human genomes*, Nat. Biotechnol. (GA4GH benchmarking standard)
 - Dunn & Narayanasamy 2023, *vcfdist: Accurately benchmarking phased small variant calls in human genomes*, Nat. Commun.
 - MultiQC documentation — writing modules & plugins (pin to the targeted release)
