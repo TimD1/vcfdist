@@ -1,11 +1,9 @@
 ######################
 # GOOGLE TEST CONFIG #
 ######################
-GTEST_DIR = /usr/src/gtest
-GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
-                $(GTEST_DIR)/include/gtest/internal/*.h
-GTEST_FLAGS += -isystem $(GTEST_DIR)/include
-GTEST_SRCS = $(GTEST_DIR)/src/*.cc $(GTEST_DIR)/src/*.h $(GTEST_HEADERS)
+# Portable across Linux CI (libgtest-dev sources at /usr/src/gtest) and macOS
+# (Homebrew prebuilt Google Test, not on the default compiler search path).
+UNAME_S := $(shell uname -s)
 
 ###################
 # MY TESTS CONFIG #
@@ -17,11 +15,29 @@ LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 OBJS = $(SRC)/globals.o $(SRC)/print.o $(SRC)/variant.o $(SRC)/dist.o $(SRC)/bed.o \
        $(SRC)/cluster.o $(SRC)/phase.o $(SRC)/timer.o test_dist.o
 
+ifeq ($(UNAME_S),Darwin)
+    # macOS: link Homebrew's prebuilt Google Test; no gtest sources to compile.
+    GTEST_PREFIX := $(shell brew --prefix googletest)
+    GTEST_INC := -isystem $(GTEST_PREFIX)/include
+    GTEST_LINK := -L$(GTEST_PREFIX)/lib -lgtest -lgtest_main
+    GTEST_LIB :=
+    GTEST_HEADERS :=
+else
+    # Linux (CI): build Google Test from source at /usr/src/gtest.
+    GTEST_DIR = /usr/src/gtest
+    GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
+                    $(GTEST_DIR)/include/gtest/internal/*.h
+    GTEST_INC := -isystem $(GTEST_DIR)/include
+    GTEST_SRCS = $(GTEST_DIR)/src/*.cc $(GTEST_DIR)/src/*.h $(GTEST_HEADERS)
+    GTEST_LINK := gtest_main.a
+    GTEST_LIB := gtest_main.a
+endif
+
 ############
 # MY TESTS #
 ############
-$(TESTS): $(OBJS) gtest_main.a
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TESTS) $(LDFLAGS) gtest_main.a
+$(TESTS): $(OBJS) $(GTEST_LIB)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TESTS) $(LDFLAGS) $(GTEST_LINK)
 
 clean:
 	rm -f $(TESTS) gtest.a gtest_main.a *.o $(SRC)/*.o *.a
@@ -29,11 +45,12 @@ clean:
 #####################
 # BUILD GOOGLE TEST #
 #####################
+# Linux only; on macOS GTEST_LIB is empty so these rules are never invoked.
 gtest-all.o: $(GTEST_SRCS)
-	$(CXX) $(GTEST_FLAGS) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest-all.cc
+	$(CXX) $(GTEST_INC) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest-all.cc
 
 gtest_main.o: $(GTEST_SRCS)
-	$(CXX) $(GTEST_FLAGS) -I$(GTEST_DIR) $(CXXFLAGS) -c \
+	$(CXX) $(GTEST_INC) -I$(GTEST_DIR) $(CXXFLAGS) -c \
             $(GTEST_DIR)/src/gtest_main.cc
 
 gtest_main.a: gtest-all.o gtest_main.o
@@ -43,7 +60,7 @@ gtest_main.a: gtest-all.o gtest_main.o
 # BUILD MY TESTS #
 ##################
 test_dist.o: ../src/test_dist.cpp $(SRC)/dist.h $(GTEST_HEADERS)
-	$(CXX) $(CXXFLAGS) -c ../src/test_dist.cpp
+	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c ../src/test_dist.cpp
 
 #################
 # BUILD VCFDIST #
