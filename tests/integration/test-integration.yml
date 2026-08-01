@@ -3,3 +3,150 @@
 
 - name: test_small-var_phased_single-phaseset_chr20
   command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist "${VCFDIST_REPO_PATH}/tests/integration/data/query_chr20.vcf.gz" "${VCFDIST_REPO_PATH}/tests/integration/data/truth_chr20.vcf.gz" "${VCFDIST_REPO_PATH}/tests/integration/data/GCA_000001405.15_GRCh38_no_alt_analysis_set_chr20.fasta" -b "${VCFDIST_REPO_PATH}/tests/integration/data/chr20.bed"'
+
+# --- single-pass FN dropping / swallowing-recovery scenarios (synthetic sc1 reference) ---
+# All scenarios share tests/integration/data/synthetic.fasta (400bp contig "sc1") and
+# tests/integration/data/synthetic.bed (whole-contig region).
+
+- name: test_single-pass_large-fn-sv-recovers-snps
+  # swallowed_snps: truth has a 100bp deletion (pos 150) plus 3 nearby SNPs (140, 146, 256);
+  # query has the 3 SNPs but not the deletion. Verifies the SNPs are recovered as TP and
+  # the deletion is labeled FN in a single pass, without the SNPs being swallowed into the
+  # deletion's sync group.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_out_"'
+  files:
+    - path: tests/integration/data/swallowed_snps_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t6\t6\t0\t0"
+        - "SV\tNONE\t0\t0\t0\t2\t0"
+    - path: tests/integration/data/swallowed_snps_out_summary.vcf
+      contains:
+        - "sc1\t140\t.\tT\tC"
+        - "sc1\t146\t.\tG\tA"
+        - "sc1\t256\t.\tG\tA"
+        - ":TP:1.000000:"
+        - ":FN:0.000000:"
+      must_not_contain:
+        - ":FP:"
+
+- name: test_single-pass_partial-match-tp-at-lenient-ct
+  # partial_match_del (-ct 0.7): truth has a 10bp deletion (pos 150); query has an 8bp
+  # deletion at the same anchor (partial match, query_dist=2, credit = 1 - 2/10 = 0.8).
+  # At a lenient threshold of -ct 0.7 this clears the bar and is TP. (The tool default of 0.98
+  # would not, so -ct is set explicitly here for the partial match to count as TP.)
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -ct 0.7
+    -p "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_ct07_"'
+  files:
+    - path: tests/integration/data/partial_match_del_ct07_precision-recall-summary.tsv
+      contains:
+        - "INDEL\tNONE\t0\t2\t2\t0\t0"
+    - path: tests/integration/data/partial_match_del_ct07_summary.vcf
+      contains:
+        - ":TP:0.800000:"
+      must_not_contain:
+        - ":FN:"
+        - ":FP:"
+
+- name: test_single-pass_ct1-exact-match-only
+  # partial_match_del (-ct 1.0): same partially-matched 10bp-vs-8bp deletion as above, but
+  # with -ct 1.0 (bypass toll (1-ct)*len = 0), only an exact match stays on-path. The
+  # 0.8-credit variant is bypassed: truth becomes FN, the query call becomes FP.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -ct 1.0
+    -p "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_ct1_"'
+  files:
+    - path: tests/integration/data/partial_match_del_ct1_precision-recall-summary.tsv
+      contains:
+        - "INDEL\tNONE\t0\t0\t0\t2\t2"
+    - path: tests/integration/data/partial_match_del_ct1_summary.vcf
+      contains:
+        - ":FN:0.000000:"
+        - ":FP:0.000000:"
+      must_not_contain:
+        - ":TP:"
+
+- name: test_single-pass_colocated-spurious-call-no-distortion
+  # colocated_spurious_snp: truth has a SNP (pos 200, A>G) the query misses entirely; query
+  # has an unrelated spurious SNP call at the same position (A>C). Verifies the truth variant
+  # is FN and the query call is FP independently, with no cross-crediting (the r=0 case).
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/colocated_spurious_snp_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/colocated_spurious_snp_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "${VCFDIST_REPO_PATH}/tests/integration/data/colocated_spurious_snp_out_"'
+  files:
+    - path: tests/integration/data/colocated_spurious_snp_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t0\t0\t2\t2"
+    - path: tests/integration/data/colocated_spurious_snp_out_summary.vcf
+      contains:
+        - "sc1\t200\t.\tA\tG"
+        - "sc1\t200\t.\tA\tC"
+        - ":FN:0.000000:"
+        - ":FP:0.000000:"
+      must_not_contain:
+        - ":TP:"
+
+- name: test_single-pass_entangled-overlap-shared-credit
+  # entangled_overlap_del (-ct 0.7), exploratory: truth has a 10bp deletion at anchor 150;
+  # query has a different 10bp deletion at anchor 152 (8 of 10 deleted bases overlap, different
+  # start position -- an interlocking/entangled locus). Observed at -ct 0.7: the aligner places
+  # both in the SAME sync group and assigns both TP with credit 0.8, even though the two calls
+  # do not share a start position -- a nonzero-r residual of cross-crediting distinct from the
+  # clean r=0 colocated-spurious case above. This is documented/characterized, not asserted as
+  # "correct" behavior.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/entangled_overlap_del_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/entangled_overlap_del_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -ct 0.7
+    -p "${VCFDIST_REPO_PATH}/tests/integration/data/entangled_overlap_del_out_"'
+  files:
+    - path: tests/integration/data/entangled_overlap_del_out_precision-recall-summary.tsv
+      contains:
+        - "INDEL\tNONE\t0\t2\t2\t0\t0"
+    - path: tests/integration/data/entangled_overlap_del_out_summary.vcf
+      contains:
+        - ":TP:0.800000:"
+
+- name: test_single-pass_adjacent-fn-no-overcredit
+  # adjacent_fn_no_overcredit: regression guard for the consecutive-bypass excision fix.
+  # Truth has a reproduced SNP (pos 300, TP) immediately followed by two adjacent missed SNPs
+  # (pos 301, 302, both FN); query has only the pos-300 SNP. All three fall in one sync group,
+  # so both FN bypass spans must be excised from the TP's reference edit distance (RD). The fix
+  # yields RD=1 for the TP; leaving the inner bypass un-excised inflates it to RD=2. The call
+  # stays TP either way (credit 1.0), so RD is the field that pins the fix.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/adjacent_fn_no_overcredit_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/adjacent_fn_no_overcredit_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "${VCFDIST_REPO_PATH}/tests/integration/data/adjacent_fn_no_overcredit_out_"'
+  files:
+    - path: tests/integration/data/adjacent_fn_no_overcredit_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t4\t0"
+    - path: tests/integration/data/adjacent_fn_no_overcredit_out_summary.vcf
+      contains:
+        - "sc1\t300\t.\tA\tC"
+        - ":TP:1.000000:1:0:"
+        - ":FN:0.000000:"
+      must_not_contain:
+        - ":TP:1.000000:2:"
+        - ":FP:"
