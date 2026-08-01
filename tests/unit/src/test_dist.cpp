@@ -81,14 +81,19 @@ TEST(Contains, SetIdx4DistinguishesEachField) {
 }
 
 // Build an in-memory reference by round-tripping a tiny FASTA through a temp file
-// (fastaData only exposes a FILE* constructor).
+// (fastaData only exposes a FILE* constructor). fastaData reads the whole file into memory and
+// closes the pointer, so the temp file is removed immediately after. A per-call counter keeps the
+// path unique so concurrent tests never share a file.
 std::shared_ptr<fastaData> make_ref(const std::string & ctg, const std::string & seq) {
-    const char * path = "./gtest_graph_ref.fa";
-    FILE * w = fopen(path, "w");
+    static int counter = 0;
+    std::string path = "./gtest_graph_ref_" + std::to_string(counter++) + ".fa";
+    FILE * w = fopen(path.c_str(), "w");
     fprintf(w, ">%s\n%s\n", ctg.c_str(), seq.c_str());
     fclose(w);
-    FILE * r = fopen(path, "r");
-    return std::make_shared<fastaData>(r);
+    FILE * r = fopen(path.c_str(), "r");
+    auto data = std::make_shared<fastaData>(r);
+    std::remove(path.c_str());
+    return data;
 }
 
 // A truth insertion is a zero-width (in reference coordinates) locus. When another truth
@@ -837,44 +842,39 @@ TEST(Idx4, LessStrictWeakOrdering) {
     }
 }
 
-/* skip_cost **************************************************************************************/
+// Regression guard for consecutive bypassed (FN) truth variants. Two adjacent truth SNPs the query
+// misses are both routed through their reference-allele bypass nodes (FN). Each bypass span must be
+// excised from the enclosing sync group's credit measurement -- not just the first one reached
+// during backtracking. A neighbouring reproduced SNP (TP) shares the same group; with only one span
+// excised its reference edit distance is inflated (2 instead of 1), so ref_ed pins the excision of
+// BOTH bypasses.
+TEST(GraphBypass, ConsecutiveBypassesBothExcised) {
+    auto sc = std::make_shared<ctgSuperclusters>();
+    sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
+    sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
+    auto ref = make_ref("chr1", "ACGTACGT");
 
-TEST(TestSkipCost, TestSkipCostCalc) {
-    // ct=0.7, len=10 -> ceil(0.3*10)=3
-    EXPECT_EQ(3, skip_cost(0.7, 10));
-    // ct=0.7, len=1 (SNP) -> ceil(0.3*1)=1
-    EXPECT_EQ(1, skip_cost(0.7, 1));
-    // ct=1.0 -> skip is free (only exact matches stay on-path)
-    EXPECT_EQ(0, skip_cost(1.0, 100));
-    // ct just below 1 -> ceil rounds up to 1, never free for a real variant
-    EXPECT_EQ(1, skip_cost(0.99, 1));
-    // large SV: ct=0.5, len=500 -> 250
-    EXPECT_EQ(250, skip_cost(0.5, 500));
-    // ct=0.5, len=3 -> ceil(1.5)=2
-    EXPECT_EQ(2, skip_cost(0.5, 3));
-    // large len: FP tolerance must scale with magnitude, no spurious off-by-one
-    EXPECT_EQ(300000, skip_cost(0.7, 1000000));
-    EXPECT_EQ(3000000, skip_cost(0.7, 10000000));
-}
+    // truth: SNP pos2 (reproduced -> TP), then adjacent SNPs pos3 and pos4 (both missed -> FN)
+    auto tv = sc->callset_vars[TRUTH];
+    tv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "A", GT_ALT1_REF, 60, 60, 0, 0);
+    tv->add_var(3, 1, TYPE_SUB, BED_INSIDE, "T", "G", GT_ALT1_REF, 60, 60, 0, 0);
+    tv->add_var(4, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_ALT1_REF, 60, 60, 0, 0);
 
-TEST(TestSkipCostSaved, TestRoundingSaved) {
-    // skip_cost() rounds (1-ct)*len UP with ceil(); skip_cost_saved() reports how much the
-    // integer toll overcharges the true fractional cost. Used as a backtrack tie-break so a
-    // bypass whose real cost is below its rounded integer wins an equal-integer-cost tie.
-    // ct=0.7, len=1: skip_cost=1, true=0.3 -> saved 0.7
-    EXPECT_NEAR(0.7, skip_cost_saved(0.7, 1), 1e-9);
-    // ct=0.5, len=3: skip_cost=2, true=1.5 -> saved 0.5
-    EXPECT_NEAR(0.5, skip_cost_saved(0.5, 3), 1e-9);
-    // ct=0.7, len=10: skip_cost=3, true=3.0 -> no rounding, saved 0
-    EXPECT_NEAR(0.0, skip_cost_saved(0.7, 10), 1e-9);
-    // ct=1.0: skip is free and exact, saved 0
-    EXPECT_NEAR(0.0, skip_cost_saved(1.0, 100), 1e-9);
-    // saved is always in [0, 1): a ceil() can round up by less than one whole unit
-    for (int len = 1; len <= 50; len++) {
-        double s = skip_cost_saved(0.7, len);
-        EXPECT_GE(s, -1e-9);
-        EXPECT_LT(s, 1.0);
-    }
+    // query: reproduces only the pos2 SNP, so pos3 and pos4 are missed
+    auto qv = sc->callset_vars[QUERY];
+    qv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "A", GT_ALT1_REF, 60, 60, 0, 0);
+
+    auto graph = std::make_shared<Graph>(sc, 0, ref, "chr1", HAP1);
+    std::unordered_map<idx4, idx4> ptrs;
+    calc_prec_recall_aln(graph, ptrs, false);
+    calc_prec_recall(graph, ptrs, HAP1, false);
+
+    EXPECT_EQ(ERRTYPE_TP, tv->errtypes[HAP1][0]) << "reproduced pos2 SNP should be TP";
+    EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][1]) << "missed pos3 SNP should be FN";
+    EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][2]) << "missed pos4 SNP should be FN";
+    // both bypass spans excised: the TP group's ref edit distance counts only the pos2 SNP.
+    // Leaving the second bypass un-excised inflates this to 2.
+    EXPECT_EQ(1, tv->ref_ed[HAP1][0]) << "consecutive bypass span not fully excised";
 }
 
 } // namespace

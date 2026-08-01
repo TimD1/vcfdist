@@ -117,41 +117,6 @@ std::string generate_str(
 /**************************************************************************************************/
 
 /**
- * @brief Flat penalty for bypassing (skipping) a truth variant during alignment.
- *
- * @param[in] credit_threshold Credit threshold on the interval (0,1].
- * @param[in] truth_var_len Edit-distance size of the variant (1 for SNP, |alt| for INS, |ref| for DEL).
- * @return The integer skip penalty, computed with a small magnitude-scaled
- *   floating-point tolerance so exact-integer products are not spuriously rounded up.
- */
-int skip_cost(double credit_threshold, int truth_var_len) {
-    // EPSILON subtracted before ceil() to avoid extra rounding up after floating point calculation
-    return int(std::ceil( (1.0 - credit_threshold) * truth_var_len - EPSILON));
-}
-
-/**************************************************************************************************/
-
-/**
- * @brief Rounding overcharged by skip_cost()'s ceil(): integer toll minus true (1-ct)*len cost.
- *
- * skip_cost() charges an integer bucket cost, rounding the true fractional bypass cost
- * (1-ct)*len up with ceil(). This returns that overcharge (in [0,1)), used as a lower-is-truer
- * tie-break during backtracking: when a bypass path and an align path reach a cell at equal
- * integer cost, the bypass's true cost is this much lower, so it should win the tie.
- *
- * @param[in] credit_threshold Credit threshold on the interval (0,1].
- * @param[in] truth_var_len Edit-distance size of the variant.
- * @return The rounding overcharge, clamped to be non-negative.
- */
-double skip_cost_saved(double credit_threshold, int truth_var_len) {
-    double saved = skip_cost(credit_threshold, truth_var_len)
-            - (1.0 - credit_threshold) * truth_var_len;
-    return saved < 0.0 ? 0.0 : saved; // clamp float noise to non-negative
-}
-
-/**************************************************************************************************/
-
-/**
  * @brief Runs graph-based alignment and returns the optimal alignment score.
  *
  * Performs a forward-pass weighted shortest-path alignment (Dijkstra over a binary-heap priority
@@ -171,7 +136,7 @@ int calc_prec_recall_aln(
         ) {
 
     // Dijkstra on TRUE fractional cost via a binary-heap priority queue. A bypass edge costs the
-    // exact (1-ct)*len rather than its ceil()'d skip_cost(), so the queue orders paths by true cost
+    // exact (1-ct)*len rather than a ceil()'d integer toll, so the queue orders paths by true cost
     // globally: a truly-cheaper bypass simply has lower cost (no integer-bucket rounding, no separate
     // tie-break), and equal-integer-cost paths whose true costs differ by >= 1 can no longer be
     // finalized in the wrong order. All edge costs are non-negative, so Dijkstra is valid.
@@ -287,8 +252,8 @@ int calc_prec_recall_aln(
  * Builds the alignment graph, computes the single precision-recall alignment, and classifies every
  * variant as TP/FP/FN in one pass. The graph places each truth variant's reference-allele bypass
  * node in parallel with its alt node, so a truth variant the query failed to match within the
- * skip_cost() budget is routed around and labeled FN by the same backtrack that credits the rest;
- * no re-alignment is required.
+ * (1-ct)*len bypass-toll budget is routed around and labeled FN by the same backtrack that credits
+ * the rest; no re-alignment is required.
  *
  * @param[in] scs Supercluster data containing query and truth variant containers.
  * @param[in] sc_idx Index of the supercluster to evaluate.
@@ -346,8 +311,7 @@ void calc_prec_recall(
     // intervals [beg, end) and the matching this->truth intervals holding the off-path alt.
     std::vector< std::pair<int,int> > excised_ref;
     std::vector< std::pair<int,int> > excised_truth;
-    bool in_bypass = false;         ///< backtrack is currently inside a bypass node
-    size_t qvars_before_bypass = 0; ///< sync_qvars size on entering it, to drop calls inside it
+    size_t qvars_before_bypass = 0; ///< sync_qvars size on entering a bypass, to drop calls inside it
     std::shared_ptr<ctgVariants> qvars = graph->sc->callset_vars[QUERY];
     std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
 
@@ -483,7 +447,9 @@ void calc_prec_recall(
             sync_tvars.push_back(tvar_idx);
             if (print) printf("new truth variant: %d\n", tvar_idx);
         }
-        // if we move into a bypass node, the skipped truth variant is a false negative
+        // if we move into a bypass node, the skipped truth variant is a false negative, and its
+        // span is excised from the enclosing group's credit measurement. This fires once per bypass
+        // node, so consecutive bypassed truth variants are each excised (not just the first one).
         if (prev.tni != curr.tni && curr_bypass) {
             int tvar_idx = graph->tskips[curr.tni];
             tvars->errtypes[truth_hap][tvar_idx] = ERRTYPE_FN;
@@ -491,6 +457,7 @@ void calc_prec_recall(
             tvars->ref_ed[truth_hap][tvar_idx] = 0;
             tvars->query_ed[truth_hap][tvar_idx] = 0;
             tvars->sync_group[truth_hap][tvar_idx] = sync_group;
+            excise_bypass(curr.tni);
             if (print) printf("bypassed (FN) truth variant: %d\n", tvar_idx);
         }
         // if the alignment is a substitution, insertion, or deletion. Edits taken inside a bypass
@@ -520,27 +487,26 @@ void calc_prec_recall(
         bool sync_point = on_main_diag && (
                 (same_submatrix && ref_query_move && ref_truth_move) || diff_submatrix);
 
-        // A bypassed variant is an off-path false negative, so its span is excised from the
-        // enclosing group's credit measurement rather than splitting the group in two. No
-        // get_truth_pos/wf_ed may be taken with curr inside a bypass node (get_truth_pos would
-        // overshoot this->truth), so sync points are still suppressed there.
+        // A bypassed variant is an off-path false negative; its span is excised (in the FN block
+        // above) from the enclosing group's credit measurement rather than splitting the group in
+        // two. These boundaries only bracket the query variants that aligned inside the bypass
+        // region so they can be dropped from the group. No get_truth_pos/wf_ed may be taken with
+        // curr inside a bypass node (get_truth_pos would overshoot this->truth), so sync points are
+        // still suppressed there. A run of consecutive bypass nodes is bracketed by a single
+        // entry (its top) and a single exit (its bottom).
         if (prev.tni != curr.tni && prev_bypass && !curr_bypass) {
             // ENTRY (backtrack about to descend from the real node above into the bypass below):
-            // record the bypassed span for excision and remember how many query variants the
-            // enclosing group held, so calls aligned inside the bypass can be dropped on exit.
+            // remember how many query variants the enclosing group held, so calls aligned inside
+            // the bypass can be dropped on exit.
             if (print) printf("bypass entry boundary\n");
-            excise_bypass(prev.tni);
-            in_bypass = true;
             qvars_before_bypass = sync_qvars.size();
         } else if (prev.tni != curr.tni && curr_bypass && !prev_bypass) {
-            // EXIT (backtrack leaving the bottom of the bypass into the real node below): the
-            // bypassed variant is FN (marked above). Query variants aligned inside the bypass lie
-            // in the excised span, so they are dropped from the group and keep their default FP.
+            // EXIT (backtrack leaving the bottom of the bypass into the real node below): query
+            // variants aligned inside the bypass lie in the excised span, so they are dropped from
+            // the group and keep their default FP.
             if (print) printf("bypass exit boundary\n");
-            if (!in_bypass) excise_bypass(curr.tni); // defensive: never entered from above
             if (sync_qvars.size() > qvars_before_bypass)
                 sync_qvars.resize(qvars_before_bypass);
-            in_bypass = false;
         } else if (sync_point && !curr_bypass) {
             if (print) printf("potential sync point\n");
             // add sync point
@@ -1035,7 +1001,7 @@ Graph::Graph(
 
     // coordinates hosting a zero-width truth insertion variant node; a direct ref->ref edge
     // across such a locus would give a free (cost-0) path skipping both the alt (variant) and
-    // the tolled bypass node, circumventing skip_cost() and mislabeling matched insertions FN
+    // the tolled bypass node, circumventing the bypass toll and mislabeling matched insertions FN
     std::unordered_set<int> insertion_coords;
     for (int tn = 0; tn < this->tnodes; tn++)
         if (this->tidxs[tn] >= 0 && this->tbegs[tn] == this->tends[tn])

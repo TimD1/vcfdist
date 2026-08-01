@@ -221,10 +221,4 @@ void wf_swg_align(
 /** @brief Computes the edit distance between two sequences using wavefront alignment. */
 void wf_ed(const std::string & query, const std::string & truth, int & score, bool print = false);
 
-/** @brief Flat penalty for bypassing (skipping) a truth variant during alignment. */
-int skip_cost(double credit_threshold, int truth_var_len);
-
-/** @brief Rounding overcharged by skip_cost()'s ceil(): integer toll minus true (1-ct)*len cost. */
-double skip_cost_saved(double credit_threshold, int truth_var_len);
-
 #endif
