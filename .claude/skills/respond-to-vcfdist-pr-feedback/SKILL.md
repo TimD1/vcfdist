@@ -60,7 +60,9 @@ triggering review or comment. If one exists, stop; re-running duplicates commits
   commits instead.
 - **Work in the branch's existing worktree** under `.claude/worktrees/`, per the repo's
   CLAUDE.md. Do not create a second worktree for a branch that already has one.
-- **Do not push before `pytest -vv` passes.**
+- **Push only the exact commit you tested.** `pytest -vv` must pass, and `HEAD` at push time
+  must be the SHA that passed, with a clean worktree. Any edit after the test run — however
+  small, whatever its source — sends you back to step 2 to fix and re-test.
 
 ## Sequence
 
@@ -71,18 +73,47 @@ omission is what makes a reviewer re-review from scratch.
 **2. Fix.** Follow the repo's documentation conventions from CLAUDE.md (`.h` files get
 `@brief` only; `.cpp` files get full parameter/return/throws blocks; 100-character separators).
 
-**3. Test.**
+**3. Commit, build, test.** Commit first, so the tested state has an identity:
 
 ```bash
-cd src && make            # produces src/vcfdist
-cd ../tests && pytest -vv # unit (GoogleTest) + integration (pytest-workflow)
+git add <explicit paths> && git commit      # never `git add -A` or `-u`
+cd src && make                              # produces src/vcfdist
+cd ../tests && pytest -vv                   # unit (GoogleTest) + integration (pytest-workflow)
+git rev-parse HEAD                          # ← the TESTED SHA. Write it down.
 ```
 
-Tests must pass before proceeding. If one fails for a reason unrelated to your change, say so
-explicitly with the output rather than proceeding quietly. (`tests/README.md` claims several
-tests need a genome-wide FASTA in `data/refs/`, which ships **empty** — but the committed
-integration test uses the chr20 reference in `tests/integration/data/`. If a test errors for a
-missing reference, that stale instruction is the likely cause.)
+**Every test must pass.** If any fails, stop: report the failing test with its output, leave
+the PR assigned to `TimD1-bot`, and push nothing. This holds even when the failure looks
+unrelated to your change or reproduces on the target branch — triaging pre-existing breakage is
+a decision for the maintainer, not a reason to continue.
+
+(`tests/README.md` claims several tests need a genome-wide FASTA in `data/refs/`, which ships
+**empty** — but the committed integration test uses the chr20 reference in
+`tests/integration/data/`. If a test errors for a missing reference, that stale instruction is
+the likely cause.)
+
+### The tested tree is the pushed tree
+
+**Code never changes after the tests pass. If it does, you are back at step 2.**
+
+Every later stage — independent review, the A/B count comparison, anything you notice while
+writing the comment — can produce an edit. When one does, that is not a patch to apply on the
+way out: return to step 2, fix, and run step 3 again from the top. The tested SHA is replaced,
+not amended.
+
+This is mechanically checkable, so check it rather than trusting your memory of what you
+touched. Immediately before pushing:
+
+```bash
+git rev-parse HEAD        # must equal the TESTED SHA from step 3
+git status --porcelain    # must be empty — no unstaged or untracked changes
+```
+
+If either check fails, **do not push**. Go to step 2 and start the loop again.
+
+A stale binary is the quiet version of this failure: editing `src/` and running the A/B without
+`make` compares the *old* build, so the numbers in your comment describe code that is not on
+the branch. Re-running step 3 rebuilds, which is why the fix is to loop rather than to patch.
 
 ## Deciding whether to re-evaluate counts
 
@@ -144,13 +175,18 @@ meaningless.
 Before pushing, get fresh eyes on the diff — your own second read is not review.
 **REQUIRED SUB-SKILL:** use whichever reviewer-persona review skill is available in the
 environment, matched to whoever reviews this repo; for changes to alignment, clustering, or
-variant logic also use `reviewing-bioinformatics-code`. Apply findings you agree with; record
-why for those you reject. **REQUIRED SUB-SKILL:** `superpowers:receiving-code-review` governs
-how to weigh them — verify claims, don't perform agreement.
+variant logic also use `reviewing-bioinformatics-code`. Record why for findings you reject.
+**REQUIRED SUB-SKILL:** `superpowers:receiving-code-review` governs how to weigh them — verify
+claims, don't perform agreement.
+
+**Findings you accept send you back to step 2.** This stage exists to produce edits, so it is
+the most likely origin of an untested tree. Applying a review finding here and pushing without
+re-running step 3 is the exact failure the tested-tree rule prevents.
 
 ## The comment — required structure
 
-Push to the PR branch, then post with `gh pr comment`. The body has these parts, in order:
+Run the two tested-tree checks above. Only then push to the PR branch, and post with
+`gh pr comment`. The body has these parts, in order:
 
 1. **Prefix.** The first line begins `**<model> 🤖:**` — required by the repo's GitHub-write
    hooks. **REQUIRED SUB-SKILL:** `github-ai-authorship` owns the current format; if you also
@@ -204,7 +240,11 @@ you. That is what makes a stalled run visible instead of silently abandoned.
 - "The contributor won't mind" / "I have push access, so it's allowed"
 - Acting on a `COMMENTED` review with no assignment to `TimD1-bot`
 - Finishing the work but leaving the PR assigned to `TimD1-bot`
-- Pushing before `pytest -vv` passes
+- Pushing when `HEAD` is not the tested SHA, or `git status --porcelain` is non-empty
+- "This edit is too small to re-test" / "I'll just fix it on the way out"
+- Applying a review finding and pushing without returning to step 2
+- Running the A/B after editing `src/` without rebuilding — that compares the old binary
+- Continuing past a test failure because it looks unrelated or pre-existing
 - Skipping the A/B because the feedback "was obviously cosmetic" while `src/` did change
 - Running the full `analysis-v3` harness for a change chr20 fixtures already cover
 - Quoting runtime or RAM from the `-g -pg -O1` build
