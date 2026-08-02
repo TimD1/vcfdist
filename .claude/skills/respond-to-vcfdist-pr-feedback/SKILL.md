@@ -29,13 +29,23 @@ reviews it and the contributor pushes; that is not this skill's job. "Allow edit
 maintainers" makes this *possible* on fork PRs, which is exactly why the gate is explicit
 rather than relying on permissions to stop you.
 
-**Gate 2 — blocking feedback.** Some review must be in `CHANGES_REQUESTED` state, or a
-maintainer must have explicitly asked for changes. If not, **stop and report that.** Do not act
-on `COMMENTED` reviews, nitpicks, or your own reading of what a comment implies. A single
-unrequested force-push onto a PR costs more trust than a day of waiting.
+**Gate 2 — an actual request to act.** Exactly one of these must hold:
+
+1. **Rejected** — a review in `CHANGES_REQUESTED` state authored by `TimD1`.
+2. **Handed off** — the PR is assigned to `TimD1-bot`, *and* `TimD1` is the most recent voice
+   on it. "Most recent voice" spans issue comments **and** reviews: a `COMMENTED` review
+   carries real feedback but never appears in `.comments`, so checking comments alone reads
+   the bot as the last voice and misses the handoff.
+
+If neither holds, **stop and report that.** In particular, a `COMMENTED` review from `TimD1`
+with no assignment is *not* a trigger — reading intent out of prose is what produces
+force-pushes over nitpicks. Assignment is the signal; the comment is the content.
+
+A rejection authored by `TimD1-bot` never triggers anything. Otherwise reviewing a PR would
+dispatch a run to fix it, and the two would ping-pong.
 
 **Gate 3 — not already handled.** Look for an existing comment from you that post-dates the
-review. If one exists, stop; re-running duplicates commits and comments.
+triggering review or comment. If one exists, stop; re-running duplicates commits and comments.
 
 ## Hard rules
 
@@ -168,10 +178,32 @@ Push to the PR branch, then post with `gh pr comment`. The body has these parts,
    mechanism from output tables, that inference can be wrong, and this comment is public. A
    cited coordinate a reviewer can check beats a confident explanation they cannot.
 
+## Hand the PR back
+
+**Last step, and not optional.** Once the push has landed and the comment is posted:
+
+```bash
+gh pr edit <N> --add-assignee TimD1 --remove-assignee TimD1-bot
+```
+
+This is the visible signal that the ball is back in the reviewer's court — an assignment they
+can see in their PR list, rather than a comment they have to notice. It also clears the handoff
+trigger: while the PR stays assigned to `TimD1-bot`, it remains a candidate for another run.
+
+Assignment carries no body text, so it needs no authorship note — that requirement applies to
+`--body` edits. Do this even when the run ended without changes (identical A/B output, or
+nothing to fix): reassign and say so in the comment. A PR left assigned to the bot reads as
+still in progress.
+
+**If the run ends early or fails**, leave the assignment on `TimD1-bot` and say what stopped
+you. That is what makes a stalled run visible instead of silently abandoned.
+
 ## Red flags — stop
 
 - Any write to a PR whose author is not `TimD1` or `TimD1-bot`
 - "The contributor won't mind" / "I have push access, so it's allowed"
+- Acting on a `COMMENTED` review with no assignment to `TimD1-bot`
+- Finishing the work but leaving the PR assigned to `TimD1-bot`
 - Pushing before `pytest -vv` passes
 - Skipping the A/B because the feedback "was obviously cosmetic" while `src/` did change
 - Running the full `analysis-v3` harness for a change chr20 fixtures already cover
