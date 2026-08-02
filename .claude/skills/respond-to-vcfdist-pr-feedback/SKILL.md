@@ -61,9 +61,15 @@ git rev-parse --abbrev-ref HEAD   # must equal $BR
 git status --porcelain            # must be empty
 ```
 
-**A dirty worktree at this point is a stop, not a cleanup.** Those changes are someone else's
-work in progress — do not commit, stash, or discard them. Report what you found, leave the PR
-assigned to `TimD1-bot`, and end the run.
+**Only the PR's worktree has to be clean.** The main checkout you started in is very often
+dirty with unrelated work; that is normal and blocks nothing, because you never operate there.
+Run the status check *after* `cd "$WT"`, never before.
+
+**A dirty PR worktree is a stop, not a cleanup.** It means someone is mid-edit on this very
+branch. Do not commit, stash, or discard their changes, and do not sidestep with a second
+worktree: git refuses the same branch twice, and the `--force` and detached-`origin/<branch>`
+routes both push over work you cannot see. Report what you found, leave the PR assigned to
+`TimD1-bot`, and end the run.
 
 **1. Restate the feedback** as discrete items before editing anything. Items you decide not to
 act on are listed with a reason; silent omission forces a re-review from scratch.
