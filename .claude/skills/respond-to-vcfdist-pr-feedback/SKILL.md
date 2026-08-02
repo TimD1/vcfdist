@@ -134,37 +134,12 @@ git diff -w origin/<base>...HEAD -- src/   # -w: ignore whitespace-only churn
 Judging "this is just a nitpick" by eye is not the gate; the A/B is. It is cheap enough that
 the only case for skipping it is that no `src/` file changed at all.
 
-### The A/B run
+The A/B builds the PR and target-branch binaries and runs both over the committed chr20
+fixtures in `tests/integration/data/`. Commands, baseline caching, and the escalation tier for
+accuracy-critical changes: see `reference.md` in this directory.
 
-Both sides use the committed chr20 fixtures in `tests/integration/data/` — chr20-only
-reference, truth and query VCFs, and BED, all tracked in git, so this works in a fresh clone
-with no external data:
-
-```bash
-D=tests/integration/data
-./src/vcfdist $D/query_chr20.vcf.gz $D/truth_chr20.vcf.gz \
-  $D/GCA_000001405.15_GRCh38_no_alt_analysis_set_chr20.fasta \
-  -b $D/chr20.bed -p out/pr.
-```
-
-Build the target branch's binary in a separate worktree and run it the same way with
-`-p out/base.`, so both result sets exist at once. Then:
-
-```bash
-diff out/base.precision-recall-summary.tsv out/pr.precision-recall-summary.tsv
-```
-
-**Identical → say so and stop there.** "No change to any count on the chr20 fixtures" is the
-result; a table of zero-deltas is noise. **Different → build the table and the root causes.**
-
-Target-branch output only changes when the target moves, so cache it keyed on
-`git rev-parse origin/<base>` instead of rebuilding each iteration.
-
-**Escalate to the full harness only when the change is accuracy-critical** — alignment,
-clustering, credit assignment, or phasing logic — where chr20 fixtures may not exercise the
-affected path. That is `analysis-v3/vs_prior_work` (`pixi run -e bench smoke`), which is slow,
-serial, and needs the 2.9 GB genome-wide reference in `analysis-v3/data/`. Say in the comment
-which tier you ran.
+Two results, two obligations. **Identical** → the count-impact section is one sentence; a table
+of zero-deltas is noise. **Different** → report the table and the root-cause buckets.
 
 **Never quote runtime or RAM** from these runs. `src/Makefile` defaults to
 `CXXFLAGS = -g -pg -O1` with `-O3` commented out — accuracy is unaffected, timings are
@@ -183,36 +158,20 @@ claims, don't perform agreement.
 the most likely origin of an untested tree. Applying a review finding here and pushing without
 re-running step 3 is the exact failure the tested-tree rule prevents.
 
-## The comment — required structure
+## Push and comment
 
 Run the two tested-tree checks above. Only then push to the PR branch, and post with
-`gh pr comment`. The body has these parts, in order:
+`gh pr comment`.
 
-1. **Prefix.** The first line begins `**<model> 🤖:**` — required by the repo's GitHub-write
-   hooks. **REQUIRED SUB-SKILL:** `github-ai-authorship` owns the current format; if you also
-   edit the PR *body*, it needs the verbatim `> [!NOTE]` authorship block, which that skill
-   supplies. Print the full body in your reply before posting it.
-2. **Per-item responses.** One line per item from step 1: what changed, the commit, and for
-   anything not done, why not.
-3. **Count impact.** Always present, even when it is one sentence. Name the tier you ran and
-   what it showed. When output was identical, that sentence is the whole section.
+The body has four required parts — prefix, per-item responses, count impact, root causes — with
+the full template, table columns, and authorship requirements in `reference.md`. Print the body
+in your reply before posting it.
 
-   When counts moved, give the table — PR vs target branch, one row per variant type, at both
-   the `NONE` and `BEST` thresholds, from `precision-recall-summary.tsv`. Include the counts:
-   a delta without `TRUTH_TP`/`TRUTH_FN`/`QUERY_FP` cannot be audited.
-
-   | VAR_TYPE | THRESHOLD | PREC (base → PR) | RECALL (base → PR) | F1 (base → PR) | ΔF1 | TRUTH_TP | TRUTH_FN | QUERY_FP |
-   | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-
-   State which fixtures or BED produced it, and whether each move was expected from the change.
-4. **Root causes for differing variants** — only when counts moved. Diff `query.tsv` /
-   `truth.tsv` between the two runs, bucket the variants that changed classification, and give
-   one bucket per paragraph with a count and **at least one concrete `CONTIG:POS REF>ALT`
-   example per bucket**.
-
-   Label this **Proposed root causes** and write each as a hypothesis. You are inferring
-   mechanism from output tables, that inference can be wrong, and this comment is public. A
-   cited coordinate a reviewer can check beats a confident explanation they cannot.
+Two properties of that template are decisions rather than formatting, so they are stated here
+too: the count-impact section is **always present**, collapsing to one sentence when nothing
+moved; and root causes are labelled **proposed**, each carrying a concrete
+`CONTIG:POS REF>ALT` a reviewer can check. You are inferring mechanism from output tables, that
+inference can be wrong, and the comment is public.
 
 ## Hand the PR back
 
