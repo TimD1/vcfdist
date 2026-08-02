@@ -42,10 +42,28 @@ stop; re-running duplicates commits and comments.
   `gh pr review --approve` are hook-denied; the denial is correct, not an obstacle.
 - **Never force-push** unless every commit is yours:
   `git log --format='%an' origin/<base>..HEAD | sort -u`.
-- **Work in the branch's existing worktree** under `.claude/worktrees/`, per CLAUDE.md.
+- **Never work in the main checkout.** Resolve the PR's worktree first — see step 0.
 - **Push only the exact commit you tested** — see below.
 
 ## Sequence
+
+**0. Get into the PR's worktree.** You are almost certainly starting in the main checkout,
+which sits on whatever branch was last used and often holds unrelated uncommitted work. Resolve
+the right tree before touching anything:
+
+```bash
+BR=$(gh pr view <N> --repo TimD1/vcfdist --json headRefName --jq .headRefName)
+WT=$(git worktree list --porcelain \
+     | awk -v b="refs/heads/$BR" '/^worktree /{p=$2} $0=="branch "b{print p}')
+if [ -z "$WT" ]; then WT=".claude/worktrees/$BR"; git worktree add "$WT" "$BR"; fi
+cd "$WT"
+git rev-parse --abbrev-ref HEAD   # must equal $BR
+git status --porcelain            # must be empty
+```
+
+**A dirty worktree at this point is a stop, not a cleanup.** Those changes are someone else's
+work in progress — do not commit, stash, or discard them. Report what you found, leave the PR
+assigned to `TimD1-bot`, and end the run.
 
 **1. Restate the feedback** as discrete items before editing anything. Items you decide not to
 act on are listed with a reason; silent omission forces a re-review from scratch.
@@ -134,6 +152,8 @@ instead of silently abandoned.
 ## Red flags — stop
 
 - "The contributor won't mind" / "I have push access, so it's allowed"
+- Running `make`, `pytest`, or `git commit` before step 0 has confirmed the branch
+- Committing, stashing, or discarding uncommitted work you did not create
 - "This edit is too small to re-test" / "I'll just fix it on the way out"
 - "The feedback was obviously cosmetic" — while `src/` did change
 - "This `COMMENTED` review clearly means changes are wanted" — with no assignment
