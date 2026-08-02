@@ -43,8 +43,10 @@ exists at all, stop: nothing triggered this.
   pushes, no comments. Being *able* to push is not authorization.
 - **Never merge.** Tim squash-merges every branch himself. `gh pr merge` and
   `gh pr review --approve` are hook-denied; the denial is correct, not an obstacle.
-- **Never force-push** unless every commit is yours:
-  `git log --format='%an' origin/<base>..HEAD | sort -u`.
+- **Force-push only after the rebase, only with `--force-with-lease`, and only when every
+  commit is yours**: `git log --format='%an' origin/<base>..HEAD | sort -u`. If any other name
+  appears, stop — do not rebase, do not push. Plain `--force` is never correct here; the lease
+  is what catches the remote having moved since you fetched.
 - **Never work in the main checkout.** Resolve the PR's worktree first — see step 0.
 - **Push only the exact commit you tested** — see below.
 
@@ -75,6 +77,12 @@ git rev-parse --abbrev-ref HEAD   # must equal $BR
 git status --porcelain            # must be empty
 ```
 
+**Name a worktree you create after the branch, exactly** — `.claude/worktrees/$BR`, never a
+shortened alias. The directory name is the only thing that tells a `git worktree list` reader
+which tree belongs to which PR. Older trees may carry abbreviated names (`single-pass` for
+`91_D12_td_single-pass-prec-recall`); use one where it already exists rather than moving a
+directory someone may have a shell open in, and note the mismatch in the comment.
+
 **Only the PR's worktree has to be clean.** The main checkout you started in is very often
 dirty with unrelated work; that is normal and blocks nothing, because you never operate there.
 Run the status check *after* `cd "$WT"`, never before.
@@ -84,6 +92,23 @@ branch. Do not commit, stash, or discard their changes, and do not sidestep with
 worktree: git refuses the same branch twice, and the `--force` and detached-`origin/<branch>`
 routes both push over work you cannot see. Report what you found, assign `TimD1` back, and end
 the run.
+
+**0c. Rebase onto `dev`.** Always, before any new work:
+
+```bash
+git fetch origin dev
+git log --oneline origin/<base>..HEAD    # anything here is unpushed pre-existing work
+git rebase origin/dev
+```
+
+Two checks before you start editing. If the rebase reports **conflicts**, `git rebase --abort`,
+stop, and report them — resolving someone else's conflicts unattended is beyond this run's
+remit. And if that `git log` shows commits **not yet on the remote**, your eventual push will
+carry them along: name them in the comment rather than shipping them silently.
+
+Rebasing rewrites the branch, so the final push becomes `--force-with-lease`. That is expected
+and does not contradict the never-force-push rule, which is about not overwriting *other
+people's* commits — confirm that first, per the hard rules.
 
 **1. Restate the feedback** as discrete items before editing anything. Items you decide not to
 act on are listed with a reason; silent omission forces a re-review from scratch.
@@ -181,7 +206,8 @@ to tidy the PR erases the only record that something was left undone.
 
 ## Push, comment, hand back
 
-Run both tested-tree checks, push, then `gh pr comment`. The template is in `reference.md`;
+Run both tested-tree checks, then push with `--force-with-lease` (step 0c rebased the branch),
+then `gh pr comment`. The template is in `reference.md`;
 print the body in your reply before posting.
 
 Two parts of it are decisions rather than formatting: count impact is **always present**,
@@ -217,4 +243,7 @@ PR with no assignee at all: that silence is the failure signal, and it cannot re
 - Ending a run without assigning `TimD1` back — including when it failed
 - Re-adding `TimD1-bot` as an assignee for any reason
 - Resolving a review thread you did not fully address
+- Starting work without rebasing onto `dev`, or resolving rebase conflicts unattended
+- Reaching for plain `git push --force` instead of `--force-with-lease`
+- Creating a worktree named anything other than the branch
 - Treating a `gh pr merge` denial as an obstacle to route around
