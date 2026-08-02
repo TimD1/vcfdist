@@ -80,22 +80,6 @@ TEST(Contains, SetIdx4DistinguishesEachField) {
     EXPECT_FALSE(contains(wave, idx4(0,0,0,1)));
 }
 
-// Build an in-memory reference by round-tripping a tiny FASTA through a temp file
-// (fastaData only exposes a FILE* constructor). fastaData reads the whole file into memory and
-// closes the pointer, so the temp file is removed immediately after. A per-call counter keeps the
-// path unique so concurrent tests never share a file.
-std::shared_ptr<fastaData> make_ref(const std::string & ctg, const std::string & seq) {
-    static int counter = 0;
-    std::string path = "./gtest_graph_ref_" + std::to_string(counter++) + ".fa";
-    FILE * w = fopen(path.c_str(), "w");
-    fprintf(w, ">%s\n%s\n", ctg.c_str(), seq.c_str());
-    fclose(w);
-    FILE * r = fopen(path.c_str(), "r");
-    auto data = std::make_shared<fastaData>(r);
-    std::remove(path.c_str());
-    return data;
-}
-
 // A truth insertion is a zero-width (in reference coordinates) locus. When another truth
 // variant abuts it, a direct edge that leaps the insertion must not exist: every path across
 // the locus has to route through the insertion's own alt or bypass node. This asserts that the
@@ -106,7 +90,7 @@ TEST(GraphInsertionEdges, AdjacentVariantCannotLeapInsertion) {
     auto sc = std::make_shared<ctgSuperclusters>();
     sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
     sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
-    auto ref = make_ref("chr1", "ACGTACGTAC");
+    auto ref = make_fasta("chr1", "ACGTACGTAC");
 
     // truth SUB at pos 2 (G->T) immediately followed by truth INS at pos 3 (->TTT), both hap0
     auto tv = sc->callset_vars[TRUTH];
@@ -147,7 +131,7 @@ TEST(GraphInsertionEdges, AdjacentInsertionLabeledWithoutSweep) {
     auto sc = std::make_shared<ctgSuperclusters>();
     sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
     sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
-    auto ref = make_ref("chr1", "ACGTACGTAC");
+    auto ref = make_fasta("chr1", "ACGTACGTAC");
 
     auto tv = sc->callset_vars[TRUTH];
     tv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "T",   GT_ALT1_REF, 60, 60, 0, 0);
@@ -852,7 +836,7 @@ TEST(GraphBypass, ConsecutiveBypassesBothExcised) {
     auto sc = std::make_shared<ctgSuperclusters>();
     sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
     sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
-    auto ref = make_ref("chr1", "ACGTACGT");
+    auto ref = make_fasta("chr1", "ACGTACGT");
 
     // truth: SNP pos2 (reproduced -> TP), then adjacent SNPs pos3 and pos4 (both missed -> FN)
     auto tv = sc->callset_vars[TRUTH];

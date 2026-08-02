@@ -135,16 +135,13 @@ int calc_prec_recall_aln(
         bool print
         ) {
 
-    // Dijkstra on TRUE fractional cost via a binary-heap priority queue. A bypass edge costs the
-    // exact (1-ct)*len rather than a ceil()'d integer toll, so the queue orders paths by true cost
-    // globally: a truly-cheaper bypass simply has lower cost (no integer-bucket rounding, no separate
-    // tie-break), and equal-integer-cost paths whose true costs differ by >= 1 can no longer be
-    // finalized in the wrong order. All edge costs are non-negative, so Dijkstra is valid.
+    // Dijkstra on fractional cost: a bypass edge costs the exact (1-ct)*len, so the queue orders
+    // paths by true cost and a cheaper bypass simply wins. All edge costs are non-negative.
     std::unordered_set<idx4> done;         // finalized cells (true-cost-optimal)
     std::unordered_map<idx4, double> best; // best known true cost per cell
 
-    // true (un-rounded) toll for transitioning INTO truth node tni: (1-ct)*len on a bypass node
-    auto tni_true_toll = [&](int tni) -> double {
+    // un-rounded toll for transitioning INTO truth node tni: (1-ct)*len on a bypass node
+    auto tni_skip_toll = [&](int tni) -> double {
         if (graph->tskips[tni] < 0) return 0.0;
         std::shared_ptr<ctgVariants> tvars = graph->sc->callset_vars[TRUTH];
         int vidx = graph->tskips[tni];
@@ -152,7 +149,9 @@ int calc_prec_recall_aln(
         return (1.0 - g.credit_threshold) * len;
     };
 
+    // one candidate path to cell `to`, arriving from cell `from` at cumulative cost `cost`
     struct qentry { double cost; idx4 to; idx4 from; };
+    // orders the queue cheapest-cost-first (std::priority_queue pops its largest element)
     struct qcmp { bool operator()(const qentry & a, const qentry & b) const { return a.cost > b.cost; } };
     std::priority_queue<qentry, std::vector<qentry>, qcmp> pq;
 
@@ -160,8 +159,8 @@ int calc_prec_recall_aln(
     pq.push({0.0, start, idx4(0, 0, -1, -1)});
     best[start] = 0.0;
 
-    // relax an edge to cell `to` via `from` at cumulative true cost `cost`
-    auto relax = [&](const idx4 & to, const idx4 & from, double cost) {
+    // queue the edge into cell `to` via `from`, unless a cheaper path to `to` is already known
+    auto push_if_cheaper = [&](const idx4 & to, const idx4 & from, double cost) {
         auto it = best.find(to);
         if (it == best.end() || cost < it->second - EPSILON) {
             best[to] = cost;
@@ -195,13 +194,13 @@ int calc_prec_recall_aln(
             y.ti++;
             match = true;
         }
-        if (match) relax(y, x, c);
+        if (match) push_if_cheaper(y, x, c);
 
         // bottom-right corner moves diagonally into next truth and query nodes (toll on bypass)
         if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti == int(graph->tseqs[x.tni].length())-1) {
             for (int qni : graph->qnexts[x.qni]) {
                 for (int tni : graph->tnexts[x.tni]) {
-                    relax(idx4(qni, tni, 0, 0), x, c + tni_true_toll(tni));
+                    push_if_cheaper(idx4(qni, tni, 0, 0), x, c + tni_skip_toll(tni));
                 }
             }
         }
@@ -209,27 +208,27 @@ int calc_prec_recall_aln(
         // last row moves into first row of all next query nodes (tni unchanged: no toll)
         if (x.qi == int(graph->qseqs[x.qni].length())-1 && x.ti < int(graph->tseqs[x.tni].length())) {
             for (int qni : graph->qnexts[x.qni]) {
-                relax(idx4(qni, x.tni, 0, x.ti), x, c);
+                push_if_cheaper(idx4(qni, x.tni, 0, x.ti), x, c);
             }
         }
 
         // last col moves into first col of next truth node (toll on bypass)
         if (x.ti == int(graph->tseqs[x.tni].length())-1 && x.qi < int(graph->qseqs[x.qni].length())) {
             for (int tni : graph->tnexts[x.tni]) {
-                relax(idx4(x.qni, tni, x.qi, 0), x, c + tni_true_toll(tni));
+                push_if_cheaper(idx4(x.qni, tni, x.qi, 0), x, c + tni_skip_toll(tni));
             }
         }
 
         // COST-1 EDITS
         if (x.qi+1 < int(graph->qseqs[x.qni].length())) { // INS
-            relax(idx4(x.qni, x.tni, x.qi+1, x.ti), x, c + 1.0);
+            push_if_cheaper(idx4(x.qni, x.tni, x.qi+1, x.ti), x, c + 1.0);
         }
         if (x.ti+1 < int(graph->tseqs[x.tni].length())) { // DEL
-            relax(idx4(x.qni, x.tni, x.qi, x.ti+1), x, c + 1.0);
+            push_if_cheaper(idx4(x.qni, x.tni, x.qi, x.ti+1), x, c + 1.0);
         }
         if (x.qi+1 < int(graph->qseqs[x.qni].length()) &&
                 x.ti+1 < int(graph->tseqs[x.tni].length())) { // SUB
-            relax(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, c + 1.0);
+            push_if_cheaper(idx4(x.qni, x.tni, x.qi+1, x.ti+1), x, c + 1.0);
         }
     }
 
