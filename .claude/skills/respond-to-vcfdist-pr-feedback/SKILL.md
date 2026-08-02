@@ -1,6 +1,6 @@
 ---
 name: respond-to-vcfdist-pr-feedback
-description: Use when a vcfdist pull request authored by TimD1 or TimD1-bot has received blocking review feedback (a review in CHANGES_REQUESTED state, or a maintainer asking for changes) and that feedback needs to be addressed, verified, and pushed. Does not apply to pull requests from any other author, including outside contributors. Triggers include "address the PR feedback", "the reviewer requested changes", "respond to that review".
+description: Use when a vcfdist pull request authored by TimD1 or TimD1-bot has been assigned to TimD1-bot, which is the hand-off signal that its review feedback should be addressed, verified, and pushed. Does not apply to pull requests from any other author, nor to PRs merely carrying review comments or a CHANGES_REQUESTED review without that assignment. Triggers include "address the PR feedback", "respond to that review".
 ---
 
 # Respond to blocking PR feedback
@@ -9,7 +9,7 @@ Fix, verify locally, re-review, measure whether counts moved, push, comment, han
 
 ## Scope gate — run this first
 
-One query answers all three gates:
+One query answers both gates:
 
 ```bash
 gh pr view <N> --json author,assignees,reviews,comments,baseRefName,headRefName,url
@@ -20,19 +20,10 @@ stop, report the PR as out of scope, and touch nothing — no checkout, no comme
 outside contributions, and "allow edits by maintainers" means you *can* push to a contributor's
 fork branch. That is precisely why this is an explicit gate and not left to permissions.
 
-**Gate 2 — a request to act.** One of:
-
-1. **Rejected** — a `CHANGES_REQUESTED` review authored by `TimD1`.
-2. **Handed off** — assigned to `TimD1-bot`, and `TimD1` is the most recent voice, counting
-   issue comments **and** reviews. A `COMMENTED` review never appears in `.comments`, so
-   checking comments alone reads the bot as the last voice and misses the handoff.
-
-A `COMMENTED` review with no assignment is **not** a trigger: assignment is the signal, the
-comment is the content. A rejection authored by `TimD1-bot` triggers nothing — otherwise
-reviewing a PR would dispatch a run to fix it and the two would ping-pong.
-
-**Gate 3 — not already handled.** An existing comment from you post-dating the trigger means
-stop; re-running duplicates commits and comments.
+**Gate 2 — assigned to `TimD1-bot`.** That assignment is the *only* trigger. A
+`CHANGES_REQUESTED` review is not one. Nor is a comment, however blocking its content. If the
+bot is not an assignee, stop and report that — assignment is the signal, the comments are the
+content.
 
 ## Hard rules
 
@@ -47,7 +38,18 @@ stop; re-running duplicates commits and comments.
 
 ## Sequence
 
-**0. Get into the PR's worktree.** You are almost certainly starting in the main checkout,
+**0a. Claim the trigger.** Before anything else, consume it:
+
+```bash
+gh pr edit <N> --repo TimD1/vcfdist --remove-assignee TimD1-bot
+```
+
+The watcher normally does this before dispatching; do it yourself when invoked by hand. Claiming
+first is what stops a failed run from being re-dispatched forever — the trigger is spent whether
+or not the run succeeds, and **re-assigning is how a human retries**. Never re-add the bot as an
+assignee to "keep your place".
+
+**0b. Get into the PR's worktree.** You are almost certainly starting in the main checkout,
 which sits on whatever branch was last used and often holds unrelated uncommitted work. Resolve
 the right tree before touching anything:
 
@@ -68,8 +70,8 @@ Run the status check *after* `cd "$WT"`, never before.
 **A dirty PR worktree is a stop, not a cleanup.** It means someone is mid-edit on this very
 branch. Do not commit, stash, or discard their changes, and do not sidestep with a second
 worktree: git refuses the same branch twice, and the `--force` and detached-`origin/<branch>`
-routes both push over work you cannot see. Report what you found, leave the PR assigned to
-`TimD1-bot`, and end the run.
+routes both push over work you cannot see. Report what you found, assign `TimD1` back, and end
+the run.
 
 **1. Restate the feedback** as discrete items before editing anything. Items you decide not to
 act on are listed with a reason; silent omission forces a re-review from scratch.
@@ -86,8 +88,8 @@ cd ../tests && pytest -vv
 git rev-parse HEAD                       # ← the TESTED SHA
 ```
 
-**Every test must pass.** On any failure: report it with its output, leave the PR assigned to
-`TimD1-bot`, and push nothing. This holds when the failure looks unrelated to your change or
+**Every test must pass.** On any failure: push nothing, report it with its output, and hand the
+PR back to `TimD1` with that explanation. This holds when the failure looks unrelated to your change or
 reproduces on the target branch — triaging pre-existing breakage is the maintainer's call.
 
 ### The tested tree is the pushed tree
@@ -134,6 +136,37 @@ SUB-SKILL:** whichever reviewer-persona review skill the environment provides, p
 **REQUIRED SUB-SKILL:** `superpowers:receiving-code-review` — verify claims, don't perform
 agreement. Record why for findings you reject; **findings you accept send you back to step 2.**
 
+## Close out the review threads
+
+After pushing, give every inline thread a disposition. List them:
+
+```bash
+gh api graphql -f query='
+{ repository(owner:"TimD1",name:"vcfdist"){ pullRequest(number:<N>){
+    reviewThreads(first:100){ nodes{ id isResolved path line
+      comments(first:10){ nodes{ author{login} body } } } } } } }'
+```
+
+**Fully addressed** → resolve it; no reply needed, the diff is the answer:
+
+```bash
+gh api graphql -f query='mutation($t:ID!){ resolveReviewThread(input:{threadId:$t}){ thread{ isResolved } } }' -f t=<threadId>
+```
+
+**Not fully addressed** — partially done, deferred, or declined → reply, and leave it
+**unresolved**:
+
+```bash
+gh api graphql -f query='mutation($t:ID!,$b:String!){ addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$t,body:$b}){ comment{ url } } }' -f t=<threadId> -f b='**<model> 🤖:** ...'
+```
+
+One or two sentences: what you did, or why you did not. The summary comment carries detail; the
+reply exists so someone scanning the diff sees the disposition in place. Replies take the
+`**<model> 🤖:**` prefix like any other comment.
+
+**Never resolve a thread you did not address.** Unresolved is the reviewer's queue — resolving
+to tidy the PR erases the only record that something was left undone.
+
 ## Push, comment, hand back
 
 Run both tested-tree checks, push, then `gh pr comment`. The template is in `reference.md`;
@@ -144,16 +177,16 @@ collapsing to one sentence when nothing moved; and root causes are **proposed** 
 each carrying a `CONTIG:POS REF>ALT` a reviewer can check. You are inferring mechanism from
 output tables, that inference can be wrong, and the comment is public.
 
-Then hand it back — required, and it clears the handoff trigger:
+Then hand it back — required, and the last action of every run:
 
 ```bash
-gh pr edit <N> --add-assignee TimD1 --remove-assignee TimD1-bot
+gh pr edit <N> --add-assignee TimD1
 ```
 
 Assignment carries no body text, so it needs no authorship note. Do this even when nothing
-changed; a PR left on the bot reads as still in progress. **If the run fails or stops early**,
-leave it assigned to `TimD1-bot` and say what stopped you — that is what makes a stall visible
-instead of silently abandoned.
+changed, and **also when the run fails or stops early** — in that case say plainly what stopped
+you. The bot un-assigned itself at step 0a, so a run that dies without reaching here leaves the
+PR with no assignee at all: that silence is the failure signal, and it cannot re-trigger.
 
 ## Red flags — stop
 
@@ -169,5 +202,7 @@ instead of silently abandoned.
 - Quoting runtime or RAM from the `-g -pg -O1` build
 - A root-cause claim with no variant coordinate behind it
 - A zero-delta table instead of one sentence saying nothing moved
-- Finishing the work but leaving the PR assigned to `TimD1-bot`
+- Ending a run without assigning `TimD1` back — including when it failed
+- Re-adding `TimD1-bot` as an assignee for any reason
+- Resolving a review thread you did not fully address
 - Treating a `gh pr merge` denial as an obstacle to route around

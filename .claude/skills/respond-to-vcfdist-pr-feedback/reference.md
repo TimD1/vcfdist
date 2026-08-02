@@ -48,17 +48,50 @@ you ran either way.
 
 ## Comment template
 
-Four parts, in order.
+One visible summary line, then every section in a collapsed `<details>` block so the PR
+conversation stays scannable. **A blank line after `</summary>` is required** or GitHub renders
+the markdown inside as literal text.
 
-**1. Prefix.** First line begins `**<model> 🤖:**`, required by the repo's GitHub-write hooks.
-**REQUIRED SUB-SKILL:** `github-ai-authorship` owns the format. Editing the PR *body* also
-needs the verbatim `> [!NOTE]` authorship block, which that skill supplies.
+````markdown
+**<model> 🤖:** <one line: what was addressed, and the headline count impact>
 
-**2. Per-item responses.** One line per restated item: what changed, the commit, and for
-anything not done, why not.
+<details>
+<summary><b>Responses to review comments</b> (5 addressed, 1 deferred)</summary>
+
+- `src/dist.cpp:190` — renamed `relax()` to `<new>`. Resolved.
+- `tests/…:15` — moved the helper as suggested. Resolved.
+- `src/dist.cpp:165` — **not done**: <one line why>. Left unresolved, replied in thread.
+
+</details>
+
+<details>
+<summary><b>Count impact</b> — no change on the chr20 fixtures</summary>
+
+Tier: chr20 fixtures (`tests/integration/data`), `chr20.bed`.
+`precision-recall-summary.tsv` is byte-identical between base and PR.
+
+</details>
+
+<details>
+<summary><b>Proposed root causes</b> (3 variants reclassified)</summary>
+
+<!-- only when counts moved; omit this block entirely otherwise -->
+
+</details>
+````
+
+Section contents are unchanged from the rules below; only the wrapping is new.
+
+**1. Summary line.** Begins `**<model> 🤖:**`, required by the repo's GitHub-write hooks.
+**REQUIRED SUB-SKILL:** `github-ai-authorship` owns the format. Editing the PR *body* also needs
+the verbatim `> [!NOTE]` authorship block, which that skill supplies.
+
+**2. Responses to review comments.** One line per restated item: what changed, and for anything
+not done, why not. Say which threads you resolved — the summary is where a reader reconciles the
+list against the resolved threads.
 
 **3. Count impact.** Always present. Name the tier you ran and what it showed; when output was
-identical that sentence is the whole section.
+identical that sentence is the whole section, and the `<summary>` line should say so.
 
 When counts moved, give the table — one row per variant type at both the `NONE` and `BEST`
 thresholds, read from `precision-recall-summary.tsv`. Include raw counts: a delta without
@@ -69,10 +102,12 @@ thresholds, read from `precision-recall-summary.tsv`. Include raw counts: a delt
 
 State which fixtures and BED produced it, and whether each move was expected.
 
-**4. Root causes** — only when counts moved. Diff `query.tsv` / `truth.tsv` between the runs,
-bucket the variants that changed classification, one bucket per paragraph with a count and **at
-least one `CONTIG:POS REF>ALT` example**. Label the section **Proposed root causes**. If zero
-variants changed classification, say so — an absent section reads as an omission.
+**4. Proposed root causes** — only when counts moved. Diff `query.tsv` / `truth.tsv` between the
+runs, bucket the variants that changed classification, one bucket per paragraph with a count and
+**at least one `CONTIG:POS REF>ALT` example**. Write each as a hypothesis. If zero variants
+changed classification, say so in the count-impact block — an absent statement reads as an
+omission.
+
 
 ## Troubleshooting
 
