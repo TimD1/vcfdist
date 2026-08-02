@@ -93,18 +93,23 @@ worktree: git refuses the same branch twice, and the `--force` and detached-`ori
 routes both push over work you cannot see. Report what you found, assign `TimD1` back, and end
 the run.
 
-**0c. Rebase onto `dev`.** Always, before any new work:
+**0c. Rebase onto the PR's base branch.** Always, before any new work. The base is whatever
+the PR targets — usually `dev`, but read it rather than assume it:
 
 ```bash
-git fetch origin dev
-git log --oneline origin/<base>..HEAD    # anything here is unpushed pre-existing work
-git rebase origin/dev
+BASE=$(gh pr view <N> --repo TimD1/vcfdist --json baseRefName --jq .baseRefName)
+git fetch origin "$BASE"
+git log --oneline "origin/$BASE..HEAD"   # anything here is unpushed pre-existing work
+git rebase "origin/$BASE"
 ```
 
 Two checks before you start editing. If the rebase reports **conflicts**, `git rebase --abort`,
 stop, and report them — resolving someone else's conflicts unattended is beyond this run's
 remit. And if that `git log` shows commits **not yet on the remote**, your eventual push will
 carry them along: name them in the comment rather than shipping them silently.
+
+Rebasing onto the wrong branch is worse than not rebasing: it drags in commits the PR never
+proposed and makes the diff unreviewable. `$BASE` comes from the PR, never from a default.
 
 Rebasing rewrites the branch, so the final push becomes `--force-with-lease`. That is expected
 and does not contradict the never-force-push rule, which is about not overwriting *other
@@ -243,7 +248,8 @@ PR with no assignee at all: that silence is the failure signal, and it cannot re
 - Ending a run without assigning `TimD1` back — including when it failed
 - Re-adding `TimD1-bot` as an assignee for any reason
 - Resolving a review thread you did not fully address
-- Starting work without rebasing onto `dev`, or resolving rebase conflicts unattended
+- Starting work without rebasing onto the PR's base branch, or resolving conflicts unattended
+- Rebasing onto `dev` because it is usually the base, without checking `baseRefName`
 - Reaching for plain `git push --force` instead of `--force-with-lease`
 - Creating a worktree named anything other than the branch
 - Treating a `gh pr merge` denial as an obstacle to route around
