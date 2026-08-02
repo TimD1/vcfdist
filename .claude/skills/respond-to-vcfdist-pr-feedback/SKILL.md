@@ -21,9 +21,21 @@ outside contributions, and "allow edits by maintainers" means you *can* push to 
 fork branch. That is precisely why this is an explicit gate and not left to permissions.
 
 **Gate 2 — assigned to `TimD1-bot`.** That assignment is the *only* trigger. A
-`CHANGES_REQUESTED` review is not one. Nor is a comment, however blocking its content. If the
-bot is not an assignee, stop and report that — assignment is the signal, the comments are the
-content.
+`CHANGES_REQUESTED` review is not one. Nor is a comment, however blocking its content.
+
+**Expect the assignee list to be empty.** When the watcher dispatched you it already un-assigned
+the bot — that is how a failed run is stopped from looping. An empty list is therefore the
+normal case, not a failed gate. Confirm the assignment happened and was recent:
+
+```bash
+gh api repos/TimD1/vcfdist/issues/<N>/timeline --paginate \
+  --jq '.[] | select(.event=="assigned" and .assignee.login=="TimD1-bot")
+            | "\(.created_at) by \(.actor.login)"' | tail -1
+```
+
+Gate 2 passes if `TimD1` assigned the bot within roughly the last hour. If the bot is *still*
+an assignee, you were invoked by hand — un-assign it at step 0a as usual. If no such event
+exists at all, stop: nothing triggered this.
 
 ## Hard rules
 
