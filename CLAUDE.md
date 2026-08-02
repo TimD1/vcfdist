@@ -1,4 +1,5 @@
 ### Creating Issues
+ - NEVER mention the SOW, design doc, or local .md planning files in issues
 
 ### Creating Feature Branches
  - All work should be completed on a feature branch in a git worktree, and squash-merged into dev by the user. DO NOT merge work yourself.
