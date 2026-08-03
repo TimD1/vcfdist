@@ -1,8 +1,10 @@
 ### Creating Issues
+ - NEVER mention the SOW, design doc, or local .md planning files in issues
 
 ### Creating Feature Branches
  - All work should be completed on a feature branch in a git worktree, and squash-merged into dev by the user. DO NOT merge work yourself.
  - Feature branches should be named "<issue>_td_<brief-description>", where <brief-description> will usually be prefixed with "D<deliverable_id>-"
+ - Worktrees should be named after the feature branch, not "agent-<hash>"
 
 ### Documentation Conventions
  - .h files: /** @brief ... */ only — no @param, @return, @throws

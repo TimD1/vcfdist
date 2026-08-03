@@ -94,7 +94,7 @@ void create_directory(const std::string & dir);
 
 extern Globals g; ///< Global program configuration instance
 
-// defined in main.cpp
+// defined in globals.cpp
 extern std::vector<std::string> callset_strs; ///< String representations of QUERY/TRUTH callset indices
 extern std::vector<std::string> error_strs;   ///< String representations of ERRTYPE_* constants
 extern std::vector<std::string> gt_strs;      ///< String representations of GT_* genotype constants

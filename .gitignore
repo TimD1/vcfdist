@@ -22,7 +22,8 @@ src/test
 __pycache__
 **/.DS_Store
 **/*.dSYM/
-.claude/
+.claude/*
+!.claude/skills/
 
 # ignore binaries
 src/vcfdist
