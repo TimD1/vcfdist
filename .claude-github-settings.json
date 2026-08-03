@@ -1,7 +1,7 @@
 {
   "version": 1,
   "identity": { "bot": "TimD1-bot", "owner": "TimD1" },
-  "repositories": ["TimD1/vcfdist"],
+  "repositories": ["TimD1/vcfdist", "timd1/vcfdist"],
   "permissions": {
     "push":          "prompt",
     "issues":        "prompt",
