@@ -21,8 +21,8 @@ D=tests/integration/data
 **Target side**, in a separate worktree so both binaries exist at once:
 
 ```bash
-git worktree add /tmp/vcfdist-base origin/<base>
-cd /tmp/vcfdist-base/src && make && cd ..
+git worktree add ".claude/worktrees/base-$BASE" "origin/$BASE"   # inside the repo, never /tmp
+cd ".claude/worktrees/base-$BASE/src" && make && cd ..
 D=tests/integration/data                      # re-set: a new shell has no $D
 ./src/vcfdist $D/query_chr20.vcf.gz $D/truth_chr20.vcf.gz \
   $D/GCA_000001405.15_GRCh38_no_alt_analysis_set_chr20.fasta \
@@ -36,15 +36,13 @@ Target output changes only when the target moves — cache it keyed on
 diff out/base.precision-recall-summary.tsv out/pr.precision-recall-summary.tsv
 ```
 
-**Escalation tier**, only for accuracy-critical changes (alignment, clustering, credit
-assignment, phasing) where chr20 fixtures may not reach the affected path:
-
-```bash
-cd analysis-v3/vs_prior_work && pixi run -e bench smoke   # writes results-chr20/
-```
-
-Slow, serial, and needs the 2.9 GB genome-wide reference in `analysis-v3/data/`. Name the tier
-you ran either way.
+**Escalation tier — not available to an unattended run.** For accuracy-critical changes
+(alignment, clustering, credit assignment, phasing) the chr20 fixtures may not reach the affected
+path, and the fuller comparison is `pixi run -e bench smoke` in `analysis-v3/vs_prior_work`. That
+needs a provisioned pixi environment and the 2.9 GB genome-wide reference in `analysis-v3/data/`,
+so **do not attempt it** — provisioning is forbidden (see *Containment*). Say in the comment that
+the change warrants the escalation tier and that it needs a human to run it. Name the tier you
+did run either way.
 
 ## Comment template
 

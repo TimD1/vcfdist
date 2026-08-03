@@ -50,6 +50,46 @@ exists at all, stop: nothing triggered this.
 - **Never work in the main checkout.** Resolve the PR's worktree first — see step 0.
 - **Push only the exact commit you tested** — see below.
 
+## Containment
+
+Everything this run touches lives inside the PR's worktree. This is not tidiness: an unattended
+agent reaching outside its worktree is an agent doing something nobody asked for. **When you
+cannot finish, stop and report — never change the machine so the work becomes possible.**
+
+**Allowed**
+
+- Read and write anything inside the PR's worktree, or inside a base-branch worktree you create
+  under `.claude/worktrees/`.
+- `git` against this repository. Worktrees share the main checkout's object store, so git
+  legitimately touches paths above your worktree.
+- `gh` against `TimD1/vcfdist` — the API is how the PR is read and answered.
+- Build and test with tools **already on `PATH`**.
+
+**Never**
+
+- Write outside the repository: not `/tmp`, not `$HOME`, not `/usr`, not `/opt`.
+- Install anything, by any means — `brew`, `pip`, `conda`, `pixi`, `npm`, `cargo`, `apt`,
+  `curl | sh`. Not into a virtualenv, not into a throwaway environment, not "just for this run".
+- Shim, wrap, or shadow a tool: no prepending to `PATH`, no aliases, no fake compiler.
+- Read files unrelated to this repository — other checkouts, dotfiles, credentials.
+- `sudo`. Ever.
+
+**If the build or the tests cannot run, that is a stop, not a puzzle.** Report what was missing
+with the command and its output, hand the PR back to `TimD1`, and end. A missing dependency is a
+fact about the machine that a human needs to see; hiding it behind a locally-provisioned
+environment means the next run hides it too, and any numbers you then report describe a build
+nobody else can reproduce.
+
+| Rationalization | Reality |
+| :-- | :-- |
+| "Tests can't run, so I'll set up an environment" | Provisioning is not this run's job. Stop and report. |
+| "It's only a throwaway venv / `/tmp` directory" | Outside the worktree is outside the worktree. |
+| "I'll shim the compiler so the flags work" | You would be testing a build that does not exist on the branch. |
+| "`pixi exec` / `uvx` doesn't install anything permanently" | It installs. Stop. |
+| "The escalation harness needs `pixi install` first" | Then that tier is unavailable to this run. Say so. |
+| "I only need to read one file outside the repo" | Then stop, and say which file and why you needed it. |
+| "Aborting wastes the whole run" | A wasted run costs minutes. An agent that edits the machine costs trust. |
+
 ## Sequence
 
 **0a. Claim the trigger.** Before anything else, consume it:
@@ -130,9 +170,12 @@ cd ../tests && pytest -vv
 git rev-parse HEAD                       # ← the TESTED SHA
 ```
 
-**Every test must pass.** On any failure: push nothing, report it with its output, and hand the
-PR back to `TimD1` with that explanation. This holds when the failure looks unrelated to your change or
-reproduces on the target branch — triaging pre-existing breakage is the maintainer's call.
+**Every test must pass — and must actually run.** On a failure *or* on an inability to build or
+execute the suite: push nothing, report it with the command and its output, and hand the PR back
+to `TimD1`. "Cannot run" is not a lesser outcome than "failed"; both end the run here. Do not
+install, shim, or provision anything to get past it (see *Containment*). This holds when the
+failure looks unrelated to your change or reproduces on the base branch — triaging pre-existing
+breakage is the maintainer's call.
 
 ### The tested tree is the pushed tree
 
@@ -240,6 +283,11 @@ PR with no assignee at all: that silence is the failure signal, and it cannot re
 - "The feedback was obviously cosmetic" — while `src/` did change
 - "This `COMMENTED` review clearly means changes are wanted" — with no assignment
 - Continuing past a test failure because it looks unrelated or pre-existing
+- Any write outside the PR's worktree
+- Reaching for `brew`, `pip`, `conda`, `pixi`, `npm`, `apt`, or any other installer
+- Prepending to `PATH`, or writing a wrapper or shim for a build tool
+- "I'll set up the environment so the tests can run"
+- Continuing after the build or the test suite could not run at all
 - Running the A/B after editing `src/` without rebuilding
 - Running the `analysis-v3` harness for a change the chr20 fixtures already cover
 - Quoting runtime or RAM from the `-g -pg -O1` build
