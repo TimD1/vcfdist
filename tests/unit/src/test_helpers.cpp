@@ -20,56 +20,13 @@ GlobalsGuard::GlobalsGuard() : saved(g) {
 }
 
 /**
- * @brief Restores every mutable field of the global configuration.
+ * @brief Restores the saved global configuration.
  *
- * `Globals` holds const members, so its copy assignment operator is deleted and each field must
- * be restored by hand. Any field added to `Globals` must be added here too.
+ * `Globals::VERSION` and `Globals::PROGRAM` are static, so no member is const and the implicitly
+ * generated copy assignment operator restores every field at once.
  */
 GlobalsGuard::~GlobalsGuard() {
-    // input files
-    g.ref_fasta_fn = this->saved.ref_fasta_fn;
-    g.ref_fasta_fp = this->saved.ref_fasta_fp;
-    g.query_vcf_fn = this->saved.query_vcf_fn;
-    g.truth_vcf_fn = this->saved.truth_vcf_fn;
-    g.bed_fn = this->saved.bed_fn;
-    g.bed = this->saved.bed;
-    g.bed_exists = this->saved.bed_exists;
-    g.write = this->saved.write;
-
-    // variant filtering
-    g.filters = this->saved.filters;
-    g.filter_ids = this->saved.filter_ids;
-    g.min_qual = this->saved.min_qual;
-    g.max_qual = this->saved.max_qual;
-    g.max_size = this->saved.max_size;
-
-    // clustering
-    g.max_supercluster_size = this->saved.max_supercluster_size;
-    g.cluster_min_gap = this->saved.cluster_min_gap;
-    g.reach_min_gap = this->saved.reach_min_gap;
-    g.max_cluster_itrs = this->saved.max_cluster_itrs;
-    g.sub = this->saved.sub;
-    g.open = this->saved.open;
-    g.extend = this->saved.extend;
-
-    // precision-recall
-    g.credit_threshold = this->saved.credit_threshold;
-    g.max_dist = this->saved.max_dist;
-    g.max_retries = this->saved.max_retries;
-
-    // memory params
-    g.max_threads = this->saved.max_threads;
-    g.max_ram = this->saved.max_ram;
-    g.thread_nsteps = this->saved.thread_nsteps;
-    g.thread_steps = this->saved.thread_steps;
-    g.ram_steps = this->saved.ram_steps;
-
-    // high-level options
-    g.verbosity = this->saved.verbosity;
-    g.sv_threshold = this->saved.sv_threshold;
-    g.out_prefix = this->saved.out_prefix;
-    g.cmd = this->saved.cmd;
-    g.timers = this->saved.timers;
+    g = this->saved;
 }
 
 /* Temporary files ********************************************************************************/
@@ -80,13 +37,12 @@ GlobalsGuard::~GlobalsGuard() {
  * @throws ERROR if the directory cannot be created
  */
 TempDir::TempDir(const std::string & prefix) {
+    // mkdtemp() overwrites the six trailing X characters in place, which non-const data() allows
     std::string tmpl = (std::filesystem::temp_directory_path() / (prefix + "_XXXXXX")).string();
-    std::vector<char> buf(tmpl.begin(), tmpl.end());
-    buf.push_back('\0');
-    if (mkdtemp(buf.data()) == NULL) {
+    if (mkdtemp(tmpl.data()) == NULL) {
         ERROR("Failed to create temporary directory '%s'", tmpl.data());
     }
-    this->dir = std::string(buf.data());
+    this->dir = tmpl;
 }
 
 /**

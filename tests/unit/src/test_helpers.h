@@ -23,16 +23,15 @@
  * @brief Saves the global `g` on construction and restores it on destruction, silencing logging.
  *
  * Declare one at the top of every test that reads or writes `g`. Verbosity is set to 0 so that
- * INFO output does not pollute the test log. Because `Globals` has const members its copy
- * assignment operator is deleted, so the destructor restores each mutable field individually;
- * a new `Globals` field must be added to that list to be restored.
+ * INFO output does not pollute the test log. Restoration is a whole-struct assignment, so every
+ * field is covered and a newly added `Globals` field needs no change here.
  */
 class GlobalsGuard {
 public:
     /** @brief Saves the current global configuration and sets verbosity to 0. */
     GlobalsGuard();
 
-    /** @brief Restores every mutable field of the global configuration. */
+    /** @brief Restores the saved global configuration. */
     ~GlobalsGuard();
 
     GlobalsGuard(const GlobalsGuard &) = delete;
