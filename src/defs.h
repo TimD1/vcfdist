@@ -83,8 +83,9 @@ class idx4;
 #define GT_ALT1_ALT1 5 ///< Diploid homozygous alternate genotype (1|1)
 #define GT_ALT1_ALT2 6 ///< Diploid compound heterozygous genotype (1|2)
 #define GT_ALT2_ALT1 7 ///< Diploid compound heterozygous genotype (2|1)
-#define GT_MISSING   8 ///< Missing genotype (.|.)
-#define GT_OTHER     9 ///< Other/unknown genotype
+#define GT_MISSING   8 ///< No-call genotype, every allele missing (.|. or .)
+#define GT_HALF      9 ///< Half-call genotype, exactly one allele missing (1|. or .|1)
+#define GT_OTHER    10 ///< Other/unknown genotype
 /** @} */
 
 /** @defgroup errtype_constants Benchmark error type constants (ERRTYPE_*)

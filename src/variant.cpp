@@ -679,6 +679,10 @@ variantData::variantData() : callset(QUERY), variants(HAPS) { ; }
  * @param[in] reference Reference FASTA data for coordinate validation
  * @param[in] callset QUERY or TRUTH callset identifier
  * @throws Various errors for malformed VCF or invalid reference coordinates
+ * @throws WARNING Per-reason summary totals for records dropped or altered at parse time: no-call
+ *         and half-call genotypes, unphased heterozygous genotypes, spanning deletions, reference
+ *         calls, wrong ploidy, missing PS tags, oversized variants, overlapping variants, and
+ *         complex variants split into INS + DEL
  */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
@@ -742,7 +746,8 @@ void parse_variants(const std::string & vcf_fn,
     int PS_missing_total = 0;
     int overlapping_var_total = 0;
     int spanning_del_total = 0;
-    int unknown_allele_total = 0;
+    int unknown_allele_total = 0; // no-call records (.|. or .), dropped entirely
+    int half_call_total = 0;      // half-call records (1|. or .|1), known allele kept
     int unphased_gt_total = 0;
     int too_large_var_total = 0;
     int wrong_ploidy_total = 0;
@@ -949,14 +954,20 @@ void parse_variants(const std::string & vcf_fn,
             orig_gt = GT_ALT1;
         } else if (ngt == 1) { // monoploid/haploid
 
-            // set 1 if allele_idx > 0
-            orig_gt = bcf_gt_allele(gt[0]) ? GT_ALT1 : GT_REF;
+            // set 1 if allele_idx > 0, no-call if the single allele is missing
+            if (bcf_gt_is_missing(gt[0])) orig_gt = GT_MISSING;
+            else orig_gt = bcf_gt_allele(gt[0]) ? GT_ALT1 : GT_REF;
 
         } else if (ngt == 2) { // diploid
 
-            // missing, ignore
-            if (bcf_gt_is_missing(gt[0]) || bcf_gt_is_missing(gt[1])) {
+            // distinguish a no-call (both alleles missing) from a half call (exactly one missing)
+            bool hap1_missing = bcf_gt_is_missing(gt[HAP1]);
+            bool hap2_missing = bcf_gt_is_missing(gt[HAP2]);
+            if (hap1_missing && hap2_missing) { // no call (.|.), record is dropped
                 orig_gt = GT_MISSING;
+
+            } else if (hap1_missing || hap2_missing) { // half call (1|.), known allele is kept
+                orig_gt = GT_HALF;
 
             } else { // useful
 
@@ -988,6 +999,19 @@ void parse_variants(const std::string & vcf_fn,
                     callset_strs[callset].data(), ngt);
         }
         GT_counts[orig_gt]++;
+
+        // count missing alleles once per record, not once per haplotype
+        if (orig_gt == GT_MISSING) {
+            if (g.verbosity > 1)
+                WARN("Variant with no known alleles (.|.) in %s VCF at %s:%lld, skipping",
+                    callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+            unknown_allele_total += 1;
+        } else if (orig_gt == GT_HALF) {
+            if (g.verbosity > 1)
+                WARN("Variant with a half call (1|.) in %s VCF at %s:%lld, keeping known allele",
+                    callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+            half_call_total += 1;
+        }
 
         // parse PS: https://github.com/samtools/htslib/blob/99415e2a2ce26bdbf4e910954330ea769de2c3f0/htslib/vcf.h#L1096
         nPS = bcf_get_format_int32(hdr, rec, "PS", &PS, &PS_memsize);
@@ -1027,13 +1051,7 @@ void parse_variants(const std::string & vcf_fn,
             // get ref and allele, skipping ref query
             std::string ref = rec->d.allele[0];
             int alt_idx = ngt < 0 ? 1 : bcf_gt_allele(gt[hap]); // if no GT, assume 1
-            if (alt_idx < 0) {
-                if (g.verbosity > 1)
-                    WARN("Variant with unknown allele (.) in %s VCF at %s:%lld, skipping",
-                        callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
-                unknown_allele_total += 1;
-                continue;
-            }
+            if (alt_idx < 0) continue; // missing allele (.), counted once per record above
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
 
@@ -1217,11 +1235,15 @@ void parse_variants(const std::string & vcf_fn,
         INFO("%d homozygous and multi-allelic variants in %s VCF, split for evaluation",
             multi_total, callset_strs[callset].data());
 
-    if (unknown_allele_total) 
-        WARN("%d variants with unknown (./.) alleles in %s VCF, skipped",
+    if (unknown_allele_total)
+        WARN("%d variants with no known alleles (.|.) in %s VCF, skipped",
             unknown_allele_total, callset_strs[callset].data());
 
-    if (unphased_gt_total) 
+    if (half_call_total)
+        WARN("%d variants with a half call (1|.) in %s VCF, known allele kept",
+            half_call_total, callset_strs[callset].data());
+
+    if (unphased_gt_total)
         WARN("%d variants with unphased genotypes in %s VCF, skipped",
             unphased_gt_total, callset_strs[callset].data());
 
