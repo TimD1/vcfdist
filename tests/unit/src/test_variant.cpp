@@ -1,35 +1,22 @@
 /**
  * @file test_variant.cpp
- * @brief Unit tests for ctgVariants per-variant provenance and ploidy vectors.
+ * @brief Unit tests for variant.cpp: genotype, allele-count, and variant-type logic.
  */
-#include <cstdio>
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <unistd.h>
-
 #include "gtest/gtest.h"
-#include "../../../src/variant.h"
+
 #include "../../../src/globals.h"
+#include "../../../src/variant.h"
+#include "test_helpers.h"
 
 namespace {
 
-/**************************************************************************************************/
+/* provenance and ploidy vectors ******************************************************************/
 
-// Single-sample header declaring the two contigs used by the fixtures below.
-const std::string VCF_HEADER =
-    "##fileformat=VCFv4.2\n"
-    "##contig=<ID=ctg1,length=200>\n"
-    "##contig=<ID=ctgX,length=200>\n"
-    "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
-    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample\n";
-
-// Record ordinals within FIXTURE_BODY, pinned by the rec_idxs assertions below.
+// Record ordinals within FIXTURE_RECORDS, pinned by the rec_idxs assertions below.
 const int REC_HOM_SNP    = 0;
 const int REC_HET_SNP    = 1;
 const int REC_MULTIALLIC = 2;
@@ -38,48 +25,13 @@ const int REC_HAPLOID    = 4;
 
 // One record per provenance case, in file order; ctgX carries the haploid call so that its
 // ploidy of 1 does not conflict with the diploid ploidy recorded for ctg1.
-const std::string FIXTURE_BODY =
-    "ctg1\t11\t.\tA\tG\t30\tPASS\t.\tGT\t1|1\n"    // hom SNP, both haps, ALT 1
-    "ctg1\t21\t.\tC\tT\t30\tPASS\t.\tGT\t0|1\n"    // het SNP, HAP2 only, ALT 1
-    "ctg1\t31\t.\tA\tG,T\t30\tPASS\t.\tGT\t1|2\n"  // multiallelic, ALT 1 on HAP1, ALT 2 on HAP2
-    "ctg1\t41\t.\tATTT\tG,GG\t30\tPASS\t.\tGT\t0|2\n" // CPX from ALT 2, split into INS+DEL
-    "ctgX\t11\t.\tA\tC\t30\tPASS\t.\tGT\t1\n";    // haploid SNP, HAP1 only, ALT 1
-
-/**
- * @brief Writes VCF text to a unique temporary file.
- * @param[in] contents Full VCF text, including header
- * @return Path to the newly written temporary file
- * @throws std::runtime_error Temporary file could not be created
- */
-std::string write_temp_vcf(const std::string & contents) {
-    std::string path_template =
-        (std::filesystem::temp_directory_path() / "vcfdist_test_XXXXXX").string();
-    std::vector<char> path(path_template.begin(), path_template.end());
-    path.push_back('\0');
-    int fd = mkstemp(path.data());
-    if (fd < 0) throw std::runtime_error("failed to create temporary VCF");
-    close(fd);
-    std::ofstream out(path.data());
-    out << contents;
-    out.close();
-    return std::string(path.data());
-}
-
-/**
- * @brief Parses a VCF fixture into a variantData container, then removes the temporary file.
- * @param[in] contents Full VCF text, including header
- * @return Populated variantData container for the QUERY callset
- */
-std::shared_ptr<variantData> parse_fixture(const std::string & contents) {
-    std::string vcf_fn = write_temp_vcf(contents);
-    std::shared_ptr<variantData> vcf_data(new variantData());
-    // parse_variants only stores the reference pointer, so no FASTA fixture is needed
-    parse_variants(vcf_fn, vcf_data, std::shared_ptr<fastaData>(nullptr), QUERY);
-    std::filesystem::remove(vcf_fn);
-    return vcf_data;
-}
-
-/**************************************************************************************************/
+const std::vector<std::string> FIXTURE_RECORDS = {
+    "ctg1\t11\t.\tA\tG\t30\tPASS\t.\tGT\t1|1",       // hom SNP, both haps, ALT 1
+    "ctg1\t21\t.\tC\tT\t30\tPASS\t.\tGT\t0|1",       // het SNP, HAP2 only, ALT 1
+    "ctg1\t31\t.\tA\tG,T\t30\tPASS\t.\tGT\t1|2",     // multiallelic, ALT 1 HAP1, ALT 2 HAP2
+    "ctg1\t41\t.\tATTT\tG,GG\t30\tPASS\t.\tGT\t0|2", // CPX from ALT 2, split into INS + DEL
+    "ctgX\t11\t.\tA\tC\t30\tPASS\t.\tGT\t1",         // haploid SNP, HAP1 only, ALT 1
+};
 
 /**
  * @class ProvenanceVectors
@@ -87,27 +39,29 @@ std::shared_ptr<variantData> parse_fixture(const std::string & contents) {
  */
 class ProvenanceVectors : public ::testing::Test {
 protected:
-    /** @brief Silences parser output and parses the shared fixture. */
+    /** @brief Writes and parses the shared fixture into the QUERY callset. */
     void SetUp() override {
-        saved_verbosity = g.verbosity;
-        g.verbosity = 0;
-        vcf_data = parse_fixture(VCF_HEADER + FIXTURE_BODY);
+        vcf_opts opts;
+        opts.sample = "QUERY";
+        opts.contigs = {"##contig=<ID=ctg1,length=200>", "##contig=<ID=ctgX,length=200>"};
+        std::string vcf_fn = write_tmp_vcf(dir, FIXTURE_RECORDS, opts);
+
+        vcf_data = std::shared_ptr<variantData>(new variantData());
+        // parse_variants only stores the reference pointer, so no FASTA fixture is needed
+        parse_variants(vcf_fn, vcf_data, std::shared_ptr<fastaData>(nullptr), QUERY);
+
         hap1 = vcf_data->variants[HAP1]["ctg1"];
         hap2 = vcf_data->variants[HAP2]["ctg1"];
         hapx = vcf_data->variants[HAP1]["ctgX"];
     }
 
-    /** @brief Restores the global verbosity modified by SetUp. */
-    void TearDown() override { g.verbosity = saved_verbosity; }
-
-    int saved_verbosity = 1;
-    std::shared_ptr<variantData> vcf_data;
-    std::shared_ptr<ctgVariants> hap1;
-    std::shared_ptr<ctgVariants> hap2;
-    std::shared_ptr<ctgVariants> hapx;
+    GlobalsGuard guard;                    ///< Saves global state and silences parser output
+    TempDir dir;                           ///< Holds the fixture VCF for the test's lifetime
+    std::shared_ptr<variantData> vcf_data; ///< Parsed fixture
+    std::shared_ptr<ctgVariants> hap1;     ///< ctg1 haplotype 1 variants
+    std::shared_ptr<ctgVariants> hap2;     ///< ctg1 haplotype 2 variants
+    std::shared_ptr<ctgVariants> hapx;     ///< ctgX haplotype 1 variants
 };
-
-/**************************************************************************************************/
 
 // The three new vectors must stay sized n, like every other parsed-data vector.
 TEST_F(ProvenanceVectors, VectorsSizedN) {
@@ -176,8 +130,8 @@ TEST_F(ProvenanceVectors, HaploidRecord) {
 // rec_idx and alt_idx (here ALT 2, not ALT 1) as well as position.
 TEST_F(ProvenanceVectors, ComplexVariantHalvesShareAltIdx) {
     ASSERT_LE(5, hap2->n);
-    int ins = 3;
-    int del = 4;
+    const int ins = 3;
+    const int del = 4;
 
     EXPECT_EQ(TYPE_INS, hap2->types[ins]);
     EXPECT_EQ(TYPE_DEL, hap2->types[del]);
@@ -207,6 +161,7 @@ TEST_F(ProvenanceVectors, CopyingOverloadPreservesProvenance) {
 
 // Callers with no source record (e.g. CIGAR-derived variants) get the unknown sentinels.
 TEST(ProvenanceVectorDefaults, UnknownSentinels) {
+    GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars(new ctgVariants("ctg1"));
     vars->add_var(10, 1, TYPE_SUB, BED_INSIDE, "A", "G", GT_ALT1_ALT1, 60, 60, 0);
 
@@ -215,7 +170,5 @@ TEST(ProvenanceVectorDefaults, UnknownSentinels) {
     EXPECT_EQ(-1, vars->alt_idxs[0]);
     EXPECT_EQ(0, vars->ploidies[0]);
 }
-
-/**************************************************************************************************/
 
 } // namespace
