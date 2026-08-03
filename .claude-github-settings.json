@@ -3,11 +3,11 @@
   "identity": { "bot": "TimD1-bot", "owner": "TimD1" },
   "repositories": ["TimD1/vcfdist"],
   "permissions": {
-    "push":          "prompt",
-    "issues":        "prompt",
-    "pull-requests": "prompt",
-    "comments":      "prompt",
-    "reviews":       "prompt",
+    "push":          "allow",
+    "issues":        "allow",
+    "pull-requests": "allow",
+    "comments":      "allow",
+    "reviews":       "allow",
     "metadata":      "allow"
   },
   "constraints": {
