@@ -192,6 +192,39 @@ TEST(MakeCtgVariants, Roundtrip) {
     EXPECT_EQ(size_t(2), vars->credit[HAP2].size());
 }
 
+TEST(MakeCtgVariants, ProvenanceFieldsReachTheirOwnVectors) {
+    GlobalsGuard guard;
+
+    // add_var() defaults every parameter past phase_set, so an omitted argument shifts the
+    // remainder along silently. Distinct values are what catch that: a shift of even one position
+    // lands one of these in a neighbouring vector.
+    var_desc var;
+    var.pos = 3;
+    var.rlen = 1;
+    var.ref = "T";
+    var.alt = "C";
+    var.phase_set = 11;
+    var.supercluster = 5;
+    var.rec_idx = 9;
+    var.alt_idx = 2;
+    var.ploidy = 1;
+    std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {var});
+
+    ASSERT_EQ(1, vars->n);
+    EXPECT_EQ(11, vars->phase_sets[0]);
+    EXPECT_EQ(9, vars->rec_idxs[0]);
+    EXPECT_EQ(2, vars->alt_idxs[0]);
+    EXPECT_EQ(1, vars->ploidies[0]);
+    EXPECT_EQ(5, vars->superclusters[0]);
+
+    // an unspecified field yields the same "unknown" sentinel add_var() defaults to
+    std::shared_ptr<ctgVariants> plain = make_ctgVariants("chr1", {{4, 1, TYPE_SUB, "A", "G"}});
+    EXPECT_EQ(-1, plain->rec_idxs[0]);
+    EXPECT_EQ(-1, plain->alt_idxs[0]);
+    EXPECT_EQ(0, plain->ploidies[0]);
+    EXPECT_EQ(-1, plain->superclusters[0]);
+}
+
 /* alloc_reach_offs *******************************************************************************/
 
 TEST(AllocReachOffs, SizeAndInit) {

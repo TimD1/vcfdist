@@ -154,6 +154,9 @@ std::shared_ptr<fastaData> make_fasta(
 
 /**
  * @brief Builds a ctgVariants container holding the described variants, in the given order.
+ *
+ * Every add_var() parameter through supercluster is named explicitly, because they are all
+ * defaulted past phase_set and omitting one silently binds supercluster to the wrong parameter.
  * @param[in] ctg Contig name
  * @param[in] vars Variants to append, in ascending position order
  * @return Populated variant container
@@ -163,7 +166,8 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
     std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
     for (const var_desc & var : vars) {
         ctg_vars->add_var(var.pos, var.rlen, var.type, var.loc, var.ref, var.alt, var.gt,
-                var.qual, var.qual, var.phase_set, var.supercluster);
+                var.qual, var.qual, var.phase_set, var.rec_idx, var.alt_idx, var.ploidy,
+                var.supercluster);
     }
     return ctg_vars;
 }
