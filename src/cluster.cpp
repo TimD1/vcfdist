@@ -147,7 +147,10 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                             GT_ALT1_ALT1,
                             vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
                             vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
-                            vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
+                            vars[HAP1][ctg]->phase_sets[var_idx[HAP1]],
+                            vars[HAP1][ctg]->rec_idxs[var_idx[HAP1]],
+                            vars[HAP1][ctg]->alt_idxs[var_idx[HAP1]],
+                            vars[HAP1][ctg]->ploidies[var_idx[HAP1]]);
                     if (print) printf("adding 1|1 var= %s:%d\t%s\t%s\t%s\n",
                             ctg.data(), 
                             vars[HAP1][ctg]->poss[var_idx[HAP1]],
@@ -180,7 +183,10 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                             vars[hap_idx][ctg]->orig_gts[var_idx[hap_idx]],
                             vars[hap_idx][ctg]->gt_quals[var_idx[hap_idx]],
                             vars[hap_idx][ctg]->var_quals[var_idx[hap_idx]],
-                            vars[hap_idx][ctg]->phase_sets[var_idx[hap_idx]]);
+                            vars[hap_idx][ctg]->phase_sets[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->rec_idxs[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->alt_idxs[var_idx[hap_idx]],
+                            vars[hap_idx][ctg]->ploidies[var_idx[hap_idx]]);
                     if (print) printf("adding %s var= %s:%d\t%s\t%s\t%s\n",
                             hap_idx == 0 ? "1|0" : "0|1",
                             ctg.data(), 
@@ -203,7 +209,10 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                         vars[HAP1][ctg]->orig_gts[var_idx[HAP1]],
                         vars[HAP1][ctg]->gt_quals[var_idx[HAP1]],
                         vars[HAP1][ctg]->var_quals[var_idx[HAP1]],
-                        vars[HAP1][ctg]->phase_sets[var_idx[HAP1]]);
+                        vars[HAP1][ctg]->phase_sets[var_idx[HAP1]],
+                        vars[HAP1][ctg]->rec_idxs[var_idx[HAP1]],
+                        vars[HAP1][ctg]->alt_idxs[var_idx[HAP1]],
+                        vars[HAP1][ctg]->ploidies[var_idx[HAP1]]);
                 if (print) printf("adding 1|0 var= %s:%d\t%s\t%s\t%s\n",
                         ctg.data(), 
                         vars[HAP1][ctg]->poss[var_idx[HAP1]],
@@ -224,7 +233,10 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                         vars[HAP2][ctg]->orig_gts[var_idx[HAP2]],
                         vars[HAP2][ctg]->gt_quals[var_idx[HAP2]],
                         vars[HAP2][ctg]->var_quals[var_idx[HAP2]],
-                        vars[HAP2][ctg]->phase_sets[var_idx[HAP2]]);
+                        vars[HAP2][ctg]->phase_sets[var_idx[HAP2]],
+                        vars[HAP2][ctg]->rec_idxs[var_idx[HAP2]],
+                        vars[HAP2][ctg]->alt_idxs[var_idx[HAP2]],
+                        vars[HAP2][ctg]->ploidies[var_idx[HAP2]]);
                 if (print) printf("adding 0|1 var= %s:%d\t%s\t%s\t%s\n",
                         ctg.data(), 
                         vars[HAP2][ctg]->poss[var_idx[HAP2]],
