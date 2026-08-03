@@ -54,6 +54,9 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
         other_vars->gt_quals[idx],
         other_vars->var_quals[idx],
         other_vars->phase_sets[idx],
+        other_vars->rec_idxs[idx],
+        other_vars->alt_idxs[idx],
+        other_vars->ploidies[idx],
         other_vars->superclusters[idx],
         other_vars->calc_gts[idx],
         other_vars->errtypes[HAP1][idx], other_vars->errtypes[HAP2][idx],
@@ -76,6 +79,9 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
  * @param[in] gt_qual Genotype quality score
  * @param[in] var_qual Variant quality score (capped at g.max_qual)
  * @param[in] phase_set Phase set identifier from VCF PS tag
+ * @param[in] rec_idx 0-based ordinal of the source record within its input VCF (-1 = unknown)
+ * @param[in] alt_idx 1-based ALT ordinal this variant derives from (-1 = unknown)
+ * @param[in] ploidy Variant's own ploidy, from std::abs(ngt) at parse time (0 = unknown)
  * @param[in] supercluster Supercluster index (-1 = not yet assigned)
  * @param[in] calc_gt Calculated genotype (defaults to GT_REF_REF)
  * @param[in] hap1_errtype Error type for haplotype 1 (defaults to ERRTYPE_UN)
@@ -94,7 +100,8 @@ void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
 // TODO: remove assumption that no variants match
 void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual, 
-        int phase_set, int supercluster /* -1 */, uint8_t calc_gt /* GT_REF_REF */, 
+        int phase_set, int rec_idx /* -1 */, int alt_idx /* -1 */, uint8_t ploidy /* 0 */,
+        int supercluster /* -1 */, uint8_t calc_gt /* GT_REF_REF */,
         uint8_t hap1_errtype /* ERRTYPE_UN */, uint8_t hap2_errtype /* ERRTYPE_UN */, 
         int hap1_sync_group /* 0 */, int hap2_sync_group /* 0 */, 
         float hap1_callq /* 0 */, float hap2_callq /* 0 */, 
@@ -113,6 +120,9 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->gt_quals.push_back(gt_qual);
     this->var_quals.push_back(std::min(var_qual, float(g.max_qual)));
     this->phase_sets.push_back(phase_set);
+    this->rec_idxs.push_back(rec_idx);
+    this->alt_idxs.push_back(alt_idx);
+    this->ploidies.push_back(ploidy);
     this->superclusters.push_back(supercluster);
     this->n++;
 
@@ -1146,15 +1156,21 @@ void parse_variants(const std::string & vcf_fn,
             // add to haplotype-specific query info
             std::transform(ref.begin(), ref.end(), ref.begin(), ::toupper);
             std::transform(alt.begin(), alt.end(), alt.begin(), ::toupper);
+            int rec_idx = n - 1; // 0-based ordinal of this record within the input VCF
+            uint8_t ploidy = uint8_t(std::abs(ngt));
+            // both CPX halves derive from the same original allele, so they share alt_idx
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 variant_data->variants[hap][ctg]->add_var(pos, 0, // INS
-                    TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set,
+                    rec_idx, alt_idx, ploidy);
                 variant_data->variants[hap][ctg]->add_var(pos, rlen, // DEL
-                    TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                    TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set,
+                    rec_idx, alt_idx, ploidy);
                 complex_total++;
             } else {
                 variant_data->variants[hap][ctg]->add_var(pos, rlen,
-                        type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set);
+                        type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set,
+                        rec_idx, alt_idx, ploidy);
             }
 
             prev_end[hap] = pos + rlen;

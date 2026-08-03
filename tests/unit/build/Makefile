@@ -13,7 +13,7 @@ TESTS = test_vcfdist
 CXXFLAGS += -g -Wall -Wextra -std=c++17
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 OBJS = $(SRC)/globals.o $(SRC)/print.o $(SRC)/variant.o $(SRC)/dist.o $(SRC)/bed.o \
-       $(SRC)/cluster.o $(SRC)/phase.o $(SRC)/timer.o test_dist.o
+       $(SRC)/cluster.o $(SRC)/phase.o $(SRC)/timer.o test_dist.o test_variant.o
 
 ifeq ($(UNAME_S),Darwin)
     # macOS: link Homebrew's prebuilt Google Test; no gtest sources to compile.
@@ -61,6 +61,10 @@ gtest_main.a: gtest-all.o gtest_main.o
 ##################
 test_dist.o: ../src/test_dist.cpp $(SRC)/dist.h $(GTEST_HEADERS)
 	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c ../src/test_dist.cpp
+
+test_variant.o: ../src/test_variant.cpp $(SRC)/variant.h $(SRC)/globals.h $(SRC)/defs.h \
+                $(GTEST_HEADERS)
+	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c ../src/test_variant.cpp
 
 #################
 # BUILD VCFDIST #
