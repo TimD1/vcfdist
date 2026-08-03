@@ -23,16 +23,15 @@
  * @brief Saves the global `g` on construction and restores it on destruction, silencing logging.
  *
  * Declare one at the top of every test that reads or writes `g`. Verbosity is set to 0 so that
- * INFO output does not pollute the test log. Because `Globals` has const members its copy
- * assignment operator is deleted, so the destructor restores each mutable field individually;
- * a new `Globals` field must be added to that list to be restored.
+ * INFO output does not pollute the test log. Restoration is a whole-struct assignment, so every
+ * field is covered and a newly added `Globals` field needs no change here.
  */
 class GlobalsGuard {
 public:
     /** @brief Saves the current global configuration and sets verbosity to 0. */
     GlobalsGuard();
 
-    /** @brief Restores every mutable field of the global configuration. */
+    /** @brief Restores the saved global configuration. */
     ~GlobalsGuard();
 
     GlobalsGuard(const GlobalsGuard &) = delete;
@@ -115,6 +114,9 @@ std::shared_ptr<fastaData> make_fasta(
 /**
  * @struct var_desc
  * @brief Describes one variant to append to a ctgVariants container.
+ *
+ * New fields are appended, never inserted, so that positional brace-initialization in existing
+ * tests keeps binding to the same members.
  */
 struct var_desc {
     int pos = 0;               ///< 0-based reference start position
@@ -123,10 +125,13 @@ struct var_desc {
     std::string ref;           ///< Reference allele sequence
     std::string alt;           ///< Alternate allele sequence
     uint8_t gt = GT_REF_ALT1;  ///< Original genotype (GT_*)
-    float qual = 60;           ///< Variant and genotype quality (add_var clamps to g.max_qual)
+    float qual = 60;           ///< Sets var_qual (clamped to g.max_qual) and gt_qual (unclamped)
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)
     uint8_t loc = BED_INSIDE;  ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
+    int rec_idx = -1;          ///< Source VCF record ordinal, 0-based (-1 = unknown)
+    int alt_idx = -1;          ///< Original ALT ordinal, 1-based (-1 = unknown)
+    uint8_t ploidy = 0;        ///< Variant ploidy from the VCF genotype (0 = unknown)
 };
 
 /** @brief Builds a ctgVariants container holding the described variants, in the given order. */

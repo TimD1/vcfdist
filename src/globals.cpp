@@ -12,6 +12,10 @@
 #include "timer.h"
 
 Globals g;
+/** @brief Program version string. */
+const std::string Globals::VERSION = "3.0.0-b0";
+/** @brief Program name string. */
+const std::string Globals::PROGRAM = "vcfdist";
 /** @brief String representations of QUERY/TRUTH callset indices. */
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 /** @brief String representations of ERRTYPE_* constants (TP, FP, FN, unknown). */
