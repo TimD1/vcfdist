@@ -143,10 +143,46 @@ git log --oneline "origin/$BASE..HEAD"   # anything here is unpushed pre-existin
 git rebase "origin/$BASE"
 ```
 
-Two checks before you start editing. If the rebase reports **conflicts**, `git rebase --abort`,
-stop, and report them — resolving someone else's conflicts unattended is beyond this run's
-remit. And if that `git log` shows commits **not yet on the remote**, your eventual push will
-carry them along: name them in the comment rather than shipping them silently.
+One check before you start editing: if that `git log` shows commits **not yet on the remote**, your
+eventual push will carry them along — name them in the comment rather than shipping them silently.
+
+**0d. Resolve rebase conflicts yourself.** A conflict is ordinary work, not a stop. The common
+case in this repo is *additive*: the base branch grew a function, a test case, or a doc block in
+the same region your branch also grew one. Both sides are wanted, and the resolution is to keep
+both.
+
+Read both sides before touching a conflict marker. Never resolve by taking one side wholesale
+without knowing what the other contained:
+
+```bash
+git log --oneline HEAD..origin/$BASE -- <conflicted-path>   # what the base added
+git log --oneline origin/$BASE..HEAD -- <conflicted-path>   # what your branch added
+git diff --diff-filter=U                                   # the conflicting hunks
+```
+
+Then resolve on the evidence:
+
+| Conflict shape | Resolution |
+| :-- | :-- |
+| Both sides **added** distinct things in the same region (new tests, new cases, new fields) | Keep both. Order them so the file still reads coherently — grouped by function, not by which branch wrote them. |
+| Base **renamed or resignatured** something your branch calls | Adopt the base's new form at every one of your call sites. Check for *positional* argument shifts, not just compile errors — a defaulted parameter inserted mid-signature relinks silently and still compiles. |
+| Base **already implemented** what your branch was adding | Drop your version, keep the base's, and say so — your commit becomes smaller than the PR describes. |
+| Both sides changed **the same logic incompatibly** | This is the genuine stop. `git rebase --abort`, report both intents, and let the human decide. |
+
+Three things that are never acceptable resolutions: `-X ours` or `-X theirs` (they silently
+discard a whole side), deleting the other side's added code to make the markers go away, and
+`git rebase --skip` (it drops one of your own commits entirely).
+
+**Verify after resolving, before continuing the rebase is finished.** A resolution that compiles
+is not a resolution that is correct. Build and run the full unit suite, not just the file you
+touched — a mis-resolved signature or a dropped fixture surfaces in a sibling test, not in the
+conflicted one. If the tree does not build or a test that passed on the base now fails, your
+resolution is wrong: fix it or abort, never continue past it.
+
+**Say what you resolved.** The PR comment names each conflicted path and, in a clause, how it was
+reconciled ("kept both test sets"; "adopted the new `add_var` signature at four call sites").
+A silent conflict resolution inside a force-push is indistinguishable from having overwritten
+someone's work.
 
 Rebasing onto the wrong branch is worse than not rebasing: it drags in commits the PR never
 proposed and makes the diff unreviewable. `$BASE` comes from the PR, never from a default.
@@ -263,6 +299,10 @@ collapsing to one sentence when nothing moved; and root causes are **proposed** 
 each carrying a `CONTIG:POS REF>ALT` a reviewer can check. You are inferring mechanism from
 output tables, that inference can be wrong, and the comment is public.
 
+If step 0d resolved any conflict, the comment gains one short section naming each conflicted path
+and how it was reconciled. This is the reviewer's only signal that the force-push rewrote history
+over someone else's landed work rather than merely over your own earlier commits.
+
 Then hand it back — required, and the last action of every run:
 
 ```bash
@@ -296,7 +336,11 @@ PR with no assignee at all: that silence is the failure signal, and it cannot re
 - Ending a run without assigning `TimD1` back — including when it failed
 - Re-adding `TimD1-bot` as an assignee for any reason
 - Resolving a review thread you did not fully address
-- Starting work without rebasing onto the PR's base branch, or resolving conflicts unattended
+- Starting work without rebasing onto the PR's base branch
+- Aborting a rebase over an *additive* conflict, where both sides are wanted and the answer is to keep both
+- Resolving a conflict with `-X ours`/`-X theirs`, `git rebase --skip`, or by deleting the other side
+- Continuing a rebase without building and running the full suite against the resolved tree
+- Force-pushing a resolved conflict without naming, in the comment, what was reconciled and how
 - Rebasing onto `dev` because it is usually the base, without checking `baseRefName`
 - Reaching for plain `git push --force` instead of `--force-with-lease`
 - Creating a worktree named anything other than the branch
