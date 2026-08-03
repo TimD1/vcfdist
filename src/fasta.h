@@ -20,6 +20,9 @@ KSEQ_INIT(int, read);
  */
 class fastaData {
 public:
+    /** @brief Constructs an empty fastaData containing no sequences. */
+    fastaData() {;}
+
     /**
      * @brief Reads and stores all sequences from an open FASTA file, converting to uppercase.
      * @param[in] ref_fasta_fp Open file pointer to FASTA file (closed after reading)

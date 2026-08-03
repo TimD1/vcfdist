@@ -9,11 +9,16 @@ UNAME_S := $(shell uname -s)
 # MY TESTS CONFIG #
 ###################
 SRC = ../../../src
+TEST_SRC = ../src
 TESTS = test_vcfdist
 CXXFLAGS += -g -Wall -Wextra -std=c++17
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
+SRC_HEADERS = $(wildcard $(SRC)/*.h)
+TEST_HEADERS = $(wildcard $(TEST_SRC)/*.h)
 OBJS = $(SRC)/globals.o $(SRC)/print.o $(SRC)/variant.o $(SRC)/dist.o $(SRC)/bed.o \
-       $(SRC)/cluster.o $(SRC)/phase.o $(SRC)/timer.o test_dist.o
+       $(SRC)/cluster.o $(SRC)/phase.o $(SRC)/timer.o \
+       test_helpers.o test_bed.o test_cluster.o test_dist.o test_globals.o test_phase.o \
+       test_print.o test_timer.o test_variant.o
 
 ifeq ($(UNAME_S),Darwin)
     # macOS: link Homebrew's prebuilt Google Test; no gtest sources to compile.
@@ -59,8 +64,11 @@ gtest_main.a: gtest-all.o gtest_main.o
 ##################
 # BUILD MY TESTS #
 ##################
-test_dist.o: ../src/test_dist.cpp $(SRC)/dist.h $(GTEST_HEADERS)
-	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c ../src/test_dist.cpp
+# One pattern rule covers every test file; adding a test file only requires adding it to OBJS.
+# Every test object depends on all vcfdist and test headers, since each test may include any of
+# them and the set is small enough that over-rebuilding costs less than a stale object.
+%.o: $(TEST_SRC)/%.cpp $(SRC_HEADERS) $(TEST_HEADERS) $(GTEST_HEADERS)
+	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c $< -o $@
 
 #################
 # BUILD VCFDIST #

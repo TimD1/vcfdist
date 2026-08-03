@@ -44,3 +44,13 @@ issues/
 # ignore auto-generated documentation
 src/docs/
 docs/deliverables/
+
+# track the tiny unit-test fixtures, which the 'data/' and per-extension rules above would ignore
+# (the directory must be un-ignored first, or git never descends into it to apply these rules)
+!tests/unit/data/
+!tests/unit/data/*.bed
+!tests/unit/data/*.fasta
+!tests/unit/data/*.gz
+!tests/unit/data/*.tsv
+!tests/unit/data/*.txt
+!tests/unit/data/*.vcf
