@@ -15,6 +15,7 @@
 *.gprof
 *.png
 *.json
+!.claude-github-settings.json
 *.log
 *.aux
 src/test
