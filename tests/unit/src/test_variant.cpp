@@ -9,6 +9,7 @@
 #include <fstream>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -227,6 +228,13 @@ public:
     explicit StderrToFile(const std::string & fn)
             : saved_fd(dup(fileno(stderr))),
               file_fd(open(fn.data(), O_WRONLY | O_CREAT | O_TRUNC, 0644)) {
+        // throw rather than redirect nowhere: a silent failure would empty the captured log and
+        // fail every assertion on it, hiding the real cause behind unrelated mismatches
+        if (saved_fd < 0 || file_fd < 0) {
+            if (saved_fd >= 0) close(saved_fd);
+            if (file_fd >= 0) close(file_fd);
+            throw std::runtime_error("StderrToFile: could not redirect stderr to " + fn);
+        }
         std::fflush(stderr);
         dup2(file_fd, fileno(stderr));
     }
