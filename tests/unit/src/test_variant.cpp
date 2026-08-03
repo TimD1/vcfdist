@@ -2,6 +2,9 @@
  * @file test_variant.cpp
  * @brief Unit tests for variant.cpp: genotype, allele-count, and variant-type logic.
  */
+#include <unistd.h>
+
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -169,6 +172,226 @@ TEST(ProvenanceVectorDefaults, UnknownSentinels) {
     EXPECT_EQ(-1, vars->rec_idxs[0]);
     EXPECT_EQ(-1, vars->alt_idxs[0]);
     EXPECT_EQ(0, vars->ploidies[0]);
+}
+
+/* parse-time filtering, counters, and summary warnings *******************************************/
+
+/** @brief Parsed variants plus everything parse_variants() reported to stderr. */
+struct ParseResult {
+    std::shared_ptr<variantData> vars; ///< Variants that survived parse-time filtering
+    std::string log;                   ///< All INFO/WARN output from parse_variants()
+    std::string out_vcf;               ///< VCF written from the surviving variants
+};
+
+/**
+ * @brief Builds a single-sample VCF record line on chr1 with phase set 1.
+ * @param[in] pos 1-based VCF position
+ * @param[in] ref REF allele
+ * @param[in] alt ALT allele
+ * @param[in] gt GT field value (e.g. "1|0", "1|.", ".|.")
+ * @return One tab-separated VCF data line, without a trailing newline
+ */
+std::string record(int pos, const std::string & ref, const std::string & alt,
+        const std::string & gt) {
+    return "chr1\t" + std::to_string(pos) + "\t.\t" + ref + "\t" + alt +
+        "\t50\tPASS\t.\tGT:PS\t" + gt + ":1";
+}
+
+/**
+ * @brief Reads an entire file into a string.
+ * @param[in] fn Input filename
+ * @return File contents, or an empty string if the file cannot be opened
+ */
+std::string read_text(const std::string & fn) {
+    FILE * fp = fopen(fn.data(), "r");
+    if (fp == nullptr) return "";
+    std::string text;
+    char buf[4096];
+    size_t nread = 0;
+    while ((nread = fread(buf, 1, sizeof(buf), fp)) > 0) text.append(buf, nread);
+    fclose(fp);
+    return text;
+}
+
+/**
+ * @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF.
+ * @param[in] dir Temporary directory owning the fixture and captured output
+ * @param[in] records VCF data lines, without trailing newlines
+ * @return Surviving variants, captured log output, and the VCF written from those variants
+ * @note The written VCF stands in for summary.vcf: both are generated from the variants that
+ *       survive parse-time filtering, so a variant absent here is absent from summary.vcf.
+ */
+ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records) {
+    vcf_opts opts;
+    opts.sample = "QUERY";
+    opts.contigs = {"##contig=<ID=chr1,length=1000>"};
+    const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
+    const std::string log_fn = dir.path("parse.log");
+    const std::string out_fn = dir.path("out.vcf");
+
+    ParseResult result;
+    result.vars = std::make_shared<variantData>();
+    std::shared_ptr<fastaData> ref = make_fasta("chr1", std::string(1000, 'A'));
+
+    // redirect stderr so the INFO/WARN summary can be asserted on
+    fflush(stderr);
+    int saved_stderr = dup(fileno(stderr));
+    FILE * log_fp = fopen(log_fn.data(), "w");
+    dup2(fileno(log_fp), fileno(stderr));
+    parse_variants(vcf_fn, result.vars, ref, QUERY);
+    fflush(stderr);
+    dup2(saved_stderr, fileno(stderr));
+    close(saved_stderr);
+    fclose(log_fp);
+
+    result.log = read_text(log_fn);
+    result.vars->write_vcf(out_fn);
+    result.out_vcf = read_text(out_fn);
+    return result;
+}
+
+/**
+ * @brief Counts variants that survived parsing on one haplotype of chr1.
+ * @param[in] r Result of parse_records()
+ * @param[in] hap Haplotype index (HAP1 or HAP2)
+ * @return Number of surviving variants on that haplotype
+ */
+int kept_on_hap(const ParseResult & r, int hap) {
+    return r.vars->variants[hap]["chr1"]->n;
+}
+
+/**
+ * @brief Counts variants that survived parsing across both haplotypes of chr1.
+ * @param[in] r Result of parse_records()
+ * @return Total number of surviving variants
+ */
+int total_kept(const ParseResult & r) {
+    return kept_on_hap(r, HAP1) + kept_on_hap(r, HAP2);
+}
+
+/**
+ * @brief Reports whether the written VCF contains a record at a given position.
+ * @param[in] r Result of parse_records()
+ * @param[in] pos 1-based VCF position
+ * @return True if a chr1 data line at that position was written
+ */
+bool wrote_pos(const ParseResult & r, int pos) {
+    return r.out_vcf.find("\nchr1\t" + std::to_string(pos) + "\t") != std::string::npos;
+}
+
+/**
+ * @brief Reports whether the log contains a substring.
+ * @param[in] r Result of parse_records()
+ * @param[in] text Substring to search for
+ * @return True if the log contains the substring
+ */
+bool logged(const ParseResult & r, const std::string & text) {
+    return r.log.find(text) != std::string::npos;
+}
+
+/**
+ * @class ParseVariants
+ * @brief Restores parse-relevant global settings to their defaults before each test.
+ */
+class ParseVariants : public testing::Test {
+protected:
+    /** @brief Sets the globals parse_variants reads, leaving the histogram printed. */
+    void SetUp() override {
+        g.verbosity = 1; // print the genotype histogram, suppress per-variant warnings
+        g.bed_exists = false;
+        g.min_qual = 0;
+        g.max_size = 1000;
+        g.filters.clear();
+        g.filter_ids.clear();
+    }
+
+    GlobalsGuard guard; ///< Saves global state on construction and restores it on destruction
+    TempDir dir;        ///< Owns each test's fixture VCF, log, and output VCF
+};
+
+/* reasons that stay drops ************************************************************************/
+
+// A spanning deletion allele carries no variation, so it is dropped and counted.
+TEST_F(ParseVariants, SpanningDeletionDroppedAndCounted) {
+    ParseResult r = parse_records(dir, {record(100, "A", "*", "1|0")});
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_TRUE(logged(r, "1 variants spanned by deletion in QUERY VCF, skipped"));
+}
+
+// An ALT identical to its REF carries no variation, whether one base long or several.
+TEST_F(ParseVariants, RefCallDroppedAndCounted) {
+    ParseResult r = parse_records(dir, {record(100, "A", "A", "1|0"),
+                                        record(200, "AT", "AT", "1|0")});
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_FALSE(wrote_pos(r, 200));
+    EXPECT_TRUE(logged(r, "2 reference variants in QUERY VCF, skipped"));
+}
+
+// A no-call has no known allele on either haplotype, so the whole record is dropped.
+TEST_F(ParseVariants, NoCallDroppedAndCounted) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", ".|.")});
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_TRUE(logged(r, "1 variants with no known alleles (.|.) in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, ".|.: 1"));
+}
+
+// A no-call is one dropped record, not one dropped record per haplotype.
+TEST_F(ParseVariants, NoCallCountedOncePerRecord) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", ".|.")});
+    EXPECT_TRUE(logged(r, "1 variants with no known alleles"));
+    EXPECT_FALSE(logged(r, "2 variants with no known alleles"));
+}
+
+/* half calls *************************************************************************************/
+
+// A half call keeps its known allele, so it must not be tallied as a no-call.
+TEST_F(ParseVariants, HalfCallCountedDistinctlyFromNoCall) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
+    EXPECT_TRUE(logged(r, "X|.: 1"));
+    EXPECT_FALSE(logged(r, ".|.:")); // histogram line is only printed for nonzero counts
+    EXPECT_FALSE(logged(r, "no known alleles"));
+}
+
+// The summary must not claim a half call was skipped, because its known allele was evaluated.
+TEST_F(ParseVariants, HalfCallNotReportedAsSkipped) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
+    EXPECT_EQ(1, total_kept(r));
+    EXPECT_TRUE(wrote_pos(r, 100));
+    EXPECT_TRUE(logged(r, "1 variants with a half call (1|.) in QUERY VCF, known allele kept"));
+    EXPECT_FALSE(logged(r, "skipped"));
+}
+
+// A missing allele on either haplotype leaves the known allele on the other.
+TEST_F(ParseVariants, HalfCallKeptOnTheHaplotypeWithTheKnownAllele) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|."),
+                                        record(200, "A", "G", ".|1")});
+    EXPECT_EQ(1, kept_on_hap(r, HAP1));
+    EXPECT_EQ(1, kept_on_hap(r, HAP2));
+    EXPECT_TRUE(logged(r, "X|.: 2"));
+    EXPECT_TRUE(logged(r, "2 variants with a half call"));
+}
+
+/* reasons deferred to separate work **************************************************************/
+
+// Overlapping variants are still dropped at parse time, with their counter and warning intact.
+TEST_F(ParseVariants, OverlappingVariantStillDropped) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
+                                        record(100, "A", "T", "1|0")});
+    EXPECT_EQ(1, kept_on_hap(r, HAP1));
+    EXPECT_EQ(0, kept_on_hap(r, HAP2));
+    EXPECT_EQ(std::string::npos, r.out_vcf.find("\tT\t")); // second, overlapping ALT
+    EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
+}
+
+// Unphased heterozygous genotypes are still dropped at parse time, counter and warning intact.
+TEST_F(ParseVariants, UnphasedHeterozygousGenotypeStillDropped) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "0/1")});
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_TRUE(logged(r, "1 variants with unphased genotypes in QUERY VCF, skipped"));
 }
 
 } // namespace
