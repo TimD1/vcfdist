@@ -1098,12 +1098,14 @@ void parse_variants(const std::string & vcf_fn,
                 ref = ref.substr(lm, reflen+rm-lm+1);
 
             } else { // substitution
+
+                // skip reference calls, where ALT is identical to REF (e.g. A -> A, AT -> AT)
+                if (ref == alt) {
+                    ref_call_total++;
+                    continue;
+                }
                 if (ref.size() == 1) {
-                    type = (ref[0] == alt[0] ? TYPE_REF : TYPE_SUB);
-                    if (type == TYPE_REF) {
-                        ref_call_total++;
-                        continue;
-                    }
+                    type = TYPE_SUB;
                 } else {
                     if (ref.substr(1) == alt.substr(1)){
                         type = TYPE_SUB;
