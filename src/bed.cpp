@@ -204,9 +204,10 @@ void intersect_contigs(
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->variants[HAP1].erase(*itr);
                 query_ptr->variants[HAP2].erase(*itr);
+                std::string dropped_ctg = *itr; // save name, erase() invalidates itr
                 itr = query_ptr->contigs.erase(itr);
-                if (g.verbosity >= 2) 
-                    WARN("Ignoring %s from QUERY VCF, not in BED file.", (*itr).data());
+                if (g.verbosity >= 2)
+                    WARN("Ignoring %s from QUERY VCF, not in BED file.", dropped_ctg.data());
             } else ++itr;
         }
         // remove all extraneous contigs in truth VCF not in BED
@@ -220,9 +221,10 @@ void intersect_contigs(
                         (itr - truth_ptr->contigs.begin()));
                 truth_ptr->variants[HAP1].erase(*itr);
                 truth_ptr->variants[HAP2].erase(*itr);
+                std::string dropped_ctg = *itr; // save name, erase() invalidates itr
                 itr = truth_ptr->contigs.erase(itr);
-                if (g.verbosity >= 2) 
-                    WARN("Ignoring %s from TRUTH VCF, not in BED file.", (*itr).data());
+                if (g.verbosity >= 2)
+                    WARN("Ignoring %s from TRUTH VCF, not in BED file.", dropped_ctg.data());
             } else ++itr;
         }
         // remove all extraneous contigs in ref FASTA not in BED
