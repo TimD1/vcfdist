@@ -23,7 +23,7 @@
 struct contigRegions {
     std::vector<int> starts; ///< 0-based start coordinates for intervals
     std::vector<int> stops; ///< 0-based non-inclusive end coordinates for intervals
-    int n; ///< number of intervals
+    int n = 0; ///< number of intervals
 };
 
 /**************************************************************************************************/
