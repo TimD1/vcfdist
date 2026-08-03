@@ -2,10 +2,13 @@
  * @file test_variant.cpp
  * @brief Unit tests for variant.cpp: genotype, allele-count, and variant-type logic.
  */
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <cstdio>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -203,15 +206,46 @@ std::string record(int pos, const std::string & ref, const std::string & alt,
  * @return File contents, or an empty string if the file cannot be opened
  */
 std::string read_text(const std::string & fn) {
-    FILE * fp = fopen(fn.data(), "r");
-    if (fp == nullptr) return "";
-    std::string text;
-    char buf[4096];
-    size_t nread = 0;
-    while ((nread = fread(buf, 1, sizeof(buf), fp)) > 0) text.append(buf, nread);
-    fclose(fp);
-    return text;
+    std::ifstream in(fn);
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
 }
+
+/**
+ * @class StderrToFile
+ * @brief Redirects the C `stderr` stream to a file for the object's lifetime.
+ *
+ * WARN() and INFO() reach stderr through fprintf(), so capturing the summary means redirecting
+ * the underlying file descriptor; swapping std::cerr's streambuf would not intercept it.
+ * Restoring in the destructor keeps a failed assertion from leaving stderr pointing into the
+ * temporary directory after TempDir has deleted it.
+ */
+class StderrToFile {
+public:
+    /** @brief Redirects stderr to fn, truncating any existing contents. */
+    explicit StderrToFile(const std::string & fn)
+            : saved_fd(dup(fileno(stderr))),
+              file_fd(open(fn.data(), O_WRONLY | O_CREAT | O_TRUNC, 0644)) {
+        std::fflush(stderr);
+        dup2(file_fd, fileno(stderr));
+    }
+
+    /** @brief Flushes the redirected output and restores the original stderr. */
+    ~StderrToFile() {
+        std::fflush(stderr);
+        dup2(saved_fd, fileno(stderr));
+        close(saved_fd);
+        close(file_fd);
+    }
+
+    StderrToFile(const StderrToFile &) = delete;
+    StderrToFile & operator=(const StderrToFile &) = delete;
+
+private:
+    int saved_fd; ///< Duplicate of the original stderr descriptor
+    int file_fd;  ///< Descriptor of the redirect target
+};
 
 /**
  * @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF.
@@ -233,16 +267,10 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
     result.vars = std::make_shared<variantData>();
     std::shared_ptr<fastaData> ref = make_fasta("chr1", std::string(1000, 'A'));
 
-    // redirect stderr so the INFO/WARN summary can be asserted on
-    fflush(stderr);
-    int saved_stderr = dup(fileno(stderr));
-    FILE * log_fp = fopen(log_fn.data(), "w");
-    dup2(fileno(log_fp), fileno(stderr));
-    parse_variants(vcf_fn, result.vars, ref, QUERY);
-    fflush(stderr);
-    dup2(saved_stderr, fileno(stderr));
-    close(saved_stderr);
-    fclose(log_fp);
+    { // stderr is redirected for the parse alone, so the INFO/WARN summary can be asserted on
+        StderrToFile redirect(log_fn);
+        parse_variants(vcf_fn, result.vars, ref, QUERY);
+    }
 
     result.log = read_text(log_fn);
     result.vars->write_vcf(out_fn);

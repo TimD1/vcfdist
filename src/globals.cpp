@@ -22,7 +22,7 @@ std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 std::vector<std::string> error_strs = {"TP", "FP", "FN", "??"};
 /** @brief String representations of GT_* genotype constants. */
 std::vector<std::string> gt_strs =
-    {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "M|N" };
+    {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y" };
 /** @brief String representations of PHASE_* constants (keep, swap, missing). */
 std::vector<std::string> phase_strs = {"0", "1", "."};
 /** @brief String representations of AC_ERR_* allele count error types. */
