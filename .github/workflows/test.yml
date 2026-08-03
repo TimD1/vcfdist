@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         ref: ${{ github.ref }}
     - name: Install htslib dependencies
@@ -24,7 +24,7 @@ jobs:
        sudo apt-get install -y libbz2-dev liblzma-dev
     - name: Cache htslib
       id: cache-htslib
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: htslib-${{ env.HTSLIB_VERSION }}
         key: htslib-${{ env.HTSLIB_VERSION }}-${{ runner.os }}-${{ runner.arch }}
