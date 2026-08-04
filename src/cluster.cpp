@@ -70,6 +70,8 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
 /**
  * Merge ctgVariants across haplotypes, set genotypes, update clusters, and add to this superclusterData.
  *
+ * On a non-empty contig the merged callset ends up with nc-1 variant-holding clusters plus a
+ * trailing sentinel starting at n, so nc counts the sentinel and equals clusters.size().
  * @param[in] callset The variant callset that is being added, either TRUTH or QUERY.
  * @param[in] vars For each haplotype, a mapping from contig names to ctgVariants.
  * @throws ERROR if no variants are present on the contig.
@@ -316,11 +318,14 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
 
         } // while variants remain
 
-        // save reaches of final cluster
-        merged_vars->clusters.push_back(curr_var_idx);
-        merged_vars->left_reaches.push_back(curr_left_reach);
-        merged_vars->right_reaches.push_back(curr_right_reach);
-        merged_vars->nc++;
+        // save reaches of final cluster, unless the last iteration already closed it and left curr_*
+        // holding the empty (int::max, int::min) pair with no variants to cover
+        if (curr_var_idx < merged_vars->n) {
+            merged_vars->clusters.push_back(curr_var_idx);
+            merged_vars->left_reaches.push_back(curr_left_reach);
+            merged_vars->right_reaches.push_back(curr_right_reach);
+            merged_vars->nc++;
+        }
 
         // add sentinel cluster and save contig variants
         merged_vars->clusters.push_back(merged_vars->n);

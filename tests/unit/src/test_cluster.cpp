@@ -20,7 +20,6 @@ namespace {
 /* Local helpers **********************************************************************************/
 
 const int INT_MAXIMUM = std::numeric_limits<int>::max();
-const int INT_MINIMUM = std::numeric_limits<int>::min();
 
 /**
  * @brief Builds a variant-free callset carrying the single trailing cluster boundary.
@@ -842,6 +841,19 @@ std::shared_ptr<ctgVariants> merged_query(std::shared_ptr<superclusterData> sc_d
     return sc_data->superclusters[ctg]->callset_vars[QUERY];
 }
 
+/**
+ * @brief Asserts that every cluster ahead of the trailing sentinel holds at least one variant.
+ * @param[in] merged Merged callset written by the merge, on a non-empty contig
+ */
+void expect_no_empty_clusters(std::shared_ptr<ctgVariants> merged) {
+    ASSERT_EQ(size_t(merged->nc), merged->clusters.size());
+    ASSERT_GE(merged->nc, 2);
+    EXPECT_EQ(merged->n, merged->clusters.back()) << "sentinel must start at n";
+    for (int c = 0; c + 1 < merged->nc; c++) {
+        EXPECT_LT(merged->clusters[c], merged->clusters[c+1]) << "cluster " << c << " is empty";
+    }
+}
+
 TEST(LoadAndMerge, EmptyContigSkipped) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
@@ -1048,13 +1060,58 @@ TEST(LoadAndMerge, SentinelAppended) {
     EXPECT_EQ(INT_MAXIMUM, merged->left_reaches.back());
     EXPECT_EQ(INT_MAXIMUM, merged->right_reaches.back());
 
-    // the last variant closes its cluster with no cluster left to start, so the loop saves an
-    // empty (int::max, int::min) cluster ahead of the sentinel; it holds no variants, since
-    // clusters[1] == clusters[2] == n
-    EXPECT_EQ(3, merged->nc);
-    EXPECT_EQ(std::vector<int>({0, 1, 1}), merged->clusters);
-    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM, INT_MAXIMUM}), merged->left_reaches);
-    EXPECT_EQ(std::vector<int>({15, INT_MINIMUM, INT_MAXIMUM}), merged->right_reaches);
+    // the last variant closes its cluster with no cluster left to start, so curr_* is left holding
+    // an empty (int::max, int::min) pair that must not be saved ahead of the sentinel (#168)
+    EXPECT_EQ(2, merged->nc);
+    EXPECT_EQ(std::vector<int>({0, 1}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({15, INT_MAXIMUM}), merged->right_reaches);
+    expect_no_empty_clusters(merged);
+}
+
+TEST(LoadAndMerge, SingleVariantContigHomBothHaps) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+
+    // as HomVariant, but asserting the cluster lanes: both haplotypes exhaust on the same
+    // iteration here, rather than one running out ahead of the other
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {5}, {15});
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 1}, {5}, {15});
+    auto vars = make_hap_vars(hap1, hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the collapsed homozygous record is the contig's only variant, so this is the same
+    // single-cluster shape as SentinelAppended (#168)
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(1, merged->n);
+    EXPECT_EQ(2, merged->nc);
+    EXPECT_EQ(std::vector<int>({0, 1}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({15, INT_MAXIMUM}), merged->right_reaches);
+    expect_no_empty_clusters(merged);
+}
+
+TEST(LoadAndMerge, SingleVariantContigSuperclustersCorrectly) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {5}, {15});
+    auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+    sc_data->supercluster(/* print = */ false);
+
+    // the sentinel's int::max left reach is what ends the supercluster scan, so dropping the empty
+    // cluster leaves the one variant in supercluster 0 exactly as before
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(size_t(1), merged->superclusters.size());
+    EXPECT_EQ(0, merged->superclusters[0]);
 }
 
 /* supercluster ***********************************************************************************/
