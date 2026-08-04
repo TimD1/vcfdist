@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <cmath>
 
@@ -684,7 +685,7 @@ void parse_variants(const std::string & vcf_fn,
     bool print = g.verbosity >= 1;
     std::vector<int> prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
     std::vector<int> prev_type = {TYPE_SUB, TYPE_SUB};
-    std::unordered_map<int, bool> prev_rids;
+    std::unordered_set<int> prev_rids; // contigs already parsed, to reject an unsorted VCF
     int prev_rid = -1;
     std::unordered_map<int, int> ctglens;
     std::string ctg;
@@ -826,6 +827,7 @@ void parse_variants(const std::string & vcf_fn,
                 ERROR("Unsorted %s VCF '%s', contig '%s' already parsed", 
                         callset_strs[callset].data(), vcf_fn.data(), ctg.data());
             } else {
+                prev_rids.insert(rec->rid);
                 variant_data->contigs.push_back(ctg);
                 variant_data->ploidy.push_back(0);
                 variant_data->lengths.push_back(ctglens[rec->rid]);

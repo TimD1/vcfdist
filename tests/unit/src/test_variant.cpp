@@ -976,19 +976,26 @@ TEST_F(ParseVariants, SelectedFilterAbsentWarns) {
     EXPECT_TRUE(logged(r, "1 variants failed FILTER in QUERY VCF, skipped"));
 }
 
-// Documents rather than enforces: the unsorted-VCF guard at variant.cpp:856 never fires, because
-// prev_rids is never inserted into, so its lookup always misses. Returning to a finished contig
-// therefore appends it to the contig list a second time instead of being rejected.
-TEST_F(ParseVariants, UnsortedContigAppendsDuplicateContig) {
+// Returning to a contig that was already left behind means the VCF is not sorted by contig. Left
+// unrejected, the contig list would gain a second entry for it and write_vcf() would then walk that
+// contig twice, emitting each of its variants twice.
+TEST_F(ParseVariants, UnsortedContigErrors) {
     vcf_opts opts = make_vcf_opts(QUERY, {"chr1", "chr2"});
-    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
-            record(100, "A", "G", "1|0", "chr2"), record(200, "A", "G", "1|0")}, opts);
-    EXPECT_FALSE(logged(r, "already parsed"));
-    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2", "chr1"}), r.vars->contigs);
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0"),
+            record(100, "A", "G", "1|0", "chr2"), record(200, "A", "G", "1|0")}, opts),
+            testing::ExitedWithCode(1), "contig 'chr1' already parsed");
+}
 
-    // write_vcf() walks the contig list, so the duplicate entry emits every chr1 variant twice
-    EXPECT_EQ(size_t(2), count_pos(r, 100));
-    EXPECT_EQ(size_t(2), count_pos(r, 200));
+// Interleaving is what the guard rejects, not the contig order itself: a file whose contigs appear
+// in an order the header does not use is still sorted, so long as each contig's records are grouped.
+TEST_F(ParseVariants, ContigsOutOfHeaderOrderParse) {
+    vcf_opts opts = make_vcf_opts(QUERY, {"chr1", "chr2"});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0", "chr2"),
+            record(100, "A", "G", "1|0"), record(200, "A", "G", "1|0")}, opts);
+    EXPECT_FALSE(logged(r, "already parsed"));
+    EXPECT_EQ(std::vector<std::string>({"chr2", "chr1"}), r.vars->contigs);
+    EXPECT_EQ(size_t(1), count_pos(r, 100));
+    EXPECT_EQ(size_t(1), count_pos(r, 200));
 }
 
 // Documents rather than enforces: the seqnames failure at variant.cpp:829 is unreachable. An empty
