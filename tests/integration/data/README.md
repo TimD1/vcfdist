@@ -6,7 +6,9 @@ isolates one FN-dropping / credit-assignment behavior. (This directory also hold
 chr20 fixtures for the separate genome-scale test; those are unrelated to the scenarios below.)
 
 The whole `data/` directory is gitignored; these inputs are force-added so the suite runs from a
-clean checkout. Generated per-run outputs (`*_out_*`, `*_ct07_*`, `*_ct1_*`, …) stay ignored.
+clean checkout. This directory holds inputs only: each scenario writes its outputs into the
+temporary working directory `pytest-workflow` runs it in, which is also where the `files:` checks
+look for them, so a test run leaves this directory untouched.
 
 ## Reference
 

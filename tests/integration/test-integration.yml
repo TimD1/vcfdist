@@ -18,13 +18,13 @@
     "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
-    -p "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_out_"'
+    -p "swallowed_snps_out_"'
   files:
-    - path: tests/integration/data/swallowed_snps_out_precision-recall-summary.tsv
+    - path: swallowed_snps_out_precision-recall-summary.tsv
       contains:
         - "SNP\tNONE\t0\t6\t6\t0\t0"
         - "SV\tNONE\t0\t0\t0\t2\t0"
-    - path: tests/integration/data/swallowed_snps_out_summary.vcf
+    - path: swallowed_snps_out_summary.vcf
       contains:
         - "sc1\t140\t.\tT\tC"
         - "sc1\t146\t.\tG\tA"
@@ -45,12 +45,12 @@
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
     -ct 0.7
-    -p "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_ct07_"'
+    -p "partial_match_del_ct07_"'
   files:
-    - path: tests/integration/data/partial_match_del_ct07_precision-recall-summary.tsv
+    - path: partial_match_del_ct07_precision-recall-summary.tsv
       contains:
         - "INDEL\tNONE\t0\t2\t2\t0\t0"
-    - path: tests/integration/data/partial_match_del_ct07_summary.vcf
+    - path: partial_match_del_ct07_summary.vcf
       contains:
         - ":TP:0.800000:"
       must_not_contain:
@@ -67,12 +67,12 @@
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
     -ct 1.0
-    -p "${VCFDIST_REPO_PATH}/tests/integration/data/partial_match_del_ct1_"'
+    -p "partial_match_del_ct1_"'
   files:
-    - path: tests/integration/data/partial_match_del_ct1_precision-recall-summary.tsv
+    - path: partial_match_del_ct1_precision-recall-summary.tsv
       contains:
         - "INDEL\tNONE\t0\t0\t0\t2\t2"
-    - path: tests/integration/data/partial_match_del_ct1_summary.vcf
+    - path: partial_match_del_ct1_summary.vcf
       contains:
         - ":FN:0.000000:"
         - ":FP:0.000000:"
@@ -88,12 +88,12 @@
     "${VCFDIST_REPO_PATH}/tests/integration/data/colocated_spurious_snp_truth.vcf"
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
-    -p "${VCFDIST_REPO_PATH}/tests/integration/data/colocated_spurious_snp_out_"'
+    -p "colocated_spurious_snp_out_"'
   files:
-    - path: tests/integration/data/colocated_spurious_snp_out_precision-recall-summary.tsv
+    - path: colocated_spurious_snp_out_precision-recall-summary.tsv
       contains:
         - "SNP\tNONE\t0\t0\t0\t2\t2"
-    - path: tests/integration/data/colocated_spurious_snp_out_summary.vcf
+    - path: colocated_spurious_snp_out_summary.vcf
       contains:
         - "sc1\t200\t.\tA\tG"
         - "sc1\t200\t.\tA\tC"
@@ -116,12 +116,12 @@
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
     -ct 0.7
-    -p "${VCFDIST_REPO_PATH}/tests/integration/data/entangled_overlap_del_out_"'
+    -p "entangled_overlap_del_out_"'
   files:
-    - path: tests/integration/data/entangled_overlap_del_out_precision-recall-summary.tsv
+    - path: entangled_overlap_del_out_precision-recall-summary.tsv
       contains:
         - "INDEL\tNONE\t0\t2\t2\t0\t0"
-    - path: tests/integration/data/entangled_overlap_del_out_summary.vcf
+    - path: entangled_overlap_del_out_summary.vcf
       contains:
         - ":TP:0.800000:"
 
@@ -137,12 +137,12 @@
     "${VCFDIST_REPO_PATH}/tests/integration/data/adjacent_fn_no_overcredit_truth.vcf"
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
-    -p "${VCFDIST_REPO_PATH}/tests/integration/data/adjacent_fn_no_overcredit_out_"'
+    -p "adjacent_fn_no_overcredit_out_"'
   files:
-    - path: tests/integration/data/adjacent_fn_no_overcredit_out_precision-recall-summary.tsv
+    - path: adjacent_fn_no_overcredit_out_precision-recall-summary.tsv
       contains:
         - "SNP\tNONE\t0\t2\t2\t4\t0"
-    - path: tests/integration/data/adjacent_fn_no_overcredit_out_summary.vcf
+    - path: adjacent_fn_no_overcredit_out_summary.vcf
       contains:
         - "sc1\t300\t.\tA\tC"
         - ":TP:1.000000:1:0:"
