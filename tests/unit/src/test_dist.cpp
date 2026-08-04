@@ -750,6 +750,61 @@ TEST(WfSwgMaxReach, MainDiagBlockOnlyBlocksMainDiag) {
     EXPECT_EQ(7, wf_swg_max_reach(query, truth, offs, 1, 4, 0, g.sub, g.open, g.extend));
 }
 
+// An empty sequence reaches no truth base, so the guarded return of 0 is a sentinel rather than a
+// real index; it is indistinguishable from genuinely reaching truth index 0, and matches the value
+// max_reach already falls through with when no diagonal holds a valid offset.
+//
+// The empty-query cases are the memory-safety regression tests: without the guard the seed write at
+// diagonal query_len-1 = -1 lands before the caller's buffer. Empty truth alone stays in bounds but
+// misplaces the seed into the next score row, and the value that leaks out depends on how many
+// score rows are visited before s2 wraps -- at x=4, o=6, e=2 it was 0 up to max_score 12 and -1
+// from 13 on. So that case pins a value where there was previously no consistent one.
+
+TEST(WfSwgMaxReach, EmptyQuery) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+    const std::string query = "";
+    const std::string truth = "ACGT";
+
+    std::vector<int> offs = reach_offs(query, truth);
+    EXPECT_EQ(0, wf_swg_max_reach(query, truth, offs, 0, kNoMainDiagBlock, 1000,
+                g.sub, g.open, g.extend));
+}
+
+TEST(WfSwgMaxReach, EmptyTruth) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+    const std::string query = "ACGT";
+    const std::string truth = "";
+
+    std::vector<int> offs = reach_offs(query, truth);
+    EXPECT_EQ(0, wf_swg_max_reach(query, truth, offs, 0, kNoMainDiagBlock, 1000,
+                g.sub, g.open, g.extend));
+}
+
+TEST(WfSwgMaxReach, BothEmpty) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+    const std::string query = "";
+    const std::string truth = "";
+
+    // the buffer is empty here, so any indexing at all is out of bounds
+    std::vector<int> offs = reach_offs(query, truth);
+    EXPECT_TRUE(offs.empty());
+    EXPECT_EQ(0, wf_swg_max_reach(query, truth, offs, 0, kNoMainDiagBlock, 1000,
+                g.sub, g.open, g.extend));
+}
+
+TEST(WfSwgMaxReach, EmptyReverse) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+
+    // the guard precedes the forward/reverse split, so it holds in reverse too
+    std::vector<int> offs = reach_offs("", "ACGT");
+    EXPECT_EQ(0, wf_swg_max_reach("", "ACGT", offs, 0, kNoMainDiagBlock, 1000,
+                g.sub, g.open, g.extend, /* print = */ false, /* reverse = */ true));
+}
+
 /* idx4 *******************************************************************************************/
 
 /** @brief Returns idx4 values covering every single-field variation used by the ordering tests. */

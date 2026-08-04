@@ -466,9 +466,12 @@ std::shared_ptr<Graph> make_graph(std::shared_ptr<ctgSuperclusters> sc,
  * @param[in] x Substitution penalty
  * @param[in] o Gap-open penalty
  * @param[in] e Gap-extension penalty
- * @return Buffer of MATS*(max(x,o+e)+1)*(qlen+tlen-1) offsets, each initialized to -2
+ * @return Buffer of MATS*(max(x,o+e)+1)*(qlen+tlen-1) offsets, each initialized to -2, or an
+ *   empty buffer if both sequences are empty
  */
 std::vector<int> alloc_reach_offs(int qlen, int tlen, int x, int o, int e) {
-    size_t offs_size = size_t(MATS) * size_t(std::max(x, o+e) + 1) * size_t(qlen + tlen - 1);
+    // clamp so two empty sequences give a diagonal count of 0 rather than a huge size_t
+    size_t mat_len = std::max(1, qlen + tlen) - 1;
+    size_t offs_size = size_t(MATS) * size_t(std::max(x, o+e) + 1) * mat_len;
     return std::vector<int>(offs_size, -2);
 }
