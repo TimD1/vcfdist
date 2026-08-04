@@ -122,139 +122,17 @@ TEST(CtgVariantsCtor, EmptyCtg) {
     EXPECT_EQ(size_t(PHASES), vars.errtypes.size());
 }
 
-/* add_var (copy overload) ************************************************************************/
+/* add_var ****************************************************************************************/
 
 // Asserts every per-variant field that exists today, so it must gain assertions as new per-variant
 // vectors land, or "every field" quietly stops being every field: strata_bits (#47), is_phased
 // (#46). rec_idxs/alt_idxs/ploidies (#48) are covered below.
-TEST(AddVarCopy, Roundtrip) {
-    GlobalsGuard guard;
-    g.max_qual = 100; // above every quality used here, so no clamping obscures the copy
-    std::shared_ptr<ctgVariants> src(new ctgVariants("chr20"));
-    src->add_var(1234, 3, TYPE_DEL, BED_BORDER, "ACG", "A", GT_ALT1_REF, 44, 55, 77,
-            101, 2, 1, 9, GT_REF_ALT1, ERRTYPE_TP, ERRTYPE_FP, 11, 12, 13.5, 14.5, 15, 16, 17, 18,
-            0.25, 0.75);
-
-    std::shared_ptr<ctgVariants> dst(new ctgVariants("chr20"));
-    dst->add_var(src, 0);
-
-    ASSERT_EQ(1, dst->n);
-    EXPECT_EQ(1234, dst->poss[0]);
-    EXPECT_EQ(3, dst->rlens[0]);
-    EXPECT_EQ(TYPE_DEL, dst->types[0]);
-    EXPECT_EQ(BED_BORDER, dst->locs[0]);
-    EXPECT_EQ("ACG", dst->refs[0]);
-    EXPECT_EQ("A", dst->alts[0]);
-    EXPECT_EQ(GT_ALT1_REF, dst->orig_gts[0]);
-    EXPECT_FLOAT_EQ(44, dst->gt_quals[0]);
-    EXPECT_FLOAT_EQ(55, dst->var_quals[0]);
-    EXPECT_EQ(77, dst->phase_sets[0]);
-    EXPECT_EQ(101, dst->rec_idxs[0]);
-    EXPECT_EQ(2, dst->alt_idxs[0]);
-    EXPECT_EQ(1, dst->ploidies[0]);
-    EXPECT_EQ(9, dst->superclusters[0]);
-    EXPECT_EQ(GT_REF_ALT1, dst->calc_gts[0]);
-    EXPECT_EQ(ERRTYPE_TP, dst->errtypes[HAP1][0]);
-    EXPECT_EQ(ERRTYPE_FP, dst->errtypes[HAP2][0]);
-    EXPECT_EQ(11, dst->sync_group[HAP1][0]);
-    EXPECT_EQ(12, dst->sync_group[HAP2][0]);
-    EXPECT_FLOAT_EQ(13.5, dst->callq[HAP1][0]);
-    EXPECT_FLOAT_EQ(14.5, dst->callq[HAP2][0]);
-    EXPECT_EQ(15, dst->ref_ed[HAP1][0]);
-    EXPECT_EQ(16, dst->ref_ed[HAP2][0]);
-    EXPECT_EQ(17, dst->query_ed[HAP1][0]);
-    EXPECT_EQ(18, dst->query_ed[HAP2][0]);
-    EXPECT_FLOAT_EQ(0.25, dst->credit[HAP1][0]);
-    EXPECT_FLOAT_EQ(0.75, dst->credit[HAP2][0]);
-
-    // the copy overload forwards to add_var(), so the phasing lanes are re-defaulted, not copied
-    EXPECT_EQ(PHASE_NONE, dst->phases[0]);
-    EXPECT_EQ(PHASE_NONE, dst->pb_phases[0]);
-    EXPECT_EQ(AC_UNKNOWN, dst->ac_errtype[0]);
-}
-
-TEST(AddVarCopy, PreservesHap1Hap2Distinct) {
-    GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> src(new ctgVariants("chr20"));
-
-    // every per-haplotype argument differs between haplotypes, so a transposition cannot pass
-    src->add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_ALT1_ALT1, 30, 30, 0,
-            -1, -1, 2, 0, GT_ALT1_ALT1, ERRTYPE_TP, ERRTYPE_FN, 1, 2, 10, 20, 3, 4, 5, 6,
-            0.1, 0.9);
-
-    std::shared_ptr<ctgVariants> dst(new ctgVariants("chr20"));
-    dst->add_var(src, 0);
-
-    EXPECT_EQ(ERRTYPE_TP, dst->errtypes[HAP1][0]);
-    EXPECT_EQ(ERRTYPE_FN, dst->errtypes[HAP2][0]);
-    EXPECT_EQ(1, dst->sync_group[HAP1][0]);
-    EXPECT_EQ(2, dst->sync_group[HAP2][0]);
-    EXPECT_FLOAT_EQ(10, dst->callq[HAP1][0]);
-    EXPECT_FLOAT_EQ(20, dst->callq[HAP2][0]);
-    EXPECT_EQ(3, dst->ref_ed[HAP1][0]);
-    EXPECT_EQ(4, dst->ref_ed[HAP2][0]);
-    EXPECT_EQ(5, dst->query_ed[HAP1][0]);
-    EXPECT_EQ(6, dst->query_ed[HAP2][0]);
-    EXPECT_FLOAT_EQ(0.1, dst->credit[HAP1][0]);
-    EXPECT_FLOAT_EQ(0.9, dst->credit[HAP2][0]);
-}
-
-TEST(AddVarCopy, SecondOfTwo) {
-    GlobalsGuard guard;
-    var_desc first;
-    first.pos = 100;
-    first.rlen = 1;
-    first.ref = "A";
-    first.alt = "C";
-    var_desc second;
-    second.pos = 200;
-    second.rlen = 1;
-    second.ref = "G";
-    second.alt = "T";
-    second.gt = GT_ALT1_ALT1;
-    std::shared_ptr<ctgVariants> src = make_ctgVariants("chr20", {first, second});
-
-    std::shared_ptr<ctgVariants> dst(new ctgVariants("chr20"));
-    dst->add_var(src, 1);
-
-    ASSERT_EQ(1, dst->n);
-    EXPECT_EQ(200, dst->poss[0]);
-    EXPECT_EQ("G", dst->refs[0]);
-    EXPECT_EQ("T", dst->alts[0]);
-    EXPECT_EQ(GT_ALT1_ALT1, dst->orig_gts[0]);
-}
-
-TEST(AddVarCopy, AppendsNotOverwrites) {
-    GlobalsGuard guard;
-    var_desc existing;
-    existing.pos = 50;
-    existing.rlen = 1;
-    existing.ref = "A";
-    existing.alt = "C";
-    std::shared_ptr<ctgVariants> dst = make_ctgVariants("chr20", {existing});
-
-    var_desc incoming;
-    incoming.pos = 300;
-    incoming.rlen = 1;
-    incoming.ref = "G";
-    incoming.alt = "T";
-    std::shared_ptr<ctgVariants> src = make_ctgVariants("chr20", {incoming});
-
-    dst->add_var(src, 0);
-
-    ASSERT_EQ(2, dst->n);
-    EXPECT_EQ(50, dst->poss[0]);
-    EXPECT_EQ("A", dst->refs[0]);
-    EXPECT_EQ(300, dst->poss[1]);
-    EXPECT_EQ("G", dst->refs[1]);
-}
-
-/* add_var (full overload) ************************************************************************/
-
 TEST(AddVar, AllFields) {
     GlobalsGuard guard;
     g.max_qual = 100;
     ctgVariants vars("chr20");
+
+    // every per-haplotype argument differs between haplotypes, so a transposition cannot pass
     vars.add_var(500, 2, TYPE_CPX, BED_OUTSIDE, "AC", "GT", GT_ALT1_ALT1, 21, 22, 33,
             12, 3, 2, 7, GT_ALT1_REF, ERRTYPE_FN, ERRTYPE_TP, 4, 5, 6.5, 7.5, 8, 9, 10, 11,
             0.4, 0.6);
@@ -352,6 +230,21 @@ TEST(AddVar, HeaderDefaults) {
     EXPECT_EQ(0, vars.query_ed[HAP2][0]);
     EXPECT_FLOAT_EQ(0, vars.credit[HAP1][0]);
     EXPECT_FLOAT_EQ(0, vars.credit[HAP2][0]);
+}
+
+TEST(AddVar, AppendsNotOverwrites) {
+    GlobalsGuard guard;
+    ctgVariants vars("chr20");
+    vars.add_var(50, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
+    vars.add_var(300, 1, TYPE_SUB, BED_INSIDE, "G", "T", GT_ALT1_ALT1, 30, 30, 0);
+
+    ASSERT_EQ(2, vars.n);
+    EXPECT_EQ(50, vars.poss[0]);
+    EXPECT_EQ("A", vars.refs[0]);
+    EXPECT_EQ(GT_REF_ALT1, vars.orig_gts[0]);
+    EXPECT_EQ(300, vars.poss[1]);
+    EXPECT_EQ("G", vars.refs[1]);
+    EXPECT_EQ(GT_ALT1_ALT1, vars.orig_gts[1]);
 }
 
 TEST(AddVar, LaneLengthsTrackN) {
@@ -547,17 +440,6 @@ TEST_F(ProvenanceVectors, ComplexVariantHalvesShareAltIdx) {
     EXPECT_EQ(hap2->rec_idxs[ins], hap2->rec_idxs[del]);
     EXPECT_EQ(2, hap2->ploidies[ins]);
     EXPECT_EQ(hap2->ploidies[ins], hap2->ploidies[del]);
-}
-
-// The copying overload must carry provenance and ploidy through unchanged.
-TEST_F(ProvenanceVectors, CopyingOverloadPreservesProvenance) {
-    std::shared_ptr<ctgVariants> copy(new ctgVariants("ctg1"));
-    for (int vi = 0; vi < hap2->n; vi++) copy->add_var(hap2, vi);
-
-    ASSERT_EQ(hap2->n, copy->n);
-    EXPECT_EQ(hap2->rec_idxs, copy->rec_idxs);
-    EXPECT_EQ(hap2->alt_idxs, copy->alt_idxs);
-    EXPECT_EQ(hap2->ploidies, copy->ploidies);
 }
 
 // Callers with no source record (e.g. CIGAR-derived variants) get the unknown sentinels.

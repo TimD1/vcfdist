@@ -38,36 +38,6 @@ ctgVariants::ctgVariants(const std::string & ctg) {
 
 
 /**
- * @brief Appends a variant copied from another ctgVariants container.
- * @param[in] other_vars Source variant container
- * @param[in] idx Index of variant in source container
- */
-void ctgVariants::add_var(std::shared_ptr<ctgVariants> other_vars, int idx) {
-    this->add_var(
-        other_vars->poss[idx],
-        other_vars->rlens[idx], 
-        other_vars->types[idx], 
-        other_vars->locs[idx],
-        other_vars->refs[idx],
-        other_vars->alts[idx],
-        other_vars->orig_gts[idx],
-        other_vars->gt_quals[idx],
-        other_vars->var_quals[idx],
-        other_vars->phase_sets[idx],
-        other_vars->rec_idxs[idx],
-        other_vars->alt_idxs[idx],
-        other_vars->ploidies[idx],
-        other_vars->superclusters[idx],
-        other_vars->calc_gts[idx],
-        other_vars->errtypes[HAP1][idx], other_vars->errtypes[HAP2][idx],
-        other_vars->sync_group[HAP1][idx], other_vars->sync_group[HAP2][idx],
-        other_vars->callq[HAP1][idx], other_vars->callq[HAP2][idx],
-        other_vars->ref_ed[HAP1][idx], other_vars->ref_ed[HAP2][idx],
-        other_vars->query_ed[HAP1][idx], other_vars->query_ed[HAP2][idx],
-        other_vars->credit[HAP1][idx], other_vars->credit[HAP2][idx]);
-}
-
-/**
  * @brief Appends a variant with all fields explicitly specified.
  * @param[in] pos Reference start position (0-based)
  * @param[in] rlen Reference allele length
