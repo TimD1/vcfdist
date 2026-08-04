@@ -818,6 +818,101 @@ void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
 
 
 /**
+ * @brief Returns the reference span of each correctly-phased block on one contig.
+ *
+ * Walks the contig's breakpoints in ascending variant order, closing a block at the variant before
+ * each break and opening the next at the variant after it. Phase set boundaries always break a
+ * block, since starting a new phase set is not an error; switch and flip errors break one only
+ * when requested. A flip breaks twice, excising the flipped variant into a block of its own.
+ *
+ * @param[in] ctg_pbs The contig's phase set boundary, switch error, and flip index vectors.
+ * @param[in] qvars The contig's query variants, supplying block bounds via poss and rlens.
+ * @param[in] break_on_switch If true, split blocks at switch errors.
+ * @param[in] break_on_flip If true, split blocks at flip errors.
+ * @return Reference span of each block, in ascending position order; empty if the contig holds no
+ *   query variants.
+ * @throws ERROR if the breakpoint indices are not in ascending order.
+ */
+std::vector<int> correct_block_sizes(const std::shared_ptr<ctgPhaseblocks> & ctg_pbs,
+        const std::shared_ptr<ctgVariants> & qvars, bool break_on_switch, bool break_on_flip) {
+
+    std::vector<int> correct_blocks;
+    if (qvars->n == 0) return correct_blocks;
+
+    int switch_idx = 0;
+    int flip_idx = 0;
+    int pb_idx = 1;
+
+    // init start of this correct block
+    int vi = 0;
+    int next_vi = qvars->n; // default to last
+    int beg = qvars->poss[0];
+    int end = 0;
+    int type = SWITCHTYPE_NONE;
+
+    while (true) {
+
+        // get type and supercluster of next switch/flip/phaseset
+        if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_vi) {
+            type = SWITCHTYPE_SWITCH;
+            next_vi = ctg_pbs->phase_blocks[pb_idx];
+        }
+        if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_vi) {
+            type = SWITCHTYPE_SWITCH_ERR;
+            next_vi = ctg_pbs->switches[switch_idx];
+        }
+        // check flip last (takes preference due to <=) because it can cause two breaks (before/after)
+        // NOTE: it is possible for one supercluster to have both a switch (new PS) and flip
+        if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_vi) {
+            if (type == SWITCHTYPE_SWITCH)
+                type = SWITCHTYPE_SWITCH_AND_FLIP;
+            else
+                type = SWITCHTYPE_FLIP;
+            next_vi = ctg_pbs->flips[flip_idx];
+        }
+        if (type == SWITCHTYPE_NONE) { // all out-of-bounds
+            break;
+        }
+        if (next_vi < vi) ERROR("Next variant (%d) is not after current variant (%d) in correct_block_sizes()", next_vi, vi);
+
+
+        // get block(s)
+        if (type == SWITCHTYPE_FLIP || type == SWITCHTYPE_SWITCH_AND_FLIP) {
+            end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
+            correct_blocks.push_back(end-beg);
+            beg = qvars->poss[next_vi];
+
+            end = qvars->poss[next_vi] + qvars->rlens[next_vi];
+            correct_blocks.push_back(end-beg);
+            beg = qvars->poss[next_vi+1];
+            flip_idx++;
+            if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
+        } else if (type == SWITCHTYPE_SWITCH) {
+            end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
+            correct_blocks.push_back(end-beg);
+            beg = qvars->poss[next_vi];
+            pb_idx++;
+        } else if (type == SWITCHTYPE_SWITCH_ERR) {
+            end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
+            correct_blocks.push_back(end-beg);
+            beg = qvars->poss[next_vi];
+            switch_idx++;
+        }
+
+        vi = next_vi;
+        next_vi = qvars->n; // reset to end
+        type = SWITCHTYPE_NONE;
+    }
+    end = qvars->poss[qvars->n-1] + qvars->rlens[qvars->n-1];
+    correct_blocks.push_back(end-beg);
+    return correct_blocks;
+}
+
+
+/**************************************************************************************************/
+
+
+/**
  * @brief Calculates NGC50 of phase blocks, optionally broken at switch or flip errors.
  * @param[in] break_on_switch If true, split blocks at switch errors
  * @param[in] break_on_flip If true, split blocks at flip errors
@@ -834,86 +929,10 @@ int phaseblockData::calculate_ng50(bool break_on_switch, bool break_on_flip) {
     // get sizes of each correct phase block (split on flips, not just switch)
     std::vector<int> correct_blocks;
     for (const std::string & ctg: this->contigs) {
-        
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
-        std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
-
-        int switch_idx = 0;
-        int flip_idx = 0;
-        int pb_idx = 1;
-        if (qvars->n == 0) continue;
-
-        // init start of this correct block
-        int vi = 0;
-        int next_vi = qvars->n; // default to last
-        int beg = qvars->poss[0];
-        int end = 0;
-        int type = SWITCHTYPE_NONE;
-
-        while (true) {
-
-            // get type and supercluster of next switch/flip/phaseset
-            if (pb_idx < ctg_pbs->n && ctg_pbs->phase_blocks[pb_idx] <= next_vi) {
-                type = SWITCHTYPE_SWITCH;
-                next_vi = ctg_pbs->phase_blocks[pb_idx];
-            }
-            if (break_on_switch && switch_idx < ctg_pbs->nswitches && ctg_pbs->switches[switch_idx] <= next_vi) {
-                type = SWITCHTYPE_SWITCH_ERR;
-                next_vi = ctg_pbs->switches[switch_idx];
-            }
-            // check flip last (takes preference due to <=) because it can cause two breaks (before/after)
-            // NOTE: is is possible for one supercluster to have both a switch (new PS) and flip
-            if (break_on_flip && flip_idx < ctg_pbs->nflips && ctg_pbs->flips[flip_idx] <= next_vi) {
-                if (type == SWITCHTYPE_SWITCH)
-                    type = SWITCHTYPE_SWITCH_AND_FLIP;
-                else
-                    type = SWITCHTYPE_FLIP;
-                next_vi = ctg_pbs->flips[flip_idx];
-            }
-            if (type == SWITCHTYPE_NONE) { // all out-of-bounds
-                break;
-            }
-            if (next_vi < vi) ERROR("Next variant (%d) is not after current variant (%d) in calc_ng50()", next_vi, vi);
-
-
-            // get block(s)
-            if (type == SWITCHTYPE_FLIP || type == SWITCHTYPE_SWITCH_AND_FLIP) {
-                end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
-                correct_blocks.push_back(end-beg);
-                beg = qvars->poss[next_vi];
-
-                end = qvars->poss[next_vi] + qvars->rlens[next_vi];
-                correct_blocks.push_back(end-beg);
-                beg = qvars->poss[next_vi+1];
-                flip_idx++;
-                if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
-            } else if (type == SWITCHTYPE_SWITCH) {
-                end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
-                correct_blocks.push_back(end-beg);
-                beg = qvars->poss[next_vi];
-                pb_idx++;
-            } else if (type == SWITCHTYPE_SWITCH_ERR) {
-                end = qvars->poss[next_vi-1] + qvars->rlens[next_vi-1];
-                correct_blocks.push_back(end-beg);
-                beg = qvars->poss[next_vi];
-                switch_idx++;
-            }
-
-            vi = next_vi;
-            next_vi = qvars->n; // reset to end
-            type = SWITCHTYPE_NONE;
-        }
-        end = qvars->poss[qvars->n-1] + qvars->rlens[qvars->n-1];
-        correct_blocks.push_back(end-beg);
+        std::vector<int> ctg_blocks = correct_block_sizes(ctg_pbs,
+                ctg_pbs->ctg_superclusters->callset_vars[QUERY], break_on_switch, break_on_flip);
+        correct_blocks.insert(correct_blocks.end(), ctg_blocks.begin(), ctg_blocks.end());
     }
-
-    // return NGC50
-    size_t total_correct = 0;
-    std::sort(correct_blocks.begin(), correct_blocks.end(), std::greater<>());
-    for (size_t i = 0; i < correct_blocks.size(); i++) {
-        total_correct += correct_blocks[i];
-        if (total_correct >= total_bases / 2)
-            return correct_blocks[i];
-    }
-    return 0;
+    return calc_ng50(correct_blocks, total_bases);
 }

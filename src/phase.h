@@ -93,4 +93,12 @@ public:
         std::shared_ptr<ctgPhaseblocks> > phase_blocks;
 };
 
+/**
+ * @brief Returns the reference span of each correctly-phased block on one contig.
+ * @note Phase set boundaries always break a block; switch and flip errors break one only when
+ *   requested. A flip breaks twice, excising the flipped variant into a block of its own.
+ */
+std::vector<int> correct_block_sizes(const std::shared_ptr<ctgPhaseblocks> & ctg_pbs,
+        const std::shared_ptr<ctgVariants> & qvars, bool break_on_switch, bool break_on_flip);
+
 #endif
