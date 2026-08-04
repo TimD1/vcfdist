@@ -822,7 +822,8 @@ void phaseblockData::write_phasing_summary(int phase_blocks, int switch_errors,
  * Walks the contig's breakpoints in ascending variant order, closing a block at the variant before
  * each break and opening the next at the variant after it. Phase set boundaries always break a
  * block, since starting a new phase set is not an error; switch and flip errors break one only
- * when requested. A flip breaks twice, excising the flipped variant into a block of its own.
+ * when requested. A flip breaks twice, excising the flipped variant into a block of its own; a flip
+ * on the last variant ends the walk, since no variant remains to open a block after it.
  *
  * @param[in] ctg_pbs The contig's phase set boundary, switch error, and flip index vectors.
  * @param[in] qvars The contig's query variants, supplying block bounds via poss and rlens.
@@ -883,6 +884,8 @@ std::vector<int> correct_block_sizes(const std::shared_ptr<ctgPhaseblocks> & ctg
 
             end = qvars->poss[next_vi] + qvars->rlens[next_vi];
             correct_blocks.push_back(end-beg);
+            // a flip on the last variant leaves no variants to open the following block with
+            if (next_vi+1 == qvars->n) return correct_blocks;
             beg = qvars->poss[next_vi+1];
             flip_idx++;
             if (type == SWITCHTYPE_SWITCH_AND_FLIP) pb_idx++;
