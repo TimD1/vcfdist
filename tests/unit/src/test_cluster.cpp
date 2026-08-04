@@ -1283,11 +1283,11 @@ int total_sorted(const std::vector< std::vector< std::vector<int> > > & groups) 
 
 /*
  * These cases rely on the default thread/RAM scheduling steps, which Globals' constructor derives
- * from the default max_threads of 64 and max_ram of 64: seven buckets with ceilings of 1, 2, 4, 8,
- * 16, 32 and 64 GB. The estimate a supercluster is placed by is
- * (query_len + truth_len) * 8 bytes * g.max_size * 2, so with the default max_size of 1000 a
- * single-base variant per callset needs ~32kB and a 100000-base one ~1.6GB, straddling the first
- * bucket boundary. Only a case whose assertion is about the placement itself overrides a global.
+ * from the default max_threads and max_ram of 8: four buckets with ceilings of 1, 2, 4 and 8 GB.
+ * The estimate a supercluster is placed by is (query_len + truth_len) * 8 bytes * g.max_size * 2,
+ * so with the default max_size of 1000 a single-base variant per callset needs ~32kB and a
+ * 100000-base one ~1.6GB, straddling the first bucket boundary. Only a case whose assertion is
+ * about the placement itself overrides a global.
  */
 
 TEST(SortSuperclusters, EmptyQuerySkipped) {

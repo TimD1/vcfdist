@@ -50,8 +50,8 @@ public:
     double credit_threshold = 0.98; ///< Minimum partial credit to count a variant as TP
 
     // memory params
-    int max_threads = 64;          ///< Maximum number of threads to use
-    double max_ram = 64;           ///< Approximate maximum RAM in GB for alignment
+    int max_threads = 8;           ///< Maximum number of threads to use
+    double max_ram = 8;            ///< Approximate maximum RAM in GB for alignment
     int thread_nsteps = 0;         ///< Number of thread/RAM scheduling steps
     std::vector<int> thread_steps; ///< Thread counts at each scheduling step
     std::vector<float> ram_steps;  ///< RAM-per-thread values at each scheduling step
