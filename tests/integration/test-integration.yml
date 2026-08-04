@@ -175,6 +175,12 @@
         - "sc1\t199\t0\tA\tG\t50.00\tSNP\tTP"
         - "sc2\t49\t0\tT\tC\t50.00\tSNP\tFP"
         - "sc2\t49\t1\tT\tC\t50.00\tSNP\tFP"
+    # the query calls on sc2, so the summary VCF reaches this contig; pinned as the mirror of the
+    # truth-only direction below, where it used to be dropped
+    - path: one_sided_contig_query_only_summary.vcf
+      contains:
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|0:FP:"
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t0|1:FP:"
 
 - name: test_one-sided-contig_truth-only
   # The mirror of the case above: sc2 is called by the truth only. Superclustering used to
@@ -195,3 +201,10 @@
         - "sc1\t199\t0\tA\tG\t50.00\tSNP\tTP"
         - "sc2\t49\t0\tT\tC\t50.00\tSNP\tFN"
         - "sc2\t49\t1\tT\tC\t50.00\tSNP\tFN"
+    # regression guard for #174: sc2 has no query call, which used to skip the whole contig in the
+    # summary VCF and drop these two false negatives. The query sample is empty and the truth
+    # sample keeps its unswapped haplotypes, as there is no query phasing to swap against.
+    - path: one_sided_contig_truth_only_summary.vcf
+      contains:
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:FN:0.000000:.:.:.:50:0:0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:FN:0.000000:.:.:.:50:0:0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
