@@ -1237,22 +1237,6 @@ TEST(Supercluster, BrksAdvanceRemainder) {
 /* sort_superclusters *****************************************************************************/
 
 /**
- * @brief Sets the thread/RAM scheduling globals that sort_superclusters() reads.
- *
- * Globals::parse_args() is their only production writer, so a test that does not set them leaves
- * thread_nsteps at 0 and ram_steps empty, which yields no buckets to sort into at all.
- * @param[in] steps RAM ceiling of each bucket, in GB and ascending
- * @param[in] max_ram Maximum RAM in GB before a supercluster is warned about
- * @param[in] max_size Maximum variant size, a multiplier in the memory estimate
- */
-void set_ram_steps(const std::vector<float> & steps, double max_ram = 64, int max_size = 1000) {
-    g.thread_nsteps = int(steps.size());
-    g.ram_steps = steps;
-    g.max_ram = max_ram;
-    g.max_size = max_size;
-}
-
-/**
  * @brief Builds a callset carrying per-variant supercluster assignments and a non-zero nc.
  *
  * sort_superclusters() reads only nc's non-zero-ness, so the cluster lane is nominal.
@@ -1297,9 +1281,17 @@ int total_sorted(const std::vector< std::vector< std::vector<int> > > & groups) 
     return total;
 }
 
+/*
+ * These cases rely on the default thread/RAM scheduling steps, which Globals' constructor derives
+ * from the default max_threads of 64 and max_ram of 64: seven buckets with ceilings of 1, 2, 4, 8,
+ * 16, 32 and 64 GB. The estimate a supercluster is placed by is
+ * (query_len + truth_len) * 8 bytes * g.max_size * 2, so with the default max_size of 1000 a
+ * single-base variant per callset needs ~32kB and a 100000-base one ~1.6GB, straddling the first
+ * bucket boundary. Only a case whose assertion is about the placement itself overrides a global.
+ */
+
 TEST(SortSuperclusters, EmptyQuerySkipped) {
     GlobalsGuard guard;
-    set_ram_steps({0.001f, 10.0f});
 
     // the truth callset holds a variant, but the skip is keyed on QUERY alone
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(10, 0)});
@@ -1308,13 +1300,13 @@ TEST(SortSuperclusters, EmptyQuerySkipped) {
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
-    ASSERT_EQ(size_t(2), groups.size());
+    // one bucket per scheduling step, all of them empty
+    ASSERT_EQ(size_t(g.thread_nsteps), groups.size());
     EXPECT_EQ(0, total_sorted(groups));
 }
 
 TEST(SortSuperclusters, NscsCount) {
     GlobalsGuard guard;
-    set_ram_steps({0.001f, 10.0f});
 
     // the query's last supercluster is 1 and the truth's is 2, so the count is max(1, 2) + 1
     std::shared_ptr<ctgVariants> qvars =
@@ -1334,7 +1326,6 @@ TEST(SortSuperclusters, NscsCount) {
 
 TEST(SortSuperclusters, SmallLowBucket) {
     GlobalsGuard guard;
-    set_ram_steps({0.001f, 10.0f});
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(12, 0)});
     std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
@@ -1342,18 +1333,18 @@ TEST(SortSuperclusters, SmallLowBucket) {
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
-    // one single-base variant per callset needs (1+1)*8*1000*2 bytes == 32kB, far below the
-    // 0.001GB ceiling of the first bucket
+    // ~32kB is far below the first bucket's 1GB ceiling, so nothing spills past it
     EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
     EXPECT_EQ(std::vector<int>({0}), groups[0][CTG_IDX]);
-    EXPECT_TRUE(groups[1][SC_IDX].empty());
+    EXPECT_EQ(1, total_sorted(groups));
 }
 
 TEST(SortSuperclusters, LargeLastBucketWarn) {
     GlobalsGuard guard;
 
-    // a RAM ceiling below even the smallest supercluster's estimate
-    set_ram_steps({0.001f, 10.0f}, /* max_ram = */ 1e-6);
+    // a RAM ceiling below even the smallest supercluster's estimate; the placement is what this
+    // case asserts, so it sets the ceiling rather than taking the default
+    g.max_ram = 1e-6;
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(12, 0)});
     std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
@@ -1365,14 +1356,13 @@ TEST(SortSuperclusters, LargeLastBucketWarn) {
 
     // the supercluster is run anyway, in the last bucket, where the fewest threads are active
     EXPECT_TRUE(groups[0][SC_IDX].empty());
-    EXPECT_EQ(std::vector<int>({0}), groups[1][SC_IDX]);
+    EXPECT_EQ(std::vector<int>({0}), groups[g.thread_nsteps-1][SC_IDX]);
     EXPECT_NE(std::string::npos, err.find("RAM exceeded"));
     EXPECT_NE(std::string::npos, err.find("running anyways"));
 }
 
 TEST(SortSuperclusters, CtgSuperclusterPaired) {
     GlobalsGuard guard;
-    set_ram_steps({0.001f, 10.0f});
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1", "chr2"}, {1000, 1000}, {2, 2},
             {make_ctgSuperclusters(make_sorted_callset({sub_in_sc(10, 0)}, "chr1"),
@@ -1391,7 +1381,6 @@ TEST(SortSuperclusters, CtgSuperclusterPaired) {
 
 TEST(SortSuperclusters, LenLowerUpperBound) {
     GlobalsGuard guard;
-    set_ram_steps({0.001f, 10.0f});
 
     // supercluster 0 spans positions 0 to 100000, supercluster 1 holds a single variant
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset(
@@ -1404,18 +1393,18 @@ TEST(SortSuperclusters, LenLowerUpperBound) {
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
     // the bounds select each supercluster's own variants, so the wide supercluster 0 is estimated
-    // at ~1.6GB and lands in the upper bucket while the narrow supercluster 1 stays in the lower
+    // at ~1.6GB and crosses the first bucket's 1GB ceiling, while the narrow supercluster 1 stays
+    // under it
     EXPECT_EQ(std::vector<int>({1}), groups[0][SC_IDX]);
     EXPECT_EQ(std::vector<int>({0}), groups[1][SC_IDX]);
 }
 
 TEST(SortSuperclusters, EmptyCallsetNcZeroGuard) {
     GlobalsGuard guard;
-    set_ram_steps({0.001f, 10.0f});
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
 
     // an unclustered truth callset carrying a 100000-base alternate allele; counting it would
-    // push the estimate to ~1.6GB and into the upper bucket
+    // push the estimate to ~1.6GB and past the first bucket's ceiling
     var_desc big = sub_in_sc(12, 0);
     big.alt = std::string(100000, 'C');
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants("chr1", {big});

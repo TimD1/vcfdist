@@ -18,7 +18,7 @@
 class Globals {
 public:
     // constructors
-    Globals() {;}
+    Globals() { set_thread_ram_steps(); }
 
     // input files
     std::string ref_fasta_fn; ///< Reference FASTA filename
@@ -52,7 +52,7 @@ public:
     // memory params
     int max_threads = 64;          ///< Maximum number of threads to use
     double max_ram = 64;           ///< Approximate maximum RAM in GB for alignment
-    int thread_nsteps;             ///< Number of thread/RAM scheduling steps
+    int thread_nsteps = 0;         ///< Number of thread/RAM scheduling steps
     std::vector<int> thread_steps; ///< Thread counts at each scheduling step
     std::vector<float> ram_steps;  ///< RAM-per-thread values at each scheduling step
 
@@ -65,6 +65,9 @@ public:
     // member functions
     /** @brief Parses command-line arguments and initializes global configuration. */
     void parse_args(int argc, char ** argv);
+
+    /** @brief Recomputes the thread and RAM scheduling steps from max_threads and max_ram. */
+    void set_thread_ram_steps();
 
     /** @brief Prints program version to stdout. */
     void print_version() const;

@@ -411,20 +411,38 @@ void Globals::parse_args(int argc, char ** argv) {
         WARN("Only SNPs will be evaluated with --largest-variant %d", this->max_size);
     }
 
-    // calculate thread/RAM steps
-    thread_nsteps = 0;
-    int threads = this->max_threads;
-    while (threads > 0) {
-        thread_steps.push_back(threads);
-        ram_steps.push_back(this->max_ram / threads);
-        thread_nsteps++;
-        threads /= 2;
-    }
+    // recalculate thread/RAM steps, now that --max-threads and --max-ram are known
+    this->set_thread_ram_steps();
 
-    if (print_help) 
+    if (print_help)
         this->print_usage();
     else if (print_cite)
         this->print_citation();
+}
+
+/* --------------------------------------------------------------------------- */
+
+/**
+ * @brief Recomputes the thread and RAM scheduling steps from max_threads and max_ram.
+ *
+ * Each step halves the thread count, so each doubles the RAM available per thread. The
+ * constructor calls this so that the steps are already consistent with the default max_threads
+ * and max_ram before parse_args() runs; parse_args() calls it again once the options are known.
+ * Both vectors are cleared first, so repeated calls replace the steps rather than appending to
+ * them.
+ */
+void Globals::set_thread_ram_steps()
+{
+    this->thread_steps.clear();
+    this->ram_steps.clear();
+    this->thread_nsteps = 0;
+    int threads = this->max_threads;
+    while (threads > 0) {
+        this->thread_steps.push_back(threads);
+        this->ram_steps.push_back(this->max_ram / threads);
+        this->thread_nsteps++;
+        threads /= 2;
+    }
 }
 
 /* --------------------------------------------------------------------------- */
