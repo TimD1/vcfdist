@@ -674,6 +674,40 @@ std::shared_ptr<superclusterData> make_superclusterData(
 }
 
 /**
+ * @brief Builds a phaseblockData over the given contigs, bypassing the phasing pipeline.
+ *
+ * The constructor is invoked over empty per-contig containers so that its phasing and allele count
+ * passes have nothing to rewrite, then the caller's populated containers are substituted.
+ * @param[in] contigs Contig names
+ * @param[in] lengths Contig lengths, parallel to contigs
+ * @param[in] ploidy Contig ploidies, parallel to contigs
+ * @param[in] superclusters Per-contig supercluster containers, parallel to contigs
+ * @param[in] ref Reference sequence data, may be nullptr
+ * @return Populated phase block data
+ * @throws ERROR if the parallel vectors have differing lengths
+ */
+std::unique_ptr<phaseblockData> make_phaseblockData(
+        const std::vector<std::string> & contigs, const std::vector<int> & lengths,
+        const std::vector<int> & ploidy,
+        const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,
+        std::shared_ptr<fastaData> ref) {
+    if (contigs.size() != superclusters.size()) {
+        ERROR("make_phaseblockData() requires parallel vectors of equal length");
+    }
+    std::vector< std::shared_ptr<ctgSuperclusters> > empty;
+    for (size_t i = 0; i < contigs.size(); i++) {
+        empty.push_back(make_ctgSuperclusters(make_ctgVariants(contigs[i], {}),
+                make_ctgVariants(contigs[i], {})));
+    }
+    std::unique_ptr<phaseblockData> pb_data(new phaseblockData(
+            make_superclusterData(contigs, lengths, ploidy, empty, ref)));
+    for (size_t i = 0; i < contigs.size(); i++) {
+        pb_data->phase_blocks[contigs[i]]->ctg_superclusters = superclusters[i];
+    }
+    return pb_data;
+}
+
+/**
  * @brief Builds an alignment graph for one supercluster and truth haplotype.
  * @param[in] sc Supercluster container holding the query and truth variants
  * @param[in] ref Reference sequence data

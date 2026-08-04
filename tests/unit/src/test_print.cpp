@@ -1,10 +1,11 @@
 /**
  * @file test_print.cpp
- * @brief Unit tests for print.cpp: qscore, get_ptr_repr, color wrappers, write_params.
+ * @brief Unit tests for print.cpp: qscore, get_ptr_repr, color wrappers, tallying, write_params.
  * @note compute_pr_f1 is not covered here; its extraction is tracked separately in issue #94.
  */
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -205,6 +206,225 @@ TEST(Color, Purple) {
 TEST(Color, GreenStrEmpty) {
     // an empty payload still yields the prefix and reset suffix
     EXPECT_EQ("\033[32m\033[0m", GREEN(std::string("")));
+}
+
+/* tally_counts_by_qual ***************************************************************************/
+
+/**
+ * @brief Wraps query and truth variants of one contig in a phaseblockData.
+ * @param[in] qvars Query variants
+ * @param[in] tvars Truth variants
+ * @return Phase block data holding the one contig, ready for tally_counts_by_qual()
+ */
+std::unique_ptr<phaseblockData> one_ctg(std::shared_ptr<ctgVariants> qvars,
+        std::shared_ptr<ctgVariants> tvars) {
+    return make_phaseblockData({"chr1"}, {1000}, {2}, {make_ctgSuperclusters(qvars, tvars)});
+}
+
+/**
+ * @brief Builds a container holding one variant present on haplotype 1 only.
+ * @param[in] type Variant type (TYPE_*)
+ * @param[in] ref Reference allele sequence
+ * @param[in] alt Alternate allele sequence
+ * @param[in] ctg Contig name
+ * @return Container whose single variant carries genotype 1|0 and error type ERRTYPE_UN
+ */
+std::shared_ptr<ctgVariants> hap1_var(uint8_t type, const std::string & ref,
+        const std::string & alt, const std::string & ctg = "chr1") {
+    std::shared_ptr<ctgVariants> vars = make_typed_var(type, ref, alt, ctg);
+    vars->orig_gts[0] = GT_ALT1_REF;
+    return vars;
+}
+
+/**
+ * @brief Returns the counts of one variant type and error type across the whole quality sweep.
+ * @param[in] counts Counters returned by tally_counts_by_qual()
+ * @param[in] callset QUERY or TRUTH
+ * @param[in] vartype Variant size class (VARTYPE_*)
+ * @param[in] errtype Error type (ERRTYPE_*)
+ * @return One count per quality threshold, in ascending threshold order
+ */
+std::vector<float> sweep(const pr_counts & counts, int callset, int vartype, int errtype) {
+    return callset == QUERY ? counts.query[vartype][errtype] : counts.truth[vartype][errtype];
+}
+
+TEST(TallyCountsByQual, SnpTpSingle) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 0, 0, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(qvars, make_ctgVariants("chr1", {})), 0, 1);
+
+    EXPECT_FLOAT_EQ(1.0f, counts.query[VARTYPE_SNP][ERRTYPE_TP][0]);
+    EXPECT_FLOAT_EQ(1.0f, counts.query[VARTYPE_ALL][ERRTYPE_TP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_INDEL][ERRTYPE_TP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_SV][ERRTYPE_TP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_SNP][ERRTYPE_FP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.truth[VARTYPE_ALL][ERRTYPE_TP][0]);
+}
+
+TEST(TallyCountsByQual, IndelFpSingle) {
+    GlobalsGuard guard;
+    // a 3bp insertion is below the 50bp SV threshold, so it is an INDEL rather than an SV
+    std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_INS, "A", "ACGT");
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_FP, 0, 0, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(qvars, make_ctgVariants("chr1", {})), 0, 1);
+
+    EXPECT_FLOAT_EQ(1.0f, counts.query[VARTYPE_INDEL][ERRTYPE_FP][0]);
+    EXPECT_FLOAT_EQ(1.0f, counts.query[VARTYPE_ALL][ERRTYPE_FP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_SNP][ERRTYPE_FP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_SV][ERRTYPE_FP][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_INDEL][ERRTYPE_TP][0]);
+}
+
+TEST(TallyCountsByQual, SvFnSingle) {
+    GlobalsGuard guard;
+    // a 60bp deletion is at or above the 50bp SV threshold; FN is a truth-side classification
+    std::shared_ptr<ctgVariants> tvars = hap1_var(TYPE_DEL, std::string(60, 'A'), "A");
+    set_hap_data(tvars, HAP1, 0, ERRTYPE_FN, 0, 1, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(make_ctgVariants("chr1", {}), tvars), 0, 1);
+
+    EXPECT_FLOAT_EQ(1.0f, counts.truth[VARTYPE_SV][ERRTYPE_FN][0]);
+    EXPECT_FLOAT_EQ(1.0f, counts.truth[VARTYPE_ALL][ERRTYPE_FN][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.truth[VARTYPE_SNP][ERRTYPE_FN][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.truth[VARTYPE_INDEL][ERRTYPE_FN][0]);
+    EXPECT_FLOAT_EQ(0.0f, counts.query[VARTYPE_ALL][ERRTYPE_FN][0]);
+}
+
+TEST(TallyCountsByQual, QualSweepMonotone) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 0, 3, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(qvars, make_ctgVariants("chr1", {})), 0, 5);
+
+    // the variant passes every threshold up to and including its own Qscore, and none above it
+    std::vector<float> expected = {1, 1, 1, 1, 0, 0};
+    EXPECT_EQ(expected, sweep(counts, QUERY, VARTYPE_SNP, ERRTYPE_TP));
+    EXPECT_EQ(expected, sweep(counts, QUERY, VARTYPE_ALL, ERRTYPE_TP));
+}
+
+TEST(TallyCountsByQual, TruthFnAboveQscore) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> tvars = hap1_var(TYPE_SUB, "A", "G");
+    set_hap_data(tvars, HAP1, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(make_ctgVariants("chr1", {}), tvars), 0, 5);
+
+    // the matching query call is filtered out above its own Qscore, turning the truth call into a
+    // false negative rather than dropping it
+    std::vector<float> expected_tp = {1, 1, 1, 0, 0, 0};
+    std::vector<float> expected_fn = {0, 0, 0, 1, 1, 1};
+    EXPECT_EQ(expected_tp, sweep(counts, TRUTH, VARTYPE_SNP, ERRTYPE_TP));
+    EXPECT_EQ(expected_fn, sweep(counts, TRUTH, VARTYPE_SNP, ERRTYPE_FN));
+    EXPECT_EQ(expected_fn, sweep(counts, TRUTH, VARTYPE_ALL, ERRTYPE_FN));
+}
+
+TEST(TallyCountsByQual, AcErr2To1DecrementsTruthTp) {
+    GlobalsGuard guard;
+    // the calculated genotype was 1|1 and was forced back to the original allele count, so the
+    // extra alternate allele already participated in a truth match and is compensated for here
+    std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
+    qvars->calc_gts[0] = GT_REF_ALT1;
+    qvars->ac_errtype[0] = AC_ERR_2_TO_1;
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_UN, 0, 2, 0, 0, 0);
+    set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(qvars, make_ctgVariants("chr1", {})), 0, 3);
+
+    // this characterizes current behavior: with no truth call to offset it, the correction drives
+    // the truth true-positive count negative
+    std::vector<float> expected_tp = {-1, -1, -1, 0};
+    std::vector<float> expected_fn = {1, 1, 1, 0};
+    EXPECT_EQ(expected_tp, sweep(counts, TRUTH, VARTYPE_SNP, ERRTYPE_TP));
+    EXPECT_EQ(expected_tp, sweep(counts, TRUTH, VARTYPE_ALL, ERRTYPE_TP));
+    EXPECT_EQ(expected_fn, sweep(counts, TRUTH, VARTYPE_SNP, ERRTYPE_FN));
+
+    // the haplotype that does carry the alternate allele is counted as a query true positive
+    std::vector<float> expected_query = {1, 1, 1, 0};
+    EXPECT_EQ(expected_query, sweep(counts, QUERY, VARTYPE_SNP, ERRTYPE_TP));
+}
+
+TEST(TallyCountsByQual, CalcgtSwappedHaplotype) {
+    GlobalsGuard guard;
+    // original 0|1 against calculated 1|0 is a swap, so haplotype 1 reads the haplotype 0 lane
+    std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
+    qvars->orig_gts[0] = GT_REF_ALT1;
+    qvars->calc_gts[0] = GT_ALT1_REF;
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_FP, 0, 1, 0, 0, 0);
+    set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 0, 4, 0, 0, 0);
+
+    pr_counts counts = tally_counts_by_qual(one_ctg(qvars, make_ctgVariants("chr1", {})), 0, 5);
+
+    // without the remap this would instead be a true positive counted up to threshold 4
+    std::vector<float> expected_fp = {1, 1, 0, 0, 0, 0};
+    std::vector<float> expected_tp = {0, 0, 0, 0, 0, 0};
+    EXPECT_EQ(expected_fp, sweep(counts, QUERY, VARTYPE_SNP, ERRTYPE_FP));
+    EXPECT_EQ(expected_tp, sweep(counts, QUERY, VARTYPE_SNP, ERRTYPE_TP));
+}
+
+TEST(TallyCountsByQual, ErrtypeUnknownWarnsAndSkips) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
+    std::shared_ptr<ctgVariants> tvars = hap1_var(TYPE_SUB, "A", "G");
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_UN, 0, 3, 0, 0, 0);
+    set_hap_data(tvars, HAP1, 0, ERRTYPE_UN, 0, 3, 0, 0, 0);
+
+    pr_counts counts;
+    {
+        StderrToFile capture(dir.path("warn.log"));
+        counts = tally_counts_by_qual(one_ctg(qvars, tvars), 0, 5);
+    }
+
+    std::string log = read_text(dir.path("warn.log"));
+    EXPECT_NE(std::string::npos, log.find("Unknown error type at QUERY chr1:100")) << log;
+    EXPECT_NE(std::string::npos, log.find("Unknown error type at TRUTH chr1:100")) << log;
+
+    // an unevaluated variant contributes nothing at all, not even the truth-side FN tail
+    std::vector<float> zeros(6, 0);
+    for (int type = 0; type < VARTYPES; type++) {
+        for (int err = 0; err < ERRTYPES; err++) {
+            EXPECT_EQ(zeros, sweep(counts, QUERY, type, err)) << "query " << type << " " << err;
+            EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err)) << "truth " << type << " " << err;
+        }
+    }
+}
+
+TEST(TallyCountsByQual, EmptyContig) {
+    GlobalsGuard guard;
+
+    pr_counts counts = tally_counts_by_qual(
+            one_ctg(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {})), 0, 2);
+
+    std::vector<float> zeros(3, 0);
+    for (int type = 0; type < VARTYPES; type++) {
+        for (int err = 0; err < ERRTYPES; err++) {
+            EXPECT_EQ(zeros, sweep(counts, QUERY, type, err)) << "query " << type << " " << err;
+            EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err)) << "truth " << type << " " << err;
+        }
+    }
+}
+
+TEST(TallyCountsByQual, MultiContigSums) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> qvars1 = hap1_var(TYPE_SUB, "A", "G", "chr1");
+    std::shared_ptr<ctgVariants> qvars2 = hap1_var(TYPE_SUB, "A", "G", "chr2");
+    set_hap_data(qvars1, HAP1, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
+    set_hap_data(qvars2, HAP1, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
+    std::unique_ptr<phaseblockData> pb_data = make_phaseblockData({"chr1", "chr2"},
+            {1000, 1000}, {2, 2},
+            {make_ctgSuperclusters(qvars1, make_ctgVariants("chr1", {})),
+             make_ctgSuperclusters(qvars2, make_ctgVariants("chr2", {}))});
+
+    pr_counts counts = tally_counts_by_qual(pb_data, 0, 3);
+
+    // both contigs accumulate into one set of counters rather than being reported separately
+    std::vector<float> expected = {2, 2, 2, 0};
+    EXPECT_EQ(expected, sweep(counts, QUERY, VARTYPE_SNP, ERRTYPE_TP));
+    EXPECT_EQ(expected, sweep(counts, QUERY, VARTYPE_ALL, ERRTYPE_TP));
 }
 
 /* write_params ***********************************************************************************/
