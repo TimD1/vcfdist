@@ -64,7 +64,7 @@ public:
 
     /**
      * @brief Propagates phase set tags to unphased and homozygous variants.
-     * @note Must run before phase() and fix_allele_counts().
+     * @note Must run before the phase block scan, phase(), and fix_allele_counts().
      * @todo Only set phase sets for 1|1 variants when unphased evaluation is added.
      */
     void fix_phase_set_tags();

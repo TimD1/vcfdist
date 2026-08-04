@@ -246,7 +246,12 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         this->phase_blocks[ctg]->ctg_superclusters = clusterdata_ptr->superclusters[ctg];
     }
 
-    // add phase blocks based on phase sets for each contig
+    // fill in unset PS tags
+    this->fix_phase_set_tags();
+
+    // add phase blocks based on phase sets for each contig, after the unset tags are filled in: a
+    // variant that declared no phase set of its own belongs to the block around it, and splitting
+    // on its zero would report one block per such variant
     for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
@@ -261,8 +266,6 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         ctg_pbs->phase_blocks.push_back(qvars->n);
     }
 
-    // fill in unset PS tags
-    this->fix_phase_set_tags();
     // calculate phasings, flip, and switch errors
     this->phase();
     // calculate and fix allele count errors
@@ -275,7 +278,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
 
 /**
  * @brief Propagates phase set tags to unphased and homozygous variants.
- * @note Must run before phase() and fix_allele_counts().
+ * @note Must run before the phase block scan, phase(), and fix_allele_counts().
  * @todo Only set phase sets for 1|1 variants when unphased evaluation is added.
  */
 void phaseblockData::fix_phase_set_tags() {
