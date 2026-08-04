@@ -19,32 +19,6 @@
 
 
 /**
- * @brief Returns true if a hash set contains the given value.
- *
- * @param[in] hash_set A hash set, typically storing the indices already traversed during alignment.
- * @param[in] value A value to search for, typically a 4-tuple storing the current index.
- * @return True if the value is present in the hash set.
- */
-template <typename T>
-inline bool contains(const std::unordered_set<T> & hash_set, const T & value) {
-    return hash_set.find(value) != hash_set.end();
-}
-
-/**
- * @brief Returns true if an unordered map contains the given key.
- *
- * @param[in] map An unordered map, typically storing indices and their predecessors.
- * @param[in] key A key to search for, typically a 4-tuple storing the current key.
- * @return True if the key is present in the map.
- */
-template <typename T, typename U>
-inline bool contains(const std::unordered_map<T,U> & map, const T & key) {
-    return map.find(key) != map.end();
-}
-
-/**************************************************************************************************/
-
-/**
  * @brief Calculates the NG50 statistic from a list of phase block sizes and genome size.
  *
  * @param[in] phase_blocks List of phase block sizes.

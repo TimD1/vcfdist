@@ -151,13 +151,11 @@ namespace std {
 
 /**************************************************************************************************/
 
-/** @brief Returns true if set contains the given element. */
+/** @brief Returns true if a hash set contains the given value. */
 template <typename T>
-inline bool contains(const std::unordered_set<T> & wave, const T & idx);
-
-/** @brief Returns true if map contains the given key. */
-template <typename T, typename U>
-bool contains(const std::unordered_map<T,U> & wave, const T & idx);
+bool contains(const std::unordered_set<T> & hash_set, const T & value) {
+    return hash_set.find(value) != hash_set.end();
+}
 
 /** @brief Generates a haplotype sequence string by applying variants to the reference. */
 std::string generate_str(
