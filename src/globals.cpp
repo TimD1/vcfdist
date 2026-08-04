@@ -567,10 +567,13 @@ std::string parent_path(const std::string & out_prefix) {
 
 /**
  * @brief Creates a directory and all necessary parent directories.
- * @param[in] dir Full directory path to create
+ * @param[in] dir Full directory path to create; an empty path names nothing and is a no-op
  * @throws Errors if directory creation fails for reasons other than EEXIST
  */
 void create_directory(const std::string & dir) {
+    // an empty path would leave the scan below starting one byte past the end of the copy
+    if (dir.empty()) return;
+
     char *p = strdup(dir.data());
     char *sep = strchr(p+1, '/');
     while(sep != NULL) {

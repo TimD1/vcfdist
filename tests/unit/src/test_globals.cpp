@@ -127,6 +127,18 @@ TEST(CreateDirectory, NoSlashNoop) {
     EXPECT_FALSE(std::filesystem::exists(relative));
 }
 
+TEST(CreateDirectory, EmptyNoop) {
+    TempDir dir;
+    const std::filesystem::path before = std::filesystem::current_path();
+    std::filesystem::current_path(dir.path());
+
+    // an empty path names no directory, so it returns before touching the filesystem
+    create_directory("");
+    EXPECT_TRUE(std::filesystem::is_empty(dir.path()));
+
+    std::filesystem::current_path(before);
+}
+
 /* init_timers ************************************************************************************/
 
 TEST(InitTimers, Populates) {
