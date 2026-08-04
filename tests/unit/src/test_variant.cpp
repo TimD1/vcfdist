@@ -1359,16 +1359,25 @@ TEST_F(ParseVariants, PhaseSetPresentStored) {
     EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[0]);
 }
 
-// Documents rather than enforces: a homozygous record without a PS tag is exempt from the
-// missing-PS count, but the phase set is not reset either, so it silently inherits the previous
-// record's.
-TEST_F(ParseVariants, PhaseSetCarriesOverToHomRecordWithoutPs) {
+// A homozygote is exempt from the missing-PS count, since its phase needs no resolving, but it
+// still declared no phase set of its own and must not be attributed to the previous record's.
+TEST_F(ParseVariants, PhaseSetNotInheritedByHomRecordWithoutPs) {
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:PS", "1|0:7"),
                                         fmt_record(200, "A", "G", "GT", "1|1")});
     ASSERT_EQ(2, hap_vars(r, HAP1)->n);
     EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[0]);
-    EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[1]);
+    EXPECT_EQ(0, hap_vars(r, HAP1)->phase_sets[1]);
     EXPECT_FALSE(logged(r, "missing PS tags")); // a homozygote needs no phase set to be resolved
+}
+
+// The same holds for a haploid record, also exempt from the count and also owed no inherited value.
+TEST_F(ParseVariants, PhaseSetNotInheritedByHaploidRecordWithoutPs) {
+    ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:PS", "1:7"),
+                                        fmt_record(200, "A", "G", "GT", "1")});
+    ASSERT_EQ(2, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[0]);
+    EXPECT_EQ(0, hap_vars(r, HAP1)->phase_sets[1]);
+    EXPECT_FALSE(logged(r, "missing PS tags")); // a haploid variant needs no phase set either
 }
 
 /* allele filtering *******************************************************************************/
