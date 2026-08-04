@@ -283,9 +283,9 @@ void phaseblockData::fix_phase_set_tags() {
     for (int ci = 0; ci < CALLSETS; ci++) {
         int total_phase_sets = 0;
         std::vector<int> phase_set_sizes;
-        int ctg_idx = 0;
 
-        for (const std::string & ctg : this->contigs) { // for each contig
+        for (size_t ctg_idx = 0; ctg_idx < this->contigs.size(); ctg_idx++) { // for each contig
+            const std::string & ctg = this->contigs[ctg_idx];
             std::shared_ptr<ctgSuperclusters> ctg_scs = this->phase_blocks[ctg]->ctg_superclusters;
             std::shared_ptr<ctgVariants> vars = ctg_scs->callset_vars[ci];
 
@@ -334,7 +334,6 @@ void phaseblockData::fix_phase_set_tags() {
             // add final phase set on contig
             phase_set_sizes.push_back(ps_end - ps_beg);
             total_phase_sets++;
-            ctg_idx++;
         }
 
         // calculate phaseset NG50

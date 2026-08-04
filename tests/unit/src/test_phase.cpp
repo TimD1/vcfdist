@@ -79,17 +79,18 @@ struct pipeline_result {
  * PHASE_ORIG, 1|0 against 0|1 for PHASE_SWAP, and 1|1 against 1|1 for PHASE_NONE.
  * @param[in] phases Desired phasing (PHASE_ORIG, PHASE_SWAP, or PHASE_NONE) of each variant
  * @param[in] phase_sets Phase set of each variant, or empty to place them all in phase set 1
+ * @param[in] ctg Contig the variants sit on
  * @return Query variants with orig_gts, calc_gts, and phase_sets set
  */
 std::shared_ptr<ctgVariants> make_qvars(const std::vector<int> & phases,
-        const std::vector<int> & phase_sets = {}) {
+        const std::vector<int> & phase_sets = {}, const std::string & ctg = CTG) {
     std::vector<var_desc> descs;
     for (size_t i = 0; i < phases.size(); i++) {
         int phase_set = phase_sets.empty() ? 1 : phase_sets[i];
         uint8_t orig_gt = (phases[i] == PHASE_NONE) ? GT_ALT1_ALT1 : GT_ALT1_REF;
         descs.push_back({int(i) * SPACING, 1, TYPE_SUB, "A", "C", orig_gt, 60, phase_set});
     }
-    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(CTG, descs);
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
     for (size_t i = 0; i < phases.size(); i++) {
         switch (phases[i]) {
             case PHASE_ORIG: qvars->calc_gts[i] = GT_ALT1_REF;  break;
@@ -580,15 +581,13 @@ TEST(FixPhaseSetTags, Ng50Reported) {
     EXPECT_TRUE(logged(result.log, "TRUTH total bases:"));
 }
 
-TEST(FixPhaseSetTags, ContigIndexNotAdvancedWhenUnphased) {
+TEST(FixPhaseSetTags, UnphasedContigsEachContributeOwnLength) {
     GlobalsGuard guard;
     TempDir dir;
 
-    // DOCUMENTING, not enforcing: a contig with no phase sets contributes its whole length as one
-    // span, but the contig index used to look that length up only advances on contigs that do have
-    // phase sets. Both contigs below therefore contribute the first contig's 100 bases, and the
-    // NG50 of {100, 100} against 600 total bases never reaches half the genome and comes out 0.
-    // Advancing the index unconditionally would contribute {100, 500} and report 500.
+    // each contig with no phase sets contributes its own whole length as one span, so the spans are
+    // {100, 500} against 600 total bases and the NG50 is 500. Reusing the first contig's length for
+    // the second would give {100, 100}, which never reaches half the genome and reports 0.
     ctg_input first;
     first.ctg = "chr1";
     first.qvars = make_qvars({PHASE_ORIG, PHASE_ORIG}, {0, 0});
@@ -598,7 +597,31 @@ TEST(FixPhaseSetTags, ContigIndexNotAdvancedWhenUnphased) {
     second.qvars = make_ctgVariants("chr2", {});
     second.length = 500;
     pipeline_result result = run_pipeline(dir, {first, second});
-    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 0"));
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 500")) << result.log;
+}
+
+TEST(FixPhaseSetTags, UnphasedContigLengthNotTakenFromPhasedContig) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // an unphased contig looks up its own length even with a phased contig in between: the spans
+    // are chr1's 100 bases, chr2's phased 0-101, and chr3's 1000 bases, so the NG50 is 1000 against
+    // 1400 total bases. Counting only the phased contigs would hand chr3 chr2's 300 bases, and the
+    // resulting {100, 101, 300} never reaches half the genome and reports 0.
+    ctg_input first;
+    first.ctg = "chr1";
+    first.qvars = make_qvars({PHASE_ORIG, PHASE_ORIG}, {0, 0});
+    first.length = 100;
+    ctg_input second;
+    second.ctg = "chr2";
+    second.qvars = make_qvars({PHASE_ORIG, PHASE_ORIG}, {}, "chr2");
+    second.length = 300;
+    ctg_input third;
+    third.ctg = "chr3";
+    third.qvars = make_ctgVariants("chr3", {});
+    third.length = 1000;
+    pipeline_result result = run_pipeline(dir, {first, second, third});
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 1000")) << result.log;
 }
 
 /* fix_allele_counts() ****************************************************************************/
