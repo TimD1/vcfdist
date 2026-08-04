@@ -536,26 +536,82 @@ TEST(WfSwgMaxReach, ScoreAllowsSub) {
     }
 }
 
-TEST(WfSwgMaxReach, ExhaustedQueryReturnsEarlyOnWorseDiagonal) {
+TEST(WfSwgMaxReach, PrefersBetterDiagonalWhenQueryExhausted) {
     GlobalsGuard guard;
     set_penalties(4, 6, 2);
     const std::string query = "ACGTAAA";
     const std::string truth = "ACGTCCC";
 
-    // DOCUMENTS A DEFECT; it does not enforce correct behavior. Hand-derived, a budget of 12
-    // affords three substitutions along the main diagonal and should reach truth index 6. What
-    // actually happens is that a budget of 12 also affords an insertion run (o+e, then e per
-    // extension: 8, 10, 12) that consumes all three remaining query bases without advancing the
-    // truth. The extend loop scans diagonals in ascending index order, so that insertion-heavy
-    // diagonal is seen first, its `off == query_len-1` early return fires, and the smaller reach
-    // of 3 is returned before the main diagonal is ever examined. The reported reach is therefore
-    // not monotonic in max_score. Update these expectations when the defect is fixed.
+    // a budget of 12 affords three substitutions along the main diagonal (3x = 12), reaching the
+    // final truth index 6. It also affords an insertion run (o+e, then e per extension: 8, 10, 12)
+    // that consumes all three remaining query bases without advancing along the truth, reaching
+    // only index 3. The extend loop scans diagonals in ascending index order and so meets the
+    // insertion-heavy diagonal first, but the reported reach must be the best over all diagonals.
     std::vector<int> offs11 = reach_offs(query, truth);
     EXPECT_EQ(5, wf_swg_max_reach(query, truth, offs11, 0, kNoMainDiagBlock, 11,
                 g.sub, g.open, g.extend));
     std::vector<int> offs12 = reach_offs(query, truth);
-    EXPECT_EQ(3, wf_swg_max_reach(query, truth, offs12, 0, kNoMainDiagBlock, 12,
+    EXPECT_EQ(6, wf_swg_max_reach(query, truth, offs12, 0, kNoMainDiagBlock, 12,
                 g.sub, g.open, g.extend));
+}
+
+TEST(WfSwgMaxReach, MonotonicInScoreBudget) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+    const std::string query = "ACGTAAA";
+    const std::string truth = "ACGTCCC";
+
+    // a larger budget can only afford a superset of the alignments a smaller one affords, so reach
+    // must never decrease as max_score grows
+    int prev = 0;
+    for (int max_score = 0; max_score <= 24; max_score++) {
+        std::vector<int> offs = reach_offs(query, truth);
+        int reach = wf_swg_max_reach(query, truth, offs, 0, kNoMainDiagBlock, max_score,
+                g.sub, g.open, g.extend);
+        EXPECT_LE(prev, reach) << "reach decreased at max_score = " << max_score;
+        prev = reach;
+    }
+}
+
+TEST(WfSwgMaxReach, MonotonicInScoreBudgetReverse) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+    const std::string query = "ACGTAAA";
+    const std::string truth = "ACGTCCC";
+
+    // the reverse variant leaves a gap for o rather than opening one forwards for o+e, and must
+    // satisfy the same monotonicity
+    int prev = 0;
+    for (int max_score = 0; max_score <= 24; max_score++) {
+        std::vector<int> offs = reach_offs(query, truth);
+        int reach = wf_swg_max_reach(query, truth, offs, 0, kNoMainDiagBlock, max_score,
+                g.sub, g.open, g.extend, false /* print */, true /* reverse */);
+        EXPECT_LE(prev, reach) << "reach decreased at max_score = " << max_score;
+        prev = reach;
+    }
+}
+
+TEST(WfSwgMaxReach, MonotonicWhenDeletionsAdvanceFarthest) {
+    GlobalsGuard guard;
+    set_penalties(4, 6, 2);
+    const std::string query = "AAAA";
+    const std::string truth = "ACGTACGTA";
+
+    // the query is shorter than the truth, so advancing past index 0 needs deletions rather than
+    // substitutions: query[0] matches truth[0] for free, then deleting "CGT" costs o + 3e = 12 and
+    // query[1] == 'A' matches truth[4], for a reach of 4
+    std::vector<int> offs = reach_offs(query, truth);
+    EXPECT_EQ(4, wf_swg_max_reach(query, truth, offs, 0, kNoMainDiagBlock, 12,
+                g.sub, g.open, g.extend));
+
+    int prev = 0;
+    for (int max_score = 0; max_score <= 24; max_score++) {
+        std::vector<int> sweep_offs = reach_offs(query, truth);
+        int reach = wf_swg_max_reach(query, truth, sweep_offs, 0, kNoMainDiagBlock, max_score,
+                g.sub, g.open, g.extend);
+        EXPECT_LE(prev, reach) << "reach decreased at max_score = " << max_score;
+        prev = reach;
+    }
 }
 
 TEST(WfSwgMaxReach, GapExtensionAffine) {
