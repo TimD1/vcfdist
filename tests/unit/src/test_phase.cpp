@@ -1042,14 +1042,26 @@ TEST(PhaseblockDataCtor, PipelineOrder) {
     GlobalsGuard guard;
     TempDir dir;
 
-    // boundaries are scanned from the phase set tags as parsed, before fix_phase_set_tags()
-    // backfills them: the leading unphased pair opens a block of its own that survives the
-    // backfill, even though afterwards every variant shares one phase set
+    // boundaries are scanned after fix_phase_set_tags() backfills the missing tags, so the leading
+    // unphased pair joins the phase set it is backfilled into rather than opening a block of its own
     pipeline_result result = run_pipeline(dir,
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {0, 0, 5, 5}));
-    EXPECT_EQ(2, pbs_of(result)->n);
-    EXPECT_EQ(std::vector<int>({0, 2, 4}), pbs_of(result)->phase_blocks);
+    EXPECT_EQ(1, pbs_of(result)->n);
+    EXPECT_EQ(std::vector<int>({0, 4}), pbs_of(result)->phase_blocks);
     EXPECT_EQ(std::vector<int>({5, 5, 5, 5}), qvars_of(result)->phase_sets);
+}
+
+TEST(PhaseblockDataCtor, BoundariesIgnoreUnphasedMiddle) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // a variant with no phase set of its own sits inside the surrounding phase set, so it must not
+    // split one block into three: without the backfill running first, every such variant would
+    // open a spurious block and collapse the reported phase block sizes
+    pipeline_result result = run_pipeline(dir,
+            make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {7, 0, 7}));
+    EXPECT_EQ(1, pbs_of(result)->n);
+    EXPECT_EQ(std::vector<int>({0, 3}), pbs_of(result)->phase_blocks);
 }
 
 } // namespace

@@ -710,7 +710,6 @@ void parse_variants(const std::string & vcf_fn,
     int nPS       = 0;
     int * PS      = NULL;
     bool PS_warn  = false;
-    int phase_set = 0;
 
     /* int gq_missing_total = 0; */
     int PS_missing_total = 0;
@@ -984,6 +983,8 @@ void parse_variants(const std::string & vcf_fn,
         }
 
         // parse PS: https://github.com/samtools/htslib/blob/99415e2a2ce26bdbf4e910954330ea769de2c3f0/htslib/vcf.h#L1096
+        // scoped to this record, so one lacking a PS tag can never inherit the previous record's
+        int phase_set = 0; // no declared phase set: one implicit phase set per contig
         nPS = bcf_get_format_int32(hdr, rec, "PS", &PS, &PS_memsize);
         if (nPS == -1) { // PS not defined in header
             if (!PS_warn) {
@@ -991,16 +992,14 @@ void parse_variants(const std::string & vcf_fn,
                 WARN("'PS' tag not defined in %s VCF header, assuming one phase set per contig",
                         callset_strs[callset].data());
             }
-            phase_set = 0;
 
         } else if (nPS == -3) { // PS tag missing
-            // only matters if not haploid and GTs differ for this variant
+            // only counted if not haploid and GTs differ, since only then is phase unresolved
             if (ngt > 1 && bcf_gt_allele(gt[0]) != bcf_gt_allele(gt[1])) {
                 if (g.verbosity > 1)
                     WARN("No PS tag in %s VCF at %s:%lld",
                             callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
                 PS_missing_total++;
-                phase_set = 0;
             }
 
         } else if (nPS <= 0) { // other error
