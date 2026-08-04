@@ -205,20 +205,32 @@ StderrToFile::~StderrToFile() {
  * @param[in] dir Temporary directory owning the fixture and captured output
  * @param[in] records VCF data lines, without trailing newlines
  * @return Surviving variants, captured log output, and the VCF written from those variants
- * @note The written VCF stands in for summary.vcf: both are generated from the variants that
- *       survive parse-time filtering, so a variant absent here is absent from summary.vcf.
  */
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records) {
     vcf_opts opts;
     opts.sample = "QUERY";
     opts.contigs = {"##contig=<ID=chr1,length=1000>"};
+    return parse_records(dir, records, opts, make_fasta("chr1", std::string(1000, 'A')));
+}
+
+/**
+ * @brief Parses VCF records under a caller-supplied header, capturing stderr and the output VCF.
+ * @param[in] dir Temporary directory owning the fixture and captured output
+ * @param[in] records VCF data lines, without trailing newlines
+ * @param[in] opts Header lines and sample name to write
+ * @param[in] ref Reference sequence data, may be nullptr
+ * @return Surviving variants, captured log output, and the VCF written from those variants
+ * @note The written VCF stands in for summary.vcf: both are generated from the variants that
+ *       survive parse-time filtering, so a variant absent here is absent from summary.vcf.
+ */
+ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records,
+        const vcf_opts & opts, std::shared_ptr<fastaData> ref) {
     const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
     const std::string log_fn = dir.path("parse.log");
     const std::string out_fn = dir.path("out.vcf");
 
     ParseResult result;
     result.vars = std::make_shared<variantData>();
-    std::shared_ptr<fastaData> ref = make_fasta("chr1", std::string(1000, 'A'));
 
     { // stderr is redirected for the parse alone, so the INFO/WARN summary can be asserted on
         StderrToFile redirect(log_fn);

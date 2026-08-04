@@ -159,6 +159,16 @@ struct ParseResult {
 /** @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF. */
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records);
 
+/**
+ * @brief Parses VCF records under a caller-supplied header, capturing stderr and the output VCF.
+ *
+ * Lets a test drop a FORMAT declaration, rename a contig, or add a second sample without also
+ * restating the reference; parse_variants() only stores the reference pointer, so the default
+ * nullptr suffices unless a test asserts on variantData::ref.
+ */
+ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records,
+        const vcf_opts & opts, std::shared_ptr<fastaData> ref = nullptr);
+
 /** @brief Reports whether the captured log contains a substring. */
 bool logged(const ParseResult & r, const std::string & text);
 
