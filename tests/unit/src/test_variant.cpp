@@ -1507,21 +1507,53 @@ TEST_F(ParseVariants, LowercaseAllelesUppercased) {
     EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
 }
 
-// Documents rather than enforces: the reference-call test compares the untouched alleles, so a
-// case-only difference is kept as a substitution of a base for itself.
-TEST_F(ParseVariants, CaseOnlyRefCallKeptAsNoOpSub) {
-    ParseResult r = parse_records(dir, {record(100, "a", "A", "1|0")});
-    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
-    EXPECT_EQ(TYPE_SUB, hap_vars(r, HAP1)->types[0]);
-    EXPECT_EQ("A", hap_vars(r, HAP1)->refs[0]);
-    EXPECT_EQ("A", hap_vars(r, HAP1)->alts[0]);
-    EXPECT_FALSE(logged(r, "reference variants"));
+// Case carries no biological meaning, so an ALT matching its REF apart from case is a reference
+// call, not a substitution of a base for itself.
+TEST_F(ParseVariants, CaseOnlyRefCallDroppedAndCounted) {
+    ParseResult r = parse_records(dir, {record(100, "a", "A", "1|0"),
+                                        record(200, "A", "a", "1|0"),
+                                        record(300, "at", "AT", "1|0")});
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_FALSE(wrote_pos(r, 200));
+    EXPECT_FALSE(wrote_pos(r, 300));
+    EXPECT_TRUE(logged(r, "3 reference variants in QUERY VCF, skipped"));
+}
 
-    // the same ordering leaves the prefix trim case-sensitive, so a lowercase anchor base does not
-    // match its uppercase counterpart and the insertion is classified complex instead
-    ParseResult ins = parse_records(dir, {record(100, "A", "aGG", "1|0")});
-    EXPECT_EQ(2, hap_vars(ins, HAP1)->n);
-    EXPECT_TRUE(logged(ins, "complex (CPX) variants"));
+// A lowercase anchor base is still an anchor base, so it must trim and leave a plain insertion.
+TEST_F(ParseVariants, LowercaseAnchorTrimsToInsertion) {
+    ParseResult r = parse_records(dir, {record(100, "A", "aGG", "1|0")});
+    std::shared_ptr<ctgVariants> h1 = hap_vars(r, HAP1);
+    ASSERT_EQ(1, h1->n);
+    EXPECT_EQ(TYPE_INS, h1->types[0]);
+    EXPECT_EQ(100, h1->poss[0]); // 0-based 99, past the trimmed anchor base
+    EXPECT_EQ("", h1->refs[0]);
+    EXPECT_EQ("GG", h1->alts[0]);
+    EXPECT_FALSE(logged(r, "complex (CPX) variants"));
+}
+
+// The same holds for a deletion, whose anchor base is the whole of a lowercase ALT.
+TEST_F(ParseVariants, LowercaseAnchorTrimsToDeletion) {
+    ParseResult r = parse_records(dir, {record(100, "ATT", "a", "1|0")});
+    std::shared_ptr<ctgVariants> h1 = hap_vars(r, HAP1);
+    ASSERT_EQ(1, h1->n);
+    EXPECT_EQ(TYPE_DEL, h1->types[0]);
+    EXPECT_EQ(100, h1->poss[0]); // 0-based 99, past the trimmed anchor base
+    EXPECT_EQ("TT", h1->refs[0]);
+    EXPECT_EQ("", h1->alts[0]);
+    EXPECT_FALSE(logged(r, "complex (CPX) variants"));
+}
+
+// A shared suffix differing only in case must still chop, leaving a SNP rather than a CPX.
+TEST_F(ParseVariants, LowercaseSuffixTrimsToSubstitution) {
+    ParseResult r = parse_records(dir, {record(100, "At", "GT", "1|0")});
+    std::shared_ptr<ctgVariants> h1 = hap_vars(r, HAP1);
+    ASSERT_EQ(1, h1->n);
+    EXPECT_EQ(TYPE_SUB, h1->types[0]);
+    EXPECT_EQ(99, h1->poss[0]);
+    EXPECT_EQ("A", h1->refs[0]);
+    EXPECT_EQ("G", h1->alts[0]);
+    EXPECT_FALSE(logged(r, "complex (CPX) variants"));
 }
 
 // Documents rather than enforces: the unexpected-type error at variant.cpp:1130 looks unreachable,

@@ -1025,6 +1025,11 @@ void parse_variants(const std::string & vcf_fn,
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
 
+            // uppercase before any comparison, since soft-masked reference sequence reaches us as
+            // lowercase and case must not decide whether alleles match
+            std::transform(ref.begin(), ref.end(), ref.begin(), ::toupper);
+            std::transform(alt.begin(), alt.end(), alt.begin(), ::toupper);
+
             // skip unphased heterozygous variants (1/1 is allowed, 0/1 is not)
             if (ngt == 2 && !same && !bcf_gt_is_phased(gt[HAP2])) { // only HAP2 is set, not sure why...
                 if (g.verbosity > 1) {
@@ -1144,8 +1149,6 @@ void parse_variants(const std::string & vcf_fn,
             }
 
             // add to haplotype-specific query info
-            std::transform(ref.begin(), ref.end(), ref.begin(), ::toupper);
-            std::transform(alt.begin(), alt.end(), alt.begin(), ::toupper);
             int rec_idx = n - 1; // 0-based ordinal of this record within the input VCF
             uint8_t ploidy = uint8_t(std::abs(ngt));
             // both CPX halves derive from the same original allele, so they share alt_idx
