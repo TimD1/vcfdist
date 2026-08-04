@@ -1,10 +1,11 @@
 /**
  * @file test_cluster.cpp
- * @brief Unit tests for cluster.cpp: supercluster index and range arithmetic.
+ * @brief Unit tests for cluster.cpp: index and range arithmetic, hap merging, and superclustering.
  */
 #include <limits>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -19,6 +20,7 @@ namespace {
 /* Local helpers **********************************************************************************/
 
 const int INT_MAXIMUM = std::numeric_limits<int>::max();
+const int INT_MINIMUM = std::numeric_limits<int>::min();
 
 /**
  * @brief Builds a variant-free callset carrying the single trailing cluster boundary.
@@ -794,6 +796,975 @@ TEST(SplitLargeSupercluster, BreakpointShiftAfterInsert) {
     EXPECT_EQ(std::vector<int>({0, 2, 4}), qvars->clusters);
     EXPECT_EQ(std::vector<int>({-1, 200}), qvars->left_reaches);
     EXPECT_EQ(std::vector<int>({200, 301}), qvars->right_reaches);
+}
+
+/* load_and_merge_callset_vars_across_haps ********************************************************/
+
+/**
+ * @brief Builds a one-contig superclusterData ready to receive a merged callset.
+ *
+ * The merge writes through `superclusters[ctg]`, so that entry has to exist before it runs.
+ * @param[in] ctg Contig name
+ * @param[in] length Contig length
+ * @return Supercluster data holding one contig with both callsets empty
+ */
+std::shared_ptr<superclusterData> make_merge_target(const std::string & ctg = "chr1",
+        int length = 1000) {
+    std::shared_ptr<ctgSuperclusters> sc =
+            make_ctgSuperclusters(make_empty_callset(ctg), make_empty_callset(ctg));
+    return make_superclusterData({ctg}, {length}, {2}, {sc});
+}
+
+/**
+ * @brief Wraps two per-haplotype variant containers in the contig-map form the merge expects.
+ * @param[in] hap1 HAP1 variants
+ * @param[in] hap2 HAP2 variants
+ * @param[in] ctg Contig name
+ * @return Per-haplotype maps from contig name to variants
+ */
+std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > make_hap_vars(
+        std::shared_ptr<ctgVariants> hap1, std::shared_ptr<ctgVariants> hap2,
+        const std::string & ctg = "chr1") {
+    std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > vars(HAPS);
+    vars[HAP1][ctg] = hap1;
+    vars[HAP2][ctg] = hap2;
+    return vars;
+}
+
+/**
+ * @brief Returns the merged QUERY callset written onto a contig by the merge.
+ * @param[in] sc_data Supercluster data the merge wrote into
+ * @param[in] ctg Contig name
+ * @return Merged query variants for that contig
+ */
+std::shared_ptr<ctgVariants> merged_query(std::shared_ptr<superclusterData> sc_data,
+        const std::string & ctg = "chr1") {
+    return sc_data->superclusters[ctg]->callset_vars[QUERY];
+}
+
+TEST(LoadAndMerge, EmptyContigSkipped) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    auto vars = make_hap_vars(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}));
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the early `continue` stores a bare container: no cluster and no trailing sentinel, unlike
+    // every non-empty contig below
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    EXPECT_EQ(0, merged->n);
+    EXPECT_EQ(0, merged->nc);
+    EXPECT_TRUE(merged->clusters.empty());
+    EXPECT_TRUE(merged->left_reaches.empty());
+    EXPECT_TRUE(merged->right_reaches.empty());
+}
+
+TEST(LoadAndMerge, HomVariant) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+
+    // identical position, REF and ALT on both haplotypes, but opposite single-hap genotypes
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {5}, {15});
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 1}, {5}, {15});
+    auto vars = make_hap_vars(hap1, hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the two are collapsed into one homozygous record, and both haps advance together
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(1, merged->n);
+    EXPECT_EQ(10, merged->poss[0]);
+    EXPECT_EQ(GT_ALT1_ALT1, merged->orig_gts[0]);
+}
+
+TEST(LoadAndMerge, HetHap1First) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {5}, {12});
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{20, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 1}, {15}, {25});
+    auto vars = make_hap_vars(hap1, hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the leftmost variant is emitted first and each keeps its own single-hap genotype
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(2, merged->n);
+    EXPECT_EQ(std::vector<int>({10, 20}), merged->poss);
+    EXPECT_EQ(GT_ALT1_REF, merged->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT1, merged->orig_gts[1]);
+
+    // the reaches do not touch, so the two clusters stay separate ahead of the sentinel
+    EXPECT_EQ(std::vector<int>({0, 1, 2}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, 15, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({12, 25, INT_MAXIMUM}), merged->right_reaches);
+}
+
+TEST(LoadAndMerge, HetTiePrefersIns) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+
+    // both haplotypes carry a variant at position 20, and HAP2's is the insertion
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{20, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {15}, {25});
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{20, 0, TYPE_INS, "", "GG", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 1}, {15}, {25});
+    auto vars = make_hap_vars(hap1, hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // an insertion consumes no reference, so it is emitted ahead of the co-located substitution
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(2, merged->n);
+    EXPECT_EQ(TYPE_INS, merged->types[0]);
+    EXPECT_EQ("GG", merged->alts[0]);
+    EXPECT_EQ(TYPE_SUB, merged->types[1]);
+}
+
+TEST(LoadAndMerge, HetTieDefaultHap1) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+
+    // co-located but differing ALTs, and neither is an insertion
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{20, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {15}, {25});
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{20, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 1}, {15}, {25});
+    auto vars = make_hap_vars(hap1, hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the INS tie-break does not apply and HAP2 is not strictly left of HAP1, so HAP1 wins
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(2, merged->n);
+    EXPECT_EQ("C", merged->alts[0]);
+    EXPECT_EQ("G", merged->alts[1]);
+}
+
+TEST(LoadAndMerge, Hap1Only) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}, {12, 1, TYPE_SUB, "A", "G", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 2}, {5}, {17});
+    auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // HAP2 contributes nothing, so the HAP1 cluster passes through unchanged
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(2, merged->n);
+    EXPECT_EQ(std::vector<int>({10, 12}), merged->poss);
+    EXPECT_EQ(std::vector<int>({0, 2}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({17, INT_MAXIMUM}), merged->right_reaches);
+}
+
+TEST(LoadAndMerge, Hap2Only) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT1}, {12, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 2}, {5}, {17});
+    auto vars = make_hap_vars(make_ctgVariants("chr1", {}), hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the HAP2-only initialization branch mirrors the HAP1-only one
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(2, merged->n);
+    EXPECT_EQ(std::vector<int>({10, 12}), merged->poss);
+    EXPECT_EQ(std::vector<int>({0, 2}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({17, INT_MAXIMUM}), merged->right_reaches);
+}
+
+TEST(LoadAndMerge, TwoClustersSeparate) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}, {110, 1, TYPE_SUB, "A", "G", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1, 2}, {5, 105}, {15, 115});
+    auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // 15 < 105, so the second cluster starts a new supercluster rather than extending the first
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    EXPECT_EQ(std::vector<int>({0, 1, 2}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, 105, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({15, 115, INT_MAXIMUM}), merged->right_reaches);
+}
+
+TEST(LoadAndMerge, TwoClustersOverlap) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+
+    // HAP2's cluster reaches left to 12, inside HAP1's cluster reaching right to 20
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {5}, {20});
+    std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
+            {{14, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+    set_clusters(hap2, {0, 1}, {12}, {25});
+    auto vars = make_hap_vars(hap1, hap2);
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the overlapping clusters collapse into one spanning the union of both reaches
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    ASSERT_EQ(2, merged->n);
+    EXPECT_EQ(std::vector<int>({0, 2}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({25, INT_MAXIMUM}), merged->right_reaches);
+}
+
+TEST(LoadAndMerge, SentinelAppended) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_merge_target();
+    std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+    set_clusters(hap1, {0, 1}, {5}, {15});
+    auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
+
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
+
+    // the trailing sentinel starts at n and reaches int::max in both directions, and nc counts it
+    // (unlike wf_swg_cluster's nc, which does not) -- so clusters.size() == nc here
+    std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
+    EXPECT_EQ(size_t(merged->nc), merged->clusters.size());
+    EXPECT_EQ(merged->n, merged->clusters.back());
+    EXPECT_EQ(INT_MAXIMUM, merged->left_reaches.back());
+    EXPECT_EQ(INT_MAXIMUM, merged->right_reaches.back());
+
+    // the last variant closes its cluster with no cluster left to start, so the loop saves an
+    // empty (int::max, int::min) cluster ahead of the sentinel; it holds no variants, since
+    // clusters[1] == clusters[2] == n
+    EXPECT_EQ(3, merged->nc);
+    EXPECT_EQ(std::vector<int>({0, 1, 1}), merged->clusters);
+    EXPECT_EQ(std::vector<int>({5, INT_MAXIMUM, INT_MAXIMUM}), merged->left_reaches);
+    EXPECT_EQ(std::vector<int>({15, INT_MINIMUM, INT_MAXIMUM}), merged->right_reaches);
+}
+
+/* supercluster ***********************************************************************************/
+
+/**
+ * @brief Builds a callset in the merged form supercluster() consumes.
+ *
+ * load_and_merge_callset_vars_across_haps() counts its trailing sentinel in nc, so all three
+ * cluster lanes hold nc entries -- unlike wf_swg_cluster's output, where clusters holds nc+1 and
+ * the reaches hold nc. The sentinel is appended here so callers describe only real clusters.
+ * @param[in] vars Variants to hold, in ascending position order
+ * @param[in] clusters Variant index at the start of each real cluster
+ * @param[in] left_reaches Leftmost reach of each real cluster
+ * @param[in] right_reaches Rightmost reach of each real cluster
+ * @param[in] ctg Contig name
+ * @return Variant container carrying a sentinel-terminated clustering
+ */
+std::shared_ptr<ctgVariants> make_merged_callset(const std::vector<var_desc> & vars,
+        const std::vector<int> & clusters, const std::vector<int> & left_reaches,
+        const std::vector<int> & right_reaches, const std::string & ctg = "chr1") {
+    std::shared_ptr<ctgVariants> merged = make_ctgVariants(ctg, vars);
+    std::vector<int> cl = clusters, lr = left_reaches, rr = right_reaches;
+    cl.push_back(merged->n);
+    lr.push_back(INT_MAXIMUM);
+    rr.push_back(INT_MAXIMUM);
+    set_clusters(merged, cl, lr, rr, int(cl.size()));
+    return merged;
+}
+
+/**
+ * @brief Wraps one contig's callsets in a superclusterData and superclusters them.
+ * @param[in,out] qvars Query variants, whose supercluster lane is filled in
+ * @param[in,out] tvars Truth variants, whose supercluster lane is filled in
+ * @param[in] ctg Contig name
+ * @return The superclustered data, kept alive for the caller's assertions
+ * @throws WARNING if a supercluster exceeds g.max_supercluster_size
+ */
+std::shared_ptr<superclusterData> run_supercluster(std::shared_ptr<ctgVariants> qvars,
+        std::shared_ptr<ctgVariants> tvars, const std::string & ctg = "chr1") {
+    std::shared_ptr<superclusterData> sc_data =
+            make_superclusterData({ctg}, {1000}, {2}, {make_ctgSuperclusters(qvars, tvars)});
+    sc_data->supercluster();
+    return sc_data;
+}
+
+/**
+ * @brief Describes one single-base substitution at each of the given positions.
+ * @param[in] poss Reference positions, ascending
+ * @return Variant descriptors ready for make_ctgVariants()
+ */
+std::vector<var_desc> subs_at(const std::vector<int> & poss) {
+    std::vector<var_desc> vars;
+    for (int pos : poss) vars.push_back({pos, 1, TYPE_SUB, "A", "C"});
+    return vars;
+}
+
+TEST(Supercluster, EmptySkipped) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> qvars = make_empty_callset();
+    std::shared_ptr<ctgVariants> tvars = make_empty_callset();
+
+    // no variants on either callset, so the contig is skipped before any cluster is read
+    run_supercluster(qvars, tvars);
+
+    EXPECT_EQ(0, qvars->n);
+    EXPECT_TRUE(qvars->superclusters.empty());
+    EXPECT_TRUE(tvars->superclusters.empty());
+}
+
+TEST(Supercluster, SingleCluster) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> qvars =
+            make_merged_callset(subs_at({10, 12}), {0}, {5}, {17});
+
+    run_supercluster(qvars, make_empty_callset());
+
+    // one cluster means one supercluster holding both variants
+    EXPECT_EQ(std::vector<int>({0, 0}), qvars->superclusters);
+}
+
+TEST(Supercluster, TwoFarTwoScs) {
+    GlobalsGuard guard;
+
+    // the first cluster reaches to 15, well short of the second's leftward reach of 105
+    std::shared_ptr<ctgVariants> qvars =
+            make_merged_callset(subs_at({10, 110}), {0, 1}, {5, 105}, {15, 115});
+
+    run_supercluster(qvars, make_empty_callset());
+
+    EXPECT_EQ(std::vector<int>({0, 1}), qvars->superclusters);
+}
+
+TEST(Supercluster, QueryTruthOverlapOneSc) {
+    GlobalsGuard guard;
+
+    // the truth cluster reaches left to 12, inside the query cluster reaching right to 20
+    std::shared_ptr<ctgVariants> qvars = make_merged_callset(subs_at({10}), {0}, {5}, {20});
+    std::shared_ptr<ctgVariants> tvars = make_merged_callset(subs_at({14}), {0}, {12}, {25});
+
+    run_supercluster(qvars, tvars);
+
+    // grouping is across callsets, so both land in supercluster 0
+    EXPECT_EQ(std::vector<int>({0}), qvars->superclusters);
+    EXPECT_EQ(std::vector<int>({0}), tvars->superclusters);
+}
+
+TEST(Supercluster, ChainedOverlap) {
+    GlobalsGuard guard;
+
+    // query A spans [0, 20] and query C spans [40, 60], which do not touch; truth B spans
+    // [15, 45] and overlaps both, so the three must chain into a single supercluster
+    std::shared_ptr<ctgVariants> qvars =
+            make_merged_callset(subs_at({10, 50}), {0, 1}, {0, 40}, {20, 60});
+    std::shared_ptr<ctgVariants> tvars = make_merged_callset(subs_at({30}), {0}, {15}, {45});
+
+    run_supercluster(qvars, tvars);
+
+    // A and C are transitively joined through B, rather than splitting into two superclusters
+    EXPECT_EQ(std::vector<int>({0, 0}), qvars->superclusters);
+    EXPECT_EQ(std::vector<int>({0}), tvars->superclusters);
+}
+
+TEST(Supercluster, OversizedSplitInvoked) {
+    GlobalsGuard guard;
+    g.max_supercluster_size = 150;
+
+    // four insertions spread over 300bp held in one cluster, so the supercluster spans 302bp
+    std::shared_ptr<ctgVariants> qvars = make_merged_callset(
+            {{0, 0, TYPE_INS, "", "A"}, {100, 0, TYPE_INS, "", "A"},
+             {200, 0, TYPE_INS, "", "A"}, {300, 0, TYPE_INS, "", "A"}}, {0}, {-1}, {301});
+
+    testing::internal::CaptureStderr();
+    run_supercluster(qvars, make_empty_callset());
+    std::string err = testing::internal::GetCapturedStderr();
+
+    // the oversized supercluster is split at the central gap and the split is reported
+    EXPECT_EQ(std::vector<int>({0, 0, 1, 1}), qvars->superclusters);
+    EXPECT_NE(std::string::npos, err.find("Max supercluster size (150) exceeded (302)"));
+    EXPECT_NE(std::string::npos, err.find("breaking up into 2 superclusters"));
+}
+
+TEST(Supercluster, VarCountStatGuard) {
+    GlobalsGuard guard;
+
+    // the query carries every variant; the truth callset holds none
+    std::shared_ptr<ctgVariants> qvars = make_merged_callset(subs_at({10, 12}), {0}, {5}, {17});
+    std::shared_ptr<ctgVariants> tvars = make_empty_callset();
+
+    run_supercluster(qvars, tvars);
+
+    // the per-supercluster variant-count stat is guarded by `if (vars[ci]->nc)`, so the empty
+    // truth callset contributes nothing rather than reading its cluster lanes
+    EXPECT_EQ(std::vector<int>({0, 0}), qvars->superclusters);
+    EXPECT_EQ(0, tvars->nc);
+    EXPECT_EQ(std::vector<int>({0}), tvars->clusters);
+
+    // make_empty_callset() supplies the single boundary that the unguarded supercluster-assignment
+    // loops read for every callset; a callset with a genuinely empty clusters vector, which the
+    // merge's skipped-contig path produces, would be indexed out of bounds there
+    EXPECT_FALSE(tvars->clusters.empty());
+}
+
+TEST(Supercluster, BrksAdvanceRemainder) {
+    GlobalsGuard guard;
+
+    // an int::max left reach on the second cluster stops the main loop early while variants
+    // remain, which is the only way to reach the trailing "add remaining variants" loop; a
+    // sentinel-terminated callset from the merge never gets here, because its final boundary
+    // already equals n
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants("chr1", subs_at({10, 110}));
+    set_clusters(qvars, {0, 1}, {5, INT_MAXIMUM}, {15, INT_MAXIMUM}, 2);
+
+    run_supercluster(qvars, make_empty_callset());
+
+    // variant 0 is assigned by the main loop, variant 1 by the remainder loop, both getting the
+    // supercluster index the main loop stopped at
+    EXPECT_EQ(std::vector<int>({0, 1}), qvars->superclusters);
+}
+
+/* sort_superclusters *****************************************************************************/
+
+/**
+ * @brief Sets the thread/RAM scheduling globals that sort_superclusters() reads.
+ *
+ * Globals::parse_args() is their only production writer, so a test that does not set them leaves
+ * thread_nsteps at 0 and ram_steps empty, which yields no buckets to sort into at all.
+ * @param[in] steps RAM ceiling of each bucket, in GB and ascending
+ * @param[in] max_ram Maximum RAM in GB before a supercluster is warned about
+ * @param[in] max_size Maximum variant size, a multiplier in the memory estimate
+ */
+void set_ram_steps(const std::vector<float> & steps, double max_ram = 64, int max_size = 1000) {
+    g.thread_nsteps = int(steps.size());
+    g.ram_steps = steps;
+    g.max_ram = max_ram;
+    g.max_size = max_size;
+}
+
+/**
+ * @brief Builds a callset carrying per-variant supercluster assignments and a non-zero nc.
+ *
+ * sort_superclusters() reads only nc's non-zero-ness, so the cluster lane is nominal.
+ * @param[in] vars Variants to hold, each with its supercluster field set and ascending
+ * @param[in] ctg Contig name
+ * @return Variant container ready to be sorted
+ */
+std::shared_ptr<ctgVariants> make_sorted_callset(const std::vector<var_desc> & vars,
+        const std::string & ctg = "chr1") {
+    std::shared_ptr<ctgVariants> sorted = make_ctgVariants(ctg, vars);
+    set_clusters(sorted, {0, sorted->n}, {0}, {0});
+    return sorted;
+}
+
+/**
+ * @brief Describes one substitution already assigned to a supercluster.
+ * @param[in] pos Reference position
+ * @param[in] supercluster Supercluster index this variant belongs to
+ * @param[in] gt Genotype, which decides the haplotypes the ALT length is counted on
+ * @return Variant descriptor ready for make_sorted_callset()
+ */
+var_desc sub_in_sc(int pos, int supercluster, uint8_t gt = GT_ALT1_ALT1) {
+    var_desc var;
+    var.pos = pos;
+    var.rlen = 1;
+    var.type = TYPE_SUB;
+    var.ref = "A";
+    var.alt = "C";
+    var.gt = gt;
+    var.supercluster = supercluster;
+    return var;
+}
+
+/**
+ * @brief Counts every (ctg_idx, sc_idx) pair across all buckets.
+ * @param[in] groups Bucketed superclusters as returned by sort_superclusters()
+ * @return Total number of superclusters placed into any bucket
+ */
+int total_sorted(const std::vector< std::vector< std::vector<int> > > & groups) {
+    int total = 0;
+    for (const auto & bucket : groups) total += int(bucket[SC_IDX].size());
+    return total;
+}
+
+TEST(SortSuperclusters, EmptyQuerySkipped) {
+    GlobalsGuard guard;
+    set_ram_steps({0.001f, 10.0f});
+
+    // the truth callset holds a variant, but the skip is keyed on QUERY alone
+    std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(10, 0)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(make_empty_callset(), tvars)});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    ASSERT_EQ(size_t(2), groups.size());
+    EXPECT_EQ(0, total_sorted(groups));
+}
+
+TEST(SortSuperclusters, NscsCount) {
+    GlobalsGuard guard;
+    set_ram_steps({0.001f, 10.0f});
+
+    // the query's last supercluster is 1 and the truth's is 2, so the count is max(1, 2) + 1
+    std::shared_ptr<ctgVariants> qvars =
+            make_sorted_callset({sub_in_sc(10, 0), sub_in_sc(20, 1)});
+    std::shared_ptr<ctgVariants> tvars =
+            make_sorted_callset({sub_in_sc(12, 0), sub_in_sc(30, 2)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(qvars, tvars)});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    // supercluster 1 holds no truth variants and supercluster 2 no query variants, yet all three
+    // indices are emitted
+    EXPECT_EQ(3, total_sorted(groups));
+    EXPECT_EQ(std::vector<int>({0, 1, 2}), groups[0][SC_IDX]);
+}
+
+TEST(SortSuperclusters, SmallLowBucket) {
+    GlobalsGuard guard;
+    set_ram_steps({0.001f, 10.0f});
+    std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
+    std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(12, 0)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(qvars, tvars)});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    // one single-base variant per callset needs (1+1)*8*1000*2 bytes == 32kB, far below the
+    // 0.001GB ceiling of the first bucket
+    EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
+    EXPECT_EQ(std::vector<int>({0}), groups[0][CTG_IDX]);
+    EXPECT_TRUE(groups[1][SC_IDX].empty());
+}
+
+TEST(SortSuperclusters, LargeLastBucketWarn) {
+    GlobalsGuard guard;
+
+    // a RAM ceiling below even the smallest supercluster's estimate
+    set_ram_steps({0.001f, 10.0f}, /* max_ram = */ 1e-6);
+    std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
+    std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(12, 0)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(qvars, tvars)});
+
+    testing::internal::CaptureStderr();
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::string err = testing::internal::GetCapturedStderr();
+
+    // the supercluster is run anyway, in the last bucket, where the fewest threads are active
+    EXPECT_TRUE(groups[0][SC_IDX].empty());
+    EXPECT_EQ(std::vector<int>({0}), groups[1][SC_IDX]);
+    EXPECT_NE(std::string::npos, err.find("RAM exceeded"));
+    EXPECT_NE(std::string::npos, err.find("running anyways"));
+}
+
+TEST(SortSuperclusters, CtgSuperclusterPaired) {
+    GlobalsGuard guard;
+    set_ram_steps({0.001f, 10.0f});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1", "chr2"}, {1000, 1000}, {2, 2},
+            {make_ctgSuperclusters(make_sorted_callset({sub_in_sc(10, 0)}, "chr1"),
+                                   make_sorted_callset({sub_in_sc(12, 0)}, "chr1")),
+             make_ctgSuperclusters(make_sorted_callset({sub_in_sc(10, 0), sub_in_sc(20, 1)}, "chr2"),
+                                   make_sorted_callset({sub_in_sc(12, 0), sub_in_sc(22, 1)}, "chr2"))});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    // the two index lanes stay parallel, so entry i names supercluster sc_idx[i] on contig
+    // ctg_idx[i]; chr1 contributes one supercluster and chr2 two
+    EXPECT_EQ(std::vector<int>({0, 1, 1}), groups[0][CTG_IDX]);
+    EXPECT_EQ(std::vector<int>({0, 0, 1}), groups[0][SC_IDX]);
+    EXPECT_EQ(groups[0][CTG_IDX].size(), groups[0][SC_IDX].size());
+}
+
+TEST(SortSuperclusters, LenLowerUpperBound) {
+    GlobalsGuard guard;
+    set_ram_steps({0.001f, 10.0f});
+
+    // supercluster 0 spans positions 0 to 100000, supercluster 1 holds a single variant
+    std::shared_ptr<ctgVariants> qvars = make_sorted_callset(
+            {sub_in_sc(0, 0), sub_in_sc(100000, 0), sub_in_sc(100010, 1)});
+    std::shared_ptr<ctgVariants> tvars = make_sorted_callset(
+            {sub_in_sc(50, 0), sub_in_sc(100012, 1)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {200000}, {2},
+            {make_ctgSuperclusters(qvars, tvars)});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    // the bounds select each supercluster's own variants, so the wide supercluster 0 is estimated
+    // at ~1.6GB and lands in the upper bucket while the narrow supercluster 1 stays in the lower
+    EXPECT_EQ(std::vector<int>({1}), groups[0][SC_IDX]);
+    EXPECT_EQ(std::vector<int>({0}), groups[1][SC_IDX]);
+}
+
+TEST(SortSuperclusters, EmptyCallsetNcZeroGuard) {
+    GlobalsGuard guard;
+    set_ram_steps({0.001f, 10.0f});
+    std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
+
+    // an unclustered truth callset carrying a 100000-base alternate allele; counting it would
+    // push the estimate to ~1.6GB and into the upper bucket
+    var_desc big = sub_in_sc(12, 0);
+    big.alt = std::string(100000, 'C');
+    std::shared_ptr<ctgVariants> tvars = make_ctgVariants("chr1", {big});
+    ASSERT_EQ(0, tvars->nc);
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(qvars, tvars)});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    // the nc == 0 guard skips that callset's length entirely, so only the query contributes
+    EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
+    EXPECT_TRUE(groups[1][SC_IDX].empty());
+}
+
+/* superclusterData ctor **************************************************************************/
+
+/**
+ * @brief Declares a contig on a callset without giving it any variants.
+ *
+ * parse_variants() creates a ctgVariants for every contig in the VCF header but only appends to
+ * `contigs` once a record is seen, so a header contig with no records is reachable through
+ * `variants` and absent from `contigs`. The merge indexes `variants[hap][ctg]` for every contig in
+ * the union of both callsets and dereferences the result without a null check, so a contig that
+ * one callset never declared at all is not a state these tests construct.
+ * @param[in,out] vars Callset to declare the contig on
+ * @param[in] ctg Contig name
+ */
+void declare_contig(std::shared_ptr<variantData> vars, const std::string & ctg) {
+    vars->variants[HAP1][ctg] = make_ctgVariants(ctg, {});
+    vars->variants[HAP2][ctg] = make_ctgVariants(ctg, {});
+}
+
+TEST(SuperclusterDataCtor, ContigUnionDedup) {
+    GlobalsGuard guard;
+    std::shared_ptr<variantData> qvd =
+            make_variantData(QUERY, {"chr1", "chr2"}, {100, 200}, {2, 2});
+    std::shared_ptr<variantData> tvd =
+            make_variantData(TRUTH, {"chr2", "chr3"}, {999, 300}, {2, 1});
+    declare_contig(qvd, "chr3");
+    declare_contig(tvd, "chr1");
+
+    superclusterData sc_data(qvd, tvd, nullptr);
+
+    // query contigs come first and truth adds only what query did not already cover
+    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2", "chr3"}), sc_data.contigs);
+
+    // chr2 is shared, and the query's length and ploidy win because query is scanned first
+    EXPECT_EQ(std::vector<int>({100, 200, 300}), sc_data.lengths);
+    EXPECT_EQ(std::vector<int>({2, 2, 1}), sc_data.ploidy);
+    EXPECT_EQ(size_t(3), sc_data.superclusters.size());
+}
+
+TEST(SuperclusterDataCtor, SamplesFilenamesOrder) {
+    GlobalsGuard guard;
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {100}, {2});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {100}, {2});
+
+    superclusterData sc_data(qvd, tvd, nullptr);
+
+    // both lanes are indexed by callset, so query occupies slot QUERY and truth slot TRUTH
+    ASSERT_EQ(size_t(CALLSETS), sc_data.samples.size());
+    ASSERT_EQ(size_t(CALLSETS), sc_data.filenames.size());
+    EXPECT_EQ("QUERY", sc_data.samples[QUERY]);
+    EXPECT_EQ("TRUTH", sc_data.samples[TRUTH]);
+    EXPECT_EQ("QUERY.vcf", sc_data.filenames[QUERY]);
+    EXPECT_EQ("TRUTH.vcf", sc_data.filenames[TRUTH]);
+}
+
+TEST(SuperclusterDataCtor, QueryOnlyContig) {
+    GlobalsGuard guard;
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {100}, {2});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {}, {}, {});
+    declare_contig(tvd, "chr1");
+
+    superclusterData sc_data(qvd, tvd, nullptr);
+
+    // the contig survives on the query's length and ploidy, and both callsets get a container
+    EXPECT_EQ(std::vector<std::string>({"chr1"}), sc_data.contigs);
+    EXPECT_EQ(std::vector<int>({100}), sc_data.lengths);
+    EXPECT_NE(nullptr, sc_data.superclusters["chr1"]->callset_vars[QUERY]);
+    EXPECT_NE(nullptr, sc_data.superclusters["chr1"]->callset_vars[TRUTH]);
+    EXPECT_EQ(0, sc_data.superclusters["chr1"]->callset_vars[TRUTH]->n);
+}
+
+TEST(SuperclusterDataCtor, TruthOnlyContig) {
+    GlobalsGuard guard;
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {}, {}, {});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {100}, {1});
+    declare_contig(qvd, "chr1");
+
+    superclusterData sc_data(qvd, tvd, nullptr);
+
+    // the truth-only pass appends the contig with the truth's length and ploidy
+    EXPECT_EQ(std::vector<std::string>({"chr1"}), sc_data.contigs);
+    EXPECT_EQ(std::vector<int>({100}), sc_data.lengths);
+    EXPECT_EQ(std::vector<int>({1}), sc_data.ploidy);
+    EXPECT_EQ(0, sc_data.superclusters["chr1"]->callset_vars[QUERY]->n);
+}
+
+TEST(SuperclusterDataCtor, EndToEndSmoke) {
+    GlobalsGuard guard;
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {1000}, {2});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {1000}, {2});
+
+    // one query variant and one nearby truth variant, whose reaches overlap, plus a distant
+    // query variant that must not join them
+    qvd->variants[HAP1]["chr1"] = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}, {500, 1, TYPE_SUB, "A", "G", GT_ALT1_REF}});
+    set_clusters(qvd->variants[HAP1]["chr1"], {0, 1, 2}, {5, 495}, {20, 505});
+    tvd->variants[HAP2]["chr1"] = make_ctgVariants("chr1",
+            {{14, 1, TYPE_SUB, "A", "T", GT_REF_ALT1}});
+    set_clusters(tvd->variants[HAP2]["chr1"], {0, 1}, {12}, {25});
+
+    superclusterData sc_data(qvd, tvd, nullptr);
+
+    // the ctor merges across haplotypes and then superclusters, so both lanes are populated
+    std::shared_ptr<ctgVariants> qvars = sc_data.superclusters["chr1"]->callset_vars[QUERY];
+    std::shared_ptr<ctgVariants> tvars = sc_data.superclusters["chr1"]->callset_vars[TRUTH];
+    ASSERT_EQ(2, qvars->n);
+    ASSERT_EQ(1, tvars->n);
+
+    // the overlapping query and truth variants share supercluster 0, and the distant query
+    // variant starts supercluster 1
+    EXPECT_EQ(std::vector<int>({0, 1}), qvars->superclusters);
+    EXPECT_EQ(std::vector<int>({0}), tvars->superclusters);
+}
+
+/* wf_swg_cluster *********************************************************************************/
+
+/**
+ * @brief Builds a deterministic pseudo-random reference sequence.
+ *
+ * A periodic reference lets an alignment slide a variant by one whole period at no cost, which
+ * inflates every reach and makes cluster boundaries depend on the period rather than on the
+ * penalties under test. A fixed-seed pseudo-random sequence keeps reaches tight and reproducible.
+ * @param[in] length Sequence length in bases
+ * @param[in] seed Seed for the linear congruential generator
+ * @return Sequence of the requested length over ACGT
+ */
+std::string pseudo_ref(int length, uint32_t seed = 1) {
+    const std::string bases = "ACGT";
+    std::string seq;
+    uint32_t state = seed;
+    for (int i = 0; i < length; i++) {
+        state = state * 1103515245u + 12345u;
+        seq += bases[(state >> 16) & 3];
+    }
+    return seq;
+}
+
+/**
+ * @brief Describes a substitution whose ALT differs from the reference base at that position.
+ *
+ * An ALT equal to the reference would make the variant a no-op, collapsing its alignment score
+ * and therefore its reach.
+ * @param[in] seq Reference sequence
+ * @param[in] pos Reference position of the substitution
+ * @return Variant descriptor ready for make_ctgVariants()
+ */
+var_desc sub_vs_ref(const std::string & seq, int pos) {
+    var_desc var;
+    var.pos = pos;
+    var.rlen = 1;
+    var.type = TYPE_SUB;
+    var.ref = std::string(1, seq[pos]);
+    var.alt = std::string(1, seq[pos] == 'A' ? 'T' : 'A');
+    return var;
+}
+
+/**
+ * @brief Builds a single-contig callset over a pseudo-random reference, ready for clustering.
+ * @param[in] poss Substitution positions, ascending
+ * @param[in] length Contig length
+ * @param[in] hap Haplotype to place the variants on
+ * @return Callset whose reference, contig length and variants are all consistent
+ */
+std::shared_ptr<variantData> make_cluster_input(const std::vector<int> & poss, int length = 400,
+        int hap = HAP1) {
+    std::string seq = pseudo_ref(length);
+    std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {length}, {2});
+    vcf->ref = make_fasta("chr1", seq);
+    std::vector<var_desc> vars;
+    for (int pos : poss) vars.push_back(sub_vs_ref(seq, pos));
+    vcf->variants[hap]["chr1"] = make_ctgVariants("chr1", vars);
+    return vcf;
+}
+
+/**
+ * @brief Sets the clustering parameters wf_swg_cluster() reads from the global `g`.
+ *
+ * Set explicitly rather than inherited, so these cases keep their meaning if a default moves.
+ * @param[in] reach_min_gap Minimum gap bridged when merging adjacent clusters
+ * @param[in] max_cluster_itrs Maximum merge-and-recompute passes
+ * @param[in] max_size Maximum variant size, which sizes the reusable offsets buffer
+ */
+void set_cluster_params(int reach_min_gap = 10, int max_cluster_itrs = 1, int max_size = 1000) {
+    g.reach_min_gap = reach_min_gap;
+    g.max_cluster_itrs = max_cluster_itrs;
+    g.max_size = max_size;
+}
+
+TEST(WfSwgCluster, NoVarsReturns) {
+    GlobalsGuard guard;
+    set_cluster_params();
+    std::shared_ptr<variantData> vcf = make_cluster_input({});
+
+    // a marker clustering that the early return must leave alone
+    set_clusters(vcf->variants[HAP1]["chr1"], {7}, {8}, {9});
+
+    wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+    EXPECT_EQ(std::vector<int>({7}), vars->clusters);
+    EXPECT_EQ(std::vector<int>({8}), vars->left_reaches);
+    EXPECT_EQ(std::vector<int>({9}), vars->right_reaches);
+}
+
+TEST(WfSwgCluster, SingleVariant) {
+    GlobalsGuard guard;
+    set_cluster_params();
+    std::shared_ptr<variantData> vcf = make_cluster_input({200});
+
+    wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    // one variant yields one cluster; all three lanes hold nc+1 entries, the last a sentinel
+    std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+    EXPECT_EQ(1, vars->nc);
+    EXPECT_EQ(std::vector<int>({0, 1}), vars->clusters);
+    ASSERT_EQ(size_t(2), vars->left_reaches.size());
+    ASSERT_EQ(size_t(2), vars->right_reaches.size());
+    EXPECT_EQ(INT_MAXIMUM, vars->left_reaches[1]);
+    EXPECT_EQ(INT_MAXIMUM, vars->right_reaches[1]);
+
+    // a lone substitution on a non-repetitive reference earns no reach beyond itself
+    EXPECT_EQ(200, vars->left_reaches[0]);
+    EXPECT_EQ(201, vars->right_reaches[0]);
+}
+
+TEST(WfSwgCluster, TwoAdjacentMerge) {
+    GlobalsGuard guard;
+    set_cluster_params();
+
+    // two substitutions two bases apart, well inside each other's reach
+    std::shared_ptr<variantData> vcf = make_cluster_input({200, 202});
+
+    wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+    EXPECT_EQ(1, vars->nc);
+    EXPECT_EQ(std::vector<int>({0, 2}), vars->clusters);
+}
+
+TEST(WfSwgCluster, TwoFarSeparate) {
+    GlobalsGuard guard;
+    set_cluster_params();
+
+    // 300 bases apart, far beyond any reach a single substitution can earn
+    std::shared_ptr<variantData> vcf = make_cluster_input({50, 350});
+
+    wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+    EXPECT_EQ(2, vars->nc);
+    EXPECT_EQ(std::vector<int>({0, 1, 2}), vars->clusters);
+
+    // the first cluster's reach stops short of the second cluster's
+    EXPECT_LT(vars->right_reaches[0], vars->left_reaches[1]);
+}
+
+TEST(WfSwgCluster, MaxIterationsBreak) {
+    GlobalsGuard guard;
+
+    // two substitutions close enough to merge on the first pass, so the loop condition still
+    // holds afterwards and only the iteration cap can stop it
+    set_cluster_params(/* reach_min_gap = */ 10, /* max_cluster_itrs = */ 1);
+    std::shared_ptr<variantData> one_itr = make_cluster_input({200, 202});
+    wf_swg_cluster(one_itr.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    set_cluster_params(/* reach_min_gap = */ 10, /* max_cluster_itrs = */ 4);
+    std::shared_ptr<variantData> four_itrs = make_cluster_input({200, 202});
+    wf_swg_cluster(four_itrs.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    std::shared_ptr<ctgVariants> capped = one_itr->variants[HAP1]["chr1"];
+    std::shared_ptr<ctgVariants> converged = four_itrs->variants[HAP1]["chr1"];
+
+    // both agree on the clustering itself
+    EXPECT_EQ(std::vector<int>({0, 2}), capped->clusters);
+    EXPECT_EQ(capped->clusters, converged->clusters);
+
+    // but the cap stops before the merged cluster's reaches are recomputed: one pass keeps the
+    // minimum of the two constituent left reaches, while a second pass re-aligns the merged
+    // cluster as a unit and finds it reaches one base further left
+    EXPECT_EQ(200, capped->left_reaches[0]);
+    EXPECT_EQ(199, converged->left_reaches[0]);
+    EXPECT_EQ(203, capped->right_reaches[0]);
+    EXPECT_EQ(203, converged->right_reaches[0]);
+}
+
+TEST(WfSwgCluster, ReachMinGapBoundary) {
+    GlobalsGuard guard;
+
+    // a lone substitution reaches [pos, pos+1], so cluster 0 ends at 201 and cluster 1 starts at
+    // 212; the merge test is `right_reach + reach_min_gap >= left_reach`, making 11 the threshold
+    set_cluster_params(/* reach_min_gap = */ 10);
+    std::shared_ptr<variantData> below = make_cluster_input({200, 212});
+    wf_swg_cluster(below.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    set_cluster_params(/* reach_min_gap = */ 11);
+    std::shared_ptr<variantData> at = make_cluster_input({200, 212});
+    wf_swg_cluster(at.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    // one short of the gap the clusters stay apart; exactly at it they merge
+    EXPECT_EQ(2, below->variants[HAP1]["chr1"]->nc);
+    EXPECT_EQ(std::vector<int>({0, 1, 2}), below->variants[HAP1]["chr1"]->clusters);
+    EXPECT_EQ(1, at->variants[HAP1]["chr1"]->nc);
+    EXPECT_EQ(std::vector<int>({0, 2}), at->variants[HAP1]["chr1"]->clusters);
+}
+
+TEST(WfSwgCluster, ContigEdgeClamp) {
+    GlobalsGuard guard;
+    set_cluster_params();
+
+    // variants near both ends of a short contig, so the iterative-doubling windows would run off
+    // each end and are clamped to the contig instead
+    std::shared_ptr<variantData> vcf = make_cluster_input({5, 94}, /* length = */ 100);
+
+    wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    // every real cluster's reaches stay on the contig; the trailing sentinel pair is excluded
+    std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+    ASSERT_EQ(2, vars->nc);
+    ASSERT_EQ(size_t(3), vars->left_reaches.size());
+    for (int c = 0; c < vars->nc; c++) {
+        EXPECT_LE(0, vars->left_reaches[c]) << "cluster " << c;
+        EXPECT_LE(vars->right_reaches[c], 100) << "cluster " << c;
+    }
+}
+
+TEST(WfSwgCluster, ContigStartPosZeroErrors) {
+    GlobalsGuard guard;
+    set_cluster_params();
+
+    // a variant at reference position 0 makes the right-reach window start at poss[0]-1 == -1
+    std::shared_ptr<variantData> vcf = make_cluster_input({0});
+
+    // the left-reach window clamps that start with std::max(0, ...) but the right-reach window
+    // does not, so the negative start reaches generate_str() and substr() rejects it
+    EXPECT_EXIT(wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend),
+            testing::ExitedWithCode(1), "position out of range");
 }
 
 } // namespace
