@@ -256,6 +256,21 @@ TEST(CorrectBlockSizes, FinalBlockAppendedAfterLastBreak) {
     EXPECT_EQ(std::vector<int>({401, 1}), correct_block_sizes(pbs, qvars, true, true));
 }
 
+TEST(CorrectBlockSizes, FlipOnLastVariant) {
+    // the last variant is excised into its own block, and nothing is left to open a block after it
+    auto qvars = six_vars();
+    auto pbs = make_pbs({0, 6}, {}, {5});
+    EXPECT_EQ(std::vector<int>({401, 1}), correct_block_sizes(pbs, qvars, true, true));
+}
+
+TEST(CorrectBlockSizes, FlipOnLastVariantWithPendingSwitch) {
+    // the flip takes precedence at a shared index, and the switch error left pending behind it is
+    // not revisited: no block is reopened after the last variant, whatever else points at it
+    auto qvars = six_vars();
+    auto pbs = make_pbs({0, 6}, {5}, {5});
+    EXPECT_EQ(std::vector<int>({401, 1}), correct_block_sizes(pbs, qvars, true, true));
+}
+
 TEST(CorrectBlockSizes, VariableLengthVariants) {
     // block bounds come from poss and rlens, so a deletion extends the block past its start
     std::vector<var_desc> vars;
@@ -862,6 +877,20 @@ TEST(PhaseblockNg50, SwitchIgnoredWhenOff) {
 
     // NG50 rather than NGC50: the switch error is not a break
     EXPECT_EQ(501, result.data->calculate_ng50(false, false));
+}
+
+TEST(PhaseblockNg50, FlipOnLastVariant) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // phase() records a trailing swapped variant as a flip on the last variant, so this is the
+    // shortest input reaching the last-variant flip through the pipeline rather than by hand
+    pipeline_result result = run_pipeline(dir,
+            make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_SWAP}), nullptr, 202);
+    ASSERT_EQ(std::vector<int>({2}), pbs_of(result)->flips);
+
+    // the flip leaves 0-101 and the flipped variant itself, and no block beyond it
+    EXPECT_EQ(101, result.data->calculate_ng50(true, true));
 }
 
 TEST(PhaseblockNg50, EmptyReturnsZero) {
