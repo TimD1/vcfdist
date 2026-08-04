@@ -87,39 +87,37 @@ TEST(Contains, SetIdx4DistinguishesEachField) {
 // reference-spanning node (e.g. the neighbouring SUB's alt or bypass) can bypass the insertion
 // for free. Without this the insertion would be silently skipped and left unlabeled.
 TEST(GraphInsertionEdges, AdjacentVariantCannotLeapInsertion) {
-    auto sc = std::make_shared<ctgSuperclusters>();
-    sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
-    sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
     auto ref = make_fasta("chr1", "ACGTACGTAC");
 
     // truth SUB at pos 2 (G->T) immediately followed by truth INS at pos 3 (->TTT), both hap0
-    auto tv = sc->callset_vars[TRUTH];
-    tv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "T",   GT_ALT1_REF, 60, 60, 0, 0);
-    tv->add_var(3, 0, TYPE_INS, BED_INSIDE, "",  "TTT", GT_ALT1_REF, 60, 60, 0, 0);
+    auto tv = make_ctgVariants("chr1", {
+            {2, 1, TYPE_SUB, "G", "T",   GT_ALT1_REF, 60, 0, 0},
+            {3, 0, TYPE_INS, "",  "TTT", GT_ALT1_REF, 60, 0, 0}});
+    auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tv);
 
-    Graph graph(sc, 0, ref, "chr1", HAP1);
+    auto graph = make_graph(sc, ref, "chr1", HAP1);
 
     // locate the insertion locus (the zero-width truth variant node)
     int ins_coord = -1;
-    for (int tn = 0; tn < graph.tnodes; tn++)
-        if (graph.tidxs[tn] >= 0 && graph.tbegs[tn] == graph.tends[tn])
-            ins_coord = graph.tbegs[tn];
+    for (int tn = 0; tn < graph->tnodes; tn++)
+        if (graph->tidxs[tn] >= 0 && graph->tbegs[tn] == graph->tends[tn])
+            ins_coord = graph->tbegs[tn];
     ASSERT_GE(ins_coord, 0) << "no zero-width insertion node found";
 
     // locate the reference node immediately to the right of the insertion locus
     int right_ref = -1;
-    for (int tn = 0; tn < graph.tnodes; tn++)
-        if (graph.ttypes[tn] == TYPE_REF && graph.tskips[tn] < 0 && graph.tidxs[tn] < 0 &&
-                graph.tbegs[tn] == ins_coord && graph.tends[tn] > graph.tbegs[tn])
+    for (int tn = 0; tn < graph->tnodes; tn++)
+        if (graph->ttypes[tn] == TYPE_REF && graph->tskips[tn] < 0 && graph->tidxs[tn] < 0 &&
+                graph->tbegs[tn] == ins_coord && graph->tends[tn] > graph->tbegs[tn])
             right_ref = tn;
     ASSERT_GE(right_ref, 0) << "no reference node found after the insertion locus";
 
     // every predecessor must be a zero-width node at the locus (the insertion's alt/bypass);
     // a reference-spanning predecessor would be a free leap over the insertion
-    ASSERT_FALSE(graph.tprevs[right_ref].empty());
-    for (int p : graph.tprevs[right_ref])
-        EXPECT_EQ(graph.tbegs[p], graph.tends[p])
-            << "node " << p << " (spanning " << graph.tbegs[p] << ".." << graph.tends[p]
+    ASSERT_FALSE(graph->tprevs[right_ref].empty());
+    for (int p : graph->tprevs[right_ref])
+        EXPECT_EQ(graph->tbegs[p], graph->tends[p])
+            << "node " << p << " (spanning " << graph->tbegs[p] << ".." << graph->tends[p]
             << ") leaps the insertion at " << ins_coord;
 }
 
@@ -128,16 +126,14 @@ TEST(GraphInsertionEdges, AdjacentVariantCannotLeapInsertion) {
 // the backtrack itself -- not by the removed safety sweep. Here the query equals the reference, so
 // both truth variants are missed and must be labeled FN via their bypass nodes, never left UNKNOWN.
 TEST(GraphInsertionEdges, AdjacentInsertionLabeledWithoutSweep) {
-    auto sc = std::make_shared<ctgSuperclusters>();
-    sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
-    sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
     auto ref = make_fasta("chr1", "ACGTACGTAC");
 
-    auto tv = sc->callset_vars[TRUTH];
-    tv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "T",   GT_ALT1_REF, 60, 60, 0, 0);
-    tv->add_var(3, 0, TYPE_INS, BED_INSIDE, "",  "TTT", GT_ALT1_REF, 60, 60, 0, 0);
+    auto tv = make_ctgVariants("chr1", {
+            {2, 1, TYPE_SUB, "G", "T",   GT_ALT1_REF, 60, 0, 0},
+            {3, 0, TYPE_INS, "",  "TTT", GT_ALT1_REF, 60, 0, 0}});
+    auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tv);
 
-    auto graph = std::make_shared<Graph>(sc, 0, ref, "chr1", HAP1);
+    auto graph = make_graph(sc, ref, "chr1", HAP1);
     std::unordered_map<idx4, idx4> ptrs;
     calc_prec_recall_aln(graph, ptrs, false);
     calc_prec_recall(graph, ptrs, HAP1, false);
@@ -833,22 +829,19 @@ TEST(Idx4, LessStrictWeakOrdering) {
 // excised its reference edit distance is inflated (2 instead of 1), so ref_ed pins the excision of
 // BOTH bypasses.
 TEST(GraphBypass, ConsecutiveBypassesBothExcised) {
-    auto sc = std::make_shared<ctgSuperclusters>();
-    sc->callset_vars[QUERY] = std::make_shared<ctgVariants>("chr1");
-    sc->callset_vars[TRUTH] = std::make_shared<ctgVariants>("chr1");
     auto ref = make_fasta("chr1", "ACGTACGT");
 
     // truth: SNP pos2 (reproduced -> TP), then adjacent SNPs pos3 and pos4 (both missed -> FN)
-    auto tv = sc->callset_vars[TRUTH];
-    tv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "A", GT_ALT1_REF, 60, 60, 0, 0);
-    tv->add_var(3, 1, TYPE_SUB, BED_INSIDE, "T", "G", GT_ALT1_REF, 60, 60, 0, 0);
-    tv->add_var(4, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_ALT1_REF, 60, 60, 0, 0);
+    auto tv = make_ctgVariants("chr1", {
+            {2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
+            {3, 1, TYPE_SUB, "T", "G", GT_ALT1_REF, 60, 0, 0},
+            {4, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 0, 0}});
 
     // query: reproduces only the pos2 SNP, so pos3 and pos4 are missed
-    auto qv = sc->callset_vars[QUERY];
-    qv->add_var(2, 1, TYPE_SUB, BED_INSIDE, "G", "A", GT_ALT1_REF, 60, 60, 0, 0);
+    auto qv = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
 
-    auto graph = std::make_shared<Graph>(sc, 0, ref, "chr1", HAP1);
+    auto sc = make_ctgSuperclusters(qv, tv);
+    auto graph = make_graph(sc, ref, "chr1", HAP1);
     std::unordered_map<idx4, idx4> ptrs;
     calc_prec_recall_aln(graph, ptrs, false);
     calc_prec_recall(graph, ptrs, HAP1, false);
