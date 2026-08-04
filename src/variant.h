@@ -25,9 +25,6 @@ public:
     /** @brief Constructs a contig-specific variant container with empty data structures. */
     ctgVariants(const std::string & ctg);
 
-    /** @brief Appends a variant copied from another ctgVariants container. */
-    void add_var(std::shared_ptr<ctgVariants> other_vars, int idx);
-
     /** @brief Appends a variant with all fields explicitly specified. */
     void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
         const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual,
