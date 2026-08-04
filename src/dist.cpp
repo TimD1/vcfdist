@@ -1120,7 +1120,8 @@ void precision_recall_wrapper(
  * @param[in] e Gap-extension penalty.
  * @param[in] print Whether to enable debug printing.
  * @param[in] reverse Whether to run the reverse variant of the alignment algorithm.
- * @return Farthest-reaching truth index reachable within max_score.
+ * @return Farthest-reaching truth index reachable within max_score, or 0 if either sequence is
+ *   empty, since no truth index is reachable then.
  */
 int wf_swg_max_reach(
         const std::string & query, const std::string & truth,
@@ -1132,6 +1133,10 @@ int wf_swg_max_reach(
     // init
     int query_len = query.size();
     int truth_len = truth.size();
+
+    // early exit if either string is empty, since then no truth index is reachable
+    if (!query_len || !truth_len) return 0;
+
     int mat_len = query_len + truth_len - 1;
     int main_diag_off = main_diag_start - main_diag;
     int s = 0;
