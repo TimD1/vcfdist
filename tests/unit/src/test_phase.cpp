@@ -551,19 +551,32 @@ TEST(FixPhaseSetTags, FinalSpanPushed) {
     EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 201")) << result.log;
 }
 
-TEST(FixPhaseSetTags, PhaseSetCountOverCounted) {
+TEST(FixPhaseSetTags, PhaseSetCountMatchesPhaseSets) {
     GlobalsGuard guard;
     TempDir dir;
 
-    // DOCUMENTING, not enforcing: the reported phase set count is one too high per contig that has
-    // any phase set. The counter is incremented once for each phase set the variant loop enters,
-    // and then once more alongside the push that closes the last one, so these two phase sets are
-    // reported as three. Contigs with no phase sets take the early exit and are counted correctly,
-    // which is why the empty truth callset below reports one.
+    // two phase sets are reported as two; the empty truth callset takes the early exit, which
+    // contributes the whole contig as one span and so reports one
     pipeline_result result = run_pipeline(dir,
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {1, 1, 2, 2}));
-    EXPECT_TRUE(logged(result.log, "QUERY phase sets: 3")) << result.log;
+    EXPECT_TRUE(logged(result.log, "QUERY phase sets: 2")) << result.log;
     EXPECT_TRUE(logged(result.log, "TRUTH phase sets: 1")) << result.log;
+}
+
+TEST(FixPhaseSetTags, PhaseSetCountSumsAcrossContigs) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // the count accumulates across contigs, so an error made once per phased contig compounds:
+    // two contigs of two phase sets each are reported as four, not six
+    ctg_input first;
+    first.qvars = make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {1, 1, 2, 2});
+    ctg_input second;
+    second.ctg = "chr2";
+    second.qvars = make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {3, 3, 4, 4},
+            "chr2");
+    pipeline_result result = run_pipeline(dir, {first, second});
+    EXPECT_TRUE(logged(result.log, "QUERY phase sets: 4")) << result.log;
 }
 
 TEST(FixPhaseSetTags, BothCallsets) {
