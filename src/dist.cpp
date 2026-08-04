@@ -1091,7 +1091,9 @@ void precision_recall_wrapper(
  * @brief Extends a wavefront diagonal to its maximum reach using Smith-Waterman gap scoring.
  *
  * Performs WaveFront Smith-Waterman-Gotoh alignment of two strings, returning the
- * farthest-reaching truth index reachable at a cost at or below max_score.
+ * farthest-reaching truth index reachable at a cost at or below max_score. Every wavefront
+ * is folded into the running maximum, so the result is the best reach over all diagonals and
+ * all scores up to max_score, and is therefore non-decreasing in max_score.
  *
  * @param[in] query The query sequence.
  * @param[in] truth The truth sequence.
@@ -1123,6 +1125,7 @@ int wf_swg_max_reach(
     int scores = std::max(x, o+e)+1;
     int y = mat_len;
     int z = y * scores;
+    int max_reach = 0;
     offs[MAT_SUB*z + s2*y + query_len-1] = -1;
 
     while (true) {
@@ -1160,14 +1163,22 @@ int wf_swg_max_reach(
                 if(print) printf("(S, %d, %d) extend\n", off, off+diag);
             offs[MAT_SUB*z + s2*y + d] = off;
 
-            // finish if we've reached the last column
+            // finish if we've reached the last column, the largest reach possible
             if (off + diag == truth_len - 1) {
                 return truth_len-1;
             }
-            if (off == query_len - 1 && off+diag >= 0 && off+diag < truth_len-1)  {
-                return off + diag;
-            }
 
+        }
+
+        // fold this wavefront into the running maximum before its buffer row is recycled
+        for (int m = 0; m < MATS; m++) {
+            for (int d = 0; d < mat_len; d++) {
+                int off = offs[m*z + s2*y + d];
+                int diag = d + 1 - query_len;
+                if (off >= 0 && off < query_len &&
+                        diag+off >= 0 && diag+off < truth_len)
+                    max_reach = std::max(max_reach, diag + off);
+            }
         }
         if (s == max_score) break;
 
@@ -1275,19 +1286,6 @@ int wf_swg_max_reach(
         }
     } // end reach
 
-    // get max reach
-    int max_reach = 0;
-    for (int s2 = 0; s2 < scores; s2++) {
-        for (int m = 0; m < MATS; m++) {
-            for (int d = 0; d < mat_len; d++) {
-                int off = offs[m*z + s2*y + d];
-                int diag = d + 1 - query_len;
-                if (off >= 0 && off < query_len &&
-                        diag+off >= 0 && diag+off < truth_len)
-                    max_reach = std::max(max_reach, diag + off);
-            }
-        }
-    }
     return max_reach;
 }
 
