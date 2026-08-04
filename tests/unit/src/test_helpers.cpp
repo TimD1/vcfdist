@@ -101,6 +101,26 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
 }
 
 /**
+ * @brief Writes a BED file into a temporary directory and returns its path.
+ * @param[in] dir Temporary directory that owns the written file
+ * @param[in] lines Record lines, written verbatim in order
+ * @param[in] name Basename of the written file
+ * @return Path of the written BED
+ * @throws ERROR if the BED cannot be opened for writing
+ */
+std::string write_tmp_bed(const TempDir & dir, const std::vector<std::string> & lines,
+        const std::string & name) {
+    std::string bed_fn = dir.path(name);
+    std::ofstream out(bed_fn);
+    if (!out.is_open()) {
+        ERROR("Failed to open temporary BED '%s' for writing", bed_fn.data());
+    }
+    for (const std::string & line : lines) out << line << "\n";
+    out.close();
+    return bed_fn;
+}
+
+/**
  * @brief Returns the path of a checked-in fixture under tests/unit/data/.
  *
  * The test binary is run both from tests/ (by pytest-workflow) and from tests/unit/build/ (by
@@ -253,6 +273,62 @@ std::shared_ptr<fastaData> make_fasta(
         ref->lengths[ctg] = int(stored.size());
     }
     return ref;
+}
+
+/**
+ * @brief Builds a bedData holding the given [start, stop) regions on one contig, in order.
+ * @param[in] ctg Contig name
+ * @param[in] regions Start and stop coordinate pairs, appended in the order given
+ * @return Populated BED interval container
+ */
+bedData make_bed(const std::string & ctg, const std::vector< std::pair<int, int> > & regions) {
+    return make_bed({{ctg, regions}});
+}
+
+/**
+ * @brief Builds a multi-contig bedData from (contig, regions) pairs, in order.
+ *
+ * add() is used rather than assigning the fields directly, so that the contig list, region
+ * vectors, counts, and total size stay consistent with each other.
+ * @param[in] regions Contig name and region-list pairs, appended in the order given
+ * @return Populated BED interval container
+ */
+bedData make_bed(const std::vector< std::pair<std::string,
+        std::vector< std::pair<int, int> > > > & regions) {
+    bedData bed;
+    for (const auto & [ctg, ctg_regions] : regions) {
+        for (const auto & [start, stop] : ctg_regions) bed.add(ctg, start, stop);
+    }
+    return bed;
+}
+
+/**
+ * @brief Builds a variantData over the given contigs, each holding an empty ctgVariants per hap.
+ * @param[in] callset QUERY or TRUTH callset identifier
+ * @param[in] contigs Contig names
+ * @param[in] lengths Contig lengths, parallel to contigs
+ * @param[in] ploidy Contig ploidies, parallel to contigs
+ * @return Variant container with no variants on any contig
+ * @throws ERROR if the parallel vectors have differing lengths
+ */
+std::shared_ptr<variantData> make_variantData(int callset,
+        const std::vector<std::string> & contigs, const std::vector<int> & lengths,
+        const std::vector<int> & ploidy) {
+    if (contigs.size() != lengths.size() || contigs.size() != ploidy.size()) {
+        ERROR("make_variantData() requires parallel vectors of equal length");
+    }
+    std::shared_ptr<variantData> vars(new variantData());
+    vars->callset = callset;
+    vars->filename = callset_strs[callset] + ".vcf";
+    vars->sample = callset_strs[callset];
+    vars->contigs = contigs;
+    vars->lengths = lengths;
+    vars->ploidy = ploidy;
+    for (const std::string & ctg : contigs) {
+        vars->variants[HAP1][ctg] = make_ctgVariants(ctg, {});
+        vars->variants[HAP2][ctg] = make_ctgVariants(ctg, {});
+    }
+    return vars;
 }
 
 /**

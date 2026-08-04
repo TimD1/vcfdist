@@ -7,8 +7,10 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "../../../src/bed.h"
 #include "../../../src/cluster.h"
 #include "../../../src/defs.h"
 #include "../../../src/dist.h"
@@ -98,6 +100,15 @@ struct vcf_opts {
 std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & records,
         const vcf_opts & opts = vcf_opts());
 
+/**
+ * @brief Writes a BED file into a temporary directory and returns its path.
+ *
+ * Lines are written verbatim, so a test can supply extra columns or malformed records that the
+ * in-memory make_bed() builders cannot express.
+ */
+std::string write_tmp_bed(const TempDir & dir, const std::vector<std::string> & lines,
+        const std::string & name = "test.bed");
+
 /** @brief Returns the path of a checked-in fixture under tests/unit/data/. */
 std::string data_path(const std::string & name);
 
@@ -160,6 +171,27 @@ std::shared_ptr<fastaData> make_fasta(const std::string & ctg, const std::string
 /** @brief Builds a multi-contig reference from (contig, sequence) pairs, in order. */
 std::shared_ptr<fastaData> make_fasta(
         const std::vector< std::pair<std::string, std::string> > & seqs, bool uppercase = true);
+
+/** @brief Builds a bedData holding the given [start, stop) regions on one contig, in order. */
+bedData make_bed(const std::string & ctg, const std::vector< std::pair<int, int> > & regions);
+
+/**
+ * @brief Builds a multi-contig bedData from (contig, regions) pairs, in order.
+ *
+ * Regions are appended exactly as given, so an invalid layout can be built and handed to check().
+ */
+bedData make_bed(const std::vector< std::pair<std::string,
+        std::vector< std::pair<int, int> > > > & regions);
+
+/**
+ * @brief Builds a variantData over the given contigs, each holding an empty ctgVariants per hap.
+ *
+ * Stands in for a parsed VCF in tests that care about the contig, length, and ploidy fields
+ * rather than about variants; `filename` and `sample` follow from the callset.
+ */
+std::shared_ptr<variantData> make_variantData(int callset,
+        const std::vector<std::string> & contigs, const std::vector<int> & lengths,
+        const std::vector<int> & ploidy);
 
 /**
  * @struct var_desc
