@@ -17,6 +17,8 @@ class idx4;
 #define FALSE 0 ///< Boolean false
 #define TRUE  1 ///< Boolean true
 
+#define EPSILON 1e-9 ///< Arbitrary small float value
+
 #define CTG_IDX 0 ///< Index dimension for contig
 #define SC_IDX  1 ///< Index dimension for supercluster
 

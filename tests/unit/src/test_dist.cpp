@@ -80,6 +80,69 @@ TEST(Contains, SetIdx4DistinguishesEachField) {
     EXPECT_FALSE(contains(wave, idx4(0,0,0,1)));
 }
 
+// A truth insertion is a zero-width (in reference coordinates) locus. When another truth
+// variant abuts it, a direct edge that leaps the insertion must not exist: every path across
+// the locus has to route through the insertion's own alt or bypass node. This asserts that the
+// reference node immediately after the insertion has only zero-width predecessors, so no
+// reference-spanning node (e.g. the neighbouring SUB's alt or bypass) can bypass the insertion
+// for free. Without this the insertion would be silently skipped and left unlabeled.
+TEST(GraphInsertionEdges, AdjacentVariantCannotLeapInsertion) {
+    auto ref = make_fasta("chr1", "ACGTACGTAC");
+
+    // truth SUB at pos 2 (G->T) immediately followed by truth INS at pos 3 (->TTT), both hap0
+    auto tv = make_ctgVariants("chr1", {
+            {2, 1, TYPE_SUB, "G", "T",   GT_ALT1_REF, 60, 0, 0},
+            {3, 0, TYPE_INS, "",  "TTT", GT_ALT1_REF, 60, 0, 0}});
+    auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tv);
+
+    auto graph = make_graph(sc, ref, "chr1", HAP1);
+
+    // locate the insertion locus (the zero-width truth variant node)
+    int ins_coord = -1;
+    for (int tn = 0; tn < graph->tnodes; tn++)
+        if (graph->tidxs[tn] >= 0 && graph->tbegs[tn] == graph->tends[tn])
+            ins_coord = graph->tbegs[tn];
+    ASSERT_GE(ins_coord, 0) << "no zero-width insertion node found";
+
+    // locate the reference node immediately to the right of the insertion locus
+    int right_ref = -1;
+    for (int tn = 0; tn < graph->tnodes; tn++)
+        if (graph->ttypes[tn] == TYPE_REF && graph->tskips[tn] < 0 && graph->tidxs[tn] < 0 &&
+                graph->tbegs[tn] == ins_coord && graph->tends[tn] > graph->tbegs[tn])
+            right_ref = tn;
+    ASSERT_GE(right_ref, 0) << "no reference node found after the insertion locus";
+
+    // every predecessor must be a zero-width node at the locus (the insertion's alt/bypass);
+    // a reference-spanning predecessor would be a free leap over the insertion
+    ASSERT_FALSE(graph->tprevs[right_ref].empty());
+    for (int p : graph->tprevs[right_ref])
+        EXPECT_EQ(graph->tbegs[p], graph->tends[p])
+            << "node " << p << " (spanning " << graph->tbegs[p] << ".." << graph->tends[p]
+            << ") leaps the insertion at " << ins_coord;
+}
+
+// End-to-end guard: with the leap-suppression edge rule, a truth insertion abutting another
+// truth variant is forced onto the alignment path (via its alt or bypass node) and is labeled by
+// the backtrack itself -- not by the removed safety sweep. Here the query equals the reference, so
+// both truth variants are missed and must be labeled FN via their bypass nodes, never left UNKNOWN.
+TEST(GraphInsertionEdges, AdjacentInsertionLabeledWithoutSweep) {
+    auto ref = make_fasta("chr1", "ACGTACGTAC");
+
+    auto tv = make_ctgVariants("chr1", {
+            {2, 1, TYPE_SUB, "G", "T",   GT_ALT1_REF, 60, 0, 0},
+            {3, 0, TYPE_INS, "",  "TTT", GT_ALT1_REF, 60, 0, 0}});
+    auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tv);
+
+    auto graph = make_graph(sc, ref, "chr1", HAP1);
+    std::unordered_map<idx4, idx4> ptrs;
+    calc_prec_recall_aln(graph, ptrs, false);
+    calc_prec_recall(graph, ptrs, HAP1, false);
+
+    // query == reference: neither truth variant is reproduced, both are FN (not left UNKNOWN)
+    EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][0]) << "SUB should be a false negative";
+    EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][1]) << "insertion should be a false negative";
+}
+
 /* calc_ng50 **************************************************************************************/
 
 TEST(TestNG50, TestNG50Calc) {
@@ -813,6 +876,38 @@ TEST(Idx4, LessStrictWeakOrdering) {
             EXPECT_EQ(a == b, equiv);
         }
     }
+}
+
+// Regression guard for consecutive bypassed (FN) truth variants. Two adjacent truth SNPs the query
+// misses are both routed through their reference-allele bypass nodes (FN). Each bypass span must be
+// excised from the enclosing sync group's credit measurement -- not just the first one reached
+// during backtracking. A neighbouring reproduced SNP (TP) shares the same group; with only one span
+// excised its reference edit distance is inflated (2 instead of 1), so ref_ed pins the excision of
+// BOTH bypasses.
+TEST(GraphBypass, ConsecutiveBypassesBothExcised) {
+    auto ref = make_fasta("chr1", "ACGTACGT");
+
+    // truth: SNP pos2 (reproduced -> TP), then adjacent SNPs pos3 and pos4 (both missed -> FN)
+    auto tv = make_ctgVariants("chr1", {
+            {2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
+            {3, 1, TYPE_SUB, "T", "G", GT_ALT1_REF, 60, 0, 0},
+            {4, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 0, 0}});
+
+    // query: reproduces only the pos2 SNP, so pos3 and pos4 are missed
+    auto qv = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+
+    auto sc = make_ctgSuperclusters(qv, tv);
+    auto graph = make_graph(sc, ref, "chr1", HAP1);
+    std::unordered_map<idx4, idx4> ptrs;
+    calc_prec_recall_aln(graph, ptrs, false);
+    calc_prec_recall(graph, ptrs, HAP1, false);
+
+    EXPECT_EQ(ERRTYPE_TP, tv->errtypes[HAP1][0]) << "reproduced pos2 SNP should be TP";
+    EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][1]) << "missed pos3 SNP should be FN";
+    EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][2]) << "missed pos4 SNP should be FN";
+    // both bypass spans excised: the TP group's ref edit distance counts only the pos2 SNP.
+    // Leaving the second bypass un-excised inflates this to 2.
+    EXPECT_EQ(1, tv->ref_ed[HAP1][0]) << "consecutive bypass span not fully excised";
 }
 
 } // namespace

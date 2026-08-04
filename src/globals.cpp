@@ -48,7 +48,7 @@ std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
  * @param[in] argv Argument vector
  * @note Required args: query.vcf, truth.vcf, ref.fasta (must be first 3). Optional flag groups:
  *       input/output (-b, -v, -p, -n), variant filtering (-f, -l, -sv, -q, -mq),
- *       clustering (-s), precision-recall (-ct, -md), resources (-t, -r), misc (-h, -ci).
+ *       clustering (-s), precision-recall (-ct), resources (-t, -r), misc (-h, -ci).
  * @throws Errors on invalid file paths, out-of-range parameters, or format errors.
  */
 void Globals::parse_args(int argc, char ** argv) {
@@ -316,31 +316,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max cluster iterations must be positive");
             }
 /**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-md" || 
-                std::string(argv[i]) == "--max-dist") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--max-dist' used without providing maximum alignment distance");
-            }
-            try {
-                this->max_dist = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid maximum alignment distance provided");
-            }
-/**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-mr" || 
-                std::string(argv[i]) == "--max-retries") {
-            i++;
-            if (i == argc) {
-                ERROR("Option '--max-retries' used without providing maximum retries");
-            }
-            try {
-                this->max_retries = std::stoi(argv[i++]);
-            } catch (const std::exception & e) {
-                ERROR("Invalid maximum alignment retries provided");
-            }
-/**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-s" || 
+        } else if (std::string(argv[i]) == "-s" ||
                 std::string(argv[i]) == "--max-supercluster-size") {
             i++;
             if (i == argc) ERROR("Option '-s' used without providing max supercluster size");
@@ -507,10 +483,6 @@ void Globals::print_usage() const
     printf("\n  Precision-Recall:\n");
     printf("  -ct, --credit-threshold <FLOAT> [%.2f]\n", this->credit_threshold);
     printf("      minimum partial credit to consider a variant a true positive\n");
-    printf("  -md, --max-dist <INTEGER> [%d]\n", this->max_dist);
-    printf("      maximum alignment edit distance allowed for each supercluster\n");
-    /* printf("  -mr, --max-retries <INTEGER> [%d]\n", g.max_retries); */
-    /* printf("      maximum retries for aligning each supercluster after removing each large variant\n"); */
 
     printf("\n  Resource Usage:\n");
     printf("  -t, --max-threads <INTEGER> [%d]\n", this->max_threads);

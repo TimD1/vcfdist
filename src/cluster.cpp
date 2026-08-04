@@ -613,8 +613,8 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
             // calculate memory usage
             int FRAG_FACTOR = 2;
-            size_t mem = (max_lens[QUERY] + max_lens[TRUTH]) * (sizeof(uint32_t) + sizeof(int)) * 
-                g.max_dist * FRAG_FACTOR;
+            size_t mem = (max_lens[QUERY] + max_lens[TRUTH]) * (sizeof(uint32_t) + sizeof(int)) *
+                g.max_size * FRAG_FACTOR;
             double mem_gb = mem / (1000.0 * 1000.0 * 1000.0);
             if (mem_gb > g.max_ram) {
                 WARN("Max (%.3fGB) RAM exceeded (%.3fGB req) for supercluster %d, running anyways. Lower --max-supercluster-size if this fails.", 

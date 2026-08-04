@@ -48,8 +48,6 @@ public:
 
     // precision-recall
     double credit_threshold = 0.98; ///< Minimum partial credit to count a variant as TP
-    int max_dist = 100;             ///< Maximum alignment edit distance per supercluster
-    int max_retries = 0;            ///< Maximum retries for alignment after removing large variants
 
     // memory params
     int max_threads = 64;          ///< Maximum number of threads to use

@@ -40,8 +40,10 @@ public:
     int tnodes;                     ///< each tvector is of size tnodes
     std::vector<std::string> tseqs; ///< seq data for each truth node (e.g. "ACCCGT")
     std::vector<int> tbegs;         ///< reference start position
+    std::vector<int> tends;         ///< reference end position
     std::vector<int> ttypes;        ///< truth node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> tidxs;         ///< store truth variant indices (-1 for TYPE_REF)
+    std::vector<int> tskips;        ///< truth variant idx this bypass node skips (-1 if not a bypass)
 
     // set during second pass of graph init
     std::vector< std::vector<int> > qprevs; ///< directed pointers to prev query nodes
