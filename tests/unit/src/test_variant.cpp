@@ -2,14 +2,7 @@
  * @file test_variant.cpp
  * @brief Unit tests for variant.cpp: genotype, allele-count, and variant-type logic.
  */
-#include <fcntl.h>
-#include <unistd.h>
-
-#include <cstdio>
-#include <fstream>
 #include <memory>
-#include <sstream>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -180,112 +173,6 @@ TEST(ProvenanceVectorDefaults, UnknownSentinels) {
 
 /* parse-time filtering, counters, and summary warnings *******************************************/
 
-/** @brief Parsed variants plus everything parse_variants() reported to stderr. */
-struct ParseResult {
-    std::shared_ptr<variantData> vars; ///< Variants that survived parse-time filtering
-    std::string log;                   ///< All INFO/WARN output from parse_variants()
-    std::string out_vcf;               ///< VCF written from the surviving variants
-};
-
-/**
- * @brief Builds a single-sample VCF record line on chr1 with phase set 1.
- * @param[in] pos 1-based VCF position
- * @param[in] ref REF allele
- * @param[in] alt ALT allele
- * @param[in] gt GT field value (e.g. "1|0", "1|.", ".|.")
- * @return One tab-separated VCF data line, without a trailing newline
- */
-std::string record(int pos, const std::string & ref, const std::string & alt,
-        const std::string & gt) {
-    return "chr1\t" + std::to_string(pos) + "\t.\t" + ref + "\t" + alt +
-        "\t50\tPASS\t.\tGT:PS\t" + gt + ":1";
-}
-
-/**
- * @brief Reads an entire file into a string.
- * @param[in] fn Input filename
- * @return File contents, or an empty string if the file cannot be opened
- */
-std::string read_text(const std::string & fn) {
-    std::ifstream in(fn);
-    std::ostringstream text;
-    text << in.rdbuf();
-    return text.str();
-}
-
-/**
- * @class StderrToFile
- * @brief Redirects the C `stderr` stream to a file for the object's lifetime.
- *
- * WARN() and INFO() reach stderr through fprintf(), so capturing the summary means redirecting
- * the underlying file descriptor; swapping std::cerr's streambuf would not intercept it.
- * Restoring in the destructor keeps a failed assertion from leaving stderr pointing into the
- * temporary directory after TempDir has deleted it.
- */
-class StderrToFile {
-public:
-    /** @brief Redirects stderr to fn, truncating any existing contents. */
-    explicit StderrToFile(const std::string & fn)
-            : saved_fd(dup(fileno(stderr))),
-              file_fd(open(fn.data(), O_WRONLY | O_CREAT | O_TRUNC, 0644)) {
-        // throw rather than redirect nowhere: a silent failure would empty the captured log and
-        // fail every assertion on it, hiding the real cause behind unrelated mismatches
-        if (saved_fd < 0 || file_fd < 0) {
-            if (saved_fd >= 0) close(saved_fd);
-            if (file_fd >= 0) close(file_fd);
-            throw std::runtime_error("StderrToFile: could not redirect stderr to " + fn);
-        }
-        std::fflush(stderr);
-        dup2(file_fd, fileno(stderr));
-    }
-
-    /** @brief Flushes the redirected output and restores the original stderr. */
-    ~StderrToFile() {
-        std::fflush(stderr);
-        dup2(saved_fd, fileno(stderr));
-        close(saved_fd);
-        close(file_fd);
-    }
-
-    StderrToFile(const StderrToFile &) = delete;
-    StderrToFile & operator=(const StderrToFile &) = delete;
-
-private:
-    int saved_fd; ///< Duplicate of the original stderr descriptor
-    int file_fd;  ///< Descriptor of the redirect target
-};
-
-/**
- * @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF.
- * @param[in] dir Temporary directory owning the fixture and captured output
- * @param[in] records VCF data lines, without trailing newlines
- * @return Surviving variants, captured log output, and the VCF written from those variants
- * @note The written VCF stands in for summary.vcf: both are generated from the variants that
- *       survive parse-time filtering, so a variant absent here is absent from summary.vcf.
- */
-ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records) {
-    vcf_opts opts;
-    opts.sample = "QUERY";
-    opts.contigs = {"##contig=<ID=chr1,length=1000>"};
-    const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
-    const std::string log_fn = dir.path("parse.log");
-    const std::string out_fn = dir.path("out.vcf");
-
-    ParseResult result;
-    result.vars = std::make_shared<variantData>();
-    std::shared_ptr<fastaData> ref = make_fasta("chr1", std::string(1000, 'A'));
-
-    { // stderr is redirected for the parse alone, so the INFO/WARN summary can be asserted on
-        StderrToFile redirect(log_fn);
-        parse_variants(vcf_fn, result.vars, ref, QUERY);
-    }
-
-    result.log = read_text(log_fn);
-    result.vars->write_vcf(out_fn);
-    result.out_vcf = read_text(out_fn);
-    return result;
-}
-
 /**
  * @brief Counts variants that survived parsing on one haplotype of chr1.
  * @param[in] r Result of parse_records()
@@ -313,16 +200,6 @@ int total_kept(const ParseResult & r) {
  */
 bool wrote_pos(const ParseResult & r, int pos) {
     return r.out_vcf.find("\nchr1\t" + std::to_string(pos) + "\t") != std::string::npos;
-}
-
-/**
- * @brief Reports whether the log contains a substring.
- * @param[in] r Result of parse_records()
- * @param[in] text Substring to search for
- * @return True if the log contains the substring
- */
-bool logged(const ParseResult & r, const std::string & text) {
-    return r.log.find(text) != std::string::npos;
 }
 
 /**
