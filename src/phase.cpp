@@ -284,7 +284,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
 void phaseblockData::fix_phase_set_tags() {
 
     for (int ci = 0; ci < CALLSETS; ci++) {
-        int total_phase_sets = 0;
+        // one span is recorded per phase set, so its count is the phase set count
         std::vector<int> phase_set_sizes;
 
         for (size_t ctg_idx = 0; ctg_idx < this->contigs.size(); ctg_idx++) { // for each contig
@@ -304,7 +304,6 @@ void phaseblockData::fix_phase_set_tags() {
             // exit early if this contig has no phase sets
             if (first_phase_set == 0) {
                 phase_set_sizes.push_back(this->lengths[ctg_idx]);
-                total_phase_sets++;
                 continue;
             } else { // set phase set up until first PS
                 for (int vi = 0; vi < vars->n; vi++) {
@@ -324,8 +323,7 @@ void phaseblockData::fix_phase_set_tags() {
                         phase_set = vars->phase_sets[vi];
                         ps_beg = vars->poss[vi];
                         ps_end = vars->poss[vi] + vars->rlens[vi];
-                        total_phase_sets++;
-                    } else { // same 
+                    } else { // same
                         ps_end = std::max(ps_end, vars->poss[vi] + vars->rlens[vi]);
                     }
                 } else { // set unphased variant phase set to current phase set
@@ -336,7 +334,6 @@ void phaseblockData::fix_phase_set_tags() {
 
             // add final phase set on contig
             phase_set_sizes.push_back(ps_end - ps_beg);
-            total_phase_sets++;
         }
 
         // calculate phaseset NG50
@@ -347,8 +344,8 @@ void phaseblockData::fix_phase_set_tags() {
 
         int pb_ng50 = calc_ng50(phase_set_sizes, total_bases);
 
-        if (g.verbosity >= 1) INFO("               %s phase sets: %d",
-                callset_strs[ci].data(), total_phase_sets);
+        if (g.verbosity >= 1) INFO("               %s phase sets: %zu",
+                callset_strs[ci].data(), phase_set_sizes.size());
         if (g.verbosity >= 1) INFO("         %s phase block NG50: %d", 
                 callset_strs[ci].data(), pb_ng50);
         if (g.verbosity >= 1) INFO("              %s total bases: %zu", 
