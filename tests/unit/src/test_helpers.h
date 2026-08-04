@@ -16,6 +16,7 @@
 #include "../../../src/dist.h"
 #include "../../../src/fasta.h"
 #include "../../../src/globals.h"
+#include "../../../src/phase.h"
 #include "../../../src/variant.h"
 
 /* Global state fixture ***************************************************************************/
@@ -338,6 +339,20 @@ std::shared_ptr<ctgSuperclusters> make_ctgSuperclusters(std::shared_ptr<ctgVaria
 
 /** @brief Builds a superclusterData over the given contigs, bypassing clustering. */
 std::shared_ptr<superclusterData> make_superclusterData(
+        const std::vector<std::string> & contigs, const std::vector<int> & lengths,
+        const std::vector<int> & ploidy,
+        const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,
+        std::shared_ptr<fastaData> ref = nullptr);
+
+/**
+ * @brief Builds a phaseblockData over the given contigs, bypassing the phasing pipeline.
+ *
+ * The real constructor runs fix_phase_set_tags(), phase(), and fix_allele_counts(), each of which
+ * would overwrite the calculated genotypes, error types, and allele count error types a test set
+ * by hand. It is therefore invoked over empty per-contig containers, and the caller's populated
+ * ones are substituted afterwards.
+ */
+std::unique_ptr<phaseblockData> make_phaseblockData(
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
         const std::vector<int> & ploidy,
         const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,

@@ -259,21 +259,24 @@ void print_wfa_ptrs(
 
 
 /**
- * @brief Computes precision/recall statistics across all variant types and quality thresholds,
- *        writes full per-threshold results and summary table to TSV files, and prints to console.
+ * @brief Tallies query and truth variant counts at each quality threshold, across all contigs.
  * @param[in] phasedata_ptr Phase block data with evaluated query and truth variants
- * @throws ERROR if an output precision-recall TSV file cannot be opened for writing
+ * @param[in] min_qual Lowest quality threshold in the sweep, inclusive
+ * @param[in] max_qual Highest quality threshold in the sweep, inclusive
+ * @return Query and truth counts, indexed by variant type, error type, and quality threshold
+ * @throws WARNING if a variant on a haplotype was never assigned an error type
  */
-void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_ptr) {
+pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata_ptr,
+        int min_qual, int max_qual) {
 
     // for each class, store variant counts above each quality threshold
     // init counters; ax0: SNP/INDEL/SV/ALL, ax1: TP,FP,FN ax2: QUAL
     std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
-            std::vector< std::vector<float> >(ERRTYPES, 
-            std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
+            std::vector< std::vector<float> >(ERRTYPES,
+            std::vector<float>(max_qual-min_qual+1, 0.0))) ;
     std::vector< std::vector< std::vector<float> > > truth_counts(VARTYPES,
-            std::vector< std::vector<float> >(ERRTYPES, 
-            std::vector<float>(g.max_qual-g.min_qual+1, 0.0))) ;
+            std::vector< std::vector<float> >(ERRTYPES,
+            std::vector<float>(max_qual-min_qual+1, 0.0))) ;
 
     // calculate summary statistics
     for (const std::string & ctg : phasedata_ptr->contigs) {
@@ -294,20 +297,20 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                         WARN("Unknown error type at QUERY %s:%d", ctg.data(), qvars->poss[vi]);
                         continue;
                     }
-                    for (int qual = g.min_qual; qual <= q; qual++) {
-                        query_counts[vartype][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
-                        query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-g.min_qual]++;
+                    for (int qual = min_qual; qual <= q; qual++) {
+                        query_counts[vartype][ qvars->errtypes[calc_hi][vi] ][qual-min_qual]++;
+                        query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-min_qual]++;
                     }
                 } else { // variant not present on this haplotype
                     // NOTE: custom logic for incorrect original allele count
                     // orig_gt is 1|0 (query), calc_gt (~truth) was 1|1, forced back to 0|1
                     // the extra 1 allele probably participated in a truth match, so decrement truth
                     if (qvars->ac_errtype[vi] == AC_ERR_2_TO_1) {
-                        for (int qual = g.min_qual; qual <= q; qual++) {
-                            truth_counts[vartype][ERRTYPE_TP][qual-g.min_qual]--;
-                            truth_counts[VARTYPE_ALL][ERRTYPE_TP][qual-g.min_qual]--;
-                            truth_counts[vartype][ERRTYPE_FN][qual-g.min_qual]++;
-                            truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
+                        for (int qual = min_qual; qual <= q; qual++) {
+                            truth_counts[vartype][ERRTYPE_TP][qual-min_qual]--;
+                            truth_counts[VARTYPE_ALL][ERRTYPE_TP][qual-min_qual]--;
+                            truth_counts[vartype][ERRTYPE_FN][qual-min_qual]++;
+                            truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-min_qual]++;
                         }
                     }
                 }
@@ -326,17 +329,37 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                 }
                 // corresponding query call is only correct until its Qscore, after which it falls below
                 // the quality threshold, is filtered, and becomes a false negative
-                for (int qual = g.min_qual; qual <= q; qual++) {
-                    truth_counts[vartype][ tvars->errtypes[hi][vi] ][qual-g.min_qual]++;
-                    truth_counts[VARTYPE_ALL][ tvars->errtypes[hi][vi] ][qual-g.min_qual]++;
+                for (int qual = min_qual; qual <= q; qual++) {
+                    truth_counts[vartype][ tvars->errtypes[hi][vi] ][qual-min_qual]++;
+                    truth_counts[VARTYPE_ALL][ tvars->errtypes[hi][vi] ][qual-min_qual]++;
                 }
-                for (int qual = q+1; qual <= g.max_qual; qual++) {
-                    truth_counts[vartype][ERRTYPE_FN][qual-g.min_qual]++;
-                    truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-g.min_qual]++;
+                for (int qual = q+1; qual <= max_qual; qual++) {
+                    truth_counts[vartype][ERRTYPE_FN][qual-min_qual]++;
+                    truth_counts[VARTYPE_ALL][ERRTYPE_FN][qual-min_qual]++;
                 }
             }
         }
     }
+
+    return pr_counts{std::move(query_counts), std::move(truth_counts)};
+}
+
+
+/**************************************************************************************************/
+
+
+/**
+ * @brief Computes precision/recall statistics across all variant types and quality thresholds,
+ *        writes full per-threshold results and summary table to TSV files, and prints to console.
+ * @param[in] phasedata_ptr Phase block data with evaluated query and truth variants
+ * @throws ERROR if an output precision-recall TSV file cannot be opened for writing
+ */
+void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_ptr) {
+
+    // tally variant counts above each quality threshold
+    pr_counts counts = tally_counts_by_qual(phasedata_ptr, g.min_qual, g.max_qual);
+    const std::vector< std::vector< std::vector<float> > > & query_counts = counts.query;
+    const std::vector< std::vector< std::vector<float> > > & truth_counts = counts.truth;
 
     // write results
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";

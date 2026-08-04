@@ -5,7 +5,9 @@
 #ifndef _PRINT_H_
 #define _PRINT_H_
 
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "globals.h"
 #include "phase.h"
@@ -74,6 +76,22 @@ void print_wfa_ptrs(
         int s,
         const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
         const std::vector< std::vector< std::vector<int> > > & offs);
+
+/**
+ * @struct pr_counts
+ * @brief Variant counts for each callset, error type, and quality threshold.
+ */
+struct pr_counts {
+    /// query counts; ax0: SNP/INDEL/SV/ALL, ax1: TP/FP/FN, ax2: QUAL - min_qual
+    std::vector< std::vector< std::vector<float> > > query;
+
+    /// truth counts; ax0: SNP/INDEL/SV/ALL, ax1: TP/FP/FN, ax2: QUAL - min_qual
+    std::vector< std::vector< std::vector<float> > > truth;
+};
+
+/** @brief Tallies query and truth variant counts at each quality threshold, across all contigs. */
+pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata_ptr,
+        int min_qual, int max_qual);
 
 /** @brief Writes precision-recall TSV results and prints console summary. */
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr);
