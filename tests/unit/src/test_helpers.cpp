@@ -331,13 +331,23 @@ void parse_unredirected(const TempDir & dir, const std::vector<std::string> & re
 }
 
 /**
+ * @brief Reports whether a captured log contains a substring.
+ * @param[in] log Captured INFO/WARN output
+ * @param[in] text Substring to search for
+ * @return True if the log contains the substring
+ */
+bool logged(const std::string & log, const std::string & text) {
+    return log.find(text) != std::string::npos;
+}
+
+/**
  * @brief Reports whether the captured log contains a substring.
  * @param[in] r Result of parse_records()
  * @param[in] text Substring to search for
  * @return True if the log contains the substring
  */
 bool logged(const ParseResult & r, const std::string & text) {
-    return r.log.find(text) != std::string::npos;
+    return logged(r.log, text);
 }
 
 /**

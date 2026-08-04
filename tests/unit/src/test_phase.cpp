@@ -71,11 +71,6 @@ struct pipeline_result {
     std::string log;                      ///< All INFO/WARN output from the construction
 };
 
-/** @brief Reports whether a captured log contains a substring. */
-bool has(const std::string & log, const std::string & text) {
-    return log.find(text) != std::string::npos;
-}
-
 /**
  * @brief Builds query variants SPACING bases apart whose genotypes yield the requested phasings.
  *
@@ -510,7 +505,7 @@ TEST(FixPhaseSetTags, NewPsSpanReset) {
     pipeline_result result = run_pipeline(dir,
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {1, 1, 2, 2}), nullptr,
             202);
-    EXPECT_TRUE(has(result.log, "QUERY phase block NG50: 101")) << result.log;
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 101")) << result.log;
 }
 
 TEST(FixPhaseSetTags, SamePsExtendsEnd) {
@@ -525,7 +520,7 @@ TEST(FixPhaseSetTags, SamePsExtendsEnd) {
 
     // the span is 0-301, so NG50 is 301 against 602 total bases; taking the last variant's end
     // instead of the running maximum would give 201
-    EXPECT_TRUE(has(result.log, "QUERY phase block NG50: 301")) << result.log;
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 301")) << result.log;
 }
 
 TEST(FixPhaseSetTags, FinalSpanPushed) {
@@ -537,7 +532,7 @@ TEST(FixPhaseSetTags, FinalSpanPushed) {
     // would be no block at all and the reported NG50 would be 0
     pipeline_result result = run_pipeline(dir,
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}), nullptr, 402);
-    EXPECT_TRUE(has(result.log, "QUERY phase block NG50: 201")) << result.log;
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 201")) << result.log;
 }
 
 TEST(FixPhaseSetTags, PhaseSetCountOverCounted) {
@@ -551,8 +546,8 @@ TEST(FixPhaseSetTags, PhaseSetCountOverCounted) {
     // which is why the empty truth callset below reports one.
     pipeline_result result = run_pipeline(dir,
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {1, 1, 2, 2}));
-    EXPECT_TRUE(has(result.log, "QUERY phase sets: 3")) << result.log;
-    EXPECT_TRUE(has(result.log, "TRUTH phase sets: 1")) << result.log;
+    EXPECT_TRUE(logged(result.log, "QUERY phase sets: 3")) << result.log;
+    EXPECT_TRUE(logged(result.log, "TRUTH phase sets: 1")) << result.log;
 }
 
 TEST(FixPhaseSetTags, BothCallsets) {
@@ -577,12 +572,12 @@ TEST(FixPhaseSetTags, Ng50Reported) {
 
     // phase set count, NG50, and total bases are reported for both callsets
     pipeline_result result = run_pipeline(dir, make_qvars({PHASE_ORIG, PHASE_ORIG}));
-    EXPECT_TRUE(has(result.log, "QUERY phase sets:"));
-    EXPECT_TRUE(has(result.log, "QUERY phase block NG50:"));
-    EXPECT_TRUE(has(result.log, "QUERY total bases:"));
-    EXPECT_TRUE(has(result.log, "TRUTH phase sets:"));
-    EXPECT_TRUE(has(result.log, "TRUTH phase block NG50:"));
-    EXPECT_TRUE(has(result.log, "TRUTH total bases:"));
+    EXPECT_TRUE(logged(result.log, "QUERY phase sets:"));
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50:"));
+    EXPECT_TRUE(logged(result.log, "QUERY total bases:"));
+    EXPECT_TRUE(logged(result.log, "TRUTH phase sets:"));
+    EXPECT_TRUE(logged(result.log, "TRUTH phase block NG50:"));
+    EXPECT_TRUE(logged(result.log, "TRUTH total bases:"));
 }
 
 TEST(FixPhaseSetTags, ContigIndexNotAdvancedWhenUnphased) {
@@ -603,7 +598,7 @@ TEST(FixPhaseSetTags, ContigIndexNotAdvancedWhenUnphased) {
     second.qvars = make_ctgVariants("chr2", {});
     second.length = 500;
     pipeline_result result = run_pipeline(dir, {first, second});
-    EXPECT_TRUE(has(result.log, "QUERY phase block NG50: 0"));
+    EXPECT_TRUE(logged(result.log, "QUERY phase block NG50: 0"));
 }
 
 /* fix_allele_counts() ****************************************************************************/
@@ -771,7 +766,7 @@ TEST(FixAlleleCounts, TruthFn2To0) {
     set_hap_data(tvars, HAP1, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     set_hap_data(tvars, HAP2, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
-    EXPECT_TRUE(has(result.log, "1/1 -> 0/0: 1 "));
+    EXPECT_TRUE(logged(result.log, "1/1 -> 0/0: 1 "));
 }
 
 TEST(FixAlleleCounts, TruthFn1To0Hap1) {
@@ -783,7 +778,7 @@ TEST(FixAlleleCounts, TruthFn1To0Hap1) {
             {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1}});
     set_hap_data(tvars, HAP1, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
-    EXPECT_TRUE(has(result.log, "0/1 -> 0/0: 1 "));
+    EXPECT_TRUE(logged(result.log, "0/1 -> 0/0: 1 "));
 }
 
 TEST(FixAlleleCounts, TruthFn1To0Hap2) {
@@ -793,7 +788,7 @@ TEST(FixAlleleCounts, TruthFn1To0Hap2) {
             {{0, 1, TYPE_SUB, "A", "C", GT_REF_ALT1, 60, 1}});
     set_hap_data(tvars, HAP2, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
-    EXPECT_TRUE(has(result.log, "0/1 -> 0/0: 1 "));
+    EXPECT_TRUE(logged(result.log, "0/1 -> 0/0: 1 "));
 }
 
 TEST(FixAlleleCounts, TruthLoopBound) {
@@ -811,7 +806,7 @@ TEST(FixAlleleCounts, TruthLoopBound) {
     set_hap_data(tvars, HAP1, 2, ERRTYPE_FN, 0, 0, 1, 1, 0);
     set_hap_data(tvars, HAP2, 2, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
-    EXPECT_TRUE(has(result.log, "1/1 -> 0/0: 1 "));
+    EXPECT_TRUE(logged(result.log, "1/1 -> 0/0: 1 "));
 }
 
 /* calculate_ng50() *******************************************************************************/

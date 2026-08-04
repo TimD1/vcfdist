@@ -222,6 +222,9 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
 void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
         const vcf_opts & opts, int callset = QUERY);
 
+/** @brief Reports whether a captured log contains a substring. */
+bool logged(const std::string & log, const std::string & text);
+
 /** @brief Reports whether the captured log contains a substring. */
 bool logged(const ParseResult & r, const std::string & text);
 
