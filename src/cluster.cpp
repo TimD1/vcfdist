@@ -72,6 +72,10 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
  *
  * On a non-empty contig the merged callset ends up with nc-1 variant-holding clusters plus a
  * trailing sentinel starting at n, so nc counts the sentinel and equals clusters.size().
+ * A contig where this callset holds no variants still gets a single trailing boundary, leaving
+ * nc at 0 as wf_swg_cluster() does, so `clusters` is never empty and `clusters[0]` is always
+ * readable. Callers rely on that because a contig is superclustered whenever *either* callset has
+ * variants there.
  * @param[in] callset The variant callset that is being added, either TRUTH or QUERY.
  * @param[in] vars For each haplotype, a mapping from contig names to ctgVariants.
  * @throws ERROR if no variants are present on the contig.
@@ -87,10 +91,11 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
         // merge variants from each haplotype for this ctg/callset
         std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
 
-        // skip empty contigs
+        // skip empty contigs, keeping the trailing boundary that supercluster() reads
         int nvars = 0;
         for (int h = 0; h < HAPS; h++) nvars += vars[h][ctg]->n;
         if (!nvars) {
+            merged_vars->clusters.push_back(0);
             this->superclusters[ctg]->callset_vars[callset] = merged_vars;
             continue;
         }
@@ -587,11 +592,12 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
     for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
         std::string ctg = sc_data->contigs[ctg_idx];
         std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
-        std::shared_ptr<ctgVariants> qvars = sc_data->superclusters[ctg]->callset_vars[QUERY];
-        std::shared_ptr<ctgVariants> tvars = sc_data->superclusters[ctg]->callset_vars[TRUTH];
-        if (!qvars->n) continue;
-        // superclusters are numbered 0...n-1, so we need +1 to get the total count
-        int nscs =  std::max(qvars->superclusters[qvars->n-1], tvars->superclusters[tvars->n-1]) + 1;
+        // superclusters are numbered 0...n-1, so we need +1; a variant-free callset contributes none
+        int nscs = 0;
+        for (int c = 0; c < CALLSETS; c++) {
+            std::shared_ptr<ctgVariants> vars = ctg_scs->callset_vars[c];
+            if (vars->n) nscs = std::max(nscs, vars->superclusters[vars->n-1] + 1);
+        }
 
         for (int sc_idx = 0; sc_idx < nscs; sc_idx++) {
 
