@@ -255,6 +255,26 @@ TEST(GenerateStr, MissingContigErrors) {
             testing::ExitedWithCode(1), "not in reference FASTA");
 }
 
+TEST(GenerateStr, PosPastContigEndErrors) {
+    GlobalsGuard guard;
+    auto ref = make_fasta("chr1", "ACGTACGT");
+    auto vars = make_ctgVariants("chr1", {});
+
+    // the contig is present, so the position is named rather than blamed on the contig (#167)
+    EXPECT_EXIT(generate_str(ref, vars, "chr1", 0, 0, 10, 12),
+            testing::ExitedWithCode(1), "Position 10 out of range on contig 'chr1' of length 8");
+}
+
+TEST(GenerateStr, NegativePosErrors) {
+    GlobalsGuard guard;
+    auto ref = make_fasta("chr1", "ACGTACGT");
+    auto vars = make_ctgVariants("chr1", {});
+
+    // a negative position would otherwise convert to a huge size_t inside substr() (#167)
+    EXPECT_EXIT(generate_str(ref, vars, "chr1", 0, 0, -1, 2),
+            testing::ExitedWithCode(1), "Position -1 out of range on contig 'chr1' of length 8");
+}
+
 /* wf_ed ******************************************************************************************/
 
 TEST(WfEd, Identical) {
@@ -948,6 +968,31 @@ TEST(GraphCtor, QuerySnpNodeLayout) {
     ASSERT_EQ(1, f.graph->tnodes);
     EXPECT_EQ("_CGTA", f.graph->tseqs[0]);
     EXPECT_EQ(-1, f.graph->tskips[0]);
+}
+
+TEST(GraphCtor, ContigStartRefSpanClamped) {
+    // A variant at position 0 has no base to its left, so ref_beg clamps to 0 instead of -1 and
+    // the constructor no longer slices the reference at a negative offset (#167).
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+
+    EXPECT_EQ("ACG", f.graph->ref);
+    EXPECT_EQ(std::vector<int>({0, 0, 1}), f.graph->qbegs);
+    EXPECT_EQ(std::vector<int>({1, 1, 3}), f.graph->qends);
+}
+
+TEST(GraphCtor, ContigStartHasNoLeftFlankNode) {
+    // Away from the contig start the first node is the one-base left flank (QuerySnpNodeLayout).
+    // At position 0 that node cannot exist, so the graph opens directly on the variant and its
+    // parallel reference allele, which no edge reaches from node 0.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+
+    ASSERT_EQ(3, f.graph->qnodes);
+    EXPECT_EQ(std::vector<std::string>({"_G", "_A", "_CG"}), f.graph->qseqs);
+    EXPECT_EQ(std::vector<int>({TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    EXPECT_TRUE(f.graph->qprevs[0].empty());
+    EXPECT_TRUE(f.graph->qprevs[1].empty()) << "the reference allele is unreachable from node 0";
 }
 
 TEST(GraphCtor, QueryVariantHasParallelRefAllele) {

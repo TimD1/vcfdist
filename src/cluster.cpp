@@ -35,10 +35,11 @@ ctgSuperclusters::ctgSuperclusters() {
  */
 int ctgSuperclusters::get_min_ref_pos(int qvi_start, int qvi_end, int tvi_start, int tvi_end) {
     // NOTE: qvi_start == qvi_end == vars->n is valid (empty sentinel), should return int::max
-    return std::min( (qvi_start == qvi_end) ? std::numeric_limits<int>::max() : 
-                this->callset_vars[QUERY]->poss[qvi_start], 
+    // the -1 flank is clamped, since a variant at position 0 has no base left of it (#167)
+    return std::max(0, std::min( (qvi_start == qvi_end) ? std::numeric_limits<int>::max() :
+                this->callset_vars[QUERY]->poss[qvi_start],
             (tvi_start == tvi_end) ? std::numeric_limits<int>::max() :
-                this->callset_vars[TRUTH]->poss[tvi_start]) - 1;
+                this->callset_vars[TRUTH]->poss[tvi_start]) - 1);
 }
 
 /**
@@ -753,7 +754,7 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
             if (left_compute) { // calculate left reach
                 std::string query, ref;
 
-                // just after last variant in this cluster
+                // just before first variant in this cluster; only seeds ref_len, clamped below
                 int beg_pos = vars->poss[vars->clusters[clust]]-1;
                 int end_pos = vars->poss[vars->clusters[clust+1]-1] +
                         vars->rlens[vars->clusters[clust+1]-1]+1;
@@ -776,7 +777,9 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
                                 vars->clusters[clust], 
                                 vars->clusters[clust+1], 
                                 beg_pos, end_pos);
-                    ref = vcf->ref->fasta.at(ctg).substr(std::max(0, end_pos-ref_len), ref_len);
+                    // clamp the length too, else a window overhanging the contig start reads right of end_pos
+                    ref = vcf->ref->fasta.at(ctg).substr(std::max(0, end_pos-ref_len),
+                            std::min(ref_len, end_pos));
                     std::reverse(query.begin(), query.end());
                     std::reverse(ref.begin(), ref.end());
                     // manage buffer for storing offsets, clamped so two empty strings give 0
@@ -797,7 +800,9 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
                         break;
                 }
                 if (print) printf("    left reach: %d\n", reach);
-                l_reach = end_pos - reach;
+                // reach is an index, so end_pos-reach names the base right of the leftmost reached;
+                // saturating the window means the contig start was reached, which has no base left of it
+                l_reach = (reach == end_pos-1) ? 0 : end_pos - reach;
                 left_reach[clust] = l_reach;
 
                 if (print) {
@@ -814,8 +819,8 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
             if (right_compute) { // calculate right reach
                 std::string query, ref;
 
-                // right before current cluster
-                int beg_pos = vars->poss[vars->clusters[clust]]-1;
+                // right before current cluster, clamped to the contig start
+                int beg_pos = std::max(0, vars->poss[vars->clusters[clust]]-1);
                 int end_pos = vars->poss[vars->clusters[clust+1]-1] +
                         vars->rlens[vars->clusters[clust+1]-1]+1;
 

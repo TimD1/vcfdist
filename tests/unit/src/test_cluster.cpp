@@ -106,6 +106,24 @@ TEST(GetMinRefPos, UsesStartIndexOnly) {
     EXPECT_NE(4, sc->get_min_ref_pos(0, 2, 0, 0));
 }
 
+TEST(GetMinRefPos, ContigStartClamped) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants("chr1", {{0, 1, TYPE_SUB, "A", "C"}});
+    std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
+
+    // the -1 flank is clamped away, since Graph() slices the reference from this offset (#167)
+    EXPECT_EQ(0, sc->get_min_ref_pos(0, 1, 0, 0));
+}
+
+TEST(GetMinRefPos, ContigStartClampDoesNotHideSentinel) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgSuperclusters> sc =
+            make_ctgSuperclusters(make_empty_callset(), make_empty_callset());
+
+    // clamping the low end must leave the empty-range sentinel untouched
+    EXPECT_EQ(INT_MAXIMUM - 1, sc->get_min_ref_pos(0, 0, 0, 0));
+}
+
 TEST(GetMinRefPos, Tie) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants("chr1", {{30, 1, TYPE_SUB, "A", "C"}});
@@ -1860,17 +1878,43 @@ TEST(WfSwgCluster, ContigEdgeClamp) {
     }
 }
 
-TEST(WfSwgCluster, ContigStartPosZeroErrors) {
+TEST(WfSwgCluster, ContigStartSub) {
     GlobalsGuard guard;
     set_cluster_params();
 
-    // a variant at reference position 0 makes the right-reach window start at poss[0]-1 == -1
+    // both reach windows open one base left of the first variant, which is -1 here (#167)
     std::shared_ptr<variantData> vcf = make_cluster_input({0});
 
-    // the left-reach window clamps that start with std::max(0, ...) but the right-reach window
-    // does not, so the negative start reaches generate_str() and substr() rejects it
-    EXPECT_EXIT(wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend),
-            testing::ExitedWithCode(1), "position out of range");
+    wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+    // the span is the substituted base alone, as it is for SingleVariant at position 200
+    std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+    EXPECT_EQ(1, vars->nc);
+    EXPECT_EQ(std::vector<int>({0, 1}), vars->clusters);
+    EXPECT_EQ(std::vector<int>({0, INT_MAXIMUM}), vars->left_reaches);
+    EXPECT_EQ(std::vector<int>({1, INT_MAXIMUM}), vars->right_reaches);
+}
+
+TEST(WfSwgCluster, ContigStartIndels) {
+    GlobalsGuard guard;
+    set_cluster_params();
+
+    // a cluster's left reach never sits right of its own first variant, at position 0 as elsewhere
+    for (const var_desc & var : std::vector<var_desc>{{0, 0, TYPE_INS, "", "GG"},
+            {0, 2, TYPE_DEL, "", ""}, {0, 2, TYPE_CPX, "", "TCC"}}) {
+        std::string seq = pseudo_ref(400);
+        std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {400}, {2});
+        vcf->ref = make_fasta("chr1", seq);
+        var_desc v = var;
+        if (v.rlen) v.ref = seq.substr(0, v.rlen); // a DEL/CPX ref allele must match the reference
+        vcf->variants[HAP1]["chr1"] = make_ctgVariants("chr1", {v});
+
+        wf_swg_cluster(vcf.get(), 0, HAP1, g.sub, g.open, g.extend);
+
+        std::shared_ptr<ctgVariants> vars = vcf->variants[HAP1]["chr1"];
+        EXPECT_EQ(0, vars->left_reaches[0]) << "type " << int(var.type);
+        EXPECT_GT(vars->right_reaches[0], 0) << "type " << int(var.type);
+    }
 }
 
 } // namespace
