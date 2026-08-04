@@ -150,3 +150,48 @@
       must_not_contain:
         - ":TP:1.000000:2:"
         - ":FP:"
+
+# --- one-sided contigs: a contig called by only one callset (synthetic 2-contig reference) ---
+# Both scenarios share one pair of VCFs, swapped between the query and truth argument slots, so
+# each direction of "contig present in one callset only" is covered without duplicate fixtures.
+
+- name: test_one-sided-contig_query-only
+  # Regression guard for #166: sc1 is called by both callsets, sc2 by the query only. The contig
+  # is not skipped as empty (the query has variants there) but the truth callset contributes no
+  # clusters, which used to dereference an empty clusters vector and segfault during
+  # superclustering. The query call on sc2 has no truth counterpart, so it is a false positive.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_both.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_sc1only.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic_2ctg.bed"
+    -p "one_sided_contig_query_only_"'
+  files:
+    - path: one_sided_contig_query_only_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t0\t2"
+    - path: one_sided_contig_query_only_query.tsv
+      contains:
+        - "sc1\t199\t0\tA\tG\t50.00\tSNP\tTP"
+        - "sc2\t49\t0\tT\tC\t50.00\tSNP\tFP"
+        - "sc2\t49\t1\tT\tC\t50.00\tSNP\tFP"
+
+- name: test_one-sided-contig_truth-only
+  # The mirror of the case above: sc2 is called by the truth only. Superclustering used to
+  # segfault here too, and the contig was then skipped entirely when scheduling superclusters for
+  # evaluation, so its truth calls were never counted. Both sc2 haplotypes are false negatives.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_sc1only.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_both.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic_2ctg.bed"
+    -p "one_sided_contig_truth_only_"'
+  files:
+    - path: one_sided_contig_truth_only_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t2\t0"
+    - path: one_sided_contig_truth_only_truth.tsv
+      contains:
+        - "sc1\t199\t0\tA\tG\t50.00\tSNP\tTP"
+        - "sc2\t49\t0\tT\tC\t50.00\tSNP\tFN"
+        - "sc2\t49\t1\tT\tC\t50.00\tSNP\tFN"

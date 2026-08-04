@@ -854,19 +854,25 @@ void expect_no_empty_clusters(std::shared_ptr<ctgVariants> merged) {
     }
 }
 
-TEST(LoadAndMerge, EmptyContigSkipped) {
+TEST(LoadAndMerge, EmptyContigKeepsTrailingBoundary) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     auto vars = make_hap_vars(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}));
 
     sc_data->load_and_merge_callset_vars_across_haps(QUERY, vars);
 
-    // the early `continue` stores a bare container: no cluster and no trailing sentinel, unlike
-    // every non-empty contig below
+    // the early `continue` stores a container holding no cluster, but still carrying the single
+    // trailing boundary that supercluster() reads for every callset; leaving clusters empty here
+    // segfaulted on any contig the other callset had variants on (#166)
     std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
     EXPECT_EQ(0, merged->n);
     EXPECT_EQ(0, merged->nc);
-    EXPECT_TRUE(merged->clusters.empty());
+    EXPECT_EQ(std::vector<int>({0}), merged->clusters);
+    EXPECT_EQ(merged->n, merged->clusters.back()) << "boundary must start at n";
+
+    // nc stays 0, as wf_swg_cluster() also leaves it, so clusters holds nc+1 entries here while a
+    // non-empty contig counts its sentinel and holds nc; the reaches are never indexed either way
+    EXPECT_EQ(size_t(merged->nc) + 1, merged->clusters.size());
     EXPECT_TRUE(merged->left_reaches.empty());
     EXPECT_TRUE(merged->right_reaches.empty());
 }
@@ -1269,9 +1275,31 @@ TEST(Supercluster, VarCountStatGuard) {
     EXPECT_EQ(std::vector<int>({0}), tvars->clusters);
 
     // make_empty_callset() supplies the single boundary that the unguarded supercluster-assignment
-    // loops read for every callset; a callset with a genuinely empty clusters vector, which the
-    // merge's skipped-contig path produces, would be indexed out of bounds there
+    // loops read for every callset; a callset with a genuinely empty clusters vector would be
+    // indexed out of bounds there, which is why the merge now always writes this boundary (#166)
     EXPECT_FALSE(tvars->clusters.empty());
+}
+
+TEST(Supercluster, MergedEmptyCallsetSurvives) {
+    GlobalsGuard guard;
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}))});
+    std::shared_ptr<ctgVariants> qhap = make_ctgVariants("chr1",
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_ALT1}});
+    set_clusters(qhap, {0, 1}, {5}, {15});
+    auto qvars = make_hap_vars(qhap, make_ctgVariants("chr1", {}));
+    auto tvars = make_hap_vars(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}));
+
+    // unlike VarCountStatGuard above, both callsets come from the merge rather than being built by
+    // hand, so this composes the two functions the way the binary does: the truth callset is the
+    // merge's empty-contig product, and the query has variants so the contig is not skipped
+    sc_data->load_and_merge_callset_vars_across_haps(QUERY, qvars);
+    sc_data->load_and_merge_callset_vars_across_haps(TRUTH, tvars);
+    sc_data->supercluster();
+
+    EXPECT_EQ(std::vector<int>({0}),
+            sc_data->superclusters["chr1"]->callset_vars[QUERY]->superclusters);
+    EXPECT_TRUE(sc_data->superclusters["chr1"]->callset_vars[TRUTH]->superclusters.empty());
 }
 
 TEST(Supercluster, BrksAdvanceRemainder) {
@@ -1347,17 +1375,49 @@ int total_sorted(const std::vector< std::vector< std::vector<int> > > & groups) 
  * about the placement itself overrides a global.
  */
 
-TEST(SortSuperclusters, EmptyQuerySkipped) {
+TEST(SortSuperclusters, EmptyQueryStillScheduled) {
     GlobalsGuard guard;
 
-    // the truth callset holds a variant, but the skip is keyed on QUERY alone
+    // the truth callset holds a variant the query never called, so its supercluster still has to
+    // be evaluated for that call to be counted as a false negative; the count was once keyed on
+    // QUERY alone, which dropped the contig entirely (#166)
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(10, 0)});
     std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
             {make_ctgSuperclusters(make_empty_callset(), tvars)});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
-    // one bucket per scheduling step, all of them empty
+    // one bucket per scheduling step, with the truth's lone supercluster placed in the first
+    ASSERT_EQ(size_t(g.thread_nsteps), groups.size());
+    EXPECT_EQ(1, total_sorted(groups));
+    EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
+    EXPECT_EQ(std::vector<int>({0}), groups[0][CTG_IDX]);
+}
+
+TEST(SortSuperclusters, EmptyTruthStillScheduled) {
+    GlobalsGuard guard;
+
+    // the mirror case, which read the truth's supercluster lane at index n-1 == -1 (#166)
+    std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(qvars, make_empty_callset())});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
+    EXPECT_EQ(1, total_sorted(groups));
+    EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
+}
+
+TEST(SortSuperclusters, BothCallsetsEmptySkipped) {
+    GlobalsGuard guard;
+
+    // a contig can reach here with no variants on either callset, when every variant on it was
+    // filtered out; it holds no superclusters, so it must still contribute nothing
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+            {make_ctgSuperclusters(make_empty_callset(), make_empty_callset())});
+
+    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+
     ASSERT_EQ(size_t(g.thread_nsteps), groups.size());
     EXPECT_EQ(0, total_sorted(groups));
 }

@@ -12,16 +12,19 @@ look for them, so a test run leaves this directory untouched.
 
 ## Reference
 
-- `synthetic.fasta` — one 400 bp contig, `sc1` (with `synthetic.fasta.fai`).
-- `synthetic.bed` — `sc1  0  400`, the whole contig.
+- `synthetic.fasta` — a 400 bp contig `sc1` and a 100 bp contig `sc2`, which is a copy of the
+  first 100 bp of `sc1` (with `synthetic.fasta.fai`, written by `samtools faidx`).
+- `synthetic.bed` — `sc1  0  400`, the whole of `sc1`. Used by every single-contig scenario, which
+  therefore never sees `sc2`.
+- `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
 
-Every variant `REF` allele below matches `sc1` at its 1-based position, and every variant is
-homozygous (`1/1`). Summary counts are therefore per-haplotype (doubled) and are listed as
+Every variant `REF` allele below matches the reference at its 1-based position, and every variant
+is homozygous (`1/1`). Summary counts are therefore per-haplotype (doubled) and are listed as
 `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from `*precision-recall-summary.tsv`.
 
 ## Scenarios
 
-Each scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
+Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
 
 ### swallowed_snps — a large FN SV must not swallow nearby SNPs
 - truth: SNPs 140 T>C, 146 G>A, 256 G>A, and a 100 bp deletion at 150.
@@ -54,3 +57,22 @@ Each scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   the TP's reference edit distance. The fix yields `RD=1` for the TP; leaving the inner bypass
   un-excised inflates it to `RD=2`. The call stays TP (credit 1.0) either way, so `RD` is the
   field the test pins. SNP 2/2/4/0.
+
+### one_sided_contig — a contig called by only one callset (#166)
+
+This scenario uses `synthetic_2ctg.bed` and one pair of VCFs rather than a `_truth`/`_query` pair,
+because the two directions are the same inputs with the query and truth arguments swapped:
+
+- `one_sided_contig_both.vcf` — SNP `sc1` 200 A>G and SNP `sc2` 50 T>C.
+- `one_sided_contig_sc1only.vcf` — SNP `sc1` 200 A>G only.
+
+Both files declare `sc1` and `sc2` in their headers, so the contig is known to both callsets while
+only one of them calls a variant on it. `sc1` is matched in both directions and stays TP.
+
+- query-only (`both` as query): the `sc2` call has no truth counterpart. SNP 2/2/0/2.
+- truth-only (`both` as truth): the `sc2` call is missed by the query. SNP 2/2/2/0.
+
+Both directions used to segfault while superclustering, so these pin that the run completes and
+that the one-sided contig's calls are classified and counted. Note that in the truth-only
+direction the `sc2` false negatives appear in `*truth.tsv` but not in `*summary.vcf`, which skips
+any contig the query does not call on; the tests therefore pin `*truth.tsv`.
