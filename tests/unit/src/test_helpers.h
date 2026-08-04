@@ -101,6 +101,56 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
 /** @brief Returns the path of a checked-in fixture under tests/unit/data/. */
 std::string data_path(const std::string & name);
 
+/** @brief Reads an entire file into a string, yielding "" if it cannot be opened. */
+std::string read_text(const std::string & fn);
+
+/** @brief Builds a single-sample VCF record line on chr1 with phase set 1. */
+std::string record(int pos, const std::string & ref, const std::string & alt,
+        const std::string & gt);
+
+/* Parse capture **********************************************************************************/
+
+/**
+ * @class StderrToFile
+ * @brief Redirects the C `stderr` stream to a file for the object's lifetime.
+ *
+ * WARN() and INFO() reach stderr through fprintf(), so capturing the summary means redirecting
+ * the underlying file descriptor; swapping std::cerr's streambuf would not intercept it.
+ * Restoring in the destructor keeps a failed assertion from leaving stderr pointing into the
+ * temporary directory after TempDir has deleted it.
+ */
+class StderrToFile {
+public:
+    /** @brief Redirects stderr to fn, truncating any existing contents. */
+    explicit StderrToFile(const std::string & fn);
+
+    /** @brief Flushes the redirected output and restores the original stderr. */
+    ~StderrToFile();
+
+    StderrToFile(const StderrToFile &) = delete;
+    StderrToFile & operator=(const StderrToFile &) = delete;
+
+private:
+    int saved_fd; ///< Duplicate of the original stderr descriptor
+    int file_fd;  ///< Descriptor of the redirect target
+};
+
+/**
+ * @struct ParseResult
+ * @brief Parsed variants plus everything parse_variants() reported to stderr.
+ */
+struct ParseResult {
+    std::shared_ptr<variantData> vars; ///< Variants that survived parse-time filtering
+    std::string log;                   ///< All INFO/WARN output from parse_variants()
+    std::string out_vcf;               ///< VCF written from the surviving variants
+};
+
+/** @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF. */
+ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records);
+
+/** @brief Reports whether the captured log contains a substring. */
+bool logged(const ParseResult & r, const std::string & text);
+
 /* In-memory builders *****************************************************************************/
 
 /** @brief Builds a single-contig reference, bypassing the FASTA-parsing constructor. */

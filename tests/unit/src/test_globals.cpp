@@ -197,13 +197,15 @@ TEST(StringTables, SizesWithSentinel) {
     // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
     EXPECT_EQ(size_t(GT_OTHER+1), gt_strs.size());
     EXPECT_EQ(size_t(TIME_TOTAL+1), timer_strs.size());
-    EXPECT_EQ("M|N", gt_strs[GT_OTHER]);
+    EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
     EXPECT_EQ("total", timer_strs[TIME_TOTAL]);
 }
 
 TEST(StringTables, IndexMapping) {
     EXPECT_EQ("TP", error_strs[ERRTYPE_TP]);
     EXPECT_EQ("1|1", gt_strs[GT_ALT1_ALT1]);
+    EXPECT_EQ(".|.", gt_strs[GT_MISSING]);
+    EXPECT_EQ("X|.", gt_strs[GT_HALF]);
     EXPECT_EQ("SNP", type_strs[TYPE_SUB]);
     EXPECT_EQ("QUERY", callset_strs[QUERY]);
     EXPECT_EQ("TRUTH", callset_strs[TRUTH]);

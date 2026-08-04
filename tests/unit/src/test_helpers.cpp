@@ -2,11 +2,16 @@
  * @file test_helpers.cpp
  * @brief Shared unit-test scaffolding: global-state fixture, temporary files, in-memory builders.
  */
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <stdexcept>
 
 #include "test_helpers.h"
 
@@ -90,7 +95,7 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
     for (const std::string & line : opts.filters) out << line << "\n";
     for (const std::string & line : opts.formats) out << line << "\n";
     out << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" << opts.sample << "\n";
-    for (const std::string & record : records) out << record << "\n";
+    for (const std::string & rec : records) out << rec << "\n";
     out.close();
     return vcf_fn;
 }
@@ -116,6 +121,104 @@ std::string data_path(const std::string & name) {
     }
     ERROR("Unit-test fixture '%s' not found; is tests/unit/data/ tracked by git?", name.data());
     return "";
+}
+
+/**
+ * @brief Reads an entire file into a string.
+ * @param[in] fn Input filename
+ * @return File contents, or an empty string if the file cannot be opened
+ */
+std::string read_text(const std::string & fn) {
+    std::ifstream in(fn);
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
+}
+
+/**
+ * @brief Builds a single-sample VCF record line on chr1 with phase set 1.
+ * @param[in] pos 1-based VCF position
+ * @param[in] ref REF allele
+ * @param[in] alt ALT allele
+ * @param[in] gt GT field value (e.g. "1|0", "1|.", ".|.")
+ * @return One tab-separated VCF data line, without a trailing newline
+ */
+std::string record(int pos, const std::string & ref, const std::string & alt,
+        const std::string & gt) {
+    return "chr1\t" + std::to_string(pos) + "\t.\t" + ref + "\t" + alt +
+        "\t50\tPASS\t.\tGT:PS\t" + gt + ":1";
+}
+
+/* Parse capture **********************************************************************************/
+
+/**
+ * @brief Redirects stderr to fn, truncating any existing contents.
+ * @param[in] fn Path of the redirect target
+ * @throws std::runtime_error if stderr cannot be duplicated or the target cannot be opened
+ */
+StderrToFile::StderrToFile(const std::string & fn)
+        : saved_fd(dup(fileno(stderr))),
+          file_fd(open(fn.data(), O_WRONLY | O_CREAT | O_TRUNC, 0644)) {
+    // throw rather than redirect nowhere: a silent failure would empty the captured log and
+    // fail every assertion on it, hiding the real cause behind unrelated mismatches
+    if (this->saved_fd < 0 || this->file_fd < 0) {
+        if (this->saved_fd >= 0) close(this->saved_fd);
+        if (this->file_fd >= 0) close(this->file_fd);
+        throw std::runtime_error("StderrToFile: could not redirect stderr to " + fn);
+    }
+    std::fflush(stderr);
+    dup2(this->file_fd, fileno(stderr));
+}
+
+/**
+ * @brief Flushes the redirected output and restores the original stderr.
+ */
+StderrToFile::~StderrToFile() {
+    std::fflush(stderr);
+    dup2(this->saved_fd, fileno(stderr));
+    close(this->saved_fd);
+    close(this->file_fd);
+}
+
+/**
+ * @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF.
+ * @param[in] dir Temporary directory owning the fixture and captured output
+ * @param[in] records VCF data lines, without trailing newlines
+ * @return Surviving variants, captured log output, and the VCF written from those variants
+ * @note The written VCF stands in for summary.vcf: both are generated from the variants that
+ *       survive parse-time filtering, so a variant absent here is absent from summary.vcf.
+ */
+ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records) {
+    vcf_opts opts;
+    opts.sample = "QUERY";
+    opts.contigs = {"##contig=<ID=chr1,length=1000>"};
+    const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
+    const std::string log_fn = dir.path("parse.log");
+    const std::string out_fn = dir.path("out.vcf");
+
+    ParseResult result;
+    result.vars = std::make_shared<variantData>();
+    std::shared_ptr<fastaData> ref = make_fasta("chr1", std::string(1000, 'A'));
+
+    { // stderr is redirected for the parse alone, so the INFO/WARN summary can be asserted on
+        StderrToFile redirect(log_fn);
+        parse_variants(vcf_fn, result.vars, ref, QUERY);
+    }
+
+    result.log = read_text(log_fn);
+    result.vars->write_vcf(out_fn);
+    result.out_vcf = read_text(out_fn);
+    return result;
+}
+
+/**
+ * @brief Reports whether the captured log contains a substring.
+ * @param[in] r Result of parse_records()
+ * @param[in] text Substring to search for
+ * @return True if the log contains the substring
+ */
+bool logged(const ParseResult & r, const std::string & text) {
+    return r.log.find(text) != std::string::npos;
 }
 
 /* In-memory builders *****************************************************************************/
