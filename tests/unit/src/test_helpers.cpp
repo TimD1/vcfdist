@@ -156,17 +156,93 @@ std::string read_text(const std::string & fn) {
 }
 
 /**
- * @brief Builds a single-sample VCF record line on chr1 with phase set 1.
+ * @brief Builds header options for one sample, declaring each named contig with one length.
+ * @param[in] callset QUERY or TRUTH callset identifier, which names the sample
+ * @param[in] contigs Contig names to declare, in order
+ * @param[in] length Length declared for every contig
+ * @return Header options ready for write_tmp_vcf() or parse_records()
+ */
+vcf_opts make_vcf_opts(int callset, const std::vector<std::string> & contigs, int length) {
+    vcf_opts opts;
+    opts.sample = callset_strs[callset];
+    opts.contigs.clear();
+    for (const std::string & ctg : contigs) {
+        opts.contigs.push_back("##contig=<ID=" + ctg + ",length=" + std::to_string(length) + ">");
+    }
+    return opts;
+}
+
+/* Record lines ***********************************************************************************/
+
+/**
+ * @brief Joins the columns of one VCF data line with tabs.
+ * @param[in] rec Column values to join
+ * @return One tab-separated VCF data line, without a trailing newline
+ */
+std::string vcf_line(const vcf_record & rec) {
+    return rec.ctg + "\t" + std::to_string(rec.pos) + "\t" + rec.id + "\t" + rec.ref + "\t" +
+        rec.alt + "\t" + rec.qual + "\t" + rec.filter + "\t" + rec.info + "\t" + rec.format +
+        "\t" + rec.sample;
+}
+
+/**
+ * @brief Builds a data line with the given genotype, carrying QUAL 50, PASS, and phase set 1.
  * @param[in] pos 1-based VCF position
  * @param[in] ref REF allele
  * @param[in] alt ALT allele
  * @param[in] gt GT field value (e.g. "1|0", "1|.", ".|.")
+ * @param[in] ctg Contig name
  * @return One tab-separated VCF data line, without a trailing newline
  */
 std::string record(int pos, const std::string & ref, const std::string & alt,
-        const std::string & gt) {
-    return "chr1\t" + std::to_string(pos) + "\t.\t" + ref + "\t" + alt +
-        "\t50\tPASS\t.\tGT:PS\t" + gt + ":1";
+        const std::string & gt, const std::string & ctg) {
+    vcf_record rec;
+    rec.ctg = ctg;
+    rec.pos = pos;
+    rec.ref = ref;
+    rec.alt = alt;
+    rec.sample = gt + ":1";
+    return vcf_line(rec);
+}
+
+/**
+ * @brief Builds a data line carrying the given FORMAT keys and sample values.
+ * @param[in] pos 1-based VCF position
+ * @param[in] ref REF allele
+ * @param[in] alt ALT allele
+ * @param[in] format FORMAT column, such as "GT" or "GT:GQ"
+ * @param[in] sample Sample column, matching format field for field
+ * @param[in] ctg Contig name
+ * @return One tab-separated VCF data line, without a trailing newline
+ */
+std::string fmt_record(int pos, const std::string & ref, const std::string & alt,
+        const std::string & format, const std::string & sample, const std::string & ctg) {
+    vcf_record rec;
+    rec.ctg = ctg;
+    rec.pos = pos;
+    rec.ref = ref;
+    rec.alt = alt;
+    rec.format = format;
+    rec.sample = sample;
+    return vcf_line(rec);
+}
+
+/**
+ * @brief Builds a phased 1|0 SNP with the given QUAL and FILTER columns.
+ * @param[in] pos 1-based VCF position
+ * @param[in] qual QUAL column, such as "50" or "." for no reported quality
+ * @param[in] filter FILTER column, such as "PASS", "LOWQ", or "." for no filters
+ * @param[in] ctg Contig name
+ * @return One tab-separated VCF data line, without a trailing newline
+ */
+std::string qual_filter_record(int pos, const std::string & qual, const std::string & filter,
+        const std::string & ctg) {
+    vcf_record rec;
+    rec.ctg = ctg;
+    rec.pos = pos;
+    rec.qual = qual;
+    rec.filter = filter;
+    return vcf_line(rec);
 }
 
 /* Parse capture **********************************************************************************/
@@ -207,10 +283,7 @@ StderrToFile::~StderrToFile() {
  * @return Surviving variants, captured log output, and the VCF written from those variants
  */
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records) {
-    vcf_opts opts;
-    opts.sample = "QUERY";
-    opts.contigs = {"##contig=<ID=chr1,length=1000>"};
-    return parse_records(dir, records, opts, make_fasta("chr1", std::string(1000, 'A')));
+    return parse_records(dir, records, make_vcf_opts(), make_fasta("chr1", std::string(1000, 'A')));
 }
 
 /**
@@ -244,6 +317,20 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
 }
 
 /**
+ * @brief Parses records under the given header without redirecting stderr.
+ * @param[in] dir Temporary directory owning the written fixture
+ * @param[in] records VCF data lines, without trailing newlines
+ * @param[in] opts Header lines and sample name to write
+ * @param[in] callset QUERY or TRUTH callset identifier
+ */
+void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
+        const vcf_opts & opts, int callset) {
+    const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
+    std::shared_ptr<variantData> vars(new variantData());
+    parse_variants(vcf_fn, vars, nullptr, callset);
+}
+
+/**
  * @brief Reports whether the captured log contains a substring.
  * @param[in] r Result of parse_records()
  * @param[in] text Substring to search for
@@ -251,6 +338,93 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
  */
 bool logged(const ParseResult & r, const std::string & text) {
     return r.log.find(text) != std::string::npos;
+}
+
+/**
+ * @brief Returns the variants that survived parsing on one haplotype of a contig.
+ * @param[in] r Result of parse_records()
+ * @param[in] hap Haplotype index (HAP1 or HAP2)
+ * @param[in] ctg Contig name
+ * @return Variant container for that haplotype, or nullptr if the contig is absent
+ */
+std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap, const std::string & ctg) {
+    const auto & ctg_vars = r.vars->variants[hap];
+    const auto found = ctg_vars.find(ctg);
+    return (found == ctg_vars.end()) ? nullptr : found->second;
+}
+
+/**
+ * @brief Counts variants that survived parsing on one haplotype of a contig.
+ * @param[in] r Result of parse_records()
+ * @param[in] hap Haplotype index (HAP1 or HAP2)
+ * @param[in] ctg Contig name
+ * @return Number of surviving variants, or 0 if the contig is absent
+ */
+int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg) {
+    std::shared_ptr<ctgVariants> vars = hap_vars(r, hap, ctg);
+    return (vars == nullptr) ? 0 : vars->n;
+}
+
+/**
+ * @brief Counts variants that survived parsing across both haplotypes of a contig.
+ * @param[in] r Result of parse_records()
+ * @param[in] ctg Contig name
+ * @return Total number of surviving variants
+ */
+int total_kept(const ParseResult & r, const std::string & ctg) {
+    return kept_on_hap(r, HAP1, ctg) + kept_on_hap(r, HAP2, ctg);
+}
+
+/**
+ * @brief Reports whether the written VCF holds a record at a position on a contig.
+ * @param[in] r Result of parse_records()
+ * @param[in] pos 1-based VCF position
+ * @param[in] ctg Contig name
+ * @return True if a data line at that position was written
+ */
+bool wrote_pos(const ParseResult & r, int pos, const std::string & ctg) {
+    return count_pos(r, pos, ctg) > 0;
+}
+
+/**
+ * @brief Counts the records the written VCF holds at a position on a contig.
+ * @param[in] r Result of parse_records()
+ * @param[in] pos 1-based VCF position
+ * @param[in] ctg Contig name
+ * @return Number of data lines written at that position
+ */
+size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
+    // the leading newline anchors the match to the start of a line, so a position never matches
+    // inside another column and the header lines above the records cannot match at all
+    const std::string line = "\n" + ctg + "\t" + std::to_string(pos) + "\t";
+    size_t count = 0;
+    for (size_t at = r.out_vcf.find(line); at != std::string::npos;
+            at = r.out_vcf.find(line, at + 1)) {
+        count++;
+    }
+    return count;
+}
+
+/**
+ * @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count.
+ * @param[in] gt Genotype code (GT_*)
+ * @param[in] count Number of records tallied under that genotype
+ * @return Substring of the INFO line, derived from gt_strs so it tracks renames
+ */
+std::string gt_hist_line(uint8_t gt, int count) {
+    std::string name = gt_strs[gt];
+    while (name.size() < 3) name = " " + name; // the "%3s" in the INFO format right-justifies
+    return "    " + name + ": " + std::to_string(count);
+}
+
+/**
+ * @brief Returns the variant-type line parse_variants() prints for a type and count.
+ * @param[in] type Variant type (TYPE_*)
+ * @param[in] count Number of alleles tallied under that type across both haplotypes
+ * @return Substring of the INFO line, derived from type_strs so it tracks renames
+ */
+std::string type_hist_line(uint8_t type, int count) {
+    return "    " + type_strs[type] + ": " + std::to_string(count);
 }
 
 /* In-memory builders *****************************************************************************/
@@ -361,6 +535,48 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
                 var.supercluster);
     }
     return ctg_vars;
+}
+
+/**
+ * @brief Builds a one-variant container with the given original and calculated genotypes.
+ * @param[in] orig_gt Original genotype (GT_*) stored in orig_gts[0]
+ * @param[in] calc_gt Calculated genotype (GT_*) stored in calc_gts[0]
+ * @param[in] ctg Contig name
+ * @param[in] pos 0-based reference start position
+ * @return Container holding a single A>C substitution with the requested genotypes
+ */
+std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt, const std::string & ctg,
+        int pos) {
+    var_desc var;
+    var.pos = pos;
+    var.rlen = 1;
+    var.type = TYPE_SUB;
+    var.ref = "A";
+    var.alt = "C";
+    var.gt = orig_gt;
+    std::shared_ptr<ctgVariants> vars = make_ctgVariants(ctg, {var});
+    vars->calc_gts[0] = calc_gt;
+    return vars;
+}
+
+/**
+ * @brief Builds a one-variant container of the given type with the given allele sequences.
+ * @param[in] type Variant type (TYPE_*)
+ * @param[in] ref Reference allele sequence, whose length becomes the variant's rlen
+ * @param[in] alt Alternate allele sequence
+ * @param[in] ctg Contig name
+ * @param[in] pos 0-based reference start position
+ * @return Container holding a single variant
+ */
+std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
+        const std::string & alt, const std::string & ctg, int pos) {
+    var_desc var;
+    var.pos = pos;
+    var.rlen = int(ref.size());
+    var.type = type;
+    var.ref = ref;
+    var.alt = alt;
+    return make_ctgVariants(ctg, {var});
 }
 
 /**

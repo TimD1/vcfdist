@@ -115,9 +115,53 @@ std::string data_path(const std::string & name);
 /** @brief Reads an entire file into a string, yielding "" if it cannot be opened. */
 std::string read_text(const std::string & fn);
 
-/** @brief Builds a single-sample VCF record line on chr1 with phase set 1. */
+/**
+ * @brief Builds header options for one sample, declaring each named contig with one length.
+ *
+ * Subsumes the boilerplate of writing "##contig=<ID=...,length=...>" by hand. A test that needs a
+ * malformed contig line, an extra FILTER, or a FORMAT declaration dropped assigns over the
+ * corresponding vcf_opts field afterwards.
+ */
+vcf_opts make_vcf_opts(int callset = QUERY,
+        const std::vector<std::string> & contigs = {"chr1"}, int length = 1000);
+
+/* Record lines ***********************************************************************************/
+
+/**
+ * @struct vcf_record
+ * @brief Columns of one VCF data line, so a caller can vary only the column it targets.
+ *
+ * Every column is a string except POS, so a test can write "." for an unreported QUAL or a
+ * comma-separated ALT list without a separate builder for each shape.
+ */
+struct vcf_record {
+    std::string ctg = "chr1";      ///< CHROM column
+    int pos = 100;                 ///< POS column, 1-based
+    std::string id = ".";          ///< ID column
+    std::string ref = "A";         ///< REF allele
+    std::string alt = "G";         ///< ALT allele, comma-separated when multiallelic
+    std::string qual = "50";       ///< QUAL column, "." when no quality is reported
+    std::string filter = "PASS";   ///< FILTER column, "." when no filters are applied
+    std::string info = ".";        ///< INFO column
+    std::string format = "GT:PS";  ///< FORMAT column
+    std::string sample = "1|0:1";  ///< Sample column, matching format field for field
+};
+
+/** @brief Joins the columns of one VCF data line with tabs, without a trailing newline. */
+std::string vcf_line(const vcf_record & rec);
+
+/** @brief Builds a data line with the given genotype, carrying QUAL 50, PASS, and phase set 1. */
 std::string record(int pos, const std::string & ref, const std::string & alt,
-        const std::string & gt);
+        const std::string & gt, const std::string & ctg = "chr1");
+
+/** @brief Builds a data line carrying the given FORMAT keys and sample values. */
+std::string fmt_record(int pos, const std::string & ref, const std::string & alt,
+        const std::string & format, const std::string & sample,
+        const std::string & ctg = "chr1");
+
+/** @brief Builds a phased 1|0 SNP with the given QUAL and FILTER columns. */
+std::string qual_filter_record(int pos, const std::string & qual, const std::string & filter,
+        const std::string & ctg = "chr1");
 
 /* Parse capture **********************************************************************************/
 
@@ -169,8 +213,44 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records,
         const vcf_opts & opts, std::shared_ptr<fastaData> ref = nullptr);
 
+/**
+ * @brief Parses records under the given header without redirecting stderr.
+ *
+ * Death tests match the ERROR message on stderr, so the redirect parse_records() installs would
+ * hide it; the parsed output is discarded, since a parse that errors never returns.
+ */
+void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
+        const vcf_opts & opts, int callset = QUERY);
+
 /** @brief Reports whether the captured log contains a substring. */
 bool logged(const ParseResult & r, const std::string & text);
+
+/**
+ * @brief Returns the variants that survived parsing on one haplotype of a contig.
+ *
+ * Yields nullptr for a contig the parse never reached, rather than inserting an empty entry the
+ * way operator[] would; a caller that dereferences the result should assert on it first.
+ */
+std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap,
+        const std::string & ctg = "chr1");
+
+/** @brief Counts variants that survived parsing on one haplotype of a contig. */
+int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg = "chr1");
+
+/** @brief Counts variants that survived parsing across both haplotypes of a contig. */
+int total_kept(const ParseResult & r, const std::string & ctg = "chr1");
+
+/** @brief Reports whether the written VCF holds a record at a position on a contig. */
+bool wrote_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
+
+/** @brief Counts the records the written VCF holds at a position on a contig. */
+size_t count_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
+
+/** @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count. */
+std::string gt_hist_line(uint8_t gt, int count);
+
+/** @brief Returns the variant-type line parse_variants() prints for a type and count. */
+std::string type_hist_line(uint8_t type, int count);
 
 /* In-memory builders *****************************************************************************/
 
@@ -229,6 +309,19 @@ struct var_desc {
 /** @brief Builds a ctgVariants container holding the described variants, in the given order. */
 std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
         const std::vector<var_desc> & vars);
+
+/**
+ * @brief Builds a one-variant container with the given original and calculated genotypes.
+ *
+ * The variant is an A>C substitution, since the genotype rather than the allele is what a caller
+ * of this builder is varying.
+ */
+std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt,
+        const std::string & ctg = "chr1", int pos = 100);
+
+/** @brief Builds a one-variant container of the given type with the given allele sequences. */
+std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
+        const std::string & alt, const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Sets all six per-haplotype evaluation lanes for one variant. */
 void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, uint8_t errtype,

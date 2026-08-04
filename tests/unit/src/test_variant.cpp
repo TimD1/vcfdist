@@ -15,45 +15,6 @@
 
 namespace {
 
-/* Local helpers **********************************************************************************/
-
-/**
- * @brief Builds a one-variant container with the given original and calculated genotypes.
- * @param[in] orig_gt Original genotype (GT_*) stored in orig_gts[0]
- * @param[in] calc_gt Calculated genotype (GT_*) stored in calc_gts[0]
- * @return Container holding a single SNP at chr1:100 with the requested genotypes
- */
-std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt) {
-    var_desc var;
-    var.pos = 100;
-    var.rlen = 1;
-    var.type = TYPE_SUB;
-    var.ref = "A";
-    var.alt = "C";
-    var.gt = orig_gt;
-    std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {var});
-    vars->calc_gts[0] = calc_gt;
-    return vars;
-}
-
-/**
- * @brief Builds a one-variant container of the given type with the given allele sequences.
- * @param[in] type Variant type (TYPE_*)
- * @param[in] ref Reference allele sequence
- * @param[in] alt Alternate allele sequence
- * @return Container holding a single variant at chr1:100
- */
-std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
-        const std::string & alt) {
-    var_desc var;
-    var.pos = 100;
-    var.rlen = int(ref.size());
-    var.type = type;
-    var.ref = ref;
-    var.alt = alt;
-    return make_ctgVariants("chr1", {var});
-}
-
 /* ctgVariants constructor ************************************************************************/
 
 TEST(CtgVariantsCtor, SetsCtg) {
@@ -442,9 +403,7 @@ class ProvenanceVectors : public ::testing::Test {
 protected:
     /** @brief Writes and parses the shared fixture into the QUERY callset. */
     void SetUp() override {
-        vcf_opts opts;
-        opts.sample = "QUERY";
-        opts.contigs = {"##contig=<ID=ctg1,length=200>", "##contig=<ID=ctgX,length=200>"};
+        vcf_opts opts = make_vcf_opts(QUERY, {"ctg1", "ctgX"}, 200);
         std::string vcf_fn = write_tmp_vcf(dir, FIXTURE_RECORDS, opts);
 
         vcf_data = std::shared_ptr<variantData>(new variantData());
@@ -1075,121 +1034,6 @@ TEST(VariantDataCtor, EmptyMembers) {
 /* parse-time filtering, counters, and summary warnings *******************************************/
 
 /**
- * @brief Counts variants that survived parsing on one haplotype of chr1.
- * @param[in] r Result of parse_records()
- * @param[in] hap Haplotype index (HAP1 or HAP2)
- * @return Number of surviving variants on that haplotype
- */
-int kept_on_hap(const ParseResult & r, int hap) {
-    return r.vars->variants[hap]["chr1"]->n;
-}
-
-/**
- * @brief Counts variants that survived parsing across both haplotypes of chr1.
- * @param[in] r Result of parse_records()
- * @return Total number of surviving variants
- */
-int total_kept(const ParseResult & r) {
-    return kept_on_hap(r, HAP1) + kept_on_hap(r, HAP2);
-}
-
-/**
- * @brief Reports whether the written VCF contains a record at a given position.
- * @param[in] r Result of parse_records()
- * @param[in] pos 1-based VCF position
- * @return True if a chr1 data line at that position was written
- */
-bool wrote_pos(const ParseResult & r, int pos) {
-    return r.out_vcf.find("\nchr1\t" + std::to_string(pos) + "\t") != std::string::npos;
-}
-
-/**
- * @brief Returns the header options parse_records() writes by default, for a test to modify.
- * @return Single-sample QUERY header declaring one 1000-base contig, GT, GQ, and PS
- */
-vcf_opts query_opts() {
-    vcf_opts opts;
-    opts.sample = "QUERY";
-    opts.contigs = {"##contig=<ID=chr1,length=1000>"};
-    return opts;
-}
-
-/**
- * @brief Builds a chr1 data line carrying the given FORMAT keys and sample values.
- * @param[in] pos 1-based VCF position
- * @param[in] ref REF allele
- * @param[in] alt ALT allele
- * @param[in] format FORMAT column, such as "GT" or "GT:GQ"
- * @param[in] sample Sample column, matching format field for field
- * @return One tab-separated VCF data line, without a trailing newline
- */
-std::string fmt_record(int pos, const std::string & ref, const std::string & alt,
-        const std::string & format, const std::string & sample) {
-    return "chr1\t" + std::to_string(pos) + "\t.\t" + ref + "\t" + alt +
-        "\t50\tPASS\t.\t" + format + "\t" + sample;
-}
-
-/**
- * @brief Builds a phased 1|0 chr1 SNP with the given QUAL and FILTER columns.
- * @param[in] pos 1-based VCF position
- * @param[in] qual QUAL column, such as "50" or "." for no reported quality
- * @param[in] filter FILTER column, such as "PASS", "LOWQ", or "." for no filters
- * @return One tab-separated VCF data line, without a trailing newline
- */
-std::string qual_filter_record(int pos, const std::string & qual, const std::string & filter) {
-    return "chr1\t" + std::to_string(pos) + "\t.\tA\tG\t" + qual + "\t" + filter +
-        "\t.\tGT:PS\t1|0:1";
-}
-
-/**
- * @brief Returns the genotype-histogram line the summary prints for a genotype and count.
- * @param[in] gt Genotype code (GT_*)
- * @param[in] count Number of records tallied under that genotype
- * @return Substring of the INFO line, derived from gt_strs so it tracks renames
- */
-std::string gt_hist(uint8_t gt, int count) {
-    std::string name = gt_strs[gt];
-    while (name.size() < 3) name = " " + name; // the "%3s" in the INFO format right-justifies
-    return "    " + name + ": " + std::to_string(count);
-}
-
-/**
- * @brief Returns the variant-type line the summary prints for a type and count.
- * @param[in] type Variant type (TYPE_*)
- * @param[in] count Number of alleles tallied under that type across both haplotypes
- * @return Substring of the INFO line, derived from type_strs so it tracks renames
- */
-std::string type_hist(uint8_t type, int count) {
-    return "    " + type_strs[type] + ": " + std::to_string(count);
-}
-
-/**
- * @brief Returns the chr1 variants that survived parsing on one haplotype.
- * @param[in] r Result of parse_records()
- * @param[in] h Haplotype index (HAP1 or HAP2)
- * @return Variant container for that haplotype
- */
-std::shared_ptr<ctgVariants> hap(const ParseResult & r, int h) {
-    return r.vars->variants[h]["chr1"];
-}
-
-/**
- * @brief Counts records the written VCF holds at a given position.
- * @param[in] r Result of parse_records()
- * @param[in] pos 1-based VCF position
- * @return Number of chr1 data lines written at that position
- */
-size_t count_pos(const ParseResult & r, int pos) {
-    const std::string line = "\nchr1\t" + std::to_string(pos) + "\t";
-    size_t count = 0;
-    for (size_t at = r.out_vcf.find(line); at != std::string::npos;
-            at = r.out_vcf.find(line, at + 1)) {
-        count++;
-    }
-    return count;
-}
-
-/**
  * @class ParseVariants
  * @brief Restores parse-relevant global settings to their defaults before each test.
  */
@@ -1205,22 +1049,6 @@ protected:
         g.filter_ids.clear();
     }
 
-    /**
-     * @brief Parses records under a custom header without redirecting stderr.
-     *
-     * Death tests match the ERROR message on stderr, so the redirect parse_records() installs
-     * would hide it; the parsed output is discarded because these parses never return.
-     * @param[in] records VCF data lines, without trailing newlines
-     * @param[in] opts Header lines and sample name to write
-     * @param[in] callset QUERY or TRUTH callset identifier
-     */
-    void parse_unredirected(const std::vector<std::string> & records, const vcf_opts & opts,
-            int callset = QUERY) {
-        const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
-        std::shared_ptr<variantData> vars(new variantData());
-        parse_variants(vcf_fn, vars, nullptr, callset);
-    }
-
     GlobalsGuard guard; ///< Saves global state on construction and restores it on destruction
     TempDir dir;        ///< Owns each test's fixture VCF, log, and output VCF
 };
@@ -1229,28 +1057,29 @@ protected:
 
 // The callset indexes callset_strs, so an out-of-range value is rejected before the file is opened.
 TEST_F(ParseVariants, InvalidCallsetErrors) {
-    EXPECT_EXIT(parse_unredirected({record(100, "A", "G", "1|0")}, query_opts(), CALLSETS),
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, make_vcf_opts(), CALLSETS),
             testing::ExitedWithCode(1), "Invalid callset");
 }
 
 TEST_F(ParseVariants, NegativeCallsetErrors) {
-    EXPECT_EXIT(parse_unredirected({record(100, "A", "G", "1|0")}, query_opts(), -1),
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, make_vcf_opts(), -1),
             testing::ExitedWithCode(1), "Invalid callset");
 }
 
 // Contig lengths are copied into the output VCF header, so a contig line without one is fatal.
 // htslib supplies IDX itself, so only a missing length can trip this check.
 TEST_F(ParseVariants, ContigLineWithoutLengthErrors) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.contigs = {"##contig=<ID=chr1>"};
-    EXPECT_EXIT(parse_unredirected({record(100, "A", "G", "1|0")}, opts),
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, opts),
             testing::ExitedWithCode(1), "header contig line didn't have 'IDX' and 'length'");
 }
 
 TEST_F(ParseVariants, MultipleSamplesErrors) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.sample = "QUERY1\tQUERY2";
-    EXPECT_EXIT(parse_unredirected({"chr1\t100\t.\tA\tG\t50\tPASS\t.\tGT:PS\t1|0:1\t0|1:1"}, opts),
+    EXPECT_EXIT(parse_unredirected(dir, {fmt_record(100, "A", "G", "GT:PS", "1|0:1\t0|1:1")},
+            opts),
             testing::ExitedWithCode(1), "Expected 1 sample but found 2");
 }
 
@@ -1269,10 +1098,9 @@ TEST_F(ParseVariants, SelectedFilterAbsentWarns) {
 // prev_rids is never inserted into, so its lookup always misses. Returning to a finished contig
 // therefore appends it to the contig list a second time instead of being rejected.
 TEST_F(ParseVariants, UnsortedContigAppendsDuplicateContig) {
-    vcf_opts opts = query_opts();
-    opts.contigs = {"##contig=<ID=chr1,length=1000>", "##contig=<ID=chr2,length=1000>"};
+    vcf_opts opts = make_vcf_opts(QUERY, {"chr1", "chr2"});
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
-            "chr2\t100\t.\tA\tG\t50\tPASS\t.\tGT:PS\t1|0:1", record(200, "A", "G", "1|0")}, opts);
+            record(100, "A", "G", "1|0", "chr2"), record(200, "A", "G", "1|0")}, opts);
     EXPECT_FALSE(logged(r, "already parsed"));
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2", "chr1"}), r.vars->contigs);
 
@@ -1284,7 +1112,7 @@ TEST_F(ParseVariants, UnsortedContigAppendsDuplicateContig) {
 // Documents rather than enforces: the seqnames failure at variant.cpp:829 is unreachable. An empty
 // contig dictionary still yields a non-NULL array, and ERROR() exits, so its `goto error1` is dead.
 TEST_F(ParseVariants, HeaderWithoutContigsParsesNoContigs) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.contigs = {};
     ParseResult r = parse_records(dir, {}, opts);
     EXPECT_TRUE(r.vars->contigs.empty());
@@ -1298,7 +1126,7 @@ TEST_F(ParseVariants, HeaderWithoutContigsParsesNoContigs) {
 TEST_F(ParseVariants, FilterFailSkipped) {
     g.filters = {"PASS"};
     g.filter_ids = {-1}; // parse_variants fills this in from the header's FILTER IDX
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.filters = {"##FILTER=<ID=PASS,Description=\"All filters passed\">",
                     "##FILTER=<ID=LOWQ,Description=\"Low quality\">"};
     ParseResult r = parse_records(dir, {qual_filter_record(100, "50", "LOWQ"),
@@ -1311,7 +1139,7 @@ TEST_F(ParseVariants, FilterFailSkipped) {
 
 // With no filters selected, the FILTER column is not consulted at all.
 TEST_F(ParseVariants, NoFiltersSelectedPasses) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.filters = {"##FILTER=<ID=PASS,Description=\"All filters passed\">",
                     "##FILTER=<ID=LOWQ,Description=\"Low quality\">"};
     ParseResult r = parse_records(dir, {qual_filter_record(100, "50", "LOWQ")}, opts);
@@ -1343,8 +1171,8 @@ TEST_F(ParseVariants, BelowMinQualSkipped) {
 // An unreported QUAL parses as NaN, which no comparison would accept, so it is read as zero.
 TEST_F(ParseVariants, QualNanReadAsZero) {
     ParseResult r = parse_records(dir, {qual_filter_record(100, ".", "PASS")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_FLOAT_EQ(0, hap(r, HAP1)->var_quals[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_FLOAT_EQ(0, hap_vars(r, HAP1)->var_quals[0]);
 }
 
 TEST_F(ParseVariants, QualNanSkippedWhenMinQualPositive) {
@@ -1357,41 +1185,41 @@ TEST_F(ParseVariants, QualNanSkippedWhenMinQualPositive) {
 // An integer GQ becomes the variant's genotype quality, which is stored unclamped.
 TEST_F(ParseVariants, IntegerGqStored) {
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:GQ", "1|0:44")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_FLOAT_EQ(44, hap(r, HAP1)->gt_quals[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_FLOAT_EQ(44, hap_vars(r, HAP1)->gt_quals[0]);
 }
 
 // A float GQ makes the integer read fail with -2, and the float retry truncates toward zero.
 TEST_F(ParseVariants, FloatGqTruncatedToInt) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.formats = {"##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
                     "##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype quality\">"};
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:GQ", "1|0:33.7")}, opts);
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_FLOAT_EQ(33, hap(r, HAP1)->gt_quals[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_FLOAT_EQ(33, hap_vars(r, HAP1)->gt_quals[0]);
 }
 
 // A GQ declared in the header but absent from a record is read as zero, not as an error.
 TEST_F(ParseVariants, MissingGqReadAsZero) {
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_FLOAT_EQ(0, hap(r, HAP1)->gt_quals[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_FLOAT_EQ(0, hap_vars(r, HAP1)->gt_quals[0]);
 }
 
 /* genotype ***************************************************************************************/
 
 // Without a GT declaration there is no genotype to read, so every record is one haploid alternate.
 TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.formats = {"##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
                     "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase set\">"};
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GQ:PS", "44:1")}, opts);
     EXPECT_TRUE(logged(r, "'GT' tag not defined in QUERY VCF header, assuming monoploid"));
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(0, hap(r, HAP2)->n);
-    EXPECT_EQ(1, hap(r, HAP1)->ploidies[0]);
-    EXPECT_EQ(GT_ALT1_REF, hap(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_ALT1, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(0, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
     ASSERT_EQ(size_t(1), r.vars->ploidy.size());
     EXPECT_EQ(1, r.vars->ploidy[0]);
 }
@@ -1399,45 +1227,45 @@ TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
 // A haploid alternate call is reported on haplotype 1 alone, with ploidy 1 recorded.
 TEST_F(ParseVariants, HaploidAltKeptOnHap1) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(0, hap(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_REF, hap(r, HAP1)->orig_gts[0]);
-    EXPECT_EQ(1, hap(r, HAP1)->ploidies[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_ALT1, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(0, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
 }
 
 TEST_F(ParseVariants, HaploidRefSkipped) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, gt_hist(GT_REF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_REF, 1)));
 }
 
 TEST_F(ParseVariants, Gt01KeptOnHap2) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "0|1")});
-    EXPECT_EQ(0, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ(GT_REF_ALT1, hap(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_REF_ALT1, 1)));
+    EXPECT_EQ(0, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_REF_ALT1, 1)));
 }
 
 TEST_F(ParseVariants, Gt10KeptOnHap1) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(0, hap(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_REF, hap(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_ALT1_REF, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(0, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_REF, 1)));
 }
 
 // A homozygous record yields the same allele on both haplotypes.
 TEST_F(ParseVariants, Gt11SplitAcrossBothHaps) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|1")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ("G", hap(r, HAP1)->alts[0]);
-    EXPECT_EQ("G", hap(r, HAP2)->alts[0]);
-    EXPECT_EQ(99, hap(r, HAP1)->poss[0]);
-    EXPECT_EQ(99, hap(r, HAP2)->poss[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_ALT1_ALT1, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
+    EXPECT_EQ("G", hap_vars(r, HAP2)->alts[0]);
+    EXPECT_EQ(99, hap_vars(r, HAP1)->poss[0]);
+    EXPECT_EQ(99, hap_vars(r, HAP2)->poss[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_ALT1, 1)));
     EXPECT_TRUE(logged(r, "1 homozygous and multi-allelic variants in QUERY VCF, split"));
 }
 
@@ -1454,10 +1282,10 @@ TEST_F(ParseVariants, HomozygousDowngradedOnHap2WithoutAnySkip) {
     };
     for (const auto & [ref, alt] : alleles) {
         ParseResult r = parse_records(dir, {record(100, ref, alt, "1|1")});
-        ASSERT_EQ(1, hap(r, HAP1)->n) << ref << " -> " << alt;
-        ASSERT_EQ(1, hap(r, HAP2)->n) << ref << " -> " << alt;
-        EXPECT_EQ(GT_ALT1_ALT1, hap(r, HAP1)->orig_gts[0]) << ref << " -> " << alt;
-        EXPECT_EQ(GT_REF_ALT1, hap(r, HAP2)->orig_gts[0]) << ref << " -> " << alt;
+        ASSERT_EQ(1, hap_vars(r, HAP1)->n) << ref << " -> " << alt;
+        ASSERT_EQ(1, hap_vars(r, HAP2)->n) << ref << " -> " << alt;
+        EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP1)->orig_gts[0]) << ref << " -> " << alt;
+        EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]) << ref << " -> " << alt;
         EXPECT_FALSE(logged(r, "overlapping variants")) << ref << " -> " << alt;
     }
 }
@@ -1465,35 +1293,35 @@ TEST_F(ParseVariants, HomozygousDowngradedOnHap2WithoutAnySkip) {
 // A compound heterozygote puts a different ALT on each haplotype, each relabelled as a simple het.
 TEST_F(ParseVariants, Gt12SplitByAllele) {
     ParseResult r = parse_records(dir, {record(100, "A", "G,T", "1|2")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ("G", hap(r, HAP1)->alts[0]);
-    EXPECT_EQ("T", hap(r, HAP2)->alts[0]);
-    EXPECT_EQ(GT_ALT1_REF, hap(r, HAP1)->orig_gts[0]);
-    EXPECT_EQ(GT_REF_ALT1, hap(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_ALT1_ALT2, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
+    EXPECT_EQ("T", hap_vars(r, HAP2)->alts[0]);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_ALT2, 1)));
 }
 
 TEST_F(ParseVariants, Gt21SplitByAllele) {
     ParseResult r = parse_records(dir, {record(100, "A", "G,T", "2|1")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ("T", hap(r, HAP1)->alts[0]);
-    EXPECT_EQ("G", hap(r, HAP2)->alts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_ALT2_ALT1, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ("T", hap_vars(r, HAP1)->alts[0]);
+    EXPECT_EQ("G", hap_vars(r, HAP2)->alts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT2_ALT1, 1)));
 }
 
 // 0|2 reaches no named genotype, so it is tallied as other while its second ALT is still kept.
 TEST_F(ParseVariants, Gt02TalliedAsOther) {
     ParseResult r = parse_records(dir, {record(100, "A", "G,T", "0|2")});
-    EXPECT_EQ(0, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ("T", hap(r, HAP2)->alts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_OTHER, 1)));
+    EXPECT_EQ(0, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ("T", hap_vars(r, HAP2)->alts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_OTHER, 1)));
 }
 
 TEST_F(ParseVariants, PolyploidErrors) {
-    EXPECT_EXIT(parse_unredirected({record(100, "A", "G", "1|1|1")}, query_opts()),
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|1|1")}, make_vcf_opts()),
             testing::ExitedWithCode(1), "found variant with ploidy 3");
 }
 
@@ -1502,16 +1330,15 @@ TEST_F(ParseVariants, PloidyMismatchWarnsAndKeeps) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|1"),
                                         record(200, "A", "G", "1")});
     EXPECT_TRUE(logged(r, "1 variants with incorrect ploidy in QUERY VCF, kept"));
-    EXPECT_EQ(2, hap(r, HAP1)->n);
-    EXPECT_EQ(1, hap(r, HAP2)->n);
+    EXPECT_EQ(2, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(1, hap_vars(r, HAP2)->n);
 }
 
 // Mixed ploidy is expected on a sex chromosome, so a contig named for one is exempt.
 TEST_F(ParseVariants, PloidyMismatchOnChrXSilent) {
-    vcf_opts opts = query_opts();
-    opts.contigs = {"##contig=<ID=chrX,length=1000>"};
-    ParseResult r = parse_records(dir, {"chrX\t100\t.\tA\tG\t50\tPASS\t.\tGT:PS\t1|1:1",
-                                        "chrX\t200\t.\tA\tG\t50\tPASS\t.\tGT:PS\t1:1"}, opts);
+    vcf_opts opts = make_vcf_opts(QUERY, {"chrX"});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|1", "chrX"),
+                                        record(200, "A", "G", "1", "chrX")}, opts);
     EXPECT_FALSE(logged(r, "incorrect ploidy"));
     EXPECT_EQ(2, r.vars->variants[HAP1]["chrX"]->n);
 }
@@ -1524,7 +1351,7 @@ TEST_F(ParseVariants, NoCallDroppedAndCounted) {
     EXPECT_EQ(0, total_kept(r));
     EXPECT_FALSE(wrote_pos(r, 100));
     EXPECT_TRUE(logged(r, "1 variants with no known alleles (.|.) in QUERY VCF, skipped"));
-    EXPECT_TRUE(logged(r, gt_hist(GT_MISSING, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_MISSING, 1)));
 }
 
 // A no-call is one dropped record, not one dropped record per haplotype.
@@ -1537,7 +1364,7 @@ TEST_F(ParseVariants, NoCallCountedOncePerRecord) {
 // A half call keeps its known allele, so it must not be tallied as a no-call.
 TEST_F(ParseVariants, HalfCallCountedDistinctlyFromNoCall) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
-    EXPECT_TRUE(logged(r, gt_hist(GT_HALF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
     EXPECT_FALSE(logged(r, ".|.:")); // histogram line is only printed for nonzero counts
     EXPECT_FALSE(logged(r, "no known alleles"));
 }
@@ -1557,7 +1384,7 @@ TEST_F(ParseVariants, HalfCallKeptOnTheHaplotypeWithTheKnownAllele) {
                                         record(200, "A", "G", ".|1")});
     EXPECT_EQ(1, kept_on_hap(r, HAP1));
     EXPECT_EQ(1, kept_on_hap(r, HAP2));
-    EXPECT_TRUE(logged(r, gt_hist(GT_HALF, 2)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 2)));
     EXPECT_TRUE(logged(r, "2 variants with a half call"));
 }
 
@@ -1565,25 +1392,25 @@ TEST_F(ParseVariants, HalfCallKeptOnTheHaplotypeWithTheKnownAllele) {
 // a phased '.' is what clears the unphased-heterozygote guard.
 TEST_F(ParseVariants, HalfCallHap1AlleleKept) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(0, hap(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_REF, hap(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_HALF, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(0, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
 }
 
 TEST_F(ParseVariants, HalfCallHap2AlleleKept) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", ".|1")});
-    EXPECT_EQ(0, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ(GT_REF_ALT1, hap(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist(GT_HALF, 1)));
+    EXPECT_EQ(0, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
 }
 
 // An unphased half call is still a half call, but its known allele is dropped as unphased.
 TEST_F(ParseVariants, UnphasedHalfCallSkipped) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "./1")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, gt_hist(GT_HALF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
     EXPECT_TRUE(logged(r, "1 variants with a half call (1|.) in QUERY VCF, known allele kept"));
     EXPECT_TRUE(logged(r, "1 variants with unphased genotypes in QUERY VCF, skipped"));
 }
@@ -1593,8 +1420,8 @@ TEST_F(ParseVariants, UnphasedHalfCallSkipped) {
 TEST_F(ParseVariants, HaploidNoCallSkippedNotTalliedAsAlt) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", ".")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, gt_hist(GT_MISSING, 1)));
-    EXPECT_FALSE(logged(r, gt_hist(GT_ALT1, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_MISSING, 1)));
+    EXPECT_FALSE(logged(r, gt_hist_line(GT_ALT1, 1)));
     EXPECT_TRUE(logged(r, "1 variants with no known alleles (.|.) in QUERY VCF, skipped"));
 }
 
@@ -1616,38 +1443,38 @@ TEST_F(ParseVariants, NoCallPerVariantWarningSaysSkipping) {
 // only as a genotype, so the two paths cannot be confused in the type summary.
 TEST_F(ParseVariants, SpanningDeletionTalliedAsRefTypeButNoCallIsNot) {
     ParseResult star = parse_records(dir, {record(100, "A", "*", "1|0")});
-    EXPECT_TRUE(logged(star, type_hist(TYPE_REF, 1)));
+    EXPECT_TRUE(logged(star, type_hist_line(TYPE_REF, 1)));
 
     ParseResult missing = parse_records(dir, {record(100, "A", "G", ".|.")});
-    EXPECT_FALSE(logged(missing, type_hist(TYPE_REF, 1)));
-    EXPECT_TRUE(logged(missing, gt_hist(GT_MISSING, 1)));
+    EXPECT_FALSE(logged(missing, type_hist_line(TYPE_REF, 1)));
+    EXPECT_TRUE(logged(missing, gt_hist_line(GT_MISSING, 1)));
 }
 
 /* phase set **************************************************************************************/
 
 // Without a PS declaration every variant on a contig shares one implicit phase set, numbered zero.
 TEST_F(ParseVariants, PhaseSetNotInHeaderWarns) {
-    vcf_opts opts = query_opts();
+    vcf_opts opts = make_vcf_opts();
     opts.formats = {"##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">"};
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT", "1|0")}, opts);
     EXPECT_TRUE(logged(r,
             "'PS' tag not defined in QUERY VCF header, assuming one phase set per contig"));
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(0, hap(r, HAP1)->phase_sets[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(0, hap_vars(r, HAP1)->phase_sets[0]);
 }
 
 // A heterozygote without a PS tag has an unknown phase set, so it is counted and reported.
 TEST_F(ParseVariants, PhaseSetMissingOnHetWarns) {
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT", "1|0")});
     EXPECT_TRUE(logged(r, "1 variants missing PS tags in QUERY VCF, kept"));
-    ASSERT_EQ(1, hap(r, HAP1)->n); // counted, not dropped
-    EXPECT_EQ(0, hap(r, HAP1)->phase_sets[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n); // counted, not dropped
+    EXPECT_EQ(0, hap_vars(r, HAP1)->phase_sets[0]);
 }
 
 TEST_F(ParseVariants, PhaseSetPresentStored) {
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:PS", "1|0:7")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(7, hap(r, HAP1)->phase_sets[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[0]);
 }
 
 // Documents rather than enforces: a homozygous record without a PS tag is exempt from the
@@ -1656,9 +1483,9 @@ TEST_F(ParseVariants, PhaseSetPresentStored) {
 TEST_F(ParseVariants, PhaseSetCarriesOverToHomRecordWithoutPs) {
     ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:PS", "1|0:7"),
                                         fmt_record(200, "A", "G", "GT", "1|1")});
-    ASSERT_EQ(2, hap(r, HAP1)->n);
-    EXPECT_EQ(7, hap(r, HAP1)->phase_sets[0]);
-    EXPECT_EQ(7, hap(r, HAP1)->phase_sets[1]);
+    ASSERT_EQ(2, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[0]);
+    EXPECT_EQ(7, hap_vars(r, HAP1)->phase_sets[1]);
     EXPECT_FALSE(logged(r, "missing PS tags")); // a homozygote needs no phase set to be resolved
 }
 
@@ -1683,9 +1510,9 @@ TEST_F(ParseVariants, SpanningDeletionDroppedAndCounted) {
 // An unphased homozygote states the same allele on both haplotypes, so its phase is not in doubt.
 TEST_F(ParseVariants, UnphasedHomAllowed) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1/1")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    ASSERT_EQ(1, hap(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_ALT1, hap(r, HAP1)->orig_gts[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    ASSERT_EQ(1, hap_vars(r, HAP2)->n);
+    EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_FALSE(logged(r, "unphased genotypes"));
 }
 
@@ -1703,51 +1530,51 @@ TEST_F(ParseVariants, RefCallDroppedAndCounted) {
 
 TEST_F(ParseVariants, SnpClassified) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(TYPE_SUB, hap(r, HAP1)->types[0]);
-    EXPECT_EQ(99, hap(r, HAP1)->poss[0]);
-    EXPECT_EQ(1, hap(r, HAP1)->rlens[0]);
-    EXPECT_EQ("A", hap(r, HAP1)->refs[0]);
-    EXPECT_EQ("G", hap(r, HAP1)->alts[0]);
-    EXPECT_TRUE(logged(r, type_hist(TYPE_SUB, 1)));
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(TYPE_SUB, hap_vars(r, HAP1)->types[0]);
+    EXPECT_EQ(99, hap_vars(r, HAP1)->poss[0]);
+    EXPECT_EQ(1, hap_vars(r, HAP1)->rlens[0]);
+    EXPECT_EQ("A", hap_vars(r, HAP1)->refs[0]);
+    EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
+    EXPECT_TRUE(logged(r, type_hist_line(TYPE_SUB, 1)));
 }
 
 // An insertion drops the anchor base it shares with REF and advances past it.
 TEST_F(ParseVariants, InsertionTrimsSharedPrefix) {
     ParseResult r = parse_records(dir, {record(100, "A", "AGG", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(TYPE_INS, hap(r, HAP1)->types[0]);
-    EXPECT_EQ(100, hap(r, HAP1)->poss[0]);
-    EXPECT_EQ(0, hap(r, HAP1)->rlens[0]);
-    EXPECT_EQ("", hap(r, HAP1)->refs[0]);
-    EXPECT_EQ("GG", hap(r, HAP1)->alts[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(TYPE_INS, hap_vars(r, HAP1)->types[0]);
+    EXPECT_EQ(100, hap_vars(r, HAP1)->poss[0]);
+    EXPECT_EQ(0, hap_vars(r, HAP1)->rlens[0]);
+    EXPECT_EQ("", hap_vars(r, HAP1)->refs[0]);
+    EXPECT_EQ("GG", hap_vars(r, HAP1)->alts[0]);
 }
 
 TEST_F(ParseVariants, DeletionTrimsSharedPrefix) {
     ParseResult r = parse_records(dir, {record(100, "AGG", "A", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(TYPE_DEL, hap(r, HAP1)->types[0]);
-    EXPECT_EQ(100, hap(r, HAP1)->poss[0]);
-    EXPECT_EQ(2, hap(r, HAP1)->rlens[0]);
-    EXPECT_EQ("GG", hap(r, HAP1)->refs[0]);
-    EXPECT_EQ("", hap(r, HAP1)->alts[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(TYPE_DEL, hap_vars(r, HAP1)->types[0]);
+    EXPECT_EQ(100, hap_vars(r, HAP1)->poss[0]);
+    EXPECT_EQ(2, hap_vars(r, HAP1)->rlens[0]);
+    EXPECT_EQ("GG", hap_vars(r, HAP1)->refs[0]);
+    EXPECT_EQ("", hap_vars(r, HAP1)->alts[0]);
 }
 
 // Equal-length alleles agreeing past their first base are one substitution, not a complex variant.
 TEST_F(ParseVariants, MnpWithSharedSuffixIsSub) {
     ParseResult r = parse_records(dir, {record(100, "AT", "GT", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(TYPE_SUB, hap(r, HAP1)->types[0]);
-    EXPECT_EQ(99, hap(r, HAP1)->poss[0]);
-    EXPECT_EQ(1, hap(r, HAP1)->rlens[0]);
-    EXPECT_EQ("A", hap(r, HAP1)->refs[0]);
-    EXPECT_EQ("G", hap(r, HAP1)->alts[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(TYPE_SUB, hap_vars(r, HAP1)->types[0]);
+    EXPECT_EQ(99, hap_vars(r, HAP1)->poss[0]);
+    EXPECT_EQ(1, hap_vars(r, HAP1)->rlens[0]);
+    EXPECT_EQ("A", hap_vars(r, HAP1)->refs[0]);
+    EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
 }
 
 // Equal-length alleles that share no suffix are complex, so they become a co-located INS and DEL.
 TEST_F(ParseVariants, ComplexEqualLengthSplitIntoInsAndDel) {
     ParseResult r = parse_records(dir, {record(100, "AT", "GC", "1|0")});
-    std::shared_ptr<ctgVariants> h1 = hap(r, HAP1);
+    std::shared_ptr<ctgVariants> h1 = hap_vars(r, HAP1);
     ASSERT_EQ(2, h1->n);
     EXPECT_EQ(TYPE_INS, h1->types[0]);
     EXPECT_EQ(99, h1->poss[0]);
@@ -1762,13 +1589,13 @@ TEST_F(ParseVariants, ComplexEqualLengthSplitIntoInsAndDel) {
     EXPECT_TRUE(logged(r, "1 complex (CPX) variants in QUERY VCF, split into INS + DEL"));
 
     // the type summary counts the original CPX allele, not the two variants it became
-    EXPECT_TRUE(logged(r, type_hist(TYPE_CPX, 1)));
+    EXPECT_TRUE(logged(r, type_hist_line(TYPE_CPX, 1)));
 }
 
 // A net insertion whose flanks do not match is complex, and keeps its untrimmed alleles.
 TEST_F(ParseVariants, ComplexInsertionSplitIntoInsAndDel) {
     ParseResult r = parse_records(dir, {record(100, "AT", "GCC", "1|0")});
-    std::shared_ptr<ctgVariants> h1 = hap(r, HAP1);
+    std::shared_ptr<ctgVariants> h1 = hap_vars(r, HAP1);
     ASSERT_EQ(2, h1->n);
     EXPECT_EQ(TYPE_INS, h1->types[0]);
     EXPECT_EQ("GCC", h1->alts[0]);
@@ -1781,7 +1608,7 @@ TEST_F(ParseVariants, ComplexInsertionSplitIntoInsAndDel) {
 
 TEST_F(ParseVariants, ComplexDeletionSplitIntoInsAndDel) {
     ParseResult r = parse_records(dir, {record(100, "ATG", "CC", "1|0")});
-    std::shared_ptr<ctgVariants> h1 = hap(r, HAP1);
+    std::shared_ptr<ctgVariants> h1 = hap_vars(r, HAP1);
     ASSERT_EQ(2, h1->n);
     EXPECT_EQ(TYPE_INS, h1->types[0]);
     EXPECT_EQ("CC", h1->alts[0]);
@@ -1793,25 +1620,25 @@ TEST_F(ParseVariants, ComplexDeletionSplitIntoInsAndDel) {
 // Soft-masked reference sequence reaches the parser in lowercase, and is stored uppercased.
 TEST_F(ParseVariants, LowercaseAllelesUppercased) {
     ParseResult r = parse_records(dir, {record(100, "a", "g", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ("A", hap(r, HAP1)->refs[0]);
-    EXPECT_EQ("G", hap(r, HAP1)->alts[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ("A", hap_vars(r, HAP1)->refs[0]);
+    EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
 }
 
 // Documents rather than enforces: the reference-call test compares the untouched alleles, so a
 // case-only difference is kept as a substitution of a base for itself.
 TEST_F(ParseVariants, CaseOnlyRefCallKeptAsNoOpSub) {
     ParseResult r = parse_records(dir, {record(100, "a", "A", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(TYPE_SUB, hap(r, HAP1)->types[0]);
-    EXPECT_EQ("A", hap(r, HAP1)->refs[0]);
-    EXPECT_EQ("A", hap(r, HAP1)->alts[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(TYPE_SUB, hap_vars(r, HAP1)->types[0]);
+    EXPECT_EQ("A", hap_vars(r, HAP1)->refs[0]);
+    EXPECT_EQ("A", hap_vars(r, HAP1)->alts[0]);
     EXPECT_FALSE(logged(r, "reference variants"));
 
     // the same ordering leaves the prefix trim case-sensitive, so a lowercase anchor base does not
     // match its uppercase counterpart and the insertion is classified complex instead
     ParseResult ins = parse_records(dir, {record(100, "A", "aGG", "1|0")});
-    EXPECT_EQ(2, hap(ins, HAP1)->n);
+    EXPECT_EQ(2, hap_vars(ins, HAP1)->n);
     EXPECT_TRUE(logged(ins, "complex (CPX) variants"));
 }
 
@@ -1826,9 +1653,9 @@ TEST_F(ParseVariants, EveryAlleleShapeReachesAKnownType) {
     };
     for (const auto & [ref, alt] : alleles) {
         ParseResult r = parse_records(dir, {record(100, ref, alt, "1|0")});
-        ASSERT_LE(1, hap(r, HAP1)->n) << ref << " -> " << alt;
-        for (int vi = 0; vi < hap(r, HAP1)->n; vi++) {
-            const uint8_t type = hap(r, HAP1)->types[vi];
+        ASSERT_LE(1, hap_vars(r, HAP1)->n) << ref << " -> " << alt;
+        for (int vi = 0; vi < hap_vars(r, HAP1)->n; vi++) {
+            const uint8_t type = hap_vars(r, HAP1)->types[vi];
             EXPECT_TRUE(type == TYPE_SUB || type == TYPE_INS || type == TYPE_DEL)
                     << ref << " -> " << alt << " variant " << vi << " type " << int(type);
         }
@@ -1841,8 +1668,8 @@ TEST_F(ParseVariants, InsideRegionKept) {
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{50, 200}});
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
-    ASSERT_EQ(1, hap(r, HAP1)->n);
-    EXPECT_EQ(BED_INSIDE, hap(r, HAP1)->locs[0]);
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(BED_INSIDE, hap_vars(r, HAP1)->locs[0]);
 }
 
 TEST_F(ParseVariants, OutsideRegionSkipped) {
@@ -1897,7 +1724,7 @@ TEST_F(ParseVariants, TwoInsertionsAtSamePositionSkipped) {
     ParseResult r = parse_records(dir, {record(100, "A", "AGG", "1|0"),
                                         record(100, "A", "ATT", "1|0")});
     EXPECT_EQ(1, kept_on_hap(r, HAP1));
-    EXPECT_EQ("GG", hap(r, HAP1)->alts[0]);
+    EXPECT_EQ("GG", hap_vars(r, HAP1)->alts[0]);
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
@@ -1911,8 +1738,8 @@ TEST_F(ParseVariants, HomozygousDowngradedWhenOneHapOverlaps) {
                                         record(102, "C", "T", "1|1")});
     ASSERT_EQ(1, kept_on_hap(r, HAP1)); // the deletion only; its SNP half overlapped
     ASSERT_EQ(1, kept_on_hap(r, HAP2));
-    EXPECT_EQ(101, hap(r, HAP2)->poss[0]);
-    EXPECT_EQ(GT_REF_ALT1, hap(r, HAP2)->orig_gts[0]);
+    EXPECT_EQ(101, hap_vars(r, HAP2)->poss[0]);
+    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
