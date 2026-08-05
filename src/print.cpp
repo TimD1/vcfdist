@@ -349,6 +349,32 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
 
 
 /**
+ * @brief Computes precision, recall, and F1 score from query and truth variant counts.
+ * @param[in] query_tp Query variants classified as true positives
+ * @param[in] query_fp Query variants classified as false positives
+ * @param[in] truth_tp Truth variants classified as true positives
+ * @param[in] truth_fn Truth variants classified as false negatives
+ * @return Precision, recall, and F1 score; an empty callset scores 1 for its own metric
+ */
+prec_recall_f1 compute_pr_f1(int query_tp, int query_fp, int truth_tp, int truth_fn) {
+
+    // an empty callset has no errors to penalize, so score it perfect rather than dividing by zero
+    int query_tot = query_tp + query_fp;
+    int truth_tot = truth_tp + truth_fn;
+    float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
+    float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
+
+    // the AC_ERR_2_TO_1 correction can drive truth TP negative, so guard on a positive sum rather
+    // than a non-zero one to keep a negative recall from producing a negative F1 score
+    float f1 = precision + recall > 0 ? 2*precision*recall / (precision + recall) : 0;
+    return prec_recall_f1{precision, recall, f1};
+}
+
+
+/**************************************************************************************************/
+
+
+/**
  * @brief Computes precision/recall statistics across all variant types and quality thresholds,
  *        writes full per-threshold results and summary table to TSV files, and prints to console.
  * @param[in] phasedata_ptr Phase block data with evaluated query and truth variants
@@ -391,9 +417,10 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
             int truth_tot = truth_tp + truth_fn;
 
             // calculate summary metrics
-            float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
-            float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
-            float f1_score = (precision+recall) ? 2*precision*recall / (precision + recall) : 0;
+            prec_recall_f1 metrics = compute_pr_f1(query_tp, query_fp, truth_tp, truth_fn);
+            float precision = metrics.precision;
+            float recall = metrics.recall;
+            float f1_score = metrics.f1;
             if (f1_score > max_f1_score[type]) {
                 max_f1_score[type] = f1_score;
                 max_f1_qual[type] = qual;
@@ -458,9 +485,10 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                 WARN("No TRUTH %s variants pass all filters.", vartype_strs[type].data());
 
             // calculate summary metrics
-            float precision = query_tot == 0 ? 1 : float(query_tp) / query_tot;
-            float recall = truth_tot == 0 ? 1 : float(truth_tp) / truth_tot;
-            float f1_score = precision+recall > 0 ? 2*precision*recall / (precision + recall) : 0;
+            prec_recall_f1 metrics = compute_pr_f1(query_tp, query_fp, truth_tp, truth_fn);
+            float precision = metrics.precision;
+            float recall = metrics.recall;
+            float f1_score = metrics.f1;
 
             // print summary
             INFO("%s%s\t%s Q >= %-2d\t%-16d%-16d%-16d%-16d%f\t%f\t%f\t%f%s",
