@@ -1639,11 +1639,9 @@ TEST_F(ParseVariants, TwoInsertionsAtSamePositionSkipped) {
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
-// When one half of a homozygous record is dropped as overlapping, the other half stops claiming to
-// be homozygous, so the surviving allele is not reported on a haplotype that has no variant. The
-// genotype alone does not prove the downgrade fired for that reason, since
-// HomozygousDowngradedOnHap2WithoutAnySkip shows it also fires with nothing skipped; what this pins
-// is that the surviving half is the haplotype-2 copy and that the drop was counted.
+// When one half of a homozygous record is dropped as overlapping, the surviving half stops claiming
+// to be homozygous, so its allele is not reported on a haplotype that has no variant. Here the
+// haplotype-1 copy overlaps a preceding deletion, leaving the haplotype-2 copy as 0|1.
 TEST_F(ParseVariants, HomozygousDowngradedWhenOneHapOverlaps) {
     ParseResult r = parse_records(dir, {record(100, "AGGT", "A", "1|0"),
                                         record(102, "C", "T", "1|1")});
@@ -1652,6 +1650,36 @@ TEST_F(ParseVariants, HomozygousDowngradedWhenOneHapOverlaps) {
     EXPECT_EQ(101, hap_vars(r, HAP2)->poss[0]);
     EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
+}
+
+// The same downgrade applies in the other direction: a preceding deletion on haplotype 2 drops the
+// haplotype-2 copy, leaving the haplotype-1 copy as 1|0.
+TEST_F(ParseVariants, HomozygousDowngradedWhenHap2Overlaps) {
+    ParseResult r = parse_records(dir, {record(100, "AGGT", "A", "0|1"),
+                                        record(102, "C", "T", "1|1")});
+    ASSERT_EQ(1, kept_on_hap(r, HAP1)); // the SNP only; the deletion is on the other haplotype
+    ASSERT_EQ(1, kept_on_hap(r, HAP2)); // the deletion only; its SNP half overlapped
+    EXPECT_EQ(101, hap_vars(r, HAP1)->poss[0]);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
+}
+
+// An insertion consumes no reference, so a colocated insertion on the other haplotype does not
+// overlap it; the two-insertions rule drops it anyway, and the downgrade must follow that rule too.
+TEST_F(ParseVariants, HomozygousInsertionDowngradedWhenColocatedWithInsertion) {
+    ParseResult hap1_kept = parse_records(dir, {record(100, "A", "AGG", "0|1"),
+                                                record(100, "A", "ATT", "1|1")});
+    ASSERT_EQ(1, kept_on_hap(hap1_kept, HAP1));
+    EXPECT_EQ("TT", hap_vars(hap1_kept, HAP1)->alts[0]);
+    EXPECT_EQ(GT_ALT1_REF, hap_vars(hap1_kept, HAP1)->orig_gts[0]);
+    EXPECT_TRUE(logged(hap1_kept, "1 overlapping variants in QUERY VCF, skipped"));
+
+    ParseResult hap2_kept = parse_records(dir, {record(100, "A", "AGG", "1|0"),
+                                                record(100, "A", "ATT", "1|1")});
+    ASSERT_EQ(1, kept_on_hap(hap2_kept, HAP2));
+    EXPECT_EQ("TT", hap_vars(hap2_kept, HAP2)->alts[0]);
+    EXPECT_EQ(GT_REF_ALT1, hap_vars(hap2_kept, HAP2)->orig_gts[0]);
+    EXPECT_TRUE(logged(hap2_kept, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
 // Heterozygotes should land on either haplotype about equally; a lopsided split suggests the VCF
