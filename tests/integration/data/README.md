@@ -19,8 +19,9 @@ look for them, so a test run leaves this directory untouched.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
 
 Every variant `REF` allele below matches the reference at its 1-based position, and every variant
-is homozygous (`1/1`). Summary counts are therefore per-haplotype (doubled) and are listed as
-`TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from `*precision-recall-summary.tsv`.
+is homozygous (`1/1`) except in the `contig_start_snp` scenario, which is phased heterozygous
+(`1|0`). Summary counts are therefore per-haplotype (doubled, except in that scenario) and are
+listed as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from `*precision-recall-summary.tsv`.
 
 ## Scenarios
 
@@ -57,6 +58,14 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   the TP's reference edit distance. The fix yields `RD=1` for the TP; leaving the inner bypass
   un-excised inflates it to `RD=2`. The call stays TP (credit 1.0) either way, so `RD` is the
   field the test pins. SNP 2/2/4/0.
+
+### contig_start_snp — a variant at reference position 0 (#177)
+- truth and query are identical: SNPs 1 A>G and 50 T>C, both phased `1|0`.
+- default `-ct`: both are TP on both sides. `POS` 1 is 0-based position 0, where no one-base left
+  flank node can precede the variant in the alignment graph; the aligner's fixed origin used to
+  land on the variant node itself, so the call scored FP and its truth counterpart was left
+  unlabeled (`Unknown error type`). The `POS` 50 SNP is the mid-contig control. SNP 2/2/0/0
+  (not doubled — these are the one heterozygous fixtures).
 
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 

@@ -208,3 +208,36 @@
       contains:
         - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:FN:0.000000:.:.:.:50:0:0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
         - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:FN:0.000000:.:.:.:50:0:0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
+
+# --- variants at reference position 0 (synthetic sc1 reference) ---
+
+- name: test_contig-start-snp-scored-as-tp
+  # Regression guard for #177: query and truth are identical, with one SNP at POS 1 (0-based
+  # position 0) and one at POS 50, so every variant must be a true positive on both sides. The
+  # alignment graph used to open directly on the position-0 variant node -- the aligner's fixed
+  # origin -- leaving the parallel reference allele unreachable, so the call scored FP and its truth
+  # counterpart was left unlabeled ("Unknown error type"), making TRUTH_TP + TRUTH_FN disagree with
+  # the truth variant count. The POS 50 SNP is the mid-contig control, unaffected either way.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/contig_start_snp_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/contig_start_snp_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "contig_start_snp_out_"'
+  stderr:
+    must_not_contain:
+      - "Unknown error type"
+  files:
+    - path: contig_start_snp_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t0\t0"
+    - path: contig_start_snp_out_truth.tsv
+      contains:
+        - "sc1\t0\t0\tA\tG\t50.00\tSNP\tTP"
+        - "sc1\t49\t0\tT\tC\t50.00\tSNP\tTP"
+    - path: contig_start_snp_out_query.tsv
+      contains:
+        - "sc1\t0\t0\tA\tG\t50.00\tSNP\tTP"
+        - "sc1\t49\t0\tT\tC\t50.00\tSNP\tTP"
+      must_not_contain:
+        - "\tSNP\tFP"

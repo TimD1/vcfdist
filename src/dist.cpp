@@ -160,6 +160,8 @@ int calc_prec_recall_aln(
     struct qcmp { bool operator()(const qentry & a, const qentry & b) const { return a.cost > b.cost; } };
     std::priority_queue<qentry, std::vector<qentry>, qcmp> pq;
 
+    // node 0 of each side is always reference (a left flank, or the zero-width entry node the Graph
+    // constructor substitutes at reference position 0), so this fixed origin cell is never a variant
     idx4 start(0, 0, 0, 0);
     pq.push({0.0, start, idx4(0, 0, -1, -1)});
     best[start] = 0.0;
@@ -819,6 +821,11 @@ int Graph::get_truth_pos(int truth_node_idx, int truth_idx) {
  * variant's index) offering an alternate, tolled route past that variant, with reference end
  * coordinates (tends) recorded for every truth node and connectivity set between adjacent nodes.
  *
+ * Node 0 of each side is always a reference node, which is what lets calc_prec_recall_aln() seed
+ * its search at a fixed origin cell. Away from the contig start that node is the one-base left
+ * flank; at reference position 0, where no base lies to the left, a synthetic zero-width reference
+ * node stands in for it so that a variant's parallel allele still has a predecessor.
+ *
  * @param[in] sc Supercluster data containing query and truth variant containers.
  * @param[in] sc_idx Supercluster index in the contig.
  * @param[in] ref Reference FASTA data.
@@ -883,6 +890,22 @@ Graph::Graph(
             this->qtypes.push_back(TYPE_REF);
             this->qidxs.push_back(-1);
             ref_pos = next_ref_pos;
+        }
+
+        // At position 0 there is no base to the left, so the one-base left flank node that would
+        // otherwise open the graph cannot exist and this variant node would become node 0 -- the
+        // hardcoded origin of calc_prec_recall_aln(), leaving its parallel reference allele with no
+        // predecessor and unreachable. A zero-width reference node supplies the origin cell the
+        // aligner needs; its sentinel is all the flank node ever contributed there (#177). No
+        // position test is needed: ref_beg = max(0, min_pos - 1), so a side reaches its first
+        // variant with nothing emitted only when ref_pos == var_pos == ref_beg == 0.
+        if (this->qnodes == 0) {
+            this->qnodes++;
+            this->qseqs.push_back("_");
+            this->qbegs.push_back(0);
+            this->qends.push_back(0);
+            this->qtypes.push_back(TYPE_REF);
+            this->qidxs.push_back(-1);
         }
 
         // add the variant
@@ -962,6 +985,18 @@ Graph::Graph(
                 this->truth += ref->fasta.at(ctg).substr(ref_pos, var_pos-ref_pos);
             }
 
+            // no left flank can exist at position 0, so keep node 0 a reference node for the
+            // aligner's origin; see the query-side counterpart in STEP 1 (#177)
+            if (this->tnodes == 0) {
+                this->tnodes++;
+                this->tseqs.push_back("_");
+                this->tbegs.push_back(0);
+                this->tends.push_back(0);
+                this->ttypes.push_back(TYPE_REF);
+                this->tidxs.push_back(-1);
+                this->tskips.push_back(-1);
+            }
+
             // add the truth variant
             this->tnodes++;
             this->tseqs.push_back("_" + tvars->alts[var_idx]);
@@ -1021,14 +1056,18 @@ Graph::Graph(
             if (this->tskips[n1] >= 0 && this->tskips[n1] == this->tidxs[n2]) continue;
             // suppress any edge that leaps a zero-width insertion locus, forcing the path through
             // the insertion's variant node (TP) or its tolled bypass node (FN). An edge joining two
-            // nodes at coordinate p leaps the insertion only if BOTH endpoints are reference-spanning
-            // (neither is zero-width at p): a zero-width endpoint IS the insertion's alt/bypass, so
-            // that edge routes into or out of the insertion rather than past it. Testing zero-width
-            // (rather than the old both-ref rule) also closes the leap when the insertion abuts
-            // another variant, whose alt/bypass node is reference-spanning but not a plain ref node.
-            bool n1_zero_width = this->tbegs[n1] == this->tends[n1];
-            bool n2_zero_width = this->tbegs[n2] == this->tends[n2];
-            bool leaps_insertion = !n1_zero_width && !n2_zero_width;
+            // nodes at coordinate p leaps the insertion unless one endpoint IS the insertion's own
+            // alt/bypass node, in which case the edge routes into or out of the insertion rather
+            // than past it. Such an endpoint is exactly a zero-width variant or bypass node; testing
+            // for that (rather than the old both-ref rule) also closes the leap when the insertion
+            // abuts another variant, whose alt/bypass node is reference-spanning but not a plain ref
+            // node, and keeps a zero-width node that is neither (the contig-start entry node of
+            // STEP 1/STEP 3) from exempting an edge that really does leap the insertion.
+            bool n1_ins_node = this->tbegs[n1] == this->tends[n1] &&
+                    (this->tidxs[n1] >= 0 || this->tskips[n1] >= 0);
+            bool n2_ins_node = this->tbegs[n2] == this->tends[n2] &&
+                    (this->tidxs[n2] >= 0 || this->tskips[n2] >= 0);
+            bool leaps_insertion = !n1_ins_node && !n2_ins_node;
             if (this->tbegs[n1] == this->tends[n2] && n2 < n1 &&
                     !(leaps_insertion && insertion_coords.count(this->tbegs[n1])))
                 this->tprevs[n1].push_back(n2);

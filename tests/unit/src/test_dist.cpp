@@ -972,27 +972,61 @@ TEST(GraphCtor, QuerySnpNodeLayout) {
 
 TEST(GraphCtor, ContigStartRefSpanClamped) {
     // A variant at position 0 has no base to its left, so ref_beg clamps to 0 instead of -1 and
-    // the constructor no longer slices the reference at a negative offset (#167).
+    // the constructor no longer slices the reference at a negative offset (#167). Node 0 is the
+    // zero-width entry node standing in for the absent flank (ContigStartHasZeroWidthEntryNode).
     GraphFixture f = build_fixture("ACGTACGT",
             {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
 
     EXPECT_EQ("ACG", f.graph->ref);
-    EXPECT_EQ(std::vector<int>({0, 0, 1}), f.graph->qbegs);
-    EXPECT_EQ(std::vector<int>({1, 1, 3}), f.graph->qends);
+    EXPECT_EQ(std::vector<int>({0, 0, 0, 1}), f.graph->qbegs);
+    EXPECT_EQ(std::vector<int>({0, 1, 1, 3}), f.graph->qends);
 }
 
-TEST(GraphCtor, ContigStartHasNoLeftFlankNode) {
+TEST(GraphCtor, ContigStartHasZeroWidthEntryNode) {
     // Away from the contig start the first node is the one-base left flank (QuerySnpNodeLayout).
-    // At position 0 that node cannot exist, so the graph opens directly on the variant and its
-    // parallel reference allele, which no edge reaches from node 0.
+    // At position 0 that node cannot exist, so the constructor emits a synthetic zero-width
+    // reference node instead, keeping node 0 reference and both alleles reachable from it (#177).
     GraphFixture f = build_fixture("ACGTACGT",
             {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
 
-    ASSERT_EQ(3, f.graph->qnodes);
-    EXPECT_EQ(std::vector<std::string>({"_G", "_A", "_CG"}), f.graph->qseqs);
-    EXPECT_EQ(std::vector<int>({TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    ASSERT_EQ(4, f.graph->qnodes);
+    EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->qseqs);
+    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->qidxs);
+
+    // the entry node is the unique origin: no predecessor, and both alleles hang off it
     EXPECT_TRUE(f.graph->qprevs[0].empty());
-    EXPECT_TRUE(f.graph->qprevs[1].empty()) << "the reference allele is unreachable from node 0";
+    EXPECT_EQ(std::vector<int>({1, 2}), f.graph->qnexts[0]);
+    EXPECT_EQ(std::vector<int>({0}), f.graph->qprevs[1]) << "the alt allele must be reachable";
+    EXPECT_EQ(std::vector<int>({0}), f.graph->qprevs[2]) << "the ref allele must be reachable";
+}
+
+TEST(GraphCtor, MidContigHasNoEntryNode) {
+    // The entry node exists only where no left flank can: away from position 0 the flank node
+    // already makes node 0 reference, so no synthetic node is added and node indices are unchanged.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}});
+
+    EXPECT_EQ("_C", f.graph->qseqs[0]) << "node 0 is the one-base left flank, not an entry node";
+    EXPECT_EQ("_C", f.graph->tseqs[0]);
+    EXPECT_NE(f.graph->qbegs[0], f.graph->qends[0]);
+    EXPECT_NE(f.graph->tbegs[0], f.graph->tends[0]);
+}
+
+TEST(GraphCtor, ContigStartTruthEntryNodePrecedesBypass) {
+    // The truth side needs the entry node for the same reason the query side does: without it the
+    // origin lands on the truth alt node, and the parallel reference-allele bypass node, which is
+    // how a missed truth variant is labeled FN, has no predecessor at all.
+    GraphFixture f = build_fixture("ACGTACGT", {},
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    ASSERT_EQ(4, f.graph->tnodes);
+    EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->tseqs);
+    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
+    EXPECT_EQ(std::vector<int>({-1, -1, 0, -1}), f.graph->tskips) << "node 2 bypasses variant 0";
+    EXPECT_TRUE(f.graph->tprevs[0].empty());
+    EXPECT_EQ(std::vector<int>({0}), f.graph->tprevs[2]) << "the bypass node must be reachable";
 }
 
 TEST(GraphCtor, QueryVariantHasParallelRefAllele) {
@@ -1474,6 +1508,70 @@ TEST(PrecRecall, MissedVariantIsFalseNegativeViaBypass) {
     EXPECT_EQ(0, f.tvars->sync_group[HAP1][0]);
 }
 
+TEST(PrecRecall, ContigStartSubstitutionIsTruePositive) {
+    GlobalsGuard guard;
+
+    // The defect behind #177: query and truth both carry a SNP at position 0, but the origin cell
+    // landed on the alt node with the reference allele unreachable, so the call scored FP and its
+    // truth counterpart was left ERRTYPE_UN and reported as "Unknown error type".
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}},
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
+    EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+    EXPECT_FLOAT_EQ(1.0f, f.qvars->credit[HAP1][0]);
+    EXPECT_EQ(0, f.qvars->query_ed[HAP1][0]);
+}
+
+TEST(PrecRecall, ContigStartMissedSubstitutionIsFalseNegative) {
+    GlobalsGuard guard;
+
+    // The other half of the defect: with the truth bypass node unreachable from the origin, a
+    // missed truth variant at position 0 could not be routed around and so was never labeled.
+    GraphFixture f = build_fixture("ACGTACGT", {},
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_FN, f.tvars->errtypes[HAP1][0]);
+    EXPECT_FLOAT_EQ(0.0f, f.tvars->credit[HAP1][0]);
+}
+
+TEST(PrecRecall, ContigStartDeletionIsTruePositive) {
+    GlobalsGuard guard;
+
+    // A deletion at position 0 is representable: variant.cpp trims a left-anchored deletion by its
+    // matching prefix only, so "POS 1 AC -> C" keeps pos 0 and deletes the "A". Its alt node is
+    // empty ("_"), making the entry node and the variant node both zero-width at coordinate 0.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{0, 1, TYPE_DEL, "A", "", GT_ALT1_REF, 60, 0, 0}},
+            {{0, 1, TYPE_DEL, "A", "", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
+    EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+}
+
+TEST(PrecRecall, ContigStartInsertionIsTruePositive) {
+    GlobalsGuard guard;
+
+    // An insertion at position 0 is representable too ("POS 1 A -> GA" inserts "G" at pos 0). Its
+    // alt and bypass nodes are both zero-width at coordinate 0, so this is the case the narrowed
+    // leap rule protects: the entry node must not exempt an edge past the insertion.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{0, 0, TYPE_INS, "", "G", GT_ALT1_REF, 60, 0, 0}},
+            {{0, 0, TYPE_INS, "", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
+    EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+}
+
 // End-to-end guard: with the leap-suppression edge rule, a truth insertion abutting another
 // truth variant is forced onto the alignment path (via its alt or bypass node) and is labeled by
 // the backtrack itself -- not by the removed safety sweep. Here the query equals the reference, so
@@ -1494,6 +1592,27 @@ TEST(GraphInsertionEdges, AdjacentInsertionLabeledWithoutSweep) {
     // query == reference: neither truth variant is reproduced, both are FN (not left UNKNOWN)
     EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][0]) << "SUB should be a false negative";
     EXPECT_EQ(ERRTYPE_FN, tv->errtypes[HAP1][1]) << "insertion should be a false negative";
+}
+
+// The narrowed leap rule, pinned end to end. A truth insertion at position 0 puts the zero-width
+// entry node at the same coordinate as the insertion's zero-width alt and bypass nodes. Exempting
+// an edge merely because one endpoint is zero-width would let entry -> remainder skip both at cost
+// 0, labeling this reproduced insertion FN.
+TEST(GraphInsertionEdges, ContigStartInsertionNotLeapt) {
+    GlobalsGuard guard;
+
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{0, 0, TYPE_INS, "", "GG", GT_ALT1_REF, 60, 0, 0}},
+            {{0, 0, TYPE_INS, "", "GG", GT_ALT1_REF, 60, 0, 0}});
+
+    // no truth edge may join the entry node directly to a node past the insertion locus
+    for (int tn : f.graph->tnexts[0])
+        EXPECT_TRUE(f.graph->tidxs[tn] >= 0 || f.graph->tskips[tn] >= 0)
+                << "entry node leaps the position-0 insertion into node " << tn;
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]) << "reproduced insertion must not be FN";
 }
 
 // Regression guard for consecutive bypassed (FN) truth variants. Two adjacent truth SNPs the query
