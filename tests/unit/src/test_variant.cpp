@@ -132,12 +132,24 @@ TEST(AddVar, QualCapped) {
     GlobalsGuard guard;
     g.max_qual = 60;
     ctgVariants vars("chr20");
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 99, 99, 0);
 
+    // the two quals differ, so clamping the wrong argument cannot pass
+    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 99, 80, 0);
+
+    EXPECT_FLOAT_EQ(60, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(60, vars.var_quals[0]);
+}
 
-    // only var_qual is clamped; gt_qual is stored verbatim
-    EXPECT_FLOAT_EQ(99, vars.gt_quals[0]);
+TEST(AddVar, GtQualCappedIndependentlyOfVarQual) {
+    GlobalsGuard guard;
+    g.max_qual = 60;
+    ctgVariants vars("chr20");
+
+    // only gt_qual exceeds the cap, so its clamp cannot be riding on var_qual's
+    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 99, 30, 0);
+
+    EXPECT_FLOAT_EQ(60, vars.gt_quals[0]);
+    EXPECT_FLOAT_EQ(30, vars.var_quals[0]);
 }
 
 TEST(AddVar, QualBelowCap) {
@@ -145,6 +157,7 @@ TEST(AddVar, QualBelowCap) {
     g.max_qual = 60;
     ctgVariants vars("chr20");
     vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
+    EXPECT_FLOAT_EQ(30, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(30, vars.var_quals[0]);
 }
 
@@ -155,6 +168,7 @@ TEST(AddVar, QualNegative) {
     vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, -5, -5, 0);
 
     // std::min() only caps from above, so a negative quality is stored unchanged
+    EXPECT_FLOAT_EQ(-5, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(-5, vars.var_quals[0]);
 }
 

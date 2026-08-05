@@ -70,8 +70,8 @@ public:
     std::vector<std::string> refs;  ///< variant reference allele
     std::vector<std::string> alts;  ///< variant alternate allele (always one)
     std::vector<uint8_t> orig_gts;  ///< simple genotype (0|1, 1|0, or 1|1)
-    std::vector<float> gt_quals;    ///< genotype quality (0-60)
-    std::vector<float> var_quals;   ///< variant quality (0-60)
+    std::vector<float> gt_quals;    ///< genotype quality (capped above at --max-qual)
+    std::vector<float> var_quals;   ///< variant quality (capped above at --max-qual)
     std::vector<int> phase_sets;    ///< integer representing variant phase set (0 = missing)
     std::vector<int> rec_idxs;      ///< source VCF record ordinal (0-based, -1 = unknown)
     std::vector<int> alt_idxs;      ///< original ALT ordinal (1-based, -1 = unknown)
