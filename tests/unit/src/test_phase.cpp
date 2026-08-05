@@ -109,9 +109,11 @@ std::shared_ptr<ctgVariants> make_qvars(const std::vector<phase_t> & phases,
  * through INFO are observable, and stderr is redirected so they stay out of the test log.
  * @param[in] dir Temporary directory receiving the pipeline's TSVs and captured log
  * @param[in] inputs Per-contig variants and metadata, in contig order
+ * @param[in] ref Reference the writer reads anchor bases from, needed only for INS/DEL records
  * @return Constructed phase block data and its captured log
  */
-pipeline_result run_pipeline(const TempDir & dir, const std::vector<ctg_input> & inputs) {
+pipeline_result run_pipeline(const TempDir & dir, const std::vector<ctg_input> & inputs,
+        std::shared_ptr<fastaData> ref = nullptr) {
     std::vector<std::string> contigs;
     std::vector<int> lengths;
     std::vector< std::shared_ptr<ctgSuperclusters> > superclusters;
@@ -132,7 +134,7 @@ pipeline_result run_pipeline(const TempDir & dir, const std::vector<ctg_input> &
     {
         StderrToFile redirect(log_fn);
         result.data = std::shared_ptr<phaseblockData>(new phaseblockData(
-                make_superclusterData(contigs, lengths, superclusters)));
+                make_superclusterData(contigs, lengths, superclusters, ref)));
     }
     result.log = read_text(log_fn);
     return result;
@@ -140,12 +142,13 @@ pipeline_result run_pipeline(const TempDir & dir, const std::vector<ctg_input> &
 
 /** @brief Runs the phaseblockData pipeline over a single contig. */
 pipeline_result run_pipeline(const TempDir & dir, std::shared_ptr<ctgVariants> qvars,
-        std::shared_ptr<ctgVariants> tvars = nullptr, int length = CTG_LENGTH) {
+        std::shared_ptr<ctgVariants> tvars = nullptr, int length = CTG_LENGTH,
+        std::shared_ptr<fastaData> ref = nullptr) {
     ctg_input input;
     input.qvars = qvars;
     input.tvars = tvars;
     input.length = length;
-    return run_pipeline(dir, {input});
+    return run_pipeline(dir, {input}, ref);
 }
 
 /**
@@ -1262,6 +1265,243 @@ TEST(WriteSummaryVcf, ContigLineOmitsPloidy) {
     std::string vcf = summary_vcf(dir, *result.data);
     EXPECT_NE(std::string::npos, vcf.find("##contig=<ID=chr1,length=604>")) << vcf;
     EXPECT_EQ(std::string::npos, vcf.find("ploidy=")) << vcf;
+}
+
+/* write_summary_vcf(): one record per variant *****************************************************/
+
+const int QUERY_COL = 10; ///< 0-based column of the QUERY sample within a summary VCF record
+
+/** @brief Field offsets within a summary VCF sample column, in FORMAT order. */
+enum sample_field { FMT_GT, FMT_BD, FMT_BC, FMT_RD, FMT_QD, FMT_BK, FMT_QQ, FMT_SC, FMT_SG };
+
+/** @brief Returns every summary VCF record at the given 1-based position, in file order. */
+std::vector<std::string> records_at(const std::string & vcf, int vcf_pos) {
+    std::vector<std::string> found;
+    std::istringstream lines(vcf);
+    std::string line;
+    const std::string prefix = CTG + "\t" + std::to_string(vcf_pos) + "\t";
+    while (std::getline(lines, line)) {
+        if (line.rfind(prefix, 0) == 0) found.push_back(line);
+    }
+    return found;
+}
+
+/** @brief Splits a whole record on a delimiter, yielding "" for a column past the end. */
+std::vector<std::string> split(const std::string & text, char delim) {
+    std::vector<std::string> parts;
+    std::istringstream fields(text);
+    std::string part;
+    while (std::getline(fields, part, delim)) parts.push_back(part);
+    return parts;
+}
+
+/**
+ * @brief Returns the QUERY sample's FORMAT fields for the sole record at a 1-based position.
+ *
+ * The record count is asserted here rather than returned, so that a test reading a field also
+ * pins that exactly one record was written for the variant.
+ * @param[in] vcf Full summary VCF contents
+ * @param[in] vcf_pos 1-based POS of the record to read
+ * @return The QUERY sample column split on ':', indexable by sample_field
+ */
+std::vector<std::string> sole_query_sample(const std::string & vcf, int vcf_pos = 1) {
+    std::vector<std::string> recs = records_at(vcf, vcf_pos);
+    EXPECT_EQ(size_t(1), recs.size()) << vcf;
+    if (recs.size() != 1) return std::vector<std::string>(15, "");
+    return split(split(recs[0], '\t').at(QUERY_COL), ':');
+}
+
+/**
+ * @brief Builds one query variant of the given type and genotypes, SPACING bases into the contig.
+ *
+ * An INS/DEL is left-anchored on the preceding reference base, so it cannot sit at position 0 the
+ * way the substitution builders above place their first variant.
+ * @param[in] type Variant type (TYPE_SUB, TYPE_INS, or TYPE_DEL)
+ * @param[in] orig_gt Original genotype, reported in the record's GT column
+ * @param[in] matched_gt Calculated genotype, which indexes the per-haplotype evaluation lanes
+ * @param[in] ploidy Variant ploidy (0 = unknown, treated as diploid)
+ * @return Query variants holding the single described variant
+ */
+std::shared_ptr<ctgVariants> make_shape_qvars(edittype_t type, gt_t orig_gt, gt_t matched_gt,
+        uint8_t ploidy = 2) {
+    var_desc desc;
+    desc.pos = SPACING;
+    desc.rlen = type == TYPE_INS ? 0 : 1;
+    desc.type = type;
+    desc.ref = type == TYPE_INS ? "" : "A";
+    desc.alt = type == TYPE_DEL ? "" : "C";
+    desc.gt = orig_gt;
+    desc.phase_set = 1;
+    desc.ploidy = ploidy;
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(CTG, {desc});
+    qvars->matched_gts[0] = matched_gt;
+    return qvars;
+}
+
+/** @brief Runs the pipeline over one contig of all-'A' reference and returns the summary VCF. */
+std::string shape_vcf(const TempDir & dir, std::shared_ptr<ctgVariants> qvars) {
+    pipeline_result result = run_pipeline(dir, qvars, nullptr, CTG_LENGTH,
+            make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+    return summary_vcf(dir, *result.data);
+}
+
+// A homozygous variant reaches the writer as a single entry carrying GT_ALT_ALT, so writing one
+// record per haplotype re-split it into two. Both alleles are alternate, so both carry data.
+TEST(WriteSummaryVcf, HomSnpIsOneRecordWithTwoValues) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars =
+            make_shape_qvars(TYPE_SUB, GT_ALT_ALT, GT_ALT_ALT);
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 4, 60, 3, 0, 1.0);
+    set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 4, 60, 3, 0, 1.0);
+
+    std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
+    EXPECT_EQ("1|1", sample.at(FMT_GT));
+    EXPECT_EQ("TP,TP", sample.at(FMT_BD));
+    EXPECT_EQ("1.000000,1.000000", sample.at(FMT_BC));
+    EXPECT_EQ("3,3", sample.at(FMT_RD));
+    EXPECT_EQ("0,0", sample.at(FMT_QD));
+    EXPECT_EQ("gm,gm", sample.at(FMT_BK));
+    EXPECT_EQ("4,4", sample.at(FMT_SG));
+}
+
+// An indel takes the same shape as a substitution; it is written through print_var_info's
+// left-anchoring branch, so it is covered separately.
+TEST(WriteSummaryVcf, HomIndelIsOneRecordWithTwoValues) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars =
+            make_shape_qvars(TYPE_DEL, GT_ALT_ALT, GT_ALT_ALT);
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 0, 60, 1, 0, 1.0);
+    set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 0, 60, 1, 0, 1.0);
+
+    // a deletion is positioned on its anchor base, one before its first deleted base
+    std::vector<std::string> recs = records_at(shape_vcf(dir, qvars), SPACING);
+    ASSERT_EQ(size_t(1), recs.size());
+    std::vector<std::string> cols = split(recs[0], '\t');
+    EXPECT_EQ("AA", cols.at(3));
+    EXPECT_EQ("A", cols.at(4));
+    std::vector<std::string> sample = split(cols.at(QUERY_COL), ':');
+    EXPECT_EQ("1|1", sample.at(FMT_GT));
+    EXPECT_EQ("TP,TP", sample.at(FMT_BD));
+    EXPECT_EQ("1.000000,1.000000", sample.at(FMT_BC));
+}
+
+// A heterozygous call still carries one value per GT allele, but its reference allele was never
+// evaluated, so reporting the untouched haplotype's lane there would invent a second decision.
+TEST(WriteSummaryVcf, HetRecordDotsTheReferenceAllele) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars =
+            make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF);
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 2, 60, 5, 0, 1.0);
+
+    std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
+    EXPECT_EQ("1|0", sample.at(FMT_GT));
+    EXPECT_EQ("TP,.", sample.at(FMT_BD));
+    EXPECT_EQ("1.000000,.", sample.at(FMT_BC));
+    EXPECT_EQ("5,.", sample.at(FMT_RD));
+    EXPECT_EQ("2,.", sample.at(FMT_SG));
+}
+
+// A haploid record has one GT allele, so it carries one value rather than a two-value list.
+TEST(WriteSummaryVcf, HaploidRecordCarriesOneValue) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars =
+            make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF, 1);
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 2, 60, 5, 0, 1.0);
+
+    std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
+    EXPECT_EQ("1", sample.at(FMT_GT));
+    EXPECT_EQ("TP", sample.at(FMT_BD));
+    EXPECT_EQ("1.000000", sample.at(FMT_BC));
+    EXPECT_EQ("5", sample.at(FMT_RD));
+    EXPECT_EQ("2", sample.at(FMT_SG));
+}
+
+// The values are ordered by GT allele, and GT reports orig_gt while the evaluation lanes are
+// indexed by matched_gt's haplotypes. On a swapped record the two disagree, so reading the lanes in
+// haplotype order would report the untouched haplotype's zero credit against the alternate allele.
+TEST(WriteSummaryVcf, PerAlleleValuesFollowTheGenotypeSwap) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars =
+            make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_REF_ALT);
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_FP, 7, 60, 0, 0, 0.0);
+    set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 2, 60, 5, 0, 1.0);
+
+    std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
+    EXPECT_EQ("1|0", sample.at(FMT_GT));
+    EXPECT_EQ("TP,.", sample.at(FMT_BD));
+    EXPECT_EQ("1.000000,.", sample.at(FMT_BC));
+    EXPECT_EQ("2,.", sample.at(FMT_SG));
+}
+
+// Both alleles of a homozygous call carry data, so their order is directly observable.
+TEST(WriteSummaryVcf, PerAlleleValuesAreInGenotypeAlleleOrder) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars =
+            make_shape_qvars(TYPE_SUB, GT_ALT_ALT, GT_ALT_ALT);
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 1, 60, 3, 0, 1.0);
+    set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 6, 60, 7, 2, 0.75);
+
+    std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
+    EXPECT_EQ("3,7", sample.at(FMT_RD));
+    EXPECT_EQ("0,2", sample.at(FMT_QD));
+    EXPECT_EQ("1,6", sample.at(FMT_SG));
+    EXPECT_EQ("1.000000,0.750000", sample.at(FMT_BC));
+}
+
+// A het-alt (1|2) source record is parsed into two entries with different ALTs, and the
+// cross-haplotype merge only collapses entries whose position and alleles match exactly, so
+// nothing rejoins them. Pinned explicitly: this asymmetry against the homozygous case is
+// deliberate, since the two alleles need not even share a position once normalized.
+TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::vector<var_desc> descs;
+    for (const std::string & alt : {"C", "G"}) {
+        var_desc desc;
+        desc.pos = SPACING;
+        desc.rlen = 1;
+        desc.ref = "A";
+        desc.alt = alt;
+        desc.gt = alt == "C" ? GT_ALT_REF : GT_REF_ALT;
+        desc.phase_set = 1;
+        desc.ploidy = 2;
+        descs.push_back(desc);
+    }
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(CTG, descs);
+    qvars->matched_gts[0] = GT_ALT_REF;
+    qvars->matched_gts[1] = GT_REF_ALT;
+    set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 0, 60, 1, 0, 1.0);
+    set_hap_data(qvars, HAP2, 1, ERRTYPE_TP, 0, 60, 1, 0, 1.0);
+
+    std::vector<std::string> recs = records_at(shape_vcf(dir, qvars), SPACING + 1);
+    ASSERT_EQ(size_t(2), recs.size());
+    EXPECT_EQ("C", split(recs[0], '\t').at(4));
+    EXPECT_EQ("G", split(recs[1], '\t').at(4));
+    EXPECT_EQ("1|0", split(split(recs[0], '\t').at(QUERY_COL), ':').at(FMT_GT));
+    EXPECT_EQ("0|1", split(split(recs[1], '\t').at(QUERY_COL), ':').at(FMT_GT));
+}
+
+// Number=P would declare the one-value-per-GT-allele cardinality these fields carry, but it is a
+// VCF 4.4 addition htslib only supports from 1.23, so Number=. is declared and the count and
+// order are stated in the description instead.
+TEST(WriteSummaryVcf, PerAlleleFieldsAreDeclaredUnbounded) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = shape_vcf(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF));
+    for (const std::string & id : {"BD", "BC", "RD", "QD", "BK", "SG"}) {
+        EXPECT_NE(std::string::npos, vcf.find("##FORMAT=<ID=" + id + ",Number=.,")) << id;
+        EXPECT_NE(std::string::npos,
+                vcf.find("One value per allele of this sample's GT, in GT allele order")) << id;
+    }
+    for (const std::string & id : {"GT", "QQ", "SC", "PS", "PB", "BS", "VP", "FE", "GE"}) {
+        EXPECT_NE(std::string::npos, vcf.find("##FORMAT=<ID=" + id + ",Number=1,")) << id;
+    }
 }
 
 } // namespace

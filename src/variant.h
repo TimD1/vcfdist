@@ -85,8 +85,8 @@ public:
     void print_var_empty(FILE* out_fp, int sc_idx, int phase_block, bool query = false);
 
     /** @brief Writes sample-specific FORMAT fields for one variant to output VCF. */
-    void print_var_sample(FILE* out_fp, int vi, hap_t hi, const std::string & gt, int sc_idx,
-            int phase_block, bool phase_switch, bool phase_flip, bool query = false);
+    void print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
+            bool phase_switch, bool phase_flip, bool query = false);
 
     /** @brief Returns true if a variant is present on the specified haplotype. */
     bool var_on_hap(int var_idx, hap_t hap, bool matched = false) const;

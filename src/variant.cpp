@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <vector>
 #include <cmath>
+#include <cstdio>
 
 #include "htslib/vcf.h"
 
@@ -382,44 +383,80 @@ void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
 
 
 /**
+ * @brief Renders a credit exactly as printf's "%f" would, for embedding in a comma-separated list.
+ * @param[in] credit Credit on the interval [0,1]
+ * @return The credit with six digits after the decimal point
+ */
+static std::string credit_str(float credit) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%f", credit);
+    return std::string(buf);
+}
+
+
+/**
  * @brief Writes sample-specific FORMAT fields for one variant to output VCF.
+ *
+ * One record is written per variant rather than per haplotype, so the per-haplotype fields (BD, BC,
+ * RD, QD, BK, SG) are comma-separated lists carrying one value per allele of the emitted GT. GT is
+ * rendered from orig_gt, the caller's own claim, so a reference allele has no evaluation data and
+ * every per-haplotype field reports "." for it. The evaluation lanes are indexed by calc_gt's
+ * haplotypes, which matched_gt_is_swapped() reports may be the reverse of orig_gt's.
  * @param[in] out_fp Open file pointer to output VCF
  * @param[in] vi Variant index in this container
- * @param[in] hi Haplotype index (0 or 1)
- * @param[in] gt Genotype string (e.g., "0|1", "1|1")
  * @param[in] sc_idx Supercluster index for SC field
  * @param[in] phase_block Phase block index for PB field
  * @param[in] phase_switch True if phase switched at this position
  * @param[in] phase_flip True if phase flipped (error) at this position
  * @param[in] query If true, format as query sample; if false, as truth sample
  */
-void ctgVariants::print_var_sample(FILE* out_fp, int vi, hap_t hi, const std::string & gt,
-        int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query /* = false */) {
+void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
+        bool phase_switch, bool phase_flip, bool query /* = false */) {
 
-    // get categorization
-    std::string errtype;
-    std::string match_type;
-    if (this->credit[hi][vi] == 1) {
-        errtype = "TP"; match_type = "gm";
-    } else if (this->credit[hi][vi] == 0) {
-        errtype = query ? "FP" : "FN"; match_type = ".";
-    } else if (this->credit[hi][vi] >= g.credit_threshold) {
-        errtype = "TP"; match_type = "lm";
-    } else {
-        errtype = query ? "FP" : "FN"; match_type = "lm";
+    // a haploid record carries one bare allele; an unknown ploidy (0) is rendered as diploid
+    int alleles = this->ploidies[vi] == 1 ? 1 : HAPS;
+    const std::string gt = alleles == 1 ? "1" : gt_strs[this->orig_gts[vi]];
+
+    bool swap = this->matched_gt_is_swapped(vi);
+    std::string errtypes, credits, ref_eds, query_eds, match_types, sync_groups;
+    for (int ai = 0; ai < alleles; ai++) {
+        const std::string sep = ai ? "," : "";
+        hap_t allele = hap_t(ai);
+
+        // a reference allele was never evaluated, so it has no per-haplotype data to report
+        if (!this->var_on_hap(vi, allele)) {
+            errtypes += sep + "."; credits += sep + "."; ref_eds += sep + ".";
+            query_eds += sep + "."; match_types += sep + "."; sync_groups += sep + ".";
+            continue;
+        }
+
+        // get categorization
+        hap_t hi = swap ? other_hap(allele) : allele;
+        if (this->credit[hi][vi] == 1) {
+            errtypes += sep + "TP"; match_types += sep + "gm";
+        } else if (this->credit[hi][vi] == 0) {
+            errtypes += sep + (query ? "FP" : "FN"); match_types += sep + ".";
+        } else if (this->credit[hi][vi] >= g.credit_threshold) {
+            errtypes += sep + "TP"; match_types += sep + "lm";
+        } else {
+            errtypes += sep + (query ? "FP" : "FN"); match_types += sep + "lm";
+        }
+
+        credits += sep + credit_str(this->credit[hi][vi]);
+        ref_eds += sep + (this->ref_ed[hi][vi] == 0 ? "." :
+                std::to_string(this->ref_ed[hi][vi]));
+        query_eds += sep + (this->ref_ed[hi][vi] == 0 ? "." :
+                std::to_string(this->query_ed[hi][vi]));
+        sync_groups += sep + std::to_string(int(this->sync_group[hi][vi]));
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[hi][vi], 
-            this->ref_ed[hi][vi] == 0 ? "." : 
-                std::to_string(this->ref_ed[hi][vi]).data(),
-            this->ref_ed[hi][vi] == 0 ? "." : 
-                std::to_string(this->query_ed[hi][vi]).data(),
-            match_type.data(), int(this->var_quals[vi]), sc_idx, 
-            int(this->sync_group[hi][vi]), this->phase_sets[vi], phase_block,
-            query ? (phase_switch ? "1" : "0") : "." , 
+    fprintf(out_fp, "\t%s:%s:%s:%s:%s:%s:%d:%d:%s:%d:%d:%s:%s:%s:%s%s", gt.data(), errtypes.data(),
+            credits.data(), ref_eds.data(), query_eds.data(), match_types.data(),
+            int(this->var_quals[vi]), sc_idx, sync_groups.data(),
+            this->phase_sets[vi], phase_block,
+            query ? (phase_switch ? "1" : "0") : "." ,
             phase_strs[this->phases[vi]].data(),
-            query ? (phase_flip ? "1" : "0") : "." , 
+            query ? (phase_flip ? "1" : "0") : "." ,
             ac_strs[this->ac_errtype[vi]].data(),
             query ? "\n" : "");
 }
