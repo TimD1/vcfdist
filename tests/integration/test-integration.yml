@@ -272,3 +272,23 @@
         - "sc1\t399\t0\tT\tC\t50.00\tSNP\tTP"
       must_not_contain:
         - "\tSNP\tFP"
+
+- name: test_filter_trailing-comma-names-no-extra-filter
+  # swallowed_snps run again with a trailing comma on --filter. Every record in both callsets is
+  # PASS, so the empty field after the comma must not become a filter name of its own: it would
+  # resolve to no FILTER id and warn once per callset. Results must match the run without it.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -f "PASS,"
+    -p "filter_trailing_comma_out_"'
+  stderr:
+    must_not_contain:
+      - "Filter '' not found"
+  files:
+    - path: filter_trailing_comma_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t6\t6\t0\t0"
+        - "SV\tNONE\t0\t0\t0\t2\t0"
