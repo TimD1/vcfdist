@@ -991,8 +991,8 @@ TEST_F(ParseVariants, SelectedFilterAbsentWarns) {
 }
 
 // Returning to a contig that was already left behind means the VCF is not sorted by contig. Left
-// unrejected, the contig list would gain a second entry for it and write_vcf() would then walk that
-// contig twice, emitting each of its variants twice.
+// unrejected, the contig list would gain a second entry for it and write_summary_vcf() would then
+// walk that contig twice, emitting each of its variants twice.
 TEST_F(ParseVariants, UnsortedContigErrors) {
     vcf_opts opts = make_vcf_opts(QUERY, {"chr1", "chr2"});
     EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0"),
@@ -1035,8 +1035,8 @@ TEST_F(ParseVariants, FilterFailSkipped) {
     ParseResult r = parse_records(dir, {qual_filter_record(100, "50", "LOWQ"),
                                         qual_filter_record(200, "50", "PASS")}, opts);
     EXPECT_EQ(1, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
-    EXPECT_TRUE(wrote_pos(r, 200));
+    EXPECT_FALSE(kept_pos(r, 100));
+    EXPECT_TRUE(kept_pos(r, 200));
     EXPECT_TRUE(logged(r, "1 variants failed FILTER in QUERY VCF, skipped"));
 }
 
@@ -1066,8 +1066,8 @@ TEST_F(ParseVariants, BelowMinQualSkipped) {
     ParseResult r = parse_records(dir, {qual_filter_record(100, "59", "PASS"),
                                         qual_filter_record(200, "60", "PASS")});
     EXPECT_EQ(1, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
-    EXPECT_TRUE(wrote_pos(r, 200));
+    EXPECT_FALSE(kept_pos(r, 100));
+    EXPECT_TRUE(kept_pos(r, 200));
     EXPECT_TRUE(logged(r, "1 variants of low quality (<60) in QUERY VCF, skipped"));
 }
 
@@ -1252,7 +1252,7 @@ TEST_F(ParseVariants, PloidyMismatchOnChrXSilent) {
 TEST_F(ParseVariants, NoCallDroppedAndCounted) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", ".|.")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_FALSE(kept_pos(r, 100));
     EXPECT_TRUE(logged(r, "1 variants with no known alleles (.|.) in QUERY VCF, skipped"));
     EXPECT_TRUE(logged(r, gt_hist_line(GT_MISSING, 1)));
 }
@@ -1276,7 +1276,7 @@ TEST_F(ParseVariants, HalfCallCountedDistinctlyFromNoCall) {
 TEST_F(ParseVariants, HalfCallNotReportedAsSkipped) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
     EXPECT_EQ(1, total_kept(r));
-    EXPECT_TRUE(wrote_pos(r, 100));
+    EXPECT_TRUE(kept_pos(r, 100));
     EXPECT_TRUE(logged(r, "1 variants with a half call (1|.) in QUERY VCF, known allele kept"));
     EXPECT_FALSE(logged(r, "skipped"));
 }
@@ -1407,7 +1407,7 @@ TEST_F(ParseVariants, PhaseSetNotInheritedByHaploidRecordWithoutPs) {
 TEST_F(ParseVariants, UnphasedHeterozygousGenotypeStillDropped) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "0/1")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_FALSE(kept_pos(r, 100));
     EXPECT_TRUE(logged(r, "1 variants with unphased genotypes in QUERY VCF, skipped"));
 }
 
@@ -1415,7 +1415,7 @@ TEST_F(ParseVariants, UnphasedHeterozygousGenotypeStillDropped) {
 TEST_F(ParseVariants, SpanningDeletionDroppedAndCounted) {
     ParseResult r = parse_records(dir, {record(100, "A", "*", "1|0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
+    EXPECT_FALSE(kept_pos(r, 100));
     EXPECT_TRUE(logged(r, "1 variants spanned by deletion in QUERY VCF, skipped"));
 }
 
@@ -1435,8 +1435,8 @@ TEST_F(ParseVariants, RefCallDroppedAndCounted) {
     ParseResult r = parse_records(dir, {record(100, "A", "A", "1|0"),
                                         record(200, "AT", "AT", "1|0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
-    EXPECT_FALSE(wrote_pos(r, 200));
+    EXPECT_FALSE(kept_pos(r, 100));
+    EXPECT_FALSE(kept_pos(r, 200));
     EXPECT_TRUE(logged(r, "2 reference variants in QUERY VCF, skipped"));
 }
 
@@ -1544,9 +1544,9 @@ TEST_F(ParseVariants, CaseOnlyRefCallDroppedAndCounted) {
                                         record(200, "A", "a", "1|0"),
                                         record(300, "at", "AT", "1|0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_FALSE(wrote_pos(r, 100));
-    EXPECT_FALSE(wrote_pos(r, 200));
-    EXPECT_FALSE(wrote_pos(r, 300));
+    EXPECT_FALSE(kept_pos(r, 100));
+    EXPECT_FALSE(kept_pos(r, 200));
+    EXPECT_FALSE(kept_pos(r, 300));
     EXPECT_TRUE(logged(r, "3 reference variants in QUERY VCF, skipped"));
 }
 
@@ -1658,7 +1658,7 @@ TEST_F(ParseVariants, OverlappingVariantStillDropped) {
                                         record(100, "A", "T", "1|0")});
     EXPECT_EQ(1, kept_on_hap(r, HAP1));
     EXPECT_EQ(0, kept_on_hap(r, HAP2));
-    EXPECT_EQ(std::string::npos, r.out_vcf.find("\tT\t")); // second, overlapping ALT
+    EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]); // the first ALT, not the overlapping "T"
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
 }
 

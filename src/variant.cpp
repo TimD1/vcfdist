@@ -181,121 +181,6 @@ int ctgVariants::set_allele_errtype(int vi) {
 
 
 /**
- * @brief Writes all parsed variants to a phased VCF file.
- * @param[in] out_vcf_fn Output VCF filename
- * @throws ERROR if the output VCF file cannot be opened for writing
- */
-void variantData::write_vcf(std::string out_vcf_fn) {
-
-    // VCF header
-    FILE* out_vcf = fopen(out_vcf_fn.data(), "w");
-    if (out_vcf == NULL) {
-        ERROR("Failed to open VCF file '%s'", out_vcf_fn.data());
-    }
-    const std::chrono::time_point now{std::chrono::system_clock::now()};
-    time_t tt = std::chrono::system_clock::to_time_t(now);
-    tm local_time = *localtime(&tt);
-    fprintf(out_vcf, "##fileformat=VCFv4.2\n");
-    fprintf(out_vcf, "##fileDate=%04d%02d%02d\n", local_time.tm_year + 1900, 
-            local_time.tm_mon + 1, local_time.tm_mday);
-    for (size_t i = 0; i < this->contigs.size(); i++)
-        fprintf(out_vcf, "##contig=<ID=%s,length=%d,ploidy=%d>\n", 
-                this->contigs[i].data(), this->lengths[i], this->ploidy[i]);
-    fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=String,Description=\"Phase Set\">\n");
-    fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n",
-            this->sample.data());
-
-    // write variants
-    for (std::string ctg : this->contigs) {
-        std::vector<size_t> ptrs = {0, 0};
-        int p = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg) - contigs.begin()];
-        while (ptrs[HAP1] < this->variants[HAP1][ctg]->poss.size() ||
-                ptrs[HAP2] < this->variants[HAP2][ctg]->poss.size()) {
-
-            // get next positions, set flags for which haps
-            int pos_hap1 = ptrs[HAP1] < this->variants[HAP1][ctg]->poss.size() ? 
-                this->variants[HAP1][ctg]->poss[ptrs[HAP1]] : std::numeric_limits<int>::max();
-            int pos_hap2 = ptrs[HAP2] < this->variants[HAP2][ctg]->poss.size() ? 
-                this->variants[HAP2][ctg]->poss[ptrs[HAP2]] : std::numeric_limits<int>::max();
-
-            // indels include previous base, adjust position
-            if (ptrs[HAP1] < this->variants[HAP1][ctg]->types.size() && 
-                    (this->variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_INS || 
-                    this->variants[HAP1][ctg]->types[ptrs[HAP1]] == TYPE_DEL)) pos_hap1--;
-            if (ptrs[HAP2] < this->variants[HAP2][ctg]->types.size() && 
-                    (this->variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_INS || 
-                    this->variants[HAP2][ctg]->types[ptrs[HAP2]] == TYPE_DEL)) pos_hap2--;
-            int pos = std::min(pos_hap1, pos_hap2);
-            bool hap1 = (pos_hap1 == pos);
-            bool hap2 = (pos_hap2 == pos);
-
-            // add variants to output VCF file
-            if (hap1 && hap2) {
-                if (this->variants[HAP1][ctg]->refs[ptrs[HAP1]] == 
-                        this->variants[HAP2][ctg]->refs[ptrs[HAP2]] &&
-                        this->variants[HAP1][ctg]->alts[ptrs[HAP1]] == 
-                        this->variants[HAP2][ctg]->alts[ptrs[HAP2]]) {
-                    
-                    // homozygous variant (1|1)
-                    print_variant(out_vcf, ctg, pos, 
-                            this->variants[HAP1][ctg]->types[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], 
-                            this->variants[HAP1][ctg]->phase_sets[ptrs[HAP1]],
-                            "1|1");
-                    
-                } else {
-                    // two separate phased variants (0|1 + 1|0)
-                    print_variant(out_vcf, ctg, pos, 
-                            this->variants[HAP1][ctg]->types[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                            this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], 
-                            this->variants[HAP1][ctg]->phase_sets[ptrs[HAP1]], 
-                            "1|0");
-                    print_variant(out_vcf, ctg, pos, 
-                            this->variants[HAP2][ctg]->types[ptrs[HAP2]],
-                            this->variants[HAP2][ctg]->refs[ptrs[HAP2]],
-                            this->variants[HAP2][ctg]->alts[ptrs[HAP2]],
-                            this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]], 
-                            this->variants[HAP2][ctg]->phase_sets[ptrs[HAP2]], 
-                            "0|1");
-                }
-
-            } else if (hap1) { // 1|0
-                print_variant(out_vcf, ctg, pos, 
-                        this->variants[HAP1][ctg]->types[ptrs[HAP1]],
-                        this->variants[HAP1][ctg]->refs[ptrs[HAP1]],
-                        this->variants[HAP1][ctg]->alts[ptrs[HAP1]],
-                        this->variants[HAP1][ctg]->var_quals[ptrs[HAP1]], 
-                        this->variants[HAP1][ctg]->phase_sets[ptrs[HAP1]], 
-                        p == 1 ? "1" : "1|0");
-
-            } else if (hap2) { // 0|1
-                print_variant(out_vcf, ctg, pos, 
-                        this->variants[HAP2][ctg]->types[ptrs[HAP2]],
-                        this->variants[HAP2][ctg]->refs[ptrs[HAP2]],
-                        this->variants[HAP2][ctg]->alts[ptrs[HAP2]],
-                        this->variants[HAP2][ctg]->var_quals[ptrs[HAP2]],
-                        this->variants[HAP2][ctg]->phase_sets[ptrs[HAP2]],
-                        p == 1 ? "1" :"0|1");
-            }
-
-            // update pointers
-            if (hap1) ptrs[HAP1]++;
-            if (hap2) ptrs[HAP2]++;
-        }
-    }
-    fclose(out_vcf);
-}
-
-
-/**************************************************************************************************/
-
-/**
  * @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt.
  * @param[in] vi Variant index
  * @return False for matching genotypes, homozygous calls, or when calc_gt is 0/0
@@ -456,7 +341,7 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
                 (ref_base + this->alts[idx]).data());
         break;
     default:
-        ERROR("print_variant not implemented for type %d", this->types[idx]);
+        ERROR("print_var_info not implemented for type %d", this->types[idx]);
     }
 }
 
@@ -519,45 +404,6 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
 
 
 /**************************************************************************************************/
-
-
-/**
- * @brief Writes a single variant record to a VCF file with GT and PS FORMAT fields.
- * @param[in] out_fp Open file pointer to output VCF
- * @param[in] ctg Contig name
- * @param[in] pos Reference position
- * @param[in] type Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL)
- * @param[in] ref Reference allele
- * @param[in] alt Alternate allele
- * @param[in] qual Variant quality score
- * @param[in] phase_set Phase set identifier
- * @param[in] gt Genotype string (e.g., "0|1")
- */
-void variantData::print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
-        const std::string & ref, const std::string & alt, float qual, int phase_set,
-        const std::string & gt) {
-
-    char ref_base;
-    switch (type) {
-    case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tPS:GT\t%d:%s\n", ctg.data(),
-            pos+1, ref.data(), alt.data(), qual, phase_set, gt.data());
-        break;
-    case TYPE_INS:
-    case TYPE_DEL:
-        try {
-            ref_base = this->ref->fasta.at(ctg)[pos];
-            fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t%f\tPASS\t.\tPS:GT\t%d:%s\n", ctg.data(), 
-                    pos+1, (ref_base + ref).data(), (ref_base + alt).data(), 
-                    qual, phase_set, gt.data());
-        } catch (const std::out_of_range & e) {
-            ERROR("Contig '%s' not in reference FASTA (print_variant)", ctg.data());
-        }
-        break;
-    default:
-        ERROR("print_variant not implemented for type %d", type);
-    }
-}
 
 
 /**
