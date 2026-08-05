@@ -700,10 +700,47 @@ TEST(ParseArgs, FilterTrailingComma) {
 
     parse(f.argv({"-f", "PASS,"}));
 
-    // DOCUMENTS CURRENT BEHAVIOR, does not enforce it: the loop tests good() before the read that
-    // fails, so the empty field after the trailing comma is still appended as a filter name;
-    // retarget this expectation when issue #199 is fixed
-    EXPECT_EQ(std::vector<std::string>({"PASS", ""}), g.filters);
+    // the empty field after the trailing comma names no filter, so it is dropped
+    EXPECT_EQ(std::vector<std::string>({"PASS"}), g.filters);
+
+    // the id vector must stay in lockstep with the name vector
+    EXPECT_EQ(std::vector<int>({-1}), g.filter_ids);
+}
+
+TEST(ParseArgs, FilterLeadingComma) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    g.filters.clear();
+    g.filter_ids.clear();
+
+    parse(f.argv({"-f", ",PASS"}));
+
+    EXPECT_EQ(std::vector<std::string>({"PASS"}), g.filters);
+    EXPECT_EQ(std::vector<int>({-1}), g.filter_ids);
+}
+
+TEST(ParseArgs, FilterInteriorEmptyField) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    g.filters.clear();
+    g.filter_ids.clear();
+
+    parse(f.argv({"-f", "PASS,,LowQual"}));
+
+    EXPECT_EQ(std::vector<std::string>({"PASS", "LowQual"}), g.filters);
+    EXPECT_EQ(std::vector<int>({-1, -1}), g.filter_ids);
+}
+
+TEST(ParseArgs, FilterAccumulatesAcrossFlags) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    g.filters.clear();
+    g.filter_ids.clear();
+
+    parse(f.argv({"-f", "PASS,", "-f", "LowQual"}));
+
+    EXPECT_EQ(std::vector<std::string>({"PASS", "LowQual"}), g.filters);
+    EXPECT_EQ(std::vector<int>({-1, -1}), g.filter_ids);
 }
 
 TEST(ParseArgs, FilterMissingErrors) {
@@ -712,6 +749,38 @@ TEST(ParseArgs, FilterMissingErrors) {
 
     EXPECT_EXIT(parse(f.argv({"-f"})), testing::ExitedWithCode(1),
             "Option '--filter' used without providing filters");
+}
+
+TEST(ParseArgs, FilterAllEmptyFieldsErrors) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    g.filters.clear();
+    g.filter_ids.clear();
+
+    // an empty g.filters keeps every variant, so erroring beats honoring the request backwards
+    EXPECT_EXIT(parse(f.argv({"-f", ""})), testing::ExitedWithCode(1),
+            "Option '--filter' provided no filter names");
+}
+
+TEST(ParseArgs, FilterOnlyCommasErrors) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    g.filters.clear();
+    g.filter_ids.clear();
+
+    EXPECT_EXIT(parse(f.argv({"-f", ","})), testing::ExitedWithCode(1),
+            "Option '--filter' provided no filter names");
+}
+
+TEST(ParseArgs, FilterEmptyAfterEarlierFlagErrors) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    g.filters.clear();
+    g.filter_ids.clear();
+
+    // the guard is per-flag, so an earlier flag's names must not excuse a later empty one
+    EXPECT_EXIT(parse(f.argv({"-f", "PASS", "-f", ""})), testing::ExitedWithCode(1),
+            "Option '--filter' provided no filter names");
 }
 
 /* parse_args: -l/--largest-variant ***************************************************************/

@@ -183,13 +183,18 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Option '--filter' used without providing filters");
             }
             try {
+                size_t filters_before = this->filters.size();
                 std::stringstream filters_ss(argv[i++]);
-                while (filters_ss.good()) {
-                    std::string filter;
-                    getline(filters_ss, filter, ',');
+                std::string filter;
+                while (getline(filters_ss, filter, ',')) {
+                    // leading, interior, and trailing commas leave an empty field, naming nothing
+                    if (filter.empty()) continue;
                     this->filters.push_back(filter);
                     this->filter_ids.push_back(-1);
                 }
+                // an empty filter list means "keep everything", the opposite of what was asked for
+                if (this->filters.size() == filters_before)
+                    ERROR("Option '--filter' provided no filter names");
             } catch (const std::exception & e) {
                 ERROR("%s", e.what());
             }
