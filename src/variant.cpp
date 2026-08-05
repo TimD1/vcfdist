@@ -40,82 +40,87 @@ ctgVariants::ctgVariants(const std::string & ctg) {
 
 /**
  * @brief Appends a variant with all fields explicitly specified.
- * @param[in] pos Reference start position (0-based)
- * @param[in] rlen Reference allele length
- * @param[in] type Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL)
- * @param[in] loc BED location type (BED_INSIDE, BED_BORDER, BED_OUTSIDE)
- * @param[in] ref Reference allele sequence
- * @param[in] alt Alternate allele sequence
- * @param[in] orig_gt Original genotype from VCF
- * @param[in] gt_qual Genotype quality score (capped at g.max_qual)
- * @param[in] var_qual Variant quality score (capped at g.max_qual)
- * @param[in] phase_set Phase set identifier from VCF PS tag
- * @param[in] rec_idx 0-based ordinal of the source record within its input VCF (-1 = unknown)
- * @param[in] alt_idx 1-based ALT ordinal this variant derives from (-1 = unknown)
- * @param[in] ploidy Variant's own ploidy, from std::abs(ngt) at parse time (0 = unknown)
- * @param[in] supercluster Supercluster index (-1 = not yet assigned)
- * @param[in] calc_gt Calculated genotype (defaults to GT_REF_REF)
- * @param[in] hap1_errtype Error type for haplotype 1 (defaults to ERRTYPE_UN)
- * @param[in] hap2_errtype Error type for haplotype 2 (defaults to ERRTYPE_UN)
- * @param[in] hap1_sync_group Sync group index for haplotype 1
- * @param[in] hap2_sync_group Sync group index for haplotype 2
- * @param[in] hap1_callq Call quality for haplotype 1
- * @param[in] hap2_callq Call quality for haplotype 2
- * @param[in] hap1_ref_ed Reference edit distance for haplotype 1
- * @param[in] hap2_ref_ed Reference edit distance for haplotype 2
- * @param[in] hap1_query_ed Query edit distance for haplotype 1
- * @param[in] hap2_query_ed Query edit distance for haplotype 2
- * @param[in] hap1_credit Credit score for haplotype 1
- * @param[in] hap2_credit Credit score for haplotype 2
+ * @param[in] var Every field describing the variant; gt_qual and var_qual are capped at g.max_qual
  */
 // TODO: remove assumption that no variants match
-void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
-        const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual, 
-        int phase_set, int rec_idx /* -1 */, int alt_idx /* -1 */, uint8_t ploidy /* 0 */,
-        int supercluster /* -1 */, uint8_t calc_gt /* GT_REF_REF */,
-        uint8_t hap1_errtype /* ERRTYPE_UN */, uint8_t hap2_errtype /* ERRTYPE_UN */, 
-        int hap1_sync_group /* 0 */, int hap2_sync_group /* 0 */, 
-        float hap1_callq /* 0 */, float hap2_callq /* 0 */, 
-        int hap1_ref_ed /* 0 */, int hap2_ref_ed /* 0 */, 
-        int hap1_query_ed /* 0 */, int hap2_query_ed /* 0 */, 
-        float hap1_credit /* 0 */, float hap2_credit /* 0 */
-        ) {
+void ctgVariants::add_var(const var_fields & var) {
     // set for all variants
-    this->poss.push_back(pos);
-    this->rlens.push_back(rlen);
-    this->types.push_back(type);
-    this->locs.push_back(loc);
-    this->refs.push_back(ref);
-    this->alts.push_back(alt);
-    this->orig_gts.push_back(orig_gt);
-    this->gt_quals.push_back(std::min(gt_qual, float(g.max_qual)));
-    this->var_quals.push_back(std::min(var_qual, float(g.max_qual)));
-    this->phase_sets.push_back(phase_set);
-    this->rec_idxs.push_back(rec_idx);
-    this->alt_idxs.push_back(alt_idx);
-    this->ploidies.push_back(ploidy);
-    this->superclusters.push_back(supercluster);
+    this->poss.push_back(var.pos);
+    this->rlens.push_back(var.rlen);
+    this->types.push_back(var.type);
+    this->locs.push_back(var.loc);
+    this->refs.push_back(var.ref);
+    this->alts.push_back(var.alt);
+    this->orig_gts.push_back(var.orig_gt);
+    this->gt_quals.push_back(std::min(var.gt_qual, float(g.max_qual)));
+    this->var_quals.push_back(std::min(var.var_qual, float(g.max_qual)));
+    this->phase_sets.push_back(var.phase_set);
+    this->rec_idxs.push_back(var.rec_idx);
+    this->alt_idxs.push_back(var.alt_idx);
+    this->ploidies.push_back(var.ploidy);
+    this->superclusters.push_back(var.supercluster);
     this->n++;
 
     // added during precision/recall analysis
-    this->calc_gts.push_back(calc_gt);
-    this->errtypes[HAP1].push_back(hap1_errtype);
-    this->sync_group[HAP1].push_back(hap1_sync_group);
-    this->callq[HAP1].push_back(hap1_callq);
-    this->ref_ed[HAP1].push_back(hap1_ref_ed);
-    this->query_ed[HAP1].push_back(hap1_query_ed);
-    this->credit[HAP1].push_back(hap1_credit);
-    this->errtypes[HAP2].push_back(hap2_errtype);
-    this->sync_group[HAP2].push_back(hap2_sync_group);
-    this->callq[HAP2].push_back(hap2_callq);
-    this->ref_ed[HAP2].push_back(hap2_ref_ed);
-    this->query_ed[HAP2].push_back(hap2_query_ed);
-    this->credit[HAP2].push_back(hap2_credit);
+    this->calc_gts.push_back(var.calc_gt);
+    for (int hap = 0; hap < HAPS; hap++) {
+        this->errtypes[hap].push_back(var.hap[hap].errtype);
+        this->sync_group[hap].push_back(var.hap[hap].sync_group);
+        this->callq[hap].push_back(var.hap[hap].callq);
+        this->ref_ed[hap].push_back(var.hap[hap].ref_ed);
+        this->query_ed[hap].push_back(var.hap[hap].query_ed);
+        this->credit[hap].push_back(var.hap[hap].credit);
+    }
 
     // added during phasing analysis
     this->phases.push_back(PHASE_NONE);
     this->pb_phases.push_back(PHASE_NONE);
     this->ac_errtype.push_back(AC_UNKNOWN);
+}
+
+
+/**************************************************************************************************/
+
+
+/**
+ * @brief Returns every field of one variant, for copying it into another container.
+ * @param[in] idx Variant index
+ * @return All fields of variant idx, suitable for passing to another container's add_var()
+ * @throws ERROR Variant index out of range for this container
+ */
+var_fields ctgVariants::get_var(int idx) const {
+    if (idx < 0 || idx >= this->n) {
+        ERROR("Variant index %d out of range for contig %s (%d variants) in get_var()",
+                idx, this->ctg.data(), this->n);
+    }
+    var_fields var = {
+        .pos = this->poss[idx],
+        .rlen = this->rlens[idx],
+        .type = this->types[idx],
+        .loc = this->locs[idx],
+        .ref = this->refs[idx],
+        .alt = this->alts[idx],
+        .orig_gt = this->orig_gts[idx],
+        .gt_qual = this->gt_quals[idx],
+        .var_qual = this->var_quals[idx],
+        .phase_set = this->phase_sets[idx],
+        .rec_idx = this->rec_idxs[idx],
+        .alt_idx = this->alt_idxs[idx],
+        .ploidy = this->ploidies[idx],
+        .supercluster = this->superclusters[idx],
+        .calc_gt = this->calc_gts[idx],
+    };
+    for (int hap = 0; hap < HAPS; hap++) {
+        var.hap[hap] = {
+            .errtype = this->errtypes[hap][idx],
+            .sync_group = this->sync_group[hap][idx],
+            .callq = this->callq[hap][idx],
+            .ref_ed = this->ref_ed[hap][idx],
+            .query_ed = this->query_ed[hap][idx],
+            .credit = this->credit[hap][idx],
+        };
+    }
+    return var;
 }
 
 
@@ -440,10 +445,12 @@ void variantData::add_variants(
 
             case PTR_SUB: // substitution
                 cig_idx += 2;
-                this->variants[hap][ctg]->add_var(ref_pos+ref_idx, 1, 
-                        TYPE_SUB, BED_INSIDE, std::string(1,ref[ref_idx]), 
-                        std::string(1,query[query_idx]), 
-                        GT_REF_REF, g.max_qual, qual, phase_set);
+                this->variants[hap][ctg]->add_var(var_fields{.pos = ref_pos+ref_idx, .rlen = 1,
+                        .type = TYPE_SUB, .loc = BED_INSIDE,
+                        .ref = std::string(1,ref[ref_idx]),
+                        .alt = std::string(1,query[query_idx]),
+                        .orig_gt = GT_REF_REF, .gt_qual = float(g.max_qual),
+                        .var_qual = float(qual), .phase_set = phase_set});
                 ref_idx++;
                 query_idx++;
                 break;
@@ -455,10 +462,11 @@ void variantData::add_variants(
                 while (cig_idx < cigar.size() && cigar[cig_idx] == PTR_DEL) {
                     cig_idx++; indel_len++;
                 }
-                this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
-                        indel_len, TYPE_DEL, BED_INSIDE,
-                        ref.substr(ref_idx, indel_len),
-                        "", GT_REF_REF, g.max_qual, qual, phase_set);
+                this->variants[hap][ctg]->add_var(var_fields{.pos = ref_pos+ref_idx,
+                        .rlen = indel_len, .type = TYPE_DEL, .loc = BED_INSIDE,
+                        .ref = ref.substr(ref_idx, indel_len), .alt = "",
+                        .orig_gt = GT_REF_REF, .gt_qual = float(g.max_qual),
+                        .var_qual = float(qual), .phase_set = phase_set});
                 ref_idx += indel_len;
                 break;
 
@@ -469,10 +477,11 @@ void variantData::add_variants(
                 while (cig_idx < cigar.size() && cigar[cig_idx] == PTR_INS) {
                     cig_idx++; indel_len++;
                 }
-                this->variants[hap][ctg]->add_var(ref_pos+ref_idx,
-                        0, TYPE_INS, BED_INSIDE, "", 
-                        query.substr(query_idx, indel_len), 
-                        GT_REF_REF, g.max_qual, qual, phase_set);
+                this->variants[hap][ctg]->add_var(var_fields{.pos = ref_pos+ref_idx,
+                        .rlen = 0, .type = TYPE_INS, .loc = BED_INSIDE, .ref = "",
+                        .alt = query.substr(query_idx, indel_len),
+                        .orig_gt = GT_REF_REF, .gt_qual = float(g.max_qual),
+                        .var_qual = float(qual), .phase_set = phase_set});
                 query_idx += indel_len;
                 break;
 
@@ -1005,17 +1014,23 @@ void parse_variants(const std::string & vcf_fn,
             uint8_t ploidy = uint8_t(std::abs(ngt));
             // both CPX halves derive from the same original allele, so they share alt_idx
             if (type == TYPE_CPX) { // split CPX into INS+DEL
-                variant_data->variants[hap][ctg]->add_var(pos, 0, // INS
-                    TYPE_INS, loc, "", alt, simple_gt, ngq ? gq[0]:0, vq, phase_set,
-                    rec_idx, alt_idx, ploidy);
-                variant_data->variants[hap][ctg]->add_var(pos, rlen, // DEL
-                    TYPE_DEL, loc, ref, "", simple_gt, ngq ? gq[0]:0, vq, phase_set,
-                    rec_idx, alt_idx, ploidy);
+                variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = 0, // INS
+                    .type = TYPE_INS, .loc = loc, .ref = "", .alt = alt,
+                    .orig_gt = uint8_t(simple_gt), .gt_qual = float(ngq ? gq[0]:0),
+                    .var_qual = vq, .phase_set = phase_set,
+                    .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
+                variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen, // DEL
+                    .type = TYPE_DEL, .loc = loc, .ref = ref, .alt = "",
+                    .orig_gt = uint8_t(simple_gt), .gt_qual = float(ngq ? gq[0]:0),
+                    .var_qual = vq, .phase_set = phase_set,
+                    .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
                 complex_total++;
             } else {
-                variant_data->variants[hap][ctg]->add_var(pos, rlen,
-                        type, loc, ref, alt, simple_gt, ngq ? gq[0]:0, vq, phase_set,
-                        rec_idx, alt_idx, ploidy);
+                variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen,
+                        .type = uint8_t(type), .loc = loc, .ref = ref, .alt = alt,
+                        .orig_gt = uint8_t(simple_gt), .gt_qual = float(ngq ? gq[0]:0),
+                        .var_qual = vq, .phase_set = phase_set,
+                        .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
             }
 
             prev_end[hap] = pos + rlen;

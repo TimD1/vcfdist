@@ -195,9 +195,8 @@ TEST(MakeCtgVariants, Roundtrip) {
 TEST(MakeCtgVariants, ProvenanceFieldsReachTheirOwnVectors) {
     GlobalsGuard guard;
 
-    // add_var() defaults every parameter past phase_set, so an omitted argument shifts the
-    // remainder along silently. Distinct values are what catch that: a shift of even one position
-    // lands one of these in a neighbouring vector.
+    // make_ctgVariants() maps var_desc onto var_fields field by field, so a field mapped to the
+    // wrong member would land in a neighbouring vector. Distinct values are what catch that.
     var_desc var;
     var.pos = 3;
     var.rlen = 1;

@@ -87,16 +87,23 @@ TEST(CtgVariantsCtor, EmptyCtg) {
 
 // Asserts every per-variant field that exists today, so it must gain assertions as new per-variant
 // vectors land, or "every field" quietly stops being every field: strata_bits (#47), is_phased
-// (#46). rec_idxs/alt_idxs/ploidies (#48) are covered below.
+// (#46). rec_idxs/alt_idxs/ploidies (#48) are covered below. A new var_fields member with a
+// default reaches its vector only if asserted here; the compiler will not require it at any call
+// site.
 TEST(AddVar, AllFields) {
     GlobalsGuard guard;
     g.max_qual = 100;
     ctgVariants vars("chr20");
 
-    // every per-haplotype argument differs between haplotypes, so a transposition cannot pass
-    vars.add_var(500, 2, TYPE_CPX, BED_OUTSIDE, "AC", "GT", GT_ALT1_ALT1, 21, 22, 33,
-            12, 3, 2, 7, GT_ALT1_REF, ERRTYPE_FN, ERRTYPE_TP, 4, 5, 6.5, 7.5, 8, 9, 10, 11,
-            0.4, 0.6);
+    // every per-haplotype field differs between haplotypes, so a hap[HAP1]/hap[HAP2] mix-up in
+    // add_var()'s body cannot pass
+    vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
+            .alt = "GT", .orig_gt = GT_ALT1_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .calc_gt = GT_ALT1_REF,
+            .hap = {{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
+                     .query_ed = 10, .credit = 0.4},
+                    {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
+                     .query_ed = 11, .credit = 0.6}}});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(500, vars.poss[0]);
@@ -133,8 +140,9 @@ TEST(AddVar, QualCapped) {
     g.max_qual = 60;
     ctgVariants vars("chr20");
 
-    // the two quals differ, so clamping the wrong argument cannot pass
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 99, 80, 0);
+    // the two quals differ, so clamping the wrong field cannot pass
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 99, .var_qual = 80, .phase_set = 0});
 
     EXPECT_FLOAT_EQ(60, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(60, vars.var_quals[0]);
@@ -146,7 +154,8 @@ TEST(AddVar, GtQualCappedIndependentlyOfVarQual) {
     ctgVariants vars("chr20");
 
     // only gt_qual exceeds the cap, so its clamp cannot be riding on var_qual's
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 99, 30, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 99, .var_qual = 30, .phase_set = 0});
 
     EXPECT_FLOAT_EQ(60, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(30, vars.var_quals[0]);
@@ -156,7 +165,8 @@ TEST(AddVar, QualBelowCap) {
     GlobalsGuard guard;
     g.max_qual = 60;
     ctgVariants vars("chr20");
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
     EXPECT_FLOAT_EQ(30, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(30, vars.var_quals[0]);
 }
@@ -165,7 +175,8 @@ TEST(AddVar, QualNegative) {
     GlobalsGuard guard;
     g.max_qual = 60;
     ctgVariants vars("chr20");
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, -5, -5, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = -5, .var_qual = -5, .phase_set = 0});
 
     // std::min() only caps from above, so a negative quality is stored unchanged
     EXPECT_FLOAT_EQ(-5, vars.gt_quals[0]);
@@ -175,7 +186,8 @@ TEST(AddVar, QualNegative) {
 TEST(AddVar, PushesPhaseDefaults) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(size_t(1), vars.phases.size());
     ASSERT_EQ(size_t(1), vars.pb_phases.size());
@@ -188,7 +200,8 @@ TEST(AddVar, PushesPhaseDefaults) {
 TEST(AddVar, HeaderDefaults) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
-    vars.add_var(100, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     // the rec_idx/alt_idx/ploidy defaults are asserted by ProvenanceVectorDefaults.UnknownSentinels
     EXPECT_EQ(-1, vars.superclusters[0]);
@@ -210,8 +223,10 @@ TEST(AddVar, HeaderDefaults) {
 TEST(AddVar, AppendsNotOverwrites) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
-    vars.add_var(50, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
-    vars.add_var(300, 1, TYPE_SUB, BED_INSIDE, "G", "T", GT_ALT1_ALT1, 30, 30, 0);
+    vars.add_var(var_fields{.pos = 50, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+    vars.add_var(var_fields{.pos = 300, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "G",
+            .alt = "T", .orig_gt = GT_ALT1_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(2, vars.n);
     EXPECT_EQ(50, vars.poss[0]);
@@ -226,7 +241,8 @@ TEST(AddVar, LaneLengthsTrackN) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     for (int i = 0; i < 3; i++) {
-        vars.add_var(100*i, 1, TYPE_SUB, BED_INSIDE, "A", "C", GT_REF_ALT1, 30, 30, 0);
+        vars.add_var(var_fields{.pos = 100*i, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+                .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
     }
 
     ASSERT_EQ(3, vars.n);
@@ -262,7 +278,8 @@ TEST(AddVar, LaneLengthsTrackN) {
 TEST(AddVar, InsRlenZero) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
-    vars.add_var(100, 0, TYPE_INS, BED_INSIDE, "", "ACGT", GT_REF_ALT1, 30, 30, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 0, .type = TYPE_INS, .loc = BED_INSIDE, .ref = "",
+            .alt = "ACGT", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(0, vars.rlens[0]);
@@ -274,13 +291,138 @@ TEST(AddVar, InsRlenZero) {
 TEST(AddVar, DelEmptyAlt) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
-    vars.add_var(100, 4, TYPE_DEL, BED_INSIDE, "ACGT", "", GT_REF_ALT1, 30, 30, 0);
+    vars.add_var(var_fields{.pos = 100, .rlen = 4, .type = TYPE_DEL, .loc = BED_INSIDE, .ref = "ACGT",
+            .alt = "", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(4, vars.rlens[0]);
     EXPECT_EQ(TYPE_DEL, vars.types[0]);
     EXPECT_EQ("ACGT", vars.refs[0]);
     EXPECT_EQ("", vars.alts[0]);
+}
+
+// Pins every optional field's default, so a default that drifts fails here rather than silently
+// changing what an omitted field means at the 20-odd call sites that rely on it.
+TEST(AddVar, OptionalFieldDefaults) {
+    GlobalsGuard guard;
+    ctgVariants vars("chr20");
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+
+    ASSERT_EQ(1, vars.n);
+    EXPECT_EQ(-1, vars.rec_idxs[0]);
+    EXPECT_EQ(-1, vars.alt_idxs[0]);
+    EXPECT_EQ(0, vars.ploidies[0]);
+    EXPECT_EQ(-1, vars.superclusters[0]);
+    EXPECT_EQ(GT_REF_REF, vars.calc_gts[0]);
+    for (int hap = 0; hap < HAPS; hap++) {
+        EXPECT_EQ(ERRTYPE_UN, vars.errtypes[hap][0]) << "hap " << hap;
+        EXPECT_EQ(0, vars.sync_group[hap][0]) << "hap " << hap;
+        EXPECT_FLOAT_EQ(0, vars.callq[hap][0]) << "hap " << hap;
+        EXPECT_EQ(0, vars.ref_ed[hap][0]) << "hap " << hap;
+        EXPECT_EQ(0, vars.query_ed[hap][0]) << "hap " << hap;
+        EXPECT_FLOAT_EQ(0, vars.credit[hap][0]) << "hap " << hap;
+    }
+}
+
+/* get_var ****************************************************************************************/
+
+// get_var() exists so callers copying a variant between containers do not hand-copy parallel
+// vectors, so the round trip must carry every field: any omission reintroduces the miswiring the
+// accessor was added to prevent. Per-haplotype values differ so a transposition cannot pass.
+TEST(GetVar, RoundTripsEveryField) {
+    GlobalsGuard guard;
+    g.max_qual = 100;
+    ctgVariants vars("chr20");
+    vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
+            .alt = "GT", .orig_gt = GT_ALT1_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .calc_gt = GT_ALT1_REF,
+            .hap = {{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
+                     .query_ed = 10, .credit = 0.4},
+                    {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
+                     .query_ed = 11, .credit = 0.6}}});
+
+    var_fields var = vars.get_var(0);
+    EXPECT_EQ(500, var.pos);
+    EXPECT_EQ(2, var.rlen);
+    EXPECT_EQ(TYPE_CPX, var.type);
+    EXPECT_EQ(BED_OUTSIDE, var.loc);
+    EXPECT_EQ("AC", var.ref);
+    EXPECT_EQ("GT", var.alt);
+    EXPECT_EQ(GT_ALT1_ALT1, var.orig_gt);
+    EXPECT_FLOAT_EQ(21, var.gt_qual);
+    EXPECT_FLOAT_EQ(22, var.var_qual);
+    EXPECT_EQ(33, var.phase_set);
+    EXPECT_EQ(12, var.rec_idx);
+    EXPECT_EQ(3, var.alt_idx);
+    EXPECT_EQ(2, var.ploidy);
+    EXPECT_EQ(7, var.supercluster);
+    EXPECT_EQ(GT_ALT1_REF, var.calc_gt);
+    EXPECT_EQ(ERRTYPE_FN, var.hap[HAP1].errtype);
+    EXPECT_EQ(ERRTYPE_TP, var.hap[HAP2].errtype);
+    EXPECT_EQ(4, var.hap[HAP1].sync_group);
+    EXPECT_EQ(5, var.hap[HAP2].sync_group);
+    EXPECT_FLOAT_EQ(6.5, var.hap[HAP1].callq);
+    EXPECT_FLOAT_EQ(7.5, var.hap[HAP2].callq);
+    EXPECT_EQ(8, var.hap[HAP1].ref_ed);
+    EXPECT_EQ(9, var.hap[HAP2].ref_ed);
+    EXPECT_EQ(10, var.hap[HAP1].query_ed);
+    EXPECT_EQ(11, var.hap[HAP2].query_ed);
+    EXPECT_FLOAT_EQ(0.4, var.hap[HAP1].credit);
+    EXPECT_FLOAT_EQ(0.6, var.hap[HAP2].credit);
+}
+
+// The cluster.cpp merge loop reads with get_var() and appends with add_var(), so a field dropped
+// by either one would be lost in the merged callset without any diagnostic.
+TEST(GetVar, FeedsAddVarWithoutLoss) {
+    GlobalsGuard guard;
+    g.max_qual = 100;
+    ctgVariants src("chr20");
+    src.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_DEL, .loc = BED_BORDER, .ref = "AC",
+            .alt = "", .orig_gt = GT_REF_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .calc_gt = GT_ALT1_REF,
+            .hap = {{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
+                     .query_ed = 10, .credit = 0.4},
+                    {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
+                     .query_ed = 11, .credit = 0.6}}});
+
+    ctgVariants dst("chr20");
+    dst.add_var(src.get_var(0));
+
+    ASSERT_EQ(1, dst.n);
+    EXPECT_EQ(src.poss[0], dst.poss[0]);
+    EXPECT_EQ(src.rlens[0], dst.rlens[0]);
+    EXPECT_EQ(src.types[0], dst.types[0]);
+    EXPECT_EQ(src.locs[0], dst.locs[0]);
+    EXPECT_EQ(src.refs[0], dst.refs[0]);
+    EXPECT_EQ(src.alts[0], dst.alts[0]);
+    EXPECT_EQ(src.orig_gts[0], dst.orig_gts[0]);
+    EXPECT_FLOAT_EQ(src.gt_quals[0], dst.gt_quals[0]);
+    EXPECT_FLOAT_EQ(src.var_quals[0], dst.var_quals[0]);
+    EXPECT_EQ(src.phase_sets[0], dst.phase_sets[0]);
+    EXPECT_EQ(src.rec_idxs[0], dst.rec_idxs[0]);
+    EXPECT_EQ(src.alt_idxs[0], dst.alt_idxs[0]);
+    EXPECT_EQ(src.ploidies[0], dst.ploidies[0]);
+    EXPECT_EQ(src.superclusters[0], dst.superclusters[0]);
+    EXPECT_EQ(src.calc_gts[0], dst.calc_gts[0]);
+    for (int hap = 0; hap < HAPS; hap++) {
+        EXPECT_EQ(src.errtypes[hap][0], dst.errtypes[hap][0]) << "hap " << hap;
+        EXPECT_EQ(src.sync_group[hap][0], dst.sync_group[hap][0]) << "hap " << hap;
+        EXPECT_FLOAT_EQ(src.callq[hap][0], dst.callq[hap][0]) << "hap " << hap;
+        EXPECT_EQ(src.ref_ed[hap][0], dst.ref_ed[hap][0]) << "hap " << hap;
+        EXPECT_EQ(src.query_ed[hap][0], dst.query_ed[hap][0]) << "hap " << hap;
+        EXPECT_FLOAT_EQ(src.credit[hap][0], dst.credit[hap][0]) << "hap " << hap;
+    }
+}
+
+TEST(GetVar, RejectsOutOfRangeIndex) {
+    GlobalsGuard guard;
+    ctgVariants vars("chr20");
+    vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+
+    EXPECT_EXIT(vars.get_var(-1), testing::ExitedWithCode(1), "out of range");
+    EXPECT_EXIT(vars.get_var(1), testing::ExitedWithCode(1), "out of range");
 }
 
 /* provenance and ploidy vectors ******************************************************************/
@@ -419,7 +561,8 @@ TEST_F(ProvenanceVectors, ComplexVariantHalvesShareAltIdx) {
 TEST(ProvenanceVectorDefaults, UnknownSentinels) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars(new ctgVariants("ctg1"));
-    vars->add_var(10, 1, TYPE_SUB, BED_INSIDE, "A", "G", GT_ALT1_ALT1, 60, 60, 0);
+    vars->add_var(var_fields{.pos = 10, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
+            .alt = "G", .orig_gt = GT_ALT1_ALT1, .gt_qual = 60, .var_qual = 60, .phase_set = 0});
 
     ASSERT_EQ(1, vars->n);
     EXPECT_EQ(-1, vars->rec_idxs[0]);

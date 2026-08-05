@@ -530,8 +530,8 @@ std::shared_ptr<variantData> make_variantData(int callset,
 /**
  * @brief Builds a ctgVariants container holding the described variants, in the given order.
  *
- * Every add_var() parameter through supercluster is named explicitly, because they are all
- * defaulted past phase_set and omitting one silently binds supercluster to the wrong parameter.
+ * var_desc stays separate from var_fields so that tests can describe a variant with a single
+ * qual and rely on defaults for the fields they do not care about.
  * @param[in] ctg Contig name
  * @param[in] vars Variants to append, in ascending position order
  * @return Populated variant container
@@ -540,9 +540,11 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
         const std::vector<var_desc> & vars) {
     std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
     for (const var_desc & var : vars) {
-        ctg_vars->add_var(var.pos, var.rlen, var.type, var.loc, var.ref, var.alt, var.gt,
-                var.qual, var.qual, var.phase_set, var.rec_idx, var.alt_idx, var.ploidy,
-                var.supercluster);
+        ctg_vars->add_var(var_fields{.pos = var.pos, .rlen = var.rlen, .type = var.type, .loc = var.loc,
+                .ref = var.ref, .alt = var.alt, .orig_gt = var.gt, .gt_qual = var.qual,
+                .var_qual = var.qual, .phase_set = var.phase_set, .rec_idx = var.rec_idx,
+                .alt_idx = var.alt_idx, .ploidy = var.ploidy,
+                .supercluster = var.supercluster});
     }
     return ctg_vars;
 }
