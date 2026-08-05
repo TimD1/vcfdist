@@ -858,6 +858,10 @@ void parse_variants(const std::string & vcf_fn,
         }
 
 
+        // snapshot each hap's previous variant, before this record's own copies overwrite it below
+        std::vector<int> rec_prev_end = prev_end;
+        std::vector<int> rec_prev_type = prev_type;
+
         // parse variant type
         for (int hap = 0; hap < std::abs(ngt); hap++) { // allow single-allele chrX, chrY
 
@@ -990,8 +994,9 @@ void parse_variants(const std::string & vcf_fn,
                 continue;
             }
             // update simple_gt if corresponding variant on other hap is skipped
-            if (simple_gt == GT_ALT1_ALT1 && (prev_end[hap^1] > pos ||
-                    (prev_end[hap^1] == pos && prev_type[hap^1] == TYPE_INS && type == TYPE_INS))) {
+            if (simple_gt == GT_ALT1_ALT1 && (rec_prev_end[hap^1] > pos ||
+                    (rec_prev_end[hap^1] == pos && rec_prev_type[hap^1] == TYPE_INS &&
+                     type == TYPE_INS))) {
                 simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF;
             }
 
