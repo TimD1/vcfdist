@@ -826,6 +826,11 @@ int Graph::get_truth_pos(int truth_node_idx, int truth_idx) {
  * flank; at reference position 0, where no base lies to the left, a synthetic zero-width reference
  * node stands in for it so that a variant's parallel allele still has a predecessor.
  *
+ * Every node's coordinate span equals the length of the sequence it holds, with zero-width insertion
+ * variant and bypass nodes the deliberate exception. The reference window is clamped at the contig
+ * end to keep that true of the trailing node, which is otherwise the one place where the coordinate
+ * and the sequence could disagree; at a contig end it becomes a zero-width sink.
+ *
  * @param[in] sc Supercluster data containing query and truth variant containers.
  * @param[in] sc_idx Supercluster index in the contig.
  * @param[in] ref Reference FASTA data.
@@ -854,6 +859,11 @@ Graph::Graph(
             std::upper_bound(tvars->superclusters.begin(), tvars->superclusters.end(), sc_idx));
     int ref_beg = sc->get_min_ref_pos(qvar_beg, qvar_end, tvar_beg, tvar_end);
     int ref_end = sc->get_max_ref_pos(qvar_beg, qvar_end, tvar_beg, tvar_end);
+    // exclusive end of the reference window every node draws its sequence from. It reaches one past
+    // ref_end, giving the window a right flank as ref_beg = min_pos - 1 gives it a left one, and is
+    // clamped at the contig end so that a node's coordinate span never exceeds the sequence
+    // substr() hands it -- the mirror of ref_beg clamping at position 0 (#189)
+    const int win_end = std::min(ref_end + 1, int(ref->fasta.at(ctg).size()));
 
     int ref_pos = ref_beg;
     this->sc = sc;
@@ -923,14 +933,17 @@ Graph::Graph(
     // all variants added, add the remainder of the reference
     while (ref_pos < ref_end) {
         // get the length of this reference segment
-        int next_ref_pos; 
+        int next_ref_pos;
+        bool last_segment = false;
         if (!qnode_ends.empty() && qnode_ends.top() < ref_end) { // stop at variant end
             next_ref_pos = qnode_ends.top();
             // multiple vars may end at same location; remove all from node_ends
             while (!qnode_ends.empty() && qnode_ends.top() == next_ref_pos) qnode_ends.pop();
         } else {
-            next_ref_pos = ref_end+1; // add remainder of reference in this supercluster
-            // TODO: why is +1 necessary for graph compared to generate_ptrs_strs()?
+            next_ref_pos = win_end; // add remainder of reference in this supercluster
+            // at a contig end win_end can equal ref_pos, leaving this trailing node zero-width and
+            // the loop condition still true, so close the loop here rather than on ref_pos
+            last_segment = true;
         }
         this->qnodes++;
         this->qseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, next_ref_pos-ref_pos));
@@ -939,6 +952,7 @@ Graph::Graph(
         this->qtypes.push_back(TYPE_REF);
         this->qidxs.push_back(-1);
         ref_pos = next_ref_pos;
+        if (last_segment) break;
     }
 
     /////////////////////////////////////
@@ -1021,15 +1035,17 @@ Graph::Graph(
         }
     }
 
-    // add the remainder of the truth
+    // add the remainder of the truth. At a contig end win_end can equal ref_pos, leaving this a
+    // zero-width sink node; it stays the node both alleles converge on, and the insertion-leap rule
+    // below cannot mistake it for an insertion because it is neither a variant nor a bypass node
     this->tnodes++;
-    this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, ref_end+1 - ref_pos));
+    this->tseqs.push_back("_" + ref->fasta.at(ctg).substr(ref_pos, win_end - ref_pos));
     this->tbegs.push_back(ref_pos - ref_beg);
-    this->tends.push_back(ref_end+1 - ref_beg);
+    this->tends.push_back(win_end - ref_beg);
     this->ttypes.push_back(TYPE_REF);
     this->tidxs.push_back(-1);
     this->tskips.push_back(-1);
-    this->truth += ref->fasta.at(ctg).substr(ref_pos, ref_end+1 - ref_pos);
+    this->truth += ref->fasta.at(ctg).substr(ref_pos, win_end - ref_pos);
 
     /////////////////////////////////////
     // STEP 4: SET TRUTH NODE POINTERS //
@@ -1077,7 +1093,7 @@ Graph::Graph(
         }
     }
 
-    this->ref = ref->fasta.at(ctg).substr(ref_beg, ref_end+1 - ref_beg);
+    this->ref = ref->fasta.at(ctg).substr(ref_beg, win_end - ref_beg);
 }
 
 /**************************************************************************************************/

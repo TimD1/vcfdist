@@ -1029,6 +1029,87 @@ TEST(GraphCtor, ContigStartTruthEntryNodePrecedesBypass) {
     EXPECT_EQ(std::vector<int>({0}), f.graph->tprevs[2]) << "the bypass node must be reachable";
 }
 
+TEST(GraphCtor, ContigEndRefSpanClamped) {
+    // The mirror of ContigStartRefSpanClamped: a variant on the final base has no base to its right,
+    // so the reference window clamps at the contig end. ref_beg = 8 and ref_end = 11, but the window
+    // stops at 10, so the stored reference is the two bases that exist rather than the four the
+    // unclamped ref_end + 1 would name (#189).
+    GraphFixture f = build_fixture("ACGTACGTAC",
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+
+    EXPECT_EQ("AC", f.graph->ref);
+    EXPECT_EQ(std::vector<int>({0, 1, 1, 2}), f.graph->qbegs);
+    EXPECT_EQ(std::vector<int>({1, 2, 2, 2}), f.graph->qends);
+}
+
+TEST(GraphCtor, ContigEndTrailingNodeIsZeroWidthSink) {
+    // With the window clamped there is no reference left for the trailing node, so it holds no
+    // bases and its span is zero. It stays the sink both alleles converge on, which is what the
+    // aligner's fixed endpoint cell requires -- the mirror of the contig-start entry node (#177).
+    GraphFixture f = build_fixture("ACGTACGTAC",
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+
+    ASSERT_EQ(4, f.graph->qnodes);
+    EXPECT_EQ(std::vector<std::string>({"_A", "_G", "_C", "_"}), f.graph->qseqs);
+    EXPECT_EQ(f.graph->qbegs[3], f.graph->qends[3]) << "the trailing node is zero-width";
+    EXPECT_EQ(std::vector<int>({1, 2}), f.graph->qprevs[3]) << "both alleles converge on the sink";
+    EXPECT_TRUE(f.graph->qnexts[3].empty()) << "the trailing node is the sink";
+}
+
+TEST(GraphCtor, ContigEndTruthTrailingNodeIsZeroWidthSink) {
+    // The truth side clamps identically. This is the one zero-width truth node that is neither a
+    // variant alt nor a bypass node, so it is also the case the narrowed insertion-leap rule must
+    // not mistake for an insertion: it is exempted by tidxs and tskips, not by its width.
+    GraphFixture f = build_fixture("ACGTACGTAC", {},
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    ASSERT_EQ(4, f.graph->tnodes);
+    EXPECT_EQ(std::vector<std::string>({"_A", "_G", "_C", "_"}), f.graph->tseqs);
+    EXPECT_EQ("AG", f.graph->truth) << "the truth haplotype ends at the contig end";
+    EXPECT_EQ(f.graph->tbegs[3], f.graph->tends[3]) << "the trailing node is zero-width";
+    EXPECT_EQ(-1, f.graph->tidxs[3]);
+    EXPECT_EQ(-1, f.graph->tskips[3]) << "neither a variant nor a bypass node";
+    EXPECT_EQ(std::vector<int>({1, 2}), f.graph->tprevs[3]) << "alt and bypass both reach the sink";
+    EXPECT_TRUE(f.graph->tnexts[3].empty());
+}
+
+TEST(GraphCtor, ContigEndPenultimateVariantTrailingNodeSpansOneBase) {
+    // The clamp is not only about the degenerate zero-width case. A variant on the second-to-last
+    // base leaves the trailing node exactly one base of right flank; without the clamp its span
+    // would be 2 while holding that single base.
+    GraphFixture f = build_fixture("ACGTACGTAC",
+            {{8, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+
+    ASSERT_EQ(4, f.graph->qnodes);
+    EXPECT_EQ("_C", f.graph->qseqs[3]);
+    EXPECT_EQ(1, f.graph->qends[3] - f.graph->qbegs[3]);
+    EXPECT_EQ("TAC", f.graph->ref);
+}
+
+TEST(GraphCtor, ContigEndNodeSpansMatchSequenceLengths) {
+    // The invariant the clamp restores, asserted over every node of both sides: a node's coordinate
+    // span equals the length of the sequence it holds. These fixtures carry no insertions, which are
+    // the one deliberate exception. Checked on the final base and on the second-to-last.
+    for (int pos : {8, 9}) {
+        const std::string ref_allele = (pos == 9) ? "C" : "A";
+        GraphFixture f = build_fixture("ACGTACGTAC",
+                {{pos, 1, TYPE_SUB, ref_allele, "G", GT_ALT1_REF, 60, 0, 0}},
+                {{pos, 1, TYPE_SUB, ref_allele, "G", GT_ALT1_REF, 60, 0, 0}});
+
+        for (int n = 0; n < f.graph->qnodes; n++)
+            EXPECT_EQ(int(f.graph->qseqs[n].size()) - 1, f.graph->qends[n] - f.graph->qbegs[n])
+                    << "query node " << n << " of the pos-" << pos << " graph";
+        for (int n = 0; n < f.graph->tnodes; n++)
+            EXPECT_EQ(int(f.graph->tseqs[n].size()) - 1, f.graph->tends[n] - f.graph->tbegs[n])
+                    << "truth node " << n << " of the pos-" << pos << " graph";
+
+        // graph->ref covers the whole node coordinate space: the overhang #189 describes is exactly
+        // a trailing end coordinate that this string, clamped by substr, was too short to reach
+        EXPECT_EQ(int(f.graph->ref.size()), f.graph->qends[f.graph->qnodes-1]);
+        EXPECT_EQ(int(f.graph->ref.size()), f.graph->tends[f.graph->tnodes-1]);
+    }
+}
+
 TEST(GraphCtor, QueryVariantHasParallelRefAllele) {
     // Adding a variant node does not advance ref_pos; the variant's end is pushed onto
     // qnode_ends and popped later, so the reference allele reappears as node 2 spanning the same
@@ -1046,7 +1127,8 @@ TEST(GraphCtor, QueryVariantHasParallelRefAllele) {
 
 TEST(GraphCtor, RefSpanFromVariantBounds) {
     // ref_beg = min_pos - 1 and ref_end = max(pos + rlen) + 1, and the stored slice runs to
-    // ref_end + 1 exclusive: one base of left flank and two bases past the variant's end.
+    // ref_end + 1 exclusive: one base of left flank and two bases past the variant's end. Well
+    // inside the contig, where the window needs no clamping (ContigEndRefSpanClamped).
     GraphFixture f = build_fixture("ACGTACGT",
             {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
 
@@ -1570,6 +1652,51 @@ TEST(PrecRecall, ContigStartInsertionIsTruePositive) {
 
     EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
     EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+}
+
+TEST(PrecRecall, ContigEndSubstitutionIsTruePositive) {
+    GlobalsGuard guard;
+
+    // A matched SNP on a contig's final base, where the clamped window leaves the trailing node
+    // zero-width and the aligner must still reach its endpoint cell through it (#189).
+    GraphFixture f = build_fixture("ACGTACGTAC",
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}},
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
+    EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+    EXPECT_FLOAT_EQ(1.0f, f.qvars->credit[HAP1][0]);
+    EXPECT_EQ(0, f.qvars->query_ed[HAP1][0]);
+}
+
+TEST(PrecRecall, ContigEndMissedSubstitutionIsFalseNegative) {
+    GlobalsGuard guard;
+
+    // A pure-reference query must still be able to route around the truth variant through its
+    // bypass node when that bypass sits against the contig end.
+    GraphFixture f = build_fixture("ACGTACGTAC", {},
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_FN, f.tvars->errtypes[HAP1][0]);
+    EXPECT_FLOAT_EQ(0.0f, f.tvars->credit[HAP1][0]);
+}
+
+TEST(PrecRecall, ContigEndSpuriousSubstitutionIsFalsePositive) {
+    GlobalsGuard guard;
+
+    // The third direction: with no truth variant the query SNP's parallel reference allele wins and
+    // the call keeps its default FP, exactly as it does mid-contig.
+    GraphFixture f = build_fixture("ACGTACGTAC",
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 30, 0, 0}}, {});
+
+    align_and_label(f.graph, HAP1);
+
+    EXPECT_EQ(ERRTYPE_FP, f.qvars->errtypes[HAP1][0]);
+    EXPECT_FLOAT_EQ(30.0f, f.qvars->callq[HAP1][0]);
 }
 
 // End-to-end guard: with the leap-suppression edge rule, a truth insertion abutting another
