@@ -93,6 +93,24 @@ struct pr_counts {
 pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata_ptr,
         int min_qual, int max_qual);
 
+/**
+ * @struct prec_recall_f1
+ * @brief Precision, recall, and F1 score for one set of variant counts.
+ */
+struct prec_recall_f1 {
+    /// fraction of query variants that are true positives; 1 if there are no query variants
+    float precision;
+
+    /// fraction of truth variants that are true positives; 1 if there are no truth variants
+    float recall;
+
+    /// harmonic mean of precision and recall; 0 if their sum is not positive
+    float f1;
+};
+
+/** @brief Computes precision, recall, and F1 score from query and truth variant counts. */
+prec_recall_f1 compute_pr_f1(int query_tp, int query_fp, int truth_tp, int truth_fn);
+
 /** @brief Writes precision-recall TSV results and prints console summary. */
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr);
 

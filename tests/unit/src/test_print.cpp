@@ -1,7 +1,6 @@
 /**
  * @file test_print.cpp
- * @brief Unit tests for print.cpp: qscore, get_ptr_repr, color wrappers, tallying, write_params.
- * @note compute_pr_f1 is not covered here; its extraction is tracked separately in issue #94.
+ * @brief Unit tests for print.cpp: qscore, get_ptr_repr, color wrappers, metrics, write_params.
  */
 #include <cmath>
 #include <fstream>
@@ -425,6 +424,64 @@ TEST(TallyCountsByQual, MultiContigSums) {
     std::vector<float> expected = {2, 2, 2, 0};
     EXPECT_EQ(expected, sweep(counts, QUERY, VARTYPE_SNP, ERRTYPE_TP));
     EXPECT_EQ(expected, sweep(counts, QUERY, VARTYPE_ALL, ERRTYPE_TP));
+}
+
+/* compute_pr_f1 **********************************************************************************/
+
+TEST(ComputePrF1, PrecisionZeroQuery) {
+    // no query variants at all is vacuously perfect precision, not a zero-divide
+    prec_recall_f1 metrics = compute_pr_f1(0, 0, 3, 1);
+    EXPECT_FLOAT_EQ(1.0f, metrics.precision);
+    EXPECT_FLOAT_EQ(0.75f, metrics.recall);
+    EXPECT_FLOAT_EQ(2*1.0f*0.75f / 1.75f, metrics.f1);
+}
+
+TEST(ComputePrF1, RecallZeroTruth) {
+    // likewise for an empty truth set, so F1 stays defined when only one callset is empty
+    prec_recall_f1 metrics = compute_pr_f1(3, 1, 0, 0);
+    EXPECT_FLOAT_EQ(0.75f, metrics.precision);
+    EXPECT_FLOAT_EQ(1.0f, metrics.recall);
+    EXPECT_FLOAT_EQ(2*0.75f*1.0f / 1.75f, metrics.f1);
+}
+
+TEST(ComputePrF1, F1ZeroDenominator) {
+    // every query call wrong and every truth call missed, so both terms are 0 and F1 is defined as 0
+    prec_recall_f1 metrics = compute_pr_f1(0, 5, 0, 5);
+    EXPECT_FLOAT_EQ(0.0f, metrics.precision);
+    EXPECT_FLOAT_EQ(0.0f, metrics.recall);
+    EXPECT_FLOAT_EQ(0.0f, metrics.f1);
+}
+
+TEST(ComputePrF1, F1Normal) {
+    prec_recall_f1 metrics = compute_pr_f1(4, 0, 4, 4);
+    EXPECT_FLOAT_EQ(1.0f, metrics.precision);
+    EXPECT_FLOAT_EQ(0.5f, metrics.recall);
+    EXPECT_NEAR(0.6667f, metrics.f1, 1e-4);
+}
+
+TEST(ComputePrF1, BothEmpty) {
+    // an evaluation with no variants on either side reports perfect scores rather than NaN
+    prec_recall_f1 metrics = compute_pr_f1(0, 0, 0, 0);
+    EXPECT_FLOAT_EQ(1.0f, metrics.precision);
+    EXPECT_FLOAT_EQ(1.0f, metrics.recall);
+    EXPECT_FLOAT_EQ(1.0f, metrics.f1);
+}
+
+TEST(ComputePrF1, PrecisionKeysOffQueryRecallOffTruth) {
+    // asymmetric counts pin which callset feeds which metric; a swapped denominator would still
+    // pass the symmetric cases above
+    prec_recall_f1 metrics = compute_pr_f1(1, 9, 1, 1);
+    EXPECT_FLOAT_EQ(0.1f, metrics.precision);
+    EXPECT_FLOAT_EQ(0.5f, metrics.recall);
+}
+
+TEST(ComputePrF1, NegativeTruthTp) {
+    // the AC_ERR_2_TO_1 correction can drive truth TP negative, so recall goes negative and the
+    // precision+recall denominator can be non-zero yet meaningless; F1 is clamped to 0 there
+    prec_recall_f1 metrics = compute_pr_f1(0, 1, -2, 3);
+    EXPECT_FLOAT_EQ(0.0f, metrics.precision);
+    EXPECT_FLOAT_EQ(-2.0f, metrics.recall);
+    EXPECT_FLOAT_EQ(0.0f, metrics.f1);
 }
 
 /* write_params ***********************************************************************************/
