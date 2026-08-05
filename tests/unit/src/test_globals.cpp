@@ -223,7 +223,7 @@ TEST(StringTables, IndexMapping) {
     EXPECT_EQ("TRUTH", callset_strs[TRUTH]);
     EXPECT_EQ("SV", vartype_strs[VARTYPE_SV]);
     EXPECT_EQ("SWITCH", switch_strs[SWITCHTYPE_SWITCH]);
-    EXPECT_EQ("INSIDE ", region_strs[BED_INSIDE]);
+    EXPECT_EQ("INSIDE", region_strs[BED_INSIDE]);
 }
 
 TEST(StringTables, AliasedIndices) {
@@ -261,17 +261,17 @@ TEST(StringTables, AcSparse) {
     }
 }
 
-TEST(StringTables, RegionPadded) {
-    // entries are space-padded to a common width, which downstream column output relies on; the
-    // padding surfaces as a trailing space in the LOCATION column of query.tsv and truth.tsv
+TEST(StringTables, RegionUnpadded) {
+    // these reach the LOCATION column of query.tsv and truth.tsv verbatim, so they must carry no
+    // whitespace: an exact string comparison against the documented domain has to match
     EXPECT_EQ("OUTSIDE", region_strs[BED_OUTSIDE]);
-    EXPECT_EQ("INSIDE ", region_strs[BED_INSIDE]);
-    EXPECT_EQ("BORDER ", region_strs[BED_BORDER]);
-    EXPECT_EQ("OFF CTG", region_strs[BED_OFFCTG]);
+    EXPECT_EQ("INSIDE", region_strs[BED_INSIDE]);
+    EXPECT_EQ("BORDER", region_strs[BED_BORDER]);
+    EXPECT_EQ("OFF_CTG", region_strs[BED_OFFCTG]);
 
     ASSERT_FALSE(region_strs.empty());
     for (const std::string & s : region_strs) {
-        EXPECT_EQ(region_strs[0].size(), s.size()) << "unpadded entry '" << s << "'";
+        EXPECT_EQ(std::string::npos, s.find(' ')) << "padded entry '" << s << "'";
     }
 }
 

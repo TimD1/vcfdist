@@ -28,7 +28,7 @@ std::vector<std::string> phase_strs = {"0", "1", "."};
 /** @brief String representations of AC_ERR_* allele count error types. */
 std::vector<std::string> ac_strs = {".", ".", ".", ".", "+", ".", "-", ".", "."};
 /** @brief String representations of BED_* location constants. */
-std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE ", "BORDER ", "OFF CTG"};
+std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"};
 /** @brief String representations of SWITCHTYPE_* switch/flip error type constants. */
 std::vector<std::string> switch_strs =
     {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
