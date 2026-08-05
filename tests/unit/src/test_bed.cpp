@@ -88,6 +88,56 @@ TEST(BedCtor, RunsCheck) {
     EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1), "BED overlap detected");
 }
 
+TEST(BedCtor, NonNumericCoordErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8", "chr1\tstart\tstop"});
+
+    // the offending field and its line are named, since the filename itself is fine here
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
+            "Invalid coordinate 'start' on line 2 of BED file");
+}
+
+TEST(BedCtor, PartlyNumericCoordErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8bp"});
+
+    // a coordinate must be numeric in full; a trailing suffix is not silently dropped
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
+            "Invalid coordinate '8bp' on line 1 of BED file");
+}
+
+TEST(BedCtor, OutOfRangeCoordErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t99999999999"});
+
+    // a coordinate too large for int is reported the same way as a non-numeric one
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
+            "Invalid coordinate '99999999999' on line 1 of BED file");
+}
+
+TEST(BedCtor, MissingColumnErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2"});
+
+    // an absent stop column reads as an empty coordinate rather than parsing as zero
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
+            "Invalid coordinate '' on line 1 of BED file");
+}
+
+TEST(BedCtor, BlankLineErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8", ""});
+
+    // a trailing blank line has no coordinates to read, so it is rejected with its line number
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
+            "Invalid coordinate '' on line 2 of BED file");
+}
+
 /* bedData::add ***********************************************************************************/
 
 TEST(BedAdd, NewContig) {
