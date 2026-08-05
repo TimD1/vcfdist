@@ -1021,14 +1021,18 @@ Graph::Graph(
             if (this->tskips[n1] >= 0 && this->tskips[n1] == this->tidxs[n2]) continue;
             // suppress any edge that leaps a zero-width insertion locus, forcing the path through
             // the insertion's variant node (TP) or its tolled bypass node (FN). An edge joining two
-            // nodes at coordinate p leaps the insertion only if BOTH endpoints are reference-spanning
-            // (neither is zero-width at p): a zero-width endpoint IS the insertion's alt/bypass, so
-            // that edge routes into or out of the insertion rather than past it. Testing zero-width
-            // (rather than the old both-ref rule) also closes the leap when the insertion abuts
-            // another variant, whose alt/bypass node is reference-spanning but not a plain ref node.
-            bool n1_zero_width = this->tbegs[n1] == this->tends[n1];
-            bool n2_zero_width = this->tbegs[n2] == this->tends[n2];
-            bool leaps_insertion = !n1_zero_width && !n2_zero_width;
+            // nodes at coordinate p leaps the insertion unless one endpoint IS the insertion's own
+            // alt/bypass node, in which case the edge routes into or out of the insertion rather
+            // than past it. Such an endpoint is exactly a zero-width variant or bypass node; testing
+            // for that (rather than the old both-ref rule) also closes the leap when the insertion
+            // abuts another variant, whose alt/bypass node is reference-spanning but not a plain ref
+            // node, and keeps a zero-width node that is neither (the contig-start entry node of
+            // STEP 1/STEP 3) from exempting an edge that really does leap the insertion.
+            bool n1_ins_node = this->tbegs[n1] == this->tends[n1] &&
+                    (this->tidxs[n1] >= 0 || this->tskips[n1] >= 0);
+            bool n2_ins_node = this->tbegs[n2] == this->tends[n2] &&
+                    (this->tidxs[n2] >= 0 || this->tskips[n2] >= 0);
+            bool leaps_insertion = !n1_ins_node && !n2_ins_node;
             if (this->tbegs[n1] == this->tends[n2] && n2 < n1 &&
                     !(leaps_insertion && insertion_coords.count(this->tbegs[n1])))
                 this->tprevs[n1].push_back(n2);
