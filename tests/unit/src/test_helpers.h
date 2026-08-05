@@ -301,7 +301,7 @@ struct var_desc {
     std::string ref;           ///< Reference allele sequence
     std::string alt;           ///< Alternate allele sequence
     uint8_t gt = GT_REF_ALT1;  ///< Original genotype (GT_*)
-    float qual = 60;           ///< Sets var_qual (clamped to g.max_qual) and gt_qual (unclamped)
+    float qual = 60;           ///< Sets both var_qual and gt_qual (each clamped to g.max_qual)
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)
     uint8_t loc = BED_INSIDE;  ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)

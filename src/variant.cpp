@@ -47,7 +47,7 @@ ctgVariants::ctgVariants(const std::string & ctg) {
  * @param[in] ref Reference allele sequence
  * @param[in] alt Alternate allele sequence
  * @param[in] orig_gt Original genotype from VCF
- * @param[in] gt_qual Genotype quality score
+ * @param[in] gt_qual Genotype quality score (capped at g.max_qual)
  * @param[in] var_qual Variant quality score (capped at g.max_qual)
  * @param[in] phase_set Phase set identifier from VCF PS tag
  * @param[in] rec_idx 0-based ordinal of the source record within its input VCF (-1 = unknown)
@@ -88,7 +88,7 @@ void ctgVariants::add_var(int pos, int rlen, uint8_t type, uint8_t loc,
     this->refs.push_back(ref);
     this->alts.push_back(alt);
     this->orig_gts.push_back(orig_gt);
-    this->gt_quals.push_back(gt_qual);
+    this->gt_quals.push_back(std::min(gt_qual, float(g.max_qual)));
     this->var_quals.push_back(std::min(var_qual, float(g.max_qual)));
     this->phase_sets.push_back(phase_set);
     this->rec_idxs.push_back(rec_idx);
