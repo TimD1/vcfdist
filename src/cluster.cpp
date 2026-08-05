@@ -372,7 +372,6 @@ superclusterData::superclusterData(
                 this->contigs.end()) {
             this->contigs.push_back(ctg);
             this->lengths.push_back(query_ptr->lengths[i]);
-            this->ploidy.push_back(query_ptr->ploidy[i]);
             this->superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }
@@ -383,7 +382,6 @@ superclusterData::superclusterData(
                 this->contigs.end()) {
             this->contigs.push_back(ctg);
             this->lengths.push_back(truth_ptr->lengths[i]);
-            this->ploidy.push_back(truth_ptr->ploidy[i]);
             this->superclusters[ctg] = std::shared_ptr<ctgSuperclusters>(
                     new ctgSuperclusters());
         }

@@ -503,14 +503,14 @@ bedData make_bed(const std::vector< std::pair<std::string,
  * @param[in] callset QUERY or TRUTH callset identifier
  * @param[in] contigs Contig names
  * @param[in] lengths Contig lengths, parallel to contigs
- * @param[in] ploidy Contig ploidies, parallel to contigs
+ * @param[in] observed_ploidies Ploidies observed on each contig, parallel to contigs
  * @return Variant container with no variants on any contig
  * @throws ERROR if the parallel vectors have differing lengths
  */
 std::shared_ptr<variantData> make_variantData(int callset,
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
-        const std::vector<int> & ploidy) {
-    if (contigs.size() != lengths.size() || contigs.size() != ploidy.size()) {
+        const std::vector< std::set<int> > & observed_ploidies) {
+    if (contigs.size() != lengths.size() || contigs.size() != observed_ploidies.size()) {
         ERROR("make_variantData() requires parallel vectors of equal length");
     }
     std::shared_ptr<variantData> vars(new variantData());
@@ -519,7 +519,7 @@ std::shared_ptr<variantData> make_variantData(int callset,
     vars->sample = callset_strs[callset];
     vars->contigs = contigs;
     vars->lengths = lengths;
-    vars->ploidy = ploidy;
+    vars->observed_ploidies = observed_ploidies;
     for (const std::string & ctg : contigs) {
         vars->variants[HAP1][ctg] = make_ctgVariants(ctg, {});
         vars->variants[HAP2][ctg] = make_ctgVariants(ctg, {});
@@ -653,7 +653,6 @@ std::shared_ptr<ctgSuperclusters> make_ctgSuperclusters(std::shared_ptr<ctgVaria
  * defaults.
  * @param[in] contigs Contig names
  * @param[in] lengths Contig lengths, parallel to contigs
- * @param[in] ploidy Contig ploidies, parallel to contigs
  * @param[in] superclusters Per-contig supercluster containers, parallel to contigs
  * @param[in] ref Reference sequence data, may be nullptr
  * @return Populated supercluster data
@@ -661,11 +660,9 @@ std::shared_ptr<ctgSuperclusters> make_ctgSuperclusters(std::shared_ptr<ctgVaria
  */
 std::shared_ptr<superclusterData> make_superclusterData(
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
-        const std::vector<int> & ploidy,
         const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,
         std::shared_ptr<fastaData> ref) {
-    if (contigs.size() != lengths.size() || contigs.size() != ploidy.size() ||
-            contigs.size() != superclusters.size()) {
+    if (contigs.size() != lengths.size() || contigs.size() != superclusters.size()) {
         ERROR("make_superclusterData() requires parallel vectors of equal length");
     }
     std::shared_ptr<variantData> empty_query(new variantData());
@@ -676,7 +673,6 @@ std::shared_ptr<superclusterData> make_superclusterData(
     sc_data->filenames = {"query.vcf", "truth.vcf"};
     sc_data->contigs = contigs;
     sc_data->lengths = lengths;
-    sc_data->ploidy = ploidy;
     for (size_t i = 0; i < contigs.size(); i++) {
         sc_data->superclusters[contigs[i]] = superclusters[i];
     }
@@ -690,7 +686,6 @@ std::shared_ptr<superclusterData> make_superclusterData(
  * passes have nothing to rewrite, then the caller's populated containers are substituted.
  * @param[in] contigs Contig names
  * @param[in] lengths Contig lengths, parallel to contigs
- * @param[in] ploidy Contig ploidies, parallel to contigs
  * @param[in] superclusters Per-contig supercluster containers, parallel to contigs
  * @param[in] ref Reference sequence data, may be nullptr
  * @return Populated phase block data
@@ -698,7 +693,6 @@ std::shared_ptr<superclusterData> make_superclusterData(
  */
 std::unique_ptr<phaseblockData> make_phaseblockData(
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
-        const std::vector<int> & ploidy,
         const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,
         std::shared_ptr<fastaData> ref) {
     if (contigs.size() != superclusters.size()) {
@@ -710,7 +704,7 @@ std::unique_ptr<phaseblockData> make_phaseblockData(
                 make_ctgVariants(contigs[i], {})));
     }
     std::unique_ptr<phaseblockData> pb_data(new phaseblockData(
-            make_superclusterData(contigs, lengths, ploidy, empty, ref)));
+            make_superclusterData(contigs, lengths, empty, ref)));
     for (size_t i = 0; i < contigs.size(); i++) {
         pb_data->phase_blocks[contigs[i]]->ctg_superclusters = superclusters[i];
     }

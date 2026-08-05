@@ -58,7 +58,6 @@ public:
     std::vector<std::string> filenames;  ///< list containing QUERY and TRUTH VCF filenames
     std::vector<std::string> contigs;    ///< list of all contig names
     std::vector<int> lengths;            ///< list of all contig lengths
-    std::vector<int> ploidy;             ///< list of all contig ploidies
     std::unordered_map<std::string,      ///< map from contig names to ctgSuperclusters
         std::shared_ptr<ctgSuperclusters> > superclusters;
     std::shared_ptr<fastaData> ref;      ///< pointer to reference fastaData

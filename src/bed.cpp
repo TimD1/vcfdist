@@ -175,13 +175,27 @@ bedData::operator std::string() const {
 /* BED helper functions ***************************************************************************/
 
 /**
+ * @brief Renders a set of observed ploidies as a brace-delimited, comma-separated list.
+ * @param[in] ploidies Ploidies observed on one contig in one callset
+ * @return The ploidies in ascending order, e.g. "{1}" or "{1,2}"
+ */
+static std::string ploidy_set_str(const std::set<int> & ploidies) {
+    std::string str = "{";
+    for (auto itr = ploidies.begin(); itr != ploidies.end(); itr++) {
+        if (itr != ploidies.begin()) str += ",";
+        str += std::to_string(*itr);
+    }
+    return str + "}";
+}
+
+/**
  * @brief Intersects reference FASTA, query VCF, truth VCF, and optional BED regions, retaining only common contigs.
  *
  * @param[in] query_ptr A pointer to the query variantData.
  * @param[in] truth_ptr A pointer to the truth variantData.
  * @param[in] ref_ptr A pointer to the reference fastaData.
  * @throws WARNING if contigs in either VCF are not present in either the other VCF or BED file.
- * @throws WARNING if corresponding contigs in the truth and query VCFs differ in ploidy.
+ * @throws WARNING if corresponding contigs in the truth and query VCFs observed differing ploidies.
  * @throws ERROR if a contig to be evaluated is not present in the reference FASTA.
  */
 void intersect_contigs(
@@ -200,7 +214,7 @@ void intersect_contigs(
                         *itr) == g.bed.contigs.end()) {
                 query_ptr->lengths.erase(query_ptr->lengths.begin() + 
                         (itr - query_ptr->contigs.begin()));
-                query_ptr->ploidy.erase(query_ptr->ploidy.begin() + 
+                query_ptr->observed_ploidies.erase(query_ptr->observed_ploidies.begin() +
                         (itr - query_ptr->contigs.begin()));
                 query_ptr->variants[HAP1].erase(*itr);
                 query_ptr->variants[HAP2].erase(*itr);
@@ -217,7 +231,7 @@ void intersect_contigs(
                         *itr) == g.bed.contigs.end()) {
                 truth_ptr->lengths.erase(truth_ptr->lengths.begin() + 
                         (itr - truth_ptr->contigs.begin()));
-                truth_ptr->ploidy.erase(truth_ptr->ploidy.begin() + 
+                truth_ptr->observed_ploidies.erase(truth_ptr->observed_ploidies.begin() +
                         (itr - truth_ptr->contigs.begin()));
                 truth_ptr->variants[HAP1].erase(*itr);
                 truth_ptr->variants[HAP2].erase(*itr);
@@ -263,9 +277,9 @@ void intersect_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                query_ptr->ploidy.push_back(0);
+                query_ptr->observed_ploidies.push_back({});
             }
-            if (std::find(truth_ptr->contigs.begin(), 
+            if (std::find(truth_ptr->contigs.begin(),
                         truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
                 INFO("Contig '%s' found in BED but not truth VCF.", ctg.data());
                 truth_ptr->variants[HAP1][ctg] = 
@@ -274,7 +288,7 @@ void intersect_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 truth_ptr->contigs.push_back(ctg);
                 truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                truth_ptr->ploidy.push_back(0);
+                truth_ptr->observed_ploidies.push_back({});
             }
         }
 
@@ -299,7 +313,7 @@ void intersect_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 truth_ptr->contigs.push_back(ctg);
                 truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                truth_ptr->ploidy.push_back(query_ptr->ploidy[i]);
+                truth_ptr->observed_ploidies.push_back({});
             }
         }
         for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
@@ -314,7 +328,7 @@ void intersect_contigs(
                         std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
                 query_ptr->contigs.push_back(ctg);
                 query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                query_ptr->ploidy.push_back(truth_ptr->ploidy[i]);
+                query_ptr->observed_ploidies.push_back({});
             }
         }
 
@@ -328,16 +342,21 @@ void intersect_contigs(
         }
     }
 
-    // verify ploidy matches for all truth/query contigs
+    // verify the observed ploidies match for all truth/query contigs
     for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
         std::string ctg = truth_ptr->contigs[i];
-        int query_ctg_idx = std::find(query_ptr->contigs.begin(), 
+        int query_ctg_idx = std::find(query_ptr->contigs.begin(),
                 query_ptr->contigs.end(), ctg) - query_ptr->contigs.begin();
         int truth_ctg_idx = i;
-        if (truth_ptr->ploidy[truth_ctg_idx] != query_ptr->ploidy[query_ctg_idx]) {
-            WARN("%s contig '%s' has ploidy %d and %s contig '%s' has ploidy %d",
-                    callset_strs[TRUTH].data(), ctg.data(), truth_ptr->ploidy[truth_ctg_idx],
-                    callset_strs[QUERY].data(), ctg.data(), query_ptr->ploidy[query_ctg_idx]);
+        const std::set<int> & truth_ploidies = truth_ptr->observed_ploidies[truth_ctg_idx];
+        const std::set<int> & query_ploidies = query_ptr->observed_ploidies[query_ctg_idx];
+
+        // a contig injected empty observed no ploidy at all, which is not a disagreement
+        if (truth_ploidies.empty() || query_ploidies.empty()) continue;
+        if (truth_ploidies != query_ploidies) {
+            WARN("%s contig '%s' has ploidies %s and %s contig '%s' has ploidies %s",
+                    callset_strs[TRUTH].data(), ctg.data(), ploidy_set_str(truth_ploidies).data(),
+                    callset_strs[QUERY].data(), ctg.data(), ploidy_set_str(query_ploidies).data());
         }
     }
 

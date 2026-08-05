@@ -829,7 +829,7 @@ std::shared_ptr<superclusterData> make_merge_target(const std::string & ctg = "c
         int length = 1000) {
     std::shared_ptr<ctgSuperclusters> sc =
             make_ctgSuperclusters(make_empty_callset(ctg), make_empty_callset(ctg));
-    return make_superclusterData({ctg}, {length}, {2}, {sc});
+    return make_superclusterData({ctg}, {length}, {sc});
 }
 
 /**
@@ -1176,7 +1176,7 @@ std::shared_ptr<ctgVariants> make_merged_callset(const std::vector<var_desc> & v
 std::shared_ptr<superclusterData> run_supercluster(std::shared_ptr<ctgVariants> qvars,
         std::shared_ptr<ctgVariants> tvars, const std::string & ctg = "chr1") {
     std::shared_ptr<superclusterData> sc_data =
-            make_superclusterData({ctg}, {1000}, {2}, {make_ctgSuperclusters(qvars, tvars)});
+            make_superclusterData({ctg}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
     sc_data->supercluster();
     return sc_data;
 }
@@ -1300,7 +1300,8 @@ TEST(Supercluster, VarCountStatGuard) {
 
 TEST(Supercluster, MergedEmptyCallsetSurvives) {
     GlobalsGuard guard;
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000},
             {make_ctgSuperclusters(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}))});
     std::shared_ptr<ctgVariants> qhap = make_ctgVariants("chr1",
             {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_ALT1}});
@@ -1400,8 +1401,8 @@ TEST(SortSuperclusters, EmptyQueryStillScheduled) {
     // be evaluated for that call to be counted as a false negative; the count was once keyed on
     // QUERY alone, which dropped the contig entirely (#166)
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(10, 0)});
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(make_empty_callset(), tvars)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(make_empty_callset(), tvars)});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1417,8 +1418,8 @@ TEST(SortSuperclusters, EmptyTruthStillScheduled) {
 
     // the mirror case, which read the truth's supercluster lane at index n-1 == -1 (#166)
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(qvars, make_empty_callset())});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, make_empty_callset())});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1431,8 +1432,8 @@ TEST(SortSuperclusters, BothCallsetsEmptySkipped) {
 
     // a contig can reach here with no variants on either callset, when every variant on it was
     // filtered out; it holds no superclusters, so it must still contribute nothing
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(make_empty_callset(), make_empty_callset())});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(make_empty_callset(), make_empty_callset())});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1448,8 +1449,8 @@ TEST(SortSuperclusters, NscsCount) {
             make_sorted_callset({sub_in_sc(10, 0), sub_in_sc(20, 1)});
     std::shared_ptr<ctgVariants> tvars =
             make_sorted_callset({sub_in_sc(12, 0), sub_in_sc(30, 2)});
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(qvars, tvars)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1463,8 +1464,8 @@ TEST(SortSuperclusters, SmallLowBucket) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(12, 0)});
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(qvars, tvars)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1482,8 +1483,8 @@ TEST(SortSuperclusters, LargeLastBucketWarn) {
     g.max_ram = 1e-6;
     std::shared_ptr<ctgVariants> qvars = make_sorted_callset({sub_in_sc(10, 0)});
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset({sub_in_sc(12, 0)});
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(qvars, tvars)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
     testing::internal::CaptureStderr();
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
@@ -1499,7 +1500,7 @@ TEST(SortSuperclusters, LargeLastBucketWarn) {
 TEST(SortSuperclusters, CtgSuperclusterPaired) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
-            {"chr1", "chr2"}, {1000, 1000}, {2, 2},
+            {"chr1", "chr2"}, {1000, 1000},
             {make_ctgSuperclusters(make_sorted_callset({sub_in_sc(10, 0)}, "chr1"),
                                    make_sorted_callset({sub_in_sc(12, 0)}, "chr1")),
              make_ctgSuperclusters(make_sorted_callset({sub_in_sc(10, 0), sub_in_sc(20, 1)}, "chr2"),
@@ -1522,8 +1523,8 @@ TEST(SortSuperclusters, LenLowerUpperBound) {
             {sub_in_sc(0, 0), sub_in_sc(100000, 0), sub_in_sc(100010, 1)});
     std::shared_ptr<ctgVariants> tvars = make_sorted_callset(
             {sub_in_sc(50, 0), sub_in_sc(100012, 1)});
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {200000}, {2},
-            {make_ctgSuperclusters(qvars, tvars)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {200000}, {make_ctgSuperclusters(qvars, tvars)});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1544,8 +1545,8 @@ TEST(SortSuperclusters, EmptyCallsetNcZeroGuard) {
     big.alt = std::string(100000, 'C');
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants("chr1", {big});
     ASSERT_EQ(0, tvars->nc);
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({"chr1"}, {1000}, {2},
-            {make_ctgSuperclusters(qvars, tvars)});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
     std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
 
@@ -1575,9 +1576,9 @@ void declare_contig(std::shared_ptr<variantData> vars, const std::string & ctg) 
 TEST(SuperclusterDataCtor, ContigUnionDedup) {
     GlobalsGuard guard;
     std::shared_ptr<variantData> qvd =
-            make_variantData(QUERY, {"chr1", "chr2"}, {100, 200}, {2, 2});
+            make_variantData(QUERY, {"chr1", "chr2"}, {100, 200}, {{2}, {2}});
     std::shared_ptr<variantData> tvd =
-            make_variantData(TRUTH, {"chr2", "chr3"}, {999, 300}, {2, 1});
+            make_variantData(TRUTH, {"chr2", "chr3"}, {999, 300}, {{2}, {1}});
     declare_contig(qvd, "chr3");
     declare_contig(tvd, "chr1");
 
@@ -1586,16 +1587,15 @@ TEST(SuperclusterDataCtor, ContigUnionDedup) {
     // query contigs come first and truth adds only what query did not already cover
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2", "chr3"}), sc_data.contigs);
 
-    // chr2 is shared, and the query's length and ploidy win because query is scanned first
+    // chr2 is shared, and the query's length wins because query is scanned first
     EXPECT_EQ(std::vector<int>({100, 200, 300}), sc_data.lengths);
-    EXPECT_EQ(std::vector<int>({2, 2, 1}), sc_data.ploidy);
     EXPECT_EQ(size_t(3), sc_data.superclusters.size());
 }
 
 TEST(SuperclusterDataCtor, SamplesFilenamesOrder) {
     GlobalsGuard guard;
-    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {100}, {2});
-    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {100}, {2});
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {100}, {{2}});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {100}, {{2}});
 
     superclusterData sc_data(qvd, tvd, nullptr);
 
@@ -1610,7 +1610,7 @@ TEST(SuperclusterDataCtor, SamplesFilenamesOrder) {
 
 TEST(SuperclusterDataCtor, QueryOnlyContig) {
     GlobalsGuard guard;
-    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {100}, {2});
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {100}, {{2}});
     std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {}, {}, {});
     declare_contig(tvd, "chr1");
 
@@ -1627,22 +1627,21 @@ TEST(SuperclusterDataCtor, QueryOnlyContig) {
 TEST(SuperclusterDataCtor, TruthOnlyContig) {
     GlobalsGuard guard;
     std::shared_ptr<variantData> qvd = make_variantData(QUERY, {}, {}, {});
-    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {100}, {1});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {100}, {{1}});
     declare_contig(qvd, "chr1");
 
     superclusterData sc_data(qvd, tvd, nullptr);
 
-    // the truth-only pass appends the contig with the truth's length and ploidy
+    // the truth-only pass appends the contig with the truth's length
     EXPECT_EQ(std::vector<std::string>({"chr1"}), sc_data.contigs);
     EXPECT_EQ(std::vector<int>({100}), sc_data.lengths);
-    EXPECT_EQ(std::vector<int>({1}), sc_data.ploidy);
     EXPECT_EQ(0, sc_data.superclusters["chr1"]->callset_vars[QUERY]->n);
 }
 
 TEST(SuperclusterDataCtor, EndToEndSmoke) {
     GlobalsGuard guard;
-    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {1000}, {2});
-    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {1000}, {2});
+    std::shared_ptr<variantData> qvd = make_variantData(QUERY, {"chr1"}, {1000}, {{2}});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {1000}, {{2}});
 
     // one query variant and one nearby truth variant, whose reaches overlap, plus a distant
     // query variant that must not join them
@@ -1719,7 +1718,7 @@ var_desc sub_vs_ref(const std::string & seq, int pos) {
 std::shared_ptr<variantData> make_cluster_input(const std::vector<int> & poss, int length = 400,
         int hap = HAP1) {
     std::string seq = pseudo_ref(length);
-    std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {length}, {2});
+    std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {length}, {{2}});
     vcf->ref = make_fasta("chr1", seq);
     std::vector<var_desc> vars;
     for (int pos : poss) vars.push_back(sub_vs_ref(seq, pos));
@@ -1903,7 +1902,7 @@ TEST(WfSwgCluster, ContigStartIndels) {
     for (const var_desc & var : std::vector<var_desc>{{0, 0, TYPE_INS, "", "GG"},
             {0, 2, TYPE_DEL, "", ""}, {0, 2, TYPE_CPX, "", "TCC"}}) {
         std::string seq = pseudo_ref(400);
-        std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {400}, {2});
+        std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {400}, {{2}});
         vcf->ref = make_fasta("chr1", seq);
         var_desc v = var;
         if (v.rlen) v.ref = seq.substr(0, v.rlen); // a DEL/CPX ref allele must match the reference

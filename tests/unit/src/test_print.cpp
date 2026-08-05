@@ -217,7 +217,7 @@ TEST(Color, GreenStrEmpty) {
  */
 std::unique_ptr<phaseblockData> one_ctg(std::shared_ptr<ctgVariants> qvars,
         std::shared_ptr<ctgVariants> tvars) {
-    return make_phaseblockData({"chr1"}, {1000}, {2}, {make_ctgSuperclusters(qvars, tvars)});
+    return make_phaseblockData({"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 }
 
 /**
@@ -414,8 +414,7 @@ TEST(TallyCountsByQual, MultiContigSums) {
     set_hap_data(qvars1, HAP1, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
     set_hap_data(qvars2, HAP1, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
     std::unique_ptr<phaseblockData> pb_data = make_phaseblockData({"chr1", "chr2"},
-            {1000, 1000}, {2, 2},
-            {make_ctgSuperclusters(qvars1, make_ctgVariants("chr1", {})),
+            {1000, 1000}, {make_ctgSuperclusters(qvars1, make_ctgVariants("chr1", {})),
              make_ctgSuperclusters(qvars2, make_ctgVariants("chr2", {}))});
 
     pr_counts counts = tally_counts_by_qual(pb_data, 0, 3);

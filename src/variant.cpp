@@ -498,8 +498,8 @@ variantData::variantData() : callset(QUERY), variants(HAPS) { ; }
  * @throws Various errors for malformed VCF or invalid reference coordinates
  * @throws WARNING Per-reason summary totals for records dropped or altered at parse time: no-call
  *         and half-call genotypes, unphased heterozygous genotypes, spanning deletions, reference
- *         calls, wrong ploidy, missing PS tags, oversized variants, overlapping variants, and
- *         complex variants split into INS + DEL
+ *         calls, missing PS tags, oversized variants, overlapping variants, and complex variants
+ *         split into INS + DEL
  */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
@@ -566,7 +566,6 @@ void parse_variants(const std::string & vcf_fn,
     int half_call_total = 0;      // half-call records (1|. or .|1), known allele kept
     int unphased_gt_total = 0;
     int too_large_var_total = 0;
-    int wrong_ploidy_total = 0;
     int multi_total = 0;
     int ref_call_total = 0;
     int complex_total = 0;
@@ -675,7 +674,7 @@ void parse_variants(const std::string & vcf_fn,
             } else {
                 prev_rids.insert(rec->rid);
                 variant_data->contigs.push_back(ctg);
-                variant_data->ploidy.push_back(0);
+                variant_data->observed_ploidies.push_back({});
                 variant_data->lengths.push_back(ctglens[rec->rid]);
                 prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
                 prev_type = {TYPE_SUB, TYPE_SUB};
@@ -748,21 +747,11 @@ void parse_variants(const std::string & vcf_fn,
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
         }
 
-        // update ploidy info
-        int ctg_idx = std::find(variant_data->contigs.begin(), variant_data->contigs.end(), ctg) 
+        // record this record's ploidy; mixed ploidy within a contig is legitimate, as on a chrX
+        // carrying both PAR (diploid) and non-PAR (haploid) calls, so nothing is enforced here
+        int ctg_idx = std::find(variant_data->contigs.begin(), variant_data->contigs.end(), ctg)
                 - variant_data->contigs.begin();
-        if (variant_data->ploidy[ctg_idx] != 0) { // already set, enforce it doesn't change
-            if (std::abs(ngt) != variant_data->ploidy[ctg_idx] && ctg[ctg.size()-1] != 'X') {
-                if (g.verbosity > 1)
-                    WARN("Expected ploidy %d for all variants on contig '%s',"
-                          " found ploidy %d at %s:%lld in %s VCF.", variant_data->ploidy[ctg_idx],
-                        ctg.data(), std::abs(ngt), ctg.data(), (long long)rec->pos,
-                        callset_strs[callset].data());
-                wrong_ploidy_total += 1;
-            }
-        } else { // set ploidy for this contig
-            variant_data->ploidy[ctg_idx] = std::abs(ngt);
-        }
+        variant_data->observed_ploidies[ctg_idx].insert(std::abs(ngt));
 
         // parse genotype info
         int orig_gt = GT_REF_REF;
@@ -1033,10 +1022,6 @@ void parse_variants(const std::string & vcf_fn,
     if (pass_min_qual[FALSE] && print)
         INFO("%d variants of low quality (<%d) in %s VCF, skipped", 
             pass_min_qual[FALSE], g.min_qual, callset_strs[callset].data());
-
-    if (wrong_ploidy_total) 
-        WARN("%d variants with incorrect ploidy in %s VCF, kept",
-            wrong_ploidy_total, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");
     for (size_t i = 0; i < gt_strs.size(); i++) {

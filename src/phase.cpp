@@ -12,6 +12,19 @@
 
 
 /**
+ * @brief Renders one haplotype's GT, bare for a haploid record and phased for a diploid one.
+ * @param[in] ploidy Ploidy of the record being written (0 = unknown, treated as diploid)
+ * @param[in] alt_on_hap2 True if the alternate allele sits on the second haplotype
+ * @return "1" when haploid, otherwise "0|1" or "1|0"
+ */
+static std::string hap_gt(uint8_t ploidy, bool alt_on_hap2) {
+    return ploidy == 1 ? "1" : (alt_on_hap2 ? "0|1" : "1|0");
+}
+
+
+/**************************************************************************************************/
+
+/**
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
  * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
@@ -36,8 +49,8 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             local_time.tm_mon + 1, local_time.tm_mday);
     fprintf(out_vcf, "##CL=%s\n", g.cmd.data());
     for (size_t i = 0; i < this->contigs.size(); i++) {
-        fprintf(out_vcf, "##contig=<ID=%s,length=%d,ploidy=%d>\n", 
-                this->contigs[i].data(), this->lengths[i], this->ploidy[i]);
+        fprintf(out_vcf, "##contig=<ID=%s,length=%d>\n",
+                this->contigs[i].data(), this->lengths[i]);
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
@@ -62,7 +75,6 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         std::vector<int> ptrs = std::vector<int>(CALLSETS, 0);
         std::vector<int> poss = std::vector<int>(CALLSETS, 0);
         std::vector<int> next = std::vector<int>(CALLSETS, 0);
-        int ploidy = this->ploidy[std::find(contigs.begin(), contigs.end(), ctg)-contigs.begin()];
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         auto & vars = ctg_pbs->ctg_superclusters->callset_vars;
@@ -150,14 +162,14 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) { // print truth
                                     vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
-                                        ploidy == 1 ? "1" : (thi ? "0|1" : "1|0"), 
+                                        hap_gt(vars[TRUTH]->ploidies[ptrs[TRUTH]], thi),
                                         sc_idx, phase_block, block_state, flip_error);
                                 } else {
                                     vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 }
                                 if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) { // print query
                                     vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
+                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
                                         sc_idx, phase_block, block_state, flip_error, true);
                                 } else {
                                     vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
@@ -172,7 +184,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
+                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
                                         sc_idx, phase_block, block_state, flip_error, true);
                             }
                         }
@@ -185,7 +197,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                             vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                    ploidy == 1 ? "1" : ((qhi ^ swap) ? "0|1" : "1|0"),
+                                    hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
                                     sc_idx, phase_block, block_state, flip_error, true);
                         }
                     }
@@ -197,7 +209,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                         vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
-                                ploidy == 1 ? "1" : (thi ? "0|1" : "1|0"), 
+                                hap_gt(vars[TRUTH]->ploidies[ptrs[TRUTH]], thi),
                                 sc_idx, phase_block, block_state, flip_error);
                         vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                     }
@@ -217,7 +229,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
 /**
  * @brief Constructs phaseblock container from supercluster data and runs phasing pipeline.
- * @param[in] clusterdata_ptr Supercluster data with contigs, lengths, ploidy, and variants
+ * @param[in] clusterdata_ptr Supercluster data with contigs, lengths, and variants
  */
 phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr)
 {
@@ -226,7 +238,6 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         std::string ctg = clusterdata_ptr->contigs[i];
         this->contigs.push_back(ctg);
         this->lengths.push_back(clusterdata_ptr->lengths[i]);
-        this->ploidy.push_back(clusterdata_ptr->ploidy[i]);
         this->phase_blocks[ctg] = std::shared_ptr<ctgPhaseblocks>(new ctgPhaseblocks());
     }
     this->ref = clusterdata_ptr->ref;

@@ -6,6 +6,7 @@
 #define _TEST_HELPERS_H_
 
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -285,12 +286,12 @@ bedData make_bed(const std::vector< std::pair<std::string,
 /**
  * @brief Builds a variantData over the given contigs, each holding an empty ctgVariants per hap.
  *
- * Stands in for a parsed VCF in tests that care about the contig, length, and ploidy fields
- * rather than about variants; `filename` and `sample` follow from the callset.
+ * Stands in for a parsed VCF in tests that care about the contig, length, and observed-ploidy
+ * fields rather than about variants; `filename` and `sample` follow from the callset.
  */
 std::shared_ptr<variantData> make_variantData(int callset,
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
-        const std::vector<int> & ploidy);
+        const std::vector< std::set<int> > & observed_ploidies);
 
 /**
  * @struct var_desc
@@ -348,7 +349,6 @@ std::shared_ptr<ctgSuperclusters> make_ctgSuperclusters(std::shared_ptr<ctgVaria
 /** @brief Builds a superclusterData over the given contigs, bypassing clustering. */
 std::shared_ptr<superclusterData> make_superclusterData(
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
-        const std::vector<int> & ploidy,
         const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,
         std::shared_ptr<fastaData> ref = nullptr);
 
@@ -362,7 +362,6 @@ std::shared_ptr<superclusterData> make_superclusterData(
  */
 std::unique_ptr<phaseblockData> make_phaseblockData(
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
-        const std::vector<int> & ploidy,
         const std::vector< std::shared_ptr<ctgSuperclusters> > & superclusters,
         std::shared_ptr<fastaData> ref = nullptr);
 

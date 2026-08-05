@@ -4,6 +4,7 @@
  */
 #include <algorithm>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -59,7 +60,6 @@ struct ctg_input {
     std::shared_ptr<ctgVariants> qvars;       ///< Query variants, or nullptr for an empty callset
     std::shared_ptr<ctgVariants> tvars;       ///< Truth variants, or nullptr for an empty callset
     int length = CTG_LENGTH;                  ///< Contig length
-    int ploidy = 2;                           ///< Contig ploidy
 };
 
 /**
@@ -114,12 +114,10 @@ std::shared_ptr<ctgVariants> make_qvars(const std::vector<int> & phases,
 pipeline_result run_pipeline(const TempDir & dir, const std::vector<ctg_input> & inputs) {
     std::vector<std::string> contigs;
     std::vector<int> lengths;
-    std::vector<int> ploidy;
     std::vector< std::shared_ptr<ctgSuperclusters> > superclusters;
     for (const ctg_input & input : inputs) {
         contigs.push_back(input.ctg);
         lengths.push_back(input.length);
-        ploidy.push_back(input.ploidy);
         std::shared_ptr<ctgVariants> qvars = input.qvars ? input.qvars :
                 make_ctgVariants(input.ctg, {});
         std::shared_ptr<ctgVariants> tvars = input.tvars ? input.tvars :
@@ -134,7 +132,7 @@ pipeline_result run_pipeline(const TempDir & dir, const std::vector<ctg_input> &
     {
         StderrToFile redirect(log_fn);
         result.data = std::shared_ptr<phaseblockData>(new phaseblockData(
-                make_superclusterData(contigs, lengths, ploidy, superclusters)));
+                make_superclusterData(contigs, lengths, superclusters)));
     }
     result.log = read_text(log_fn);
     return result;
@@ -663,8 +661,8 @@ TEST(FixAlleleCounts, UnknownErrors) {
     std::shared_ptr<ctgVariants> qvars = make_qvars({PHASE_NONE});
     qvars->orig_gts[0] = GT_REF_REF;
     qvars->calc_gts[0] = GT_REF_REF;
-    std::shared_ptr<superclusterData> sc_data = make_superclusterData({CTG}, {CTG_LENGTH}, {2},
-            {make_ctgSuperclusters(qvars, make_ctgVariants(CTG, {}))});
+    std::shared_ptr<superclusterData> sc_data = make_superclusterData(
+            {CTG}, {CTG_LENGTH}, {make_ctgSuperclusters(qvars, make_ctgVariants(CTG, {}))});
     EXPECT_EXIT(phaseblockData data(sc_data), testing::ExitedWithCode(1),
             "Unknown variant allele count");
 }
@@ -996,12 +994,11 @@ TEST(PhaseblockDataCtor, CopiesMetadata) {
             make_qvars({PHASE_ORIG, PHASE_ORIG}), make_ctgVariants("chr1", {}));
     std::shared_ptr<ctgSuperclusters> chr2_scs = make_ctgSuperclusters(
             make_ctgVariants("chr2", {}), make_ctgVariants("chr2", {}));
-    phaseblockData data(make_superclusterData({"chr1", "chr2"}, {300, 250}, {2, 1},
-            {chr1_scs, chr2_scs}, ref));
+    phaseblockData data(make_superclusterData(
+            {"chr1", "chr2"}, {300, 250}, {chr1_scs, chr2_scs}, ref));
 
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), data.contigs);
     EXPECT_EQ(std::vector<int>({300, 250}), data.lengths);
-    EXPECT_EQ(std::vector<int>({2, 1}), data.ploidy);
     EXPECT_EQ(ref, data.ref);
     EXPECT_EQ(size_t(2), data.phase_blocks.size());
     EXPECT_EQ(chr1_scs, data.phase_blocks["chr1"]->ctg_superclusters);
@@ -1075,6 +1072,111 @@ TEST(PhaseblockDataCtor, BoundariesIgnoreUnphasedMiddle) {
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}, {7, 0, 7}));
     EXPECT_EQ(1, pbs_of(result)->n);
     EXPECT_EQ(std::vector<int>({0, 3}), pbs_of(result)->phase_blocks);
+}
+
+/* write_summary_vcf(): genotype rendering ********************************************************/
+
+/**
+ * @brief Builds query variants SPACING bases apart carrying the given per-variant ploidies.
+ *
+ * A haploid record parses to GT_ALT1_REF on HAP1 alone, exactly as a heterozygous diploid call
+ * does, so the ploidy is the only thing distinguishing the two by the time the writer sees them.
+ * calc_gts match orig_gts so that every variant classifies as PHASE_ORIG.
+ * @param[in] ploidies Ploidy of each variant, in position order
+ * @param[in] ctg Contig the variants sit on
+ * @return Query variants with orig_gts, calc_gts, phase_sets, and ploidies set
+ */
+std::shared_ptr<ctgVariants> make_ploidy_qvars(const std::vector<uint8_t> & ploidies,
+        const std::string & ctg = CTG) {
+    std::vector<var_desc> descs;
+    for (size_t i = 0; i < ploidies.size(); i++) {
+        var_desc desc;
+        desc.pos = int(i) * SPACING;
+        desc.rlen = 1;
+        desc.ref = "A";
+        desc.alt = "C";
+        desc.gt = GT_ALT1_REF;
+        desc.phase_set = 1;
+        desc.ploidy = ploidies[i];
+        descs.push_back(desc);
+    }
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
+    for (size_t i = 0; i < ploidies.size(); i++) qvars->calc_gts[i] = GT_ALT1_REF;
+    return qvars;
+}
+
+/** @brief Writes the summary VCF for a constructed phaseblockData and returns its contents. */
+std::string summary_vcf(const TempDir & dir, phaseblockData & data) {
+    std::string vcf_fn = dir.path("summary.vcf");
+    std::string log_fn = dir.path("summary.log");
+    {
+        StderrToFile redirect(log_fn);
+        data.write_summary_vcf(vcf_fn);
+    }
+    return read_text(vcf_fn);
+}
+
+/**
+ * @brief Returns the query sample's GT field for the record at the given 1-based VCF position.
+ * @param[in] vcf Full summary VCF contents
+ * @param[in] vcf_pos 1-based POS of the record to read
+ * @return The GT field, or the empty string if no record sits at that position
+ */
+std::string query_gt(const std::string & vcf, int vcf_pos) {
+    std::istringstream records(vcf);
+    std::string line;
+    const std::string prefix = CTG + "\t" + std::to_string(vcf_pos) + "\t";
+    while (std::getline(records, line)) {
+        if (line.rfind(prefix, 0) != 0) continue;
+        size_t sample = line.rfind('\t') + 1;
+        return line.substr(sample, line.find(':', sample) - sample);
+    }
+    return "";
+}
+
+TEST(WriteSummaryVcf, HaploidVariantRendersBareAllele) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({1}));
+    EXPECT_EQ("1", query_gt(summary_vcf(dir, *result.data), 1));
+}
+
+TEST(WriteSummaryVcf, DiploidVariantRendersPhasedPair) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({2}));
+    EXPECT_EQ("1|0", query_gt(summary_vcf(dir, *result.data), 1));
+}
+
+// A chrX carrying both a PAR diploid call and a non-PAR haploid one renders each in its own shape.
+// Both orderings are asserted because per-contig ploidy was inferred from whichever record came
+// first, so a single ordering would have agreed with the old behavior half the time.
+TEST(WriteSummaryVcf, MixedPloidyHaploidFirst) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({1, 2}));
+    std::string vcf = summary_vcf(dir, *result.data);
+    EXPECT_EQ("1", query_gt(vcf, 1));
+    EXPECT_EQ("1|0", query_gt(vcf, SPACING + 1));
+}
+
+TEST(WriteSummaryVcf, MixedPloidyDiploidFirst) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({2, 1}));
+    std::string vcf = summary_vcf(dir, *result.data);
+    EXPECT_EQ("1|0", query_gt(vcf, 1));
+    EXPECT_EQ("1", query_gt(vcf, SPACING + 1));
+}
+
+// ploidy= is not a VCF-spec contig attribute, and each record's GT now carries its own.
+TEST(WriteSummaryVcf, ContigLineOmitsPloidy) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({2}));
+    std::string vcf = summary_vcf(dir, *result.data);
+    EXPECT_NE(std::string::npos, vcf.find("##contig=<ID=chr1,length=604>")) << vcf;
+    EXPECT_EQ(std::string::npos, vcf.find("ploidy=")) << vcf;
 }
 
 } // namespace
