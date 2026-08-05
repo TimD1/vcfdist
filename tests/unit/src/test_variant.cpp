@@ -1151,23 +1151,20 @@ TEST_F(ParseVariants, Gt11SplitAcrossBothHaps) {
     EXPECT_TRUE(logged(r, "1 homozygous and multi-allelic variants in QUERY VCF, split"));
 }
 
-// Documents rather than enforces: only the haplotype-1 copy of a homozygous variant keeps its 1|1
-// label. The downgrade at variant.cpp:1171 is meant to fire when the other haplotype's copy was
-// skipped as overlapping, but it tests prev_end[hap^1] against pos, which the copy just added for
-// the other haplotype also satisfies -- for every type, since a zero-length insertion instead
-// satisfies the equal-position clause. The two cases are indistinguishable from prev_end alone.
-TEST_F(ParseVariants, HomozygousDowngradedOnHap2WithoutAnySkip) {
+// A homozygous record contributes one variant per haplotype, and each keeps the 1|1 label unless
+// the other haplotype's copy was dropped. With one record and nothing to overlap, both keep it.
+TEST_F(ParseVariants, HomozygousKeepsBothAllelesWhenNothingSkipped) {
     const std::vector< std::pair<std::string, std::string> > alleles = {
-        {"A", "G"},    // SUB, prev_end == pos+1 > pos
-        {"AGG", "A"},  // DEL, prev_end == pos+2 > pos
-        {"A", "AGG"},  // INS, prev_end == pos, matched by the two-insertions clause
+        {"A", "G"},    // SUB, rlen 1
+        {"AGG", "A"},  // DEL, rlen 2
+        {"A", "AGG"},  // INS, rlen 0
     };
     for (const auto & [ref, alt] : alleles) {
         ParseResult r = parse_records(dir, {record(100, ref, alt, "1|1")});
         ASSERT_EQ(1, hap_vars(r, HAP1)->n) << ref << " -> " << alt;
         ASSERT_EQ(1, hap_vars(r, HAP2)->n) << ref << " -> " << alt;
         EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP1)->orig_gts[0]) << ref << " -> " << alt;
-        EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]) << ref << " -> " << alt;
+        EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP2)->orig_gts[0]) << ref << " -> " << alt;
         EXPECT_FALSE(logged(r, "overlapping variants")) << ref << " -> " << alt;
     }
 }
