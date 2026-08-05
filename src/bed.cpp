@@ -6,6 +6,36 @@
 #include "print.h"
 
 
+/* File-local helpers *****************************************************************************/
+
+/**
+ * @brief Parses one BED coordinate field, naming the offending line if it is not a valid int.
+ *
+ * The whole field must be numeric, so a partially-numeric coordinate such as "8bp" is rejected
+ * rather than silently truncated to the digits that precede the suffix.
+ * @param[in] coord The coordinate field, exactly as read from the BED file.
+ * @param[in] bed_fn The BED filename, reported on failure.
+ * @param[in] line The 1-based line the field was read from, reported on failure.
+ * @return The parsed coordinate.
+ * @throws ERROR if the field is empty, not numeric in full, or too large for an int.
+ */
+static int parse_coord(const std::string & coord, const std::string & bed_fn, const int & line) {
+    int pos = 0;
+    bool valid = false;
+    try {
+        size_t len = 0;
+        pos = std::stoi(coord, &len);
+        valid = len == coord.size();
+    } catch (const std::exception &) { // non-numeric or out-of-range, reported below
+    }
+    if (!valid) {
+        ERROR("Invalid coordinate '%s' on line %d of BED file '%s'",
+                coord.data(), line, bed_fn.data());
+    }
+    return pos;
+}
+
+
 /* bedData ****************************************************************************************/
 
 /**
@@ -14,6 +44,7 @@
  * The first three columns are read and the remainder are ignored.
  * @param[in] bed_fn The BED filename.
  * @throws ERROR if the BED file cannot be opened.
+ * @throws ERROR if a start or stop coordinate is empty, not numeric in full, or too large.
  */
 bedData::bedData(const std::string & bed_fn) {
 
@@ -26,13 +57,18 @@ bedData::bedData(const std::string & bed_fn) {
 
     std::ifstream bed(bed_fn);
     std::string region;
+    int line = 0;
     while (getline(bed, region)) {
+        line++;
         std::stringstream ss(region);
         std::string contig, start, stop;
         getline(ss, contig, '\t');
         getline(ss, start, '\t');
         getline(ss, stop, '\t');
-        this->add(contig, std::stoi(start), std::stoi(stop));
+        // parsed into locals so that the reported field does not depend on evaluation order
+        const int start_pos = parse_coord(start, bed_fn, line);
+        const int stop_pos = parse_coord(stop, bed_fn, line);
+        this->add(contig, start_pos, stop_pos);
     }
     this->check();
 }

@@ -590,8 +590,7 @@ TEST(ParseArgs, BedBadFileErrors) {
     ArgsFixture f;
 
     // the bedData constructor errors out on an unopenable file, so the surrounding catch block
-    // never runs and the message is the constructor's, not "Invalid BED filename provided";
-    // issue #200 covers the mislabeled handler
+    // never runs and the message is the constructor's
     EXPECT_EXIT(parse(f.argv({"-b", f.path("absent.bed")})), testing::ExitedWithCode(1),
             "Failed to open BED file");
 }
@@ -602,11 +601,10 @@ TEST(ParseArgs, BedMalformedLineErrors) {
     const std::string bed_fn = f.path("bad.bed");
     std::ofstream(bed_fn) << "chr1\tstart\tstop\n";
 
-    // DOCUMENTS CURRENT BEHAVIOR, does not enforce it: a non-numeric coordinate makes std::stoi
-    // throw, which is the one route to the catch block, and it names the filename as invalid when
-    // the contents were; update this message when issue #200 is fixed
+    // a non-numeric coordinate is reported by the constructor too, naming the offending field and
+    // line rather than the filename, so the catch block is now unreachable for every BED input
     EXPECT_EXIT(parse(f.argv({"-b", bed_fn})), testing::ExitedWithCode(1),
-            "Invalid BED filename provided");
+            "Invalid coordinate 'start' on line 1 of BED file");
 }
 
 /* parse_args: -p/--prefix ************************************************************************/
