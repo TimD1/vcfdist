@@ -15,7 +15,10 @@
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
  * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
+ * @note Contigs called by only one callset are included; a contig with no query variants has no
+ *       phase block to read, so its truth records are written unswapped with PB and BS defaulted
  * @throws ERROR if the output summary VCF file cannot be opened for writing
+ * @throws ERROR if neither callset is selected next while variants remain
  */
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
@@ -65,26 +68,11 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         auto & vars = ctg_pbs->ctg_superclusters->callset_vars;
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = ctg_pbs->ctg_superclusters->callset_vars[TRUTH];
-        if (qvars->n == 0) continue;
 
-        // set supercluster flip/swap based on phaseblock and sc phasing
+        // flip/swap state comes from the query; these defaults hold on a contig it never calls on
         int phase_block = 0;
-        bool block_state = qvars->pb_phases[ptrs[QUERY]];
-        int phase = qvars->phases[ptrs[QUERY]];
-        bool flip_error;
-        if (block_state == PHASE_SWAP) {
-            if (phase == PHASE_ORIG) { // flip error
-                flip_error = true;
-            } else { // PHASE_SWAP or PHASE_NONE
-                flip_error = false;
-            }
-        } else { // block_state == PHASE_ORIG
-            if (phase == PHASE_SWAP) { // flip error
-                flip_error = true;
-            } else { // PHASE_ORIG or PHASE_NONE
-                flip_error = false;
-            }
-        }
+        bool block_state = PHASE_ORIG;
+        bool flip_error = false;
 
         while ( ptrs[QUERY] < qvars->n || ptrs[TRUTH] < tvars->n) {
 
@@ -106,7 +94,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
             // update phasing
             if (ptrs[QUERY] < qvars->n) {
-                phase = qvars->phases[ptrs[QUERY]];
+                int phase = qvars->phases[ptrs[QUERY]];
                 block_state = qvars->pb_phases[ptrs[QUERY]];
 
                 // update switch/flip status
@@ -128,7 +116,9 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             // update supercluster and phase block
             int sc_idx = next[QUERY] ? vars[QUERY]->superclusters[ptrs[QUERY]] :
                                        vars[TRUTH]->superclusters[ptrs[TRUTH]];
-            if (ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
+            // the final entry is a past-the-end index, so stop advancing once it has been reached
+            if (phase_block+1 < int(ctg_pbs->phase_blocks.size()) &&
+                    ptrs[QUERY] >= ctg_pbs->phase_blocks[phase_block+1])
                 phase_block++;
 
             /* if (next[QUERY] && ptrs[QUERY] < qvars->n) { */

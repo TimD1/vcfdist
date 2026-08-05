@@ -58,7 +58,7 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   un-excised inflates it to `RD=2`. The call stays TP (credit 1.0) either way, so `RD` is the
   field the test pins. SNP 2/2/4/0.
 
-### one_sided_contig — a contig called by only one callset (#166)
+### one_sided_contig — a contig called by only one callset (#166, #174)
 
 This scenario uses `synthetic_2ctg.bed` and one pair of VCFs rather than a `_truth`/`_query` pair,
 because the two directions are the same inputs with the query and truth arguments swapped:
@@ -73,6 +73,8 @@ only one of them calls a variant on it. `sc1` is matched in both directions and 
 - truth-only (`both` as truth): the `sc2` call is missed by the query. SNP 2/2/2/0.
 
 Both directions used to segfault while superclustering, so these pin that the run completes and
-that the one-sided contig's calls are classified and counted. Note that in the truth-only
-direction the `sc2` false negatives appear in `*truth.tsv` but not in `*summary.vcf`, which skips
-any contig the query does not call on; the tests therefore pin `*truth.tsv`.
+that the one-sided contig's calls are classified and counted. Both also pin `*summary.vcf`: the
+truth-only direction is where `sc2`'s false negatives used to be dropped, because that output
+skipped any contig the query does not call on, and the query-only direction pins the mirror. With
+no query call on `sc2` there is no phase block or phase to report there, so its truth records
+carry the unswapped haplotypes with `PB=0` and `BS=.`.
