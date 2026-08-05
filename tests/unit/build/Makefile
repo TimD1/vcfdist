@@ -12,6 +12,8 @@ SRC = ../../../src
 TEST_SRC = ../src
 TESTS = test_vcfdist
 CXXFLAGS += -g -Wall -Wextra -std=c++17
+# var_fields members with no default are required; omitting one must not compile (GCC only)
+CXXFLAGS += -Werror=missing-field-initializers
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 SRC_HEADERS = $(wildcard $(SRC)/*.h)
 TEST_HEADERS = $(wildcard $(TEST_SRC)/*.h)

@@ -16,6 +16,51 @@
 #include "defs.h"
 
 /**
+ * @struct hap_fields
+ * @brief One haplotype's evaluation results for a single variant, set during prec_recall_aln().
+ */
+struct hap_fields {
+    uint8_t errtype = ERRTYPE_UN; ///< error type: TP, FP, FN
+    int sync_group = 0;           ///< group of variants that participate in credit
+    float callq = 0;              ///< min call quality in sync group
+    int ref_ed = 0;               ///< reference edit distance in sync group
+    int query_ed = 0;             ///< query edit distance in sync group
+    float credit = 0;             ///< percentage reduction in edit dist (ref->query)
+};
+
+/**
+ * @struct var_fields
+ * @brief Every field describing a single variant, named rather than positional.
+ *
+ * Members are matched by designator at each call site, so inserting a field cannot rebind the
+ * others. The members with no default initializer are required: omitting one is a build failure
+ * under -Werror=missing-field-initializers, while omitting a defaulted member is not. Designators
+ * must appear in declaration order, which follows the storage order in ctgVariants.
+ *
+ * Call sites name the type -- add_var(var_fields{.pos = ...}), not add_var({.pos = ...}) -- because
+ * GCC 13.3 rejects a bare designated-initializer list as a function argument once any member is
+ * initialized from a non-constant expression. Naming the type still enforces the required members.
+ */
+struct var_fields {
+    int pos;                      ///< variant start position (0-based)
+    int rlen;                     ///< reference length
+    uint8_t type;                 ///< variant type: NONE, SUB, INS, DEL, CPX
+    uint8_t loc;                  ///< BED location: INSIDE, OUTSIDE, BORDER
+    std::string ref;              ///< variant reference allele
+    std::string alt;              ///< variant alternate allele
+    uint8_t orig_gt;              ///< simple genotype (0|1, 1|0, or 1|1)
+    float gt_qual;                ///< genotype quality (capped above at --max-qual when stored)
+    float var_qual;               ///< variant quality (capped above at --max-qual when stored)
+    int phase_set;                ///< integer representing variant phase set (0 = missing)
+    int rec_idx = -1;             ///< source VCF record ordinal (0-based, -1 = unknown)
+    int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
+    uint8_t ploidy = 0;           ///< variant ploidy from std::abs(ngt) (0 = unknown)
+    int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
+    uint8_t calc_gt = GT_REF_REF; ///< calculated genotype, only set for query
+    hap_fields hap[HAPS] = {};    ///< per-haplotype results, indexed by HAP1 and HAP2
+};
+
+/**
  * @class ctgVariants
  * @brief Store all variant information for a single contig and callset.
  */
@@ -26,14 +71,10 @@ public:
     ctgVariants(const std::string & ctg);
 
     /** @brief Appends a variant with all fields explicitly specified. */
-    void add_var(int pos, int rlen, uint8_t type, uint8_t loc,
-        const std::string & ref, const std::string & alt, uint8_t orig_gt, float gt_qual, float var_qual,
-        int phase_set, int rec_idx = -1, int alt_idx = -1, uint8_t ploidy = 0,
-        int supercluster = -1, uint8_t calc_gt = GT_REF_REF,
-        uint8_t hap1_errtype = ERRTYPE_UN, uint8_t hap2_errtype = ERRTYPE_UN,
-        int hap1_sync_group = 0, int hap2_sync_group = 0, float hap1_callq = 0, float hap2_callq = 0,
-        int hap1_ref_ed = 0, int hap2_ref_ed = 0, int hap1_query_ed = 0, int hap2_query_ed = 0,
-        float hap1_credit = 0, float hap2_credit = 0);
+    void add_var(const var_fields & var);
+
+    /** @brief Returns every field of one variant, for copying it into another container. */
+    var_fields get_var(int idx) const;
 
     /** @brief Writes fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) for one variant. */
     void print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,

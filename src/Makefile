@@ -6,6 +6,8 @@ CXX ?= g++
 # CXXFLAGS = -O3
 CXXFLAGS = -g -pg -O1
 CXXFLAGS += -Wall -Wextra -std=c++17
+# var_fields members with no default are required; omitting one must not compile (GCC only)
+CXXFLAGS += -Werror=missing-field-initializers
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 
 $(TARGET): $(OBJS) main.cpp
