@@ -241,3 +241,34 @@
         - "sc1\t49\t0\tT\tC\t50.00\tSNP\tTP"
       must_not_contain:
         - "\tSNP\tFP"
+
+- name: test_contig-end-snp-scored-as-tp
+  # The mirror of the scenario above, for #189: query and truth are identical, with one SNP at POS
+  # 400 (0-based position 399, the final base of the 400 bp contig sc1) and one at POS 350, so every
+  # variant must be a true positive on both sides. A variant on the final base is where the
+  # reference window would otherwise reach past the contig end, leaving the graph's trailing node
+  # holding no bases while its coordinate span claimed two. The POS 350 SNP is the mid-contig
+  # control, whose window fits inside the contig and is unaffected by the clamp.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/contig_end_snp_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/contig_end_snp_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "contig_end_snp_out_"'
+  stderr:
+    must_not_contain:
+      - "Unknown error type"
+  files:
+    - path: contig_end_snp_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t0\t0"
+    - path: contig_end_snp_out_truth.tsv
+      contains:
+        - "sc1\t349\t0\tT\tC\t50.00\tSNP\tTP"
+        - "sc1\t399\t0\tT\tC\t50.00\tSNP\tTP"
+    - path: contig_end_snp_out_query.tsv
+      contains:
+        - "sc1\t349\t0\tT\tC\t50.00\tSNP\tTP"
+        - "sc1\t399\t0\tT\tC\t50.00\tSNP\tTP"
+      must_not_contain:
+        - "\tSNP\tFP"

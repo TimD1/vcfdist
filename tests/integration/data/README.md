@@ -19,9 +19,10 @@ look for them, so a test run leaves this directory untouched.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
 
 Every variant `REF` allele below matches the reference at its 1-based position, and every variant
-is homozygous (`1/1`) except in the `contig_start_snp` scenario, which is phased heterozygous
-(`1|0`). Summary counts are therefore per-haplotype (doubled, except in that scenario) and are
-listed as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from `*precision-recall-summary.tsv`.
+is homozygous (`1/1`) except in the `contig_start_snp` and `contig_end_snp` scenarios, which are
+phased heterozygous (`1|0`). Summary counts are therefore per-haplotype (doubled, except in those
+scenarios) and are listed as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
+`*precision-recall-summary.tsv`.
 
 ## Scenarios
 
@@ -65,7 +66,14 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   flank node can precede the variant in the alignment graph; the aligner's fixed origin used to
   land on the variant node itself, so the call scored FP and its truth counterpart was left
   unlabeled (`Unknown error type`). The `POS` 50 SNP is the mid-contig control. SNP 2/2/0/0
-  (not doubled — these are the one heterozygous fixtures).
+  (not doubled — these are heterozygous fixtures).
+
+### contig_end_snp — a variant on a contig's final base (#189)
+- truth and query are identical: SNPs 350 T>C and 400 T>C, both phased `1|0`.
+- default `-ct`: both are TP on both sides. `POS` 400 is 0-based position 399, the final base of the
+  400 bp `sc1`, where the reference window would otherwise reach past the contig end and leave the
+  graph's trailing node holding no bases while its coordinate span claimed two. The `POS` 350 SNP is
+  the mid-contig control, whose window fits inside the contig. SNP 2/2/0/0 (not doubled).
 
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 
