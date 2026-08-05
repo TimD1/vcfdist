@@ -198,14 +198,13 @@ private:
 struct ParseResult {
     std::shared_ptr<variantData> vars; ///< Variants that survived parse-time filtering
     std::string log;                   ///< All INFO/WARN output from parse_variants()
-    std::string out_vcf;               ///< VCF written from the surviving variants
 };
 
-/** @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF. */
+/** @brief Parses VCF records with parse_variants(), capturing its stderr. */
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records);
 
 /**
- * @brief Parses VCF records under a caller-supplied header, capturing stderr and the output VCF.
+ * @brief Parses VCF records under a caller-supplied header, capturing stderr.
  *
  * Lets a test drop a FORMAT declaration, rename a contig, or add a second sample without also
  * restating the reference; parse_variants() only stores the reference pointer, so the default
@@ -244,10 +243,16 @@ int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg = "chr1"
 /** @brief Counts variants that survived parsing across both haplotypes of a contig. */
 int total_kept(const ParseResult & r, const std::string & ctg = "chr1");
 
-/** @brief Reports whether the written VCF holds a record at a position on a contig. */
-bool wrote_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
+/** @brief Reports whether any variant survived parsing at a VCF position on a contig. */
+bool kept_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 
-/** @brief Counts the records the written VCF holds at a position on a contig. */
+/**
+ * @brief Counts the variants that survived parsing at a VCF position on a contig.
+ *
+ * Positions are the 1-based VCF coordinates the records were written with, so a test asserts on
+ * the same number it passed to record(); an INS/DEL is stored at its first altered base, one past
+ * the anchor base the record is positioned on.
+ */
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 
 /** @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count. */

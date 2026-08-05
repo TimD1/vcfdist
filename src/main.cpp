@@ -48,14 +48,6 @@ int main(int argc, char **argv) {
     parse_variants(g.truth_vcf_fn, truth_ptr, ref_ptr, TRUTH);
     g.timers[TIME_READ].stop();
 
-    // write parsed per-variant information
-    g.timers[TIME_WRITE].start();
-    if (g.write) {
-        query_ptr->write_vcf(g.out_prefix + "query.vcf");
-        truth_ptr->write_vcf(g.out_prefix + "truth.vcf");
-    }
-    g.timers[TIME_WRITE].stop();
-
     // ensure each input contains all contigs in BED
     intersect_contigs(query_ptr, truth_ptr, ref_ptr);
 

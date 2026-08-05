@@ -109,14 +109,6 @@ public:
     /** @brief Constructs an empty variant data container defaulting to QUERY callset. */
     variantData();
 
-    /** @brief Writes all parsed variants to a phased VCF file. */
-    void write_vcf(std::string out_vcf_fn);
-
-    /** @brief Writes a single variant record to a VCF file with GT and PS FORMAT fields. */
-    void print_variant(FILE* out_fp, const std::string & ctg, int pos, int type,
-        const std::string & ref, const std::string & alt, float qual, int phase_set,
-        const std::string & gt);
-
     /** @brief Parses a CIGAR string and adds resulting variants to the container. */
     void add_variants(const std::vector<int> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query,

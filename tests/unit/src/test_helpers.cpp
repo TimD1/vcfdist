@@ -277,30 +277,29 @@ StderrToFile::~StderrToFile() {
 }
 
 /**
- * @brief Parses VCF records with parse_variants(), capturing its stderr and output VCF.
+ * @brief Parses VCF records with parse_variants(), capturing its stderr.
  * @param[in] dir Temporary directory owning the fixture and captured output
  * @param[in] records VCF data lines, without trailing newlines
- * @return Surviving variants, captured log output, and the VCF written from those variants
+ * @return Surviving variants and captured log output
  */
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records) {
     return parse_records(dir, records, make_vcf_opts(), make_fasta("chr1", std::string(1000, 'A')));
 }
 
 /**
- * @brief Parses VCF records under a caller-supplied header, capturing stderr and the output VCF.
+ * @brief Parses VCF records under a caller-supplied header, capturing stderr.
  * @param[in] dir Temporary directory owning the fixture and captured output
  * @param[in] records VCF data lines, without trailing newlines
  * @param[in] opts Header lines and sample name to write
  * @param[in] ref Reference sequence data, may be nullptr
- * @return Surviving variants, captured log output, and the VCF written from those variants
- * @note The written VCF stands in for summary.vcf: both are generated from the variants that
- *       survive parse-time filtering, so a variant absent here is absent from summary.vcf.
+ * @return Surviving variants and captured log output
+ * @note The surviving variants stand in for summary.vcf, which is written from them, so a variant
+ *       absent here is absent from summary.vcf.
  */
 ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & records,
         const vcf_opts & opts, std::shared_ptr<fastaData> ref) {
     const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
     const std::string log_fn = dir.path("parse.log");
-    const std::string out_fn = dir.path("out.vcf");
 
     ParseResult result;
     result.vars = std::make_shared<variantData>();
@@ -311,8 +310,6 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
     }
 
     result.log = read_text(log_fn);
-    result.vars->write_vcf(out_fn);
-    result.out_vcf = read_text(out_fn);
     return result;
 }
 
@@ -386,31 +383,34 @@ int total_kept(const ParseResult & r, const std::string & ctg) {
 }
 
 /**
- * @brief Reports whether the written VCF holds a record at a position on a contig.
+ * @brief Reports whether any variant survived parsing at a VCF position on a contig.
  * @param[in] r Result of parse_records()
  * @param[in] pos 1-based VCF position
  * @param[in] ctg Contig name
- * @return True if a data line at that position was written
+ * @return True if at least one haplotype kept a variant at that position
  */
-bool wrote_pos(const ParseResult & r, int pos, const std::string & ctg) {
+bool kept_pos(const ParseResult & r, int pos, const std::string & ctg) {
     return count_pos(r, pos, ctg) > 0;
 }
 
 /**
- * @brief Counts the records the written VCF holds at a position on a contig.
+ * @brief Counts the variants that survived parsing at a VCF position on a contig.
  * @param[in] r Result of parse_records()
  * @param[in] pos 1-based VCF position
  * @param[in] ctg Contig name
- * @return Number of data lines written at that position
+ * @return Number of variants kept at that position, summed over both haplotypes
  */
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
-    // the leading newline anchors the match to the start of a line, so a position never matches
-    // inside another column and the header lines above the records cannot match at all
-    const std::string line = "\n" + ctg + "\t" + std::to_string(pos) + "\t";
     size_t count = 0;
-    for (size_t at = r.out_vcf.find(line); at != std::string::npos;
-            at = r.out_vcf.find(line, at + 1)) {
-        count++;
+    for (int hap = 0; hap < HAPS; hap++) {
+        std::shared_ptr<ctgVariants> vars = hap_vars(r, hap, ctg);
+        if (vars == nullptr) continue;
+        for (int i = 0; i < vars->n; i++) {
+            // a SUB is stored at the base the record names, while an INS/DEL is stored one past
+            // its anchor base, so only the former needs converting from 0-based to 1-based
+            const int vcf_pos = (vars->types[i] == TYPE_SUB) ? vars->poss[i] + 1 : vars->poss[i];
+            if (vcf_pos == pos) count++;
+        }
     }
     return count;
 }
