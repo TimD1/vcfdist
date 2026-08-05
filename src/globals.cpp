@@ -155,7 +155,7 @@ void Globals::parse_args(int argc, char ** argv) {
                 this->bed = bedData(std::string(argv[i++]));
                 this->bed_exists = true;
             } catch (const std::exception & e) {
-                ERROR("Invalid BED filename provided");
+                ERROR("%s", e.what());
             }
 /**************************************************************************************************/
         } else if (std::string(argv[i]) == "-p" || 
