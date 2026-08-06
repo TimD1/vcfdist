@@ -92,6 +92,10 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
         // merge variants from each haplotype for this ctg/callset
         std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
 
+        // the merged container is what the summary VCF writer reads, so it needs the source
+        // records that the per-haplotype containers were given at parse time
+        merged_vars->src_recs = this->callset_src_recs[callset];
+
         // skip empty contigs, keeping the trailing boundary that supercluster() reads
         int nvars = 0;
         for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) nvars += vars[h][ctg]->n;
@@ -309,11 +313,13 @@ superclusterData::superclusterData(
     // set reference pointer
     this->ref = ref_ptr;
 
-    // save samples and filenames
+    // save samples, filenames, and retained source records
     this->samples[QUERY] = query_ptr->sample;
     this->samples[TRUTH] = truth_ptr->sample;
     this->filenames[QUERY] = query_ptr->filename;
     this->filenames[TRUTH] = truth_ptr->filename;
+    this->callset_src_recs[QUERY] = query_ptr->src_recs;
+    this->callset_src_recs[TRUTH] = truth_ptr->src_recs;
 
     // create list of all contigs covered by truth/query
     for (int i = 0; i < int(query_ptr->contigs.size()); i++) {

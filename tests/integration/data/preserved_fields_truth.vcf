@@ -1,0 +1,12 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total read depth">
+##INFO=<ID=TRUTHSET,Number=1,Type=String,Description="Truth set the call came from">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=SDP,Number=1,Type=Integer,Description="Sample read depth">
+##contig=<ID=sc1,length=400>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	TRUTH
+sc1	200	.	A	G	60	PASS	DP=99;TRUTHSET=hc	GT:SDP	1|1:98
+sc1	210	.	CAAGA	TT	60	PASS	DP=99;TRUTHSET=hc	GT:SDP	1|1:98
+sc1	250	.	A	C,G	60	PASS	DP=99;TRUTHSET=hc	GT:SDP	1|2:98
+sc1	256	tv256	G	A	60	PASS	DP=98;TRUTHSET=hc	GT:SDP	1|1:97

@@ -23,6 +23,17 @@
  *       two entries whose alleles normalize independently
  * @note Contigs called by only one callset are included; a contig with no query variants has no
  *       phase block to read, so its truth records are written with PB and BS defaulted
+ * @note ID, QUAL, FILTER, INFO, and the appended FORMAT keys come from whichever callset owns the
+ *       record, which is the query wherever it calls and the truth only on a pure false negative.
+ *       A matched record therefore drops the truth record's INFO and FORMAT, and the callset that
+ *       does not own a record writes '.' for each appended FORMAT key
+ * @note Number=A/R/G fields are omitted: their values index the source record's ALT list, while
+ *       these records carry normalized, split alleles. parse_variants() names what it dropped
+ * @note The input FILTER is preserved verbatim, on evaluated records included. A GA4GH consumer
+ *       reads a non-PASS FILTER on an evaluated record as a filtered call and demotes it, turning
+ *       filtered TPs into FNs and filtered FPs into Ns, so a caller's own non-PASS filter accepted
+ *       via --filter will demote those calls downstream. Rewriting it to PASS would misreport the
+ *       input, so it is reported here rather than designed around
  * @throws ERROR if the output summary VCF file cannot be opened for writing
  * @throws ERROR if the header or any record cannot be written
  * @throws ERROR if neither callset is selected next while variants remain
@@ -35,7 +46,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     if (out_vcf == NULL) {
         ERROR("Failed to open summary VCF file '%s'", out_vcf_fn.data());
     }
-    bcf_hdr_t* hdr = summary_vcf_header(this->contigs, this->lengths);
+    bcf_hdr_t* hdr = summary_vcf_header(this->contigs, this->lengths, this->callset_src_recs);
     if (bcf_hdr_write(out_vcf, hdr) != 0) {
         ERROR("Failed to write summary VCF header to '%s'", out_vcf_fn.data());
     }
@@ -128,20 +139,24 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 bool matched = next[TRUTH] &&
                         vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]];
+                // the query owns every record it appears on, so its source record supplies the
+                // site-level columns and the appended FORMAT keys; the truth sample has no values
+                // of its own for those keys and reports each as missing
                 vars[QUERY]->set_var_record(hdr, rec, this->ref, ctg, ptrs[QUERY]);
                 set_record_samples(hdr, rec,
                         matched ? vars[TRUTH]->var_sample_fields(ptrs[TRUTH], sc_idx, phase_block,
                                 block_state == PHASE_SWAP, flip_error) :
                                 empty_sample_fields(sc_idx, phase_block),
                         vars[QUERY]->var_sample_fields(ptrs[QUERY], sc_idx, phase_block,
-                                block_state == PHASE_SWAP, flip_error, true));
+                                block_state == PHASE_SWAP, flip_error, true, true));
                 ptrs[QUERY]++;
                 if (matched) ptrs[TRUTH]++;
             } else if (next[TRUTH]) {
+                // a pure false negative is the one record the truth owns
                 vars[TRUTH]->set_var_record(hdr, rec, this->ref, ctg, ptrs[TRUTH]);
                 set_record_samples(hdr, rec,
                         vars[TRUTH]->var_sample_fields(ptrs[TRUTH], sc_idx, phase_block,
-                                block_state == PHASE_SWAP, flip_error),
+                                block_state == PHASE_SWAP, flip_error, false, true),
                         empty_sample_fields(sc_idx, phase_block));
                 ptrs[TRUTH]++;
             } else {
@@ -178,6 +193,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         this->phase_blocks[ctg] = std::shared_ptr<ctgPhaseblocks>(new ctgPhaseblocks());
     }
     this->ref = clusterdata_ptr->ref;
+    this->callset_src_recs = clusterdata_ptr->callset_src_recs;
 
     // add pointers to superclusters
     for (const std::string & ctg : this->contigs) {

@@ -93,6 +93,7 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
     for (const std::string & line : opts.meta) out << line << "\n";
     for (const std::string & line : opts.contigs) out << line << "\n";
     for (const std::string & line : opts.filters) out << line << "\n";
+    for (const std::string & line : opts.infos) out << line << "\n";
     for (const std::string & line : opts.formats) out << line << "\n";
     out << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" << opts.sample << "\n";
     for (const std::string & rec : records) out << rec << "\n";

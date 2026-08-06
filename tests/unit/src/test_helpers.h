@@ -87,6 +87,7 @@ struct vcf_opts {
         {"##contig=<ID=chr1,length=12>"};
     std::vector<std::string> filters = ///< ##FILTER lines
         {"##FILTER=<ID=PASS,Description=\"All filters passed\">"};
+    std::vector<std::string> infos;    ///< ##INFO lines, none by default
     std::vector<std::string> formats = ///< ##FORMAT lines
         {"##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
          "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",

@@ -19,10 +19,11 @@ look for them, so a test run leaves this directory untouched.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
 
 Every variant `REF` allele below matches the reference at its 1-based position, and every variant
-is homozygous (`1/1`, or `1|1` in `record_shapes`) except in the `contig_start_snp` and
-`contig_end_snp` scenarios, which are phased heterozygous (`1|0`), and the one het-alt call
-`record_shapes` adds. Summary counts are therefore per-haplotype (doubled, except in those
-scenarios) and are listed as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
+is homozygous (`1/1`, or `1|1` in `record_shapes` and `preserved_fields`) except in the
+`contig_start_snp` and `contig_end_snp` scenarios, which are phased heterozygous (`1|0`), and the
+one het-alt call that `record_shapes` and `preserved_fields` each add. Summary counts are therefore
+per-haplotype (doubled, except in those heterozygous scenarios) and are listed as
+`TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
 `*precision-recall-summary.tsv`.
 
 ## Scenarios
@@ -86,6 +87,20 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   het-alt is the exception: parsing splits it into two entries with different ALTs, which nothing
   rejoins, so it stays two co-located records, each carrying one value for its ALT allele and `.`
   for its reference allele. SNP 4/4/0/0, INDEL 6/6/0/0.
+
+### preserved_fields — source ID/QUAL/FILTER/INFO/FORMAT on the summary VCF
+
+- query: hom SNP 200 A>G (`rs200`, QUAL 31, `PASS`), hom CPX 210 `CAAGA`>`TT` (`rs210`, QUAL 32,
+  `LowConf`), and a het-alt SNP 250 A>C,G called `1|2` (`rs250`, QUAL 33, `PASS`). Its header
+  declares a `Number=1` (`INFO/DP`, `FORMAT/SDP`), a fixed `Number=2` (`INFO/SB`, `FORMAT/SAC`),
+  and a `Flag` (`INFO/SOMATIC`) field, all of which survive onto the output, plus `Number=A/R/G`
+  fields (`INFO/AF`, `FORMAT/AD`, `FORMAT/PL`) that do not.
+- truth: the same three calls, plus SNP 256 G>A (`tv256`) that the query misses, and an
+  `INFO/TRUTHSET` field the query never declares.
+- default `-ct`: the three shared calls are TP and owned by the query, so they carry the query's
+  columns and the truth sample writes `.` for each appended FORMAT key; the false negative at 256
+  is owned by the truth and the query sample pads instead. The `LowConf` `FILTER` is preserved
+  verbatim on an evaluated record rather than rewritten to `PASS`.
 
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 
