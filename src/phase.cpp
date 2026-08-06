@@ -41,8 +41,10 @@ static std::string dot_fields(const std::string & keys) {
  *       record, which is the query wherever it calls and the truth only on a pure false negative.
  *       A matched record therefore drops the truth record's INFO and FORMAT, and the callset that
  *       does not own a record writes '.' for each appended FORMAT key
- * @note Number=A/R/G fields are omitted: their values index the source record's ALT list, while
- *       these records carry normalized, split alleles. parse_variants() names what it dropped
+ * @note Number=A/R/G values index the source record's ALT list, while these records carry
+ *       normalized, split alleles, so each is subset to the one allele its record emits. The
+ *       propagated declaration is rewritten to match: Number=A becomes 1 and Number=R becomes 2,
+ *       while Number=G stands, already resolving to the genotype count of the record's ploidy
  * @note The input FILTER is preserved verbatim, on evaluated records included. A GA4GH consumer
  *       reads a non-PASS FILTER on an evaluated record as a filtered call and demotes it, turning
  *       filtered TPs into FNs and filtered FPs into Ns, so a caller's own non-PASS filter accepted

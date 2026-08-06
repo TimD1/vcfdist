@@ -44,7 +44,7 @@ public:
      * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
      * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
      * @note ID, QUAL, FILTER, INFO, and the source FORMAT fields are carried over from whichever
-     *       callset owns each record; Number=A/R/G fields are omitted
+     *       callset owns each record; Number=A/R/G fields are subset to the emitted allele
      */
     void write_summary_vcf(std::string out_vcf_fn);
 

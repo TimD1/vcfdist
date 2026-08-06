@@ -192,23 +192,21 @@
   # not own a record has no values for the appended keys and writes '.' for each.
   #
   # The query declares one Number=1 (DP, SDP), one fixed Number=2 (SB, SAC), and one Flag
-  # (SOMATIC) field, all of which survive; its Number=A/R/G fields (AF, AD, PL) are ALT-indexed
-  # and are dropped, since the emitted alleles are normalized and split rather than the original
-  # ALT list they index into.
+  # (SOMATIC) field, all of which pass through untouched. Its Number=A/R/G fields (AF, AD, PL) are
+  # ALT-indexed: their values index the original ALT list while the emitted alleles are normalized
+  # and split, so each is subset to the one allele its record carries. The het-alt record at 250 is
+  # where that matters, since its two entries share one retained copy of the source columns and
+  # must come out holding different elements of it.
   command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
     "${VCFDIST_REPO_PATH}/tests/integration/data/preserved_fields_query.vcf"
     "${VCFDIST_REPO_PATH}/tests/integration/data/preserved_fields_truth.vcf"
     "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
     -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
     -p "preserved_fields_out_"'
-  stderr:
-    contains:
-      - "3 ALT-indexed (Number=A/R/G) field(s) in QUERY VCF, left out of the summary VCF"
-      - "FORMAT/AD, FORMAT/PL, INFO/AF"
   files:
     - path: preserved_fields_out_summary.vcf
       contains:
-        # every preserved field is declared, and the dropped ones are not
+        # every preserved field is declared
         - "##FILTER=<ID=LowConf,Description=\"Low confidence call\">"
         - "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total read depth\">"
         - "##INFO=<ID=SB,Number=2,Type=Integer,Description=\"Forward and reverse strand read counts\">"
@@ -216,22 +214,33 @@
         - "##INFO=<ID=TRUTHSET,Number=1,Type=String,Description=\"Truth set the call came from\">"
         - "##FORMAT=<ID=SDP,Number=1,Type=Integer,Description=\"Sample read depth\">"
         - "##FORMAT=<ID=SAC,Number=2,Type=Integer,Description=\"Forward and reverse sample read counts\">"
+        # an ALT-indexed declaration is rewritten to the cardinality a biallelic record carries.
+        # Number=G is left alone: it already resolves to the genotype count of the record's ploidy,
+        # which a literal 3 would get wrong on every haploid call, and htslib rejects PL declared
+        # as anything else outright
+        - "##INFO=<ID=AF,Number=1,Type=Float,Description=\"Allele frequency of each ALT\">"
+        - "##FORMAT=<ID=AD,Number=2,Type=Integer,Description=\"Read depth of each allele\">"
+        - "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Phred-scaled genotype likelihoods\">"
         # the merged record of a 1|1 call carries the query's columns; the truth sample pads
-        - "sc1\t200\trs200\tA\tG\t31\tPASS\tDP=30;SB=11,19;SOMATIC\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:60:0:2,2:0:0:.:.:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:31:0:2,2:0:0:0:.:0:.:29:12,17"
+        - "sc1\t200\trs200\tA\tG\t31\tPASS\tDP=30;SB=11,19;SOMATIC;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC:AD:PL\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:60:0:2,2:0:0:.:.:.:.:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:31:0:2,2:0:0:0:.:0:.:29:12,17:1,28:255,60,0"
         # both halves of the CPX split carry the one source record's columns, FILTER included
-        - "sc1\t209\trs210\tG\tGTT\t32\tLowConf\tDP=31;SB=12,19\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
-        - "sc1\t209\trs210\tGCAAGA\tG\t32\tLowConf\tDP=31;SB=12,19\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
-        # both co-located entries of the het-alt record carry it too
-        - "sc1\t250\trs250\tA\tC\t33\tPASS\tDP=32;SOMATIC\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
-        - "sc1\t250\trs250\tA\tG\t33\tPASS\tDP=32;SOMATIC\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
+        - "sc1\t209\trs210\tG\tGTT\t32\tLowConf\tDP=31;SB=12,19\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC:AD:PL\t"
+        - "sc1\t209\trs210\tGCAAGA\tG\t32\tLowConf\tDP=31;SB=12,19\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC:AD:PL\t"
+        # both co-located entries of the het-alt record carry that record's columns, each subset to
+        # its own ALT: AF takes element 1 then 2, AD the reference plus that ALT, and PL the three
+        # genotypes over {0, alt_idx}, which for the second ALT are elements 0, 3, and 5
+        - "sc1\t250\trs250\tA\tC\t33\tPASS\tDP=32;SOMATIC;AF=0.4\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC:AD:PL\t1|0:TP,.:1.000000,.:1,.:0,.:gm,.:60:1:0,.:0:0:.:.:.:.:.:.:.:.\t1|0:TP,.:1.000000,.:1,.:0,.:gm,.:33:1:0,.:0:0:0:0:0:.:31:14,17:0,15:255,60,0"
+        - "sc1\t250\trs250\tA\tG\t33\tPASS\tDP=32;SOMATIC;AF=0.6\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC:AD:PL\t0|1:.,TP:.,1.000000:.,1:.,0:.,gm:60:1:.,0:0:0:.:.:.:.:.:.:.:.\t0|1:.,TP:.,1.000000:.,1:.,0:.,gm:33:1:.,0:0:0:0:0:0:.:31:14,17:0,16:255,44,7"
         # a pure FN is owned by the truth, so its columns and its lone FORMAT key are the truth's
         - "sc1\t256\ttv256\tG\tA\t60\tPASS\tDP=98;TRUTHSET=hc\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t1|1:FN,FN:0.000000,0.000000:.,.:.,.:.,.:60:1:0,0:0:1:.:.:.:.:97\t.:.:.:.:.:.:.:1:.:.:1:.:.:.:.:."
       must_not_contain:
-        # an ALT-indexed field is neither declared nor emitted
-        - "ID=AF,"
-        - "ID=AD,"
-        - "ID=PL,"
-        - "AF=0.5"
+        # the whole ALT-indexed list is never emitted alongside a single normalized allele
+        - "AF=0.4,0.6"
+        - ":0,15,16:"
+        - ":255,60,0,44,11,7"
+        # nor is the input cardinality these fields were declared with
+        - "ID=AF,Number=A,"
+        - "ID=AD,Number=R,"
 
 # --- one-sided contigs: a contig called by only one callset (synthetic 2-contig reference) ---
 # Both scenarios share one pair of VCFs, swapped between the query and truth argument slots, so
