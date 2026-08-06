@@ -1240,7 +1240,7 @@ TEST_F(ParseVariants, SelectedFilterAbsentWarns) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
     EXPECT_TRUE(logged(r, "Filter 'LOWQ' not found in QUERY VCF"));
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, "1 variants failed FILTER in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants failed FILTER in QUERY VCF, not evaluated"));
 }
 
 // Returning to a contig that was already left behind means the VCF is not sorted by contig. Left
@@ -1324,8 +1324,9 @@ TEST_F(ParseVariants, WellFormedFileReachesEofWithoutError) {
 
 /* filter and quality *****************************************************************************/
 
-// A record whose only filter is one the user did not select is dropped, and one that PASSes is not.
-TEST_F(ParseVariants, FilterFailSkipped) {
+// A record whose only filter is one the user did not select is excluded from evaluation, and one
+// that PASSes is not.
+TEST_F(ParseVariants, FilterFailNotEvaluated) {
     g.filters = {"PASS"};
     g.filter_ids = {-1}; // parse_variants fills this in from the header's FILTER IDX
     vcf_opts opts = make_vcf_opts();
@@ -1336,7 +1337,7 @@ TEST_F(ParseVariants, FilterFailSkipped) {
     EXPECT_EQ(1, total_kept(r));
     EXPECT_FALSE(kept_pos(r, 100));
     EXPECT_TRUE(kept_pos(r, 200));
-    EXPECT_TRUE(logged(r, "1 variants failed FILTER in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants failed FILTER in QUERY VCF, not evaluated"));
 }
 
 // With no filters selected, the FILTER column is not consulted at all.
@@ -1359,15 +1360,15 @@ TEST_F(ParseVariants, UnfilteredRecordPassesSelectedFilter) {
     EXPECT_FALSE(logged(r, "failed FILTER"));
 }
 
-// The comparison is inclusive, so a variant exactly at min_qual is kept and one below is not.
-TEST_F(ParseVariants, BelowMinQualSkipped) {
+// The comparison is inclusive, so a variant exactly at min_qual is evaluated and one below is not.
+TEST_F(ParseVariants, BelowMinQualNotEvaluated) {
     g.min_qual = 60;
     ParseResult r = parse_records(dir, {qual_filter_record(100, "59", "PASS"),
                                         qual_filter_record(200, "60", "PASS")});
     EXPECT_EQ(1, total_kept(r));
     EXPECT_FALSE(kept_pos(r, 100));
     EXPECT_TRUE(kept_pos(r, 200));
-    EXPECT_TRUE(logged(r, "1 variants of low quality (<60) in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants of low quality (<60) in QUERY VCF, not evaluated"));
 }
 
 // An unreported QUAL parses as NaN, which no comparison would accept, so it is read as zero.
@@ -1381,7 +1382,7 @@ TEST_F(ParseVariants, QualNanSkippedWhenMinQualPositive) {
     g.min_qual = 1;
     ParseResult r = parse_records(dir, {qual_filter_record(100, ".", "PASS")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, "1 variants of low quality (<1) in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants of low quality (<1) in QUERY VCF, not evaluated"));
 }
 
 // An integer GQ becomes the variant's genotype quality, which is stored unclamped.
@@ -2179,10 +2180,12 @@ TEST_F(ParseVariants, SplitRecordEntriesShareOneRetainedRecord) {
     }
 }
 
-// A record dropped before retention still consumes an ordinal, so later records stay addressable.
-TEST_F(ParseVariants, DroppedRecordLeavesItsOrdinalEmpty) {
+// Columns are retained before any filtering decision, since a record excluded from evaluation is
+// still written out; every record read therefore has an ordinal to address it by.
+TEST_F(ParseVariants, ColumnsAreRetainedBeforeFiltering) {
     g.min_qual = 40;
     vcf_record low;
+    low.id = "rsLow";
     low.qual = "10";
     vcf_record high;
     high.pos = 200;
@@ -2191,7 +2194,7 @@ TEST_F(ParseVariants, DroppedRecordLeavesItsOrdinalEmpty) {
     ParseResult r = parse_records(dir, {vcf_line(low), vcf_line(high)}, retention_opts());
     ASSERT_NE(nullptr, retained(r));
     ASSERT_EQ(2u, retained(r)->ids.size());
-    EXPECT_EQ("", retained(r)->ids[0]);
+    EXPECT_EQ("rsLow", retained(r)->ids[0]);
     EXPECT_EQ("rsKept", retained(r)->ids[1]);
     ASSERT_EQ(1, kept_on_hap(r, HAP1));
     EXPECT_EQ("rsKept", hap_vars(r, HAP1)->src_id(0));
@@ -2398,6 +2401,117 @@ TEST(SubsetAltIndexed, MissingSourceValueStaysMissing) {
     attach_alt_indexed(vars, ".", ":AD:PL", ":.:.");
     EXPECT_EQ(":.:.", vars->src_fmt_vals(0));
     EXPECT_EQ(":.:.", vars->src_fmt_vals(1));
+}
+
+/* parse_variants(): retained but unevaluated variants *********************************************/
+
+/** @brief Returns the variants a parse retained without evaluating, on one contig. */
+std::shared_ptr<ctgSideline> sidelined(const ParseResult & r, const std::string & ctg = "chr1") {
+    const auto found = r.vars->sidelined.find(ctg);
+    return (found == r.vars->sidelined.end()) ? nullptr : found->second;
+}
+
+/** @brief Header declaring the two extra FILTER IDs the retention tests select between. */
+vcf_opts sideline_opts() {
+    vcf_opts opts = make_vcf_opts();
+    opts.filters = {"##FILTER=<ID=PASS,Description=\"All filters passed\">",
+                    "##FILTER=<ID=LOWQ,Description=\"Low quality\">",
+                    "##FILTER=<ID=Bias,Description=\"Strand bias\">"};
+    return opts;
+}
+
+// A record failing FILTER leaves the evaluated arrays empty but is retained for the summary VCF,
+// keyed by its record ordinal and tagged with the reason that excluded it.
+TEST_F(ParseVariants, FailedFilterIsRetained) {
+    g.filters = {"PASS"};
+    g.filter_ids = {-1};
+    ParseResult r = parse_records(dir, {qual_filter_record(100, "50", "LOWQ")}, sideline_opts());
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_EQ(0, sidelined(r)->rec_idxs[0]);
+    EXPECT_EQ(99, sidelined(r)->poss[0]); // the 1-based POS the record was written with, 0-based
+    EXPECT_EQ(SIDELINE_FAILED_FILTER, sidelined(r)->reasons[0]);
+}
+
+TEST_F(ParseVariants, BelowMinQualIsRetained) {
+    g.min_qual = 60;
+    ParseResult r = parse_records(dir, {qual_filter_record(100, "59", "PASS")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_EQ(SIDELINE_LOW_QUAL, sidelined(r)->reasons[0]);
+}
+
+// Both reasons are decided before the genotype is read, so neither can drop one haplotype of a
+// record while leaving the other evaluated: each retains the record whole.
+TEST_F(ParseVariants, RecordScopeReasonsRetainTheWholeRecord) {
+    g.min_qual = 60;
+    ParseResult r = parse_records(dir, {qual_filter_record(100, "59", "PASS")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(SIDELINE_ALL_HAPS, sidelined(r)->haps[0]);
+}
+
+// A retained record was never normalized or split, so its site columns are the source record's own.
+TEST_F(ParseVariants, RetainedRecordKeepsItsOwnAlleles) {
+    g.min_qual = 60;
+    ParseResult r = parse_records(dir,
+            {fmt_record(100, "AT", "A,ATT", "GT:PS", "1|2:1")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ("AT", sidelined(r)->refs[0]);
+    EXPECT_EQ("A,ATT", sidelined(r)->alts[0]);
+    EXPECT_EQ("1|2", sidelined(r)->gts[0]);
+}
+
+// GT is written by the summary VCF itself, so retention drops it from the preserved FORMAT keys;
+// a retained record needs it all the same, and reads it from its own sample column.
+TEST_F(ParseVariants, RetainedRecordWithoutGtReportsItMissing) {
+    g.min_qual = 60;
+    vcf_opts opts = make_vcf_opts();
+    opts.formats = {"##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">"};
+    ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GQ", "44")}, opts);
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(".", sidelined(r)->gts[0]);
+}
+
+// The columns the writer cannot derive are retained before any filtering decision, so a record
+// excluded from evaluation still resolves to the columns its own input declared. The reason's tag
+// is added to them at write time, which WriteSummaryVcf.RetainedRecord* pins.
+TEST_F(ParseVariants, RetainedRecordKeepsItsSourceColumns) {
+    g.filters = {"PASS"};
+    g.filter_ids = {-1};
+    vcf_record rec;
+    rec.id = "rs99";
+    rec.qual = "37";
+    rec.filter = "Bias";
+    ParseResult r = parse_records(dir, {vcf_line(rec)}, sideline_opts());
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    ASSERT_NE(nullptr, retained(r));
+    const int rec_idx = sidelined(r)->rec_idxs[0];
+    EXPECT_EQ("rs99", retained(r)->ids[rec_idx]);
+    EXPECT_EQ("37", retained(r)->quals[rec_idx]);
+    EXPECT_EQ("Bias", retained(r)->filters[rec_idx]);
+}
+
+// An evaluated variant is never retained: the two containers partition the input's records.
+TEST_F(ParseVariants, EvaluatedVariantsAreNotRetained) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
+    ASSERT_NE(nullptr, sidelined(r));
+    EXPECT_EQ(0, sidelined(r)->n);
+    EXPECT_EQ(1, total_kept(r));
+}
+
+// A record dropped for any other reason is discarded outright, since this step wires up only the
+// two that precede the genotype parse.
+TEST_F(ParseVariants, OtherDropReasonsAreNotYetRetained) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "0/1")});
+    ASSERT_NE(nullptr, sidelined(r));
+    EXPECT_EQ(0, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
 }
 
 } // namespace

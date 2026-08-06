@@ -242,6 +242,70 @@
         - ":0,15,16:"
         - ":255,60,0,44,11,7"
 
+# --- retained but unevaluated variants (synthetic sc1 reference) ---
+# sideline_query holds one call the run evaluates (200) plus three it does not: 220 carries a
+# FILTER the run did not select, while 250 and 300 fall below -q 20. Both reasons precede the
+# genotype parse, so each drops a whole record rather than one of its haplotypes.
+# sideline_query_prefiltered is the same file with those three records removed by hand.
+
+- name: test_summary-vcf_retains-unevaluated-records
+  # A record excluded from evaluation is still written out, interleaved by position and carrying
+  # BD=N, the GA4GH decision for a call that was not assessed. It is never matched against the
+  # other callset, so exactly one sample holds a call and the other is entirely missing.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -f PASS,LowConf
+    -q 20
+    -p "sideline_out_"'
+  files:
+    - path: sideline_out_summary.vcf
+      contains:
+        # each reason declares the FILTER tag it writes
+        - "##FILTER=<ID=VCFDIST_FAILED_FILTER,"
+        - "##FILTER=<ID=VCFDIST_LOW_QUAL,"
+        # the one evaluated call is unaffected: PASS, and assessed on both haplotypes
+        - "sc1\t200\trs200\tA\tG\t60\tPASS\tDP=30;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t1|1:TP,TP:"
+        # a rejected FILTER is a record-scope reason, so the tag joins the record's own filters.
+        # INFO is carried over whole, Number=A included: a retained record was never split, so its
+        # ALT list is the source's own and every value indexing it still lines up
+        - "sc1\t220\trs220\tC\tT\t60\tBias;VCFDIST_FAILED_FILTER\tDP=31;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|0:N:.:.:.:.:.:.:.:.:.:.:.:.:.:30"
+        # a lone PASS is replaced rather than appended to: the record passed no filter it was held to
+        - "sc1\t250\trs250\tA\tC\t5\tVCFDIST_LOW_QUAL\tDP=32;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|0:N:.:.:.:.:.:.:.:.:.:.:.:.:.:31"
+        # an accepted non-PASS input filter and a vcfdist reason both show
+        - "sc1\t300\trs300\tA\tT\t5\tLowConf;VCFDIST_LOW_QUAL\tDP=33;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t0|1:N:.:.:.:.:.:.:.:.:.:.:.:.:.:34"
+      must_not_contain:
+        # a retained record was not assessed as a whole, so BD is a single N, never a per-allele list
+        - ":N,"
+        - ",N:"
+    - path: sideline_out_precision-recall-summary.tsv
+      contains:
+        # only the evaluated call is counted: retaining the other three adds no TP, FP, or FN
+        - "SNP\tNONE\t20\t2\t2\t0\t0"
+
+- name: test_summary-vcf_retained-records-are-inert
+  # Retention is output-only: every analysis output must be byte-identical to the same run over an
+  # input the three records were removed from. This is what keeps them outside ctgVariants worth
+  # doing, since an `ignored` flag on the evaluated arrays would need one check per loop to match.
+  command: bash -c '"${VCFDIST_REPO_PATH}/src/vcfdist"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -f PASS,LowConf -q 20 -p "inert_retained_" &&
+    "${VCFDIST_REPO_PATH}/src/vcfdist"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_query_prefiltered.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -f PASS,LowConf -q 20 -p "inert_dropped_" &&
+    for f in precision-recall-summary.tsv precision-recall.tsv phase-blocks.tsv
+    phasing-summary.tsv switchflips.tsv genotype-errors.tsv query.tsv truth.tsv;
+    do diff "inert_retained_$f" "inert_dropped_$f" || exit 1; done'
+  exit_code: 0
+
 # --- one-sided contigs: a contig called by only one callset (synthetic 2-contig reference) ---
 # Both scenarios share one pair of VCFs, swapped between the query and truth argument slots, so
 # each direction of "contig present in one callset only" is covered without duplicate fixtures.

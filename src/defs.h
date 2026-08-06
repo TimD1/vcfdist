@@ -163,6 +163,18 @@ constexpr gtparse_t GT_PARSE_DIP_HALF_MISSING = gtparse_t::GT_PARSE_DIP_HALF_MIS
 constexpr gtparse_t GT_PARSE_DIP_MISSING      = gtparse_t::GT_PARSE_DIP_MISSING;
 constexpr std::size_t GTPARSE_SLOTS = 9; ///< Slots needed by a gtparse_t-keyed array
 
+/** @brief Why a variant is retained in the summary VCF but excluded from every analysis. */
+enum class sideline_t : int8_t {
+    SIDELINE_FAILED_FILTER = 0, ///< Record's FILTER holds none of the filters --filter selected
+    SIDELINE_LOW_QUAL      = 1, ///< Record's QUAL is below --min-qual
+};
+constexpr sideline_t SIDELINE_FAILED_FILTER = sideline_t::SIDELINE_FAILED_FILTER;
+constexpr sideline_t SIDELINE_LOW_QUAL      = sideline_t::SIDELINE_LOW_QUAL;
+constexpr std::size_t SIDELINE_SLOTS = 2; ///< Slots needed by a sideline_t-keyed array
+
+/** @brief Haplotype key of a retention reason that applies to a whole record, not one allele. */
+constexpr int8_t SIDELINE_ALL_HAPS = -1;
+
 /** @brief Simplified genotype used for all evaluation. */
 enum class gt_t : int8_t {
     GT_REF_REF = 0, ///< 0|0
@@ -187,6 +199,7 @@ constexpr errtype_t ERRTYPE_TP = errtype_t::ERRTYPE_TP;
 constexpr errtype_t ERRTYPE_FP = errtype_t::ERRTYPE_FP;
 constexpr errtype_t ERRTYPE_FN = errtype_t::ERRTYPE_FN;
 constexpr errtype_t ERRTYPE_UN = errtype_t::ERRTYPE_UN;
+constexpr errtype_t ERRTYPE_NE = errtype_t::ERRTYPE_UN; ///< Not evaluated (and will not be)
 constexpr std::size_t ERRTYPE_SLOTS = 4; ///< Subscript slots needed by an errtype_t-keyed array
 constexpr int8_t ERRTYPES = 4;           ///< Total number of error types
 static_assert(ERRTYPE_SLOTS == std::size_t(ERRTYPES), "errtype_t slots must match ERRTYPES");

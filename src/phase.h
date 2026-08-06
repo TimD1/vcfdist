@@ -95,6 +95,8 @@ public:
     std::vector<int> lengths;         ///< List of all contig lengths
     EnumArray<callset_t, std::shared_ptr<srcRecords>, CALLSET_SLOTS>
         callset_src_recs;             ///< Retained source records of each callset
+    EnumArray<callset_t, std::unordered_map<std::string, std::shared_ptr<ctgSideline> >,
+        CALLSET_SLOTS> callset_sidelined; ///< Per-contig retained, unevaluated variants of each callset
     std::unordered_map<std::string,   ///< Map from contig name to ctgPhaseblocks
         std::shared_ptr<ctgPhaseblocks> > phase_blocks;
 };

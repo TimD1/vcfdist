@@ -1558,6 +1558,7 @@ TEST(WriteSummaryVcf, PerAlleleFieldsAreDeclaredUnbounded) {
 /* write_summary_vcf(): preserved source fields ***************************************************/
 
 const int ID_COL = 2;     ///< 0-based column of ID within a summary VCF record
+const int ALT_COL = 4;    ///< 0-based column of ALT within a summary VCF record
 const int QUAL_COL = 5;   ///< 0-based column of QUAL within a summary VCF record
 const int FILTER_COL = 6; ///< 0-based column of FILTER within a summary VCF record
 const int INFO_COL = 7;   ///< 0-based column of INFO within a summary VCF record
@@ -1783,6 +1784,180 @@ TEST(WriteSummaryVcf, HeaderDeclaresEachRetainedFieldOnce) {
     size_t first_pass = vcf.find("##FILTER=<ID=PASS,");
     ASSERT_NE(std::string::npos, first_pass);
     EXPECT_EQ(std::string::npos, vcf.find("##FILTER=<ID=PASS,", first_pass + 1));
+}
+
+/* write_summary_vcf(): retained but unevaluated records *******************************************/
+
+/**
+ * @brief Builds a sideline container holding one A>C record per (position, reason) pair.
+ * @param[in] retained Position (0-based) and SIDELINE_* reason of each retained record, in order
+ * @return Retained records of one contig, each keyed by its own record ordinal
+ */
+std::shared_ptr<ctgSideline> make_sideline(
+        const std::vector< std::pair<int, sideline_t> > & retained) {
+    std::shared_ptr<ctgSideline> side(new ctgSideline(CTG));
+    for (size_t i = 0; i < retained.size(); i++)
+        side->add(int(i), SIDELINE_ALL_HAPS, retained[i].first, "A", "C", "1|0",
+                retained[i].second);
+    return side;
+}
+
+/**
+ * @brief Attaches a one-record source store to a sideline container, at record ordinal 0.
+ *
+ * Carries the same declarations attach_src() does, since the writer re-types each preserved value
+ * against the output header and htslib rejects a FILTER, INFO, or FORMAT field it does not declare.
+ * @param[in,out] side Container whose entries are pointed at the retained record
+ * @param[in] filter FILTER column of the retained record, before its reason tag is added
+ * @param[in] info INFO column of the retained record
+ * @return The store, which sideline_vcf() also hands to phaseblockData for its header lines
+ */
+std::shared_ptr<srcRecords> attach_sideline_src(std::shared_ptr<ctgSideline> side,
+        const std::string & filter, const std::string & info) {
+    side->src_recs = std::shared_ptr<srcRecords>(new srcRecords());
+    side->src_recs->add(0, "rs1", "5", filter, info, ":SDP", ":29");
+    side->src_recs->hdr_keys = SRC_HDR_KEYS;
+    side->src_recs->hdr_lines = SRC_HDR_LINES;
+    return side->src_recs;
+}
+
+/**
+ * @brief Runs the pipeline over one query variant plus the given retained records of each callset.
+ *
+ * A callset shares one retained-record store between its evaluated and its retained containers, and
+ * the header declares the fields from it, so the store attached here is handed over as well.
+ * @param[in] dir Temporary directory receiving the pipeline's output
+ * @param[in] qvars Query variants to evaluate, or nullptr for none
+ * @param[in] qside Retained query records, or nullptr for none
+ * @param[in] tside Retained truth records, or nullptr for none
+ * @return The summary VCF the writer produced
+ */
+std::string sideline_vcf(const TempDir & dir, std::shared_ptr<ctgVariants> qvars,
+        std::shared_ptr<ctgSideline> qside, std::shared_ptr<ctgSideline> tside = nullptr) {
+    pipeline_result result = run_pipeline(dir, qvars, nullptr, CTG_LENGTH,
+            make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+    std::unordered_map< std::string, std::shared_ptr<ctgSideline> > qmap, tmap;
+    if (qside != nullptr) qmap[CTG] = qside;
+    if (tside != nullptr) tmap[CTG] = tside;
+    result.data->callset_sidelined = {qmap, tmap};
+    if (qside != nullptr) result.data->callset_src_recs[QUERY] = qside->src_recs;
+    if (tside != nullptr) result.data->callset_src_recs[TRUTH] = tside->src_recs;
+    return summary_vcf(dir, *result.data);
+}
+
+// A record excluded from evaluation is still written, reporting BD=N and nothing else: every other
+// fixed field is the result of an evaluation that never ran.
+TEST(WriteSummaryVcf, RetainedRecordReportsNotAssessed) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = sideline_vcf(dir, nullptr,
+            make_sideline({{SPACING, SIDELINE_LOW_QUAL}}));
+
+    std::vector<std::string> cols = split(records_at(vcf, SPACING + 1).at(0), '\t');
+    EXPECT_EQ("VCFDIST_LOW_QUAL", cols.at(FILTER_COL));
+    std::vector<std::string> query = split(cols.at(QUERY_COL), ':');
+    EXPECT_EQ("1|0", query.at(FMT_GT));
+    EXPECT_EQ("N", query.at(FMT_BD));
+    for (size_t i = FMT_BC; i < query.size(); i++) EXPECT_EQ(".", query.at(i)) << i;
+
+    // it was excluded before any comparison ran, so it can never have been matched
+    EXPECT_EQ(std::string(".:.:.:.:.:.:.:.:.:.:.:.:.:.:."), cols.at(TRUTH_COL));
+}
+
+// The tag names why the record was not evaluated, and is prefixed so that no input FILTER ID can
+// collide with it.
+TEST(WriteSummaryVcf, RetainedRecordFilterNamesTheReason) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = sideline_vcf(dir, nullptr,
+            make_sideline({{SPACING, SIDELINE_FAILED_FILTER}}));
+    EXPECT_EQ("VCFDIST_FAILED_FILTER",
+            split(records_at(vcf, SPACING + 1).at(0), '\t').at(FILTER_COL));
+}
+
+// FILTER lists the filters a record failed, so the tag joins the record's own list rather than
+// replacing it; only a lone PASS, which a retained record contradicts, is replaced.
+TEST(WriteSummaryVcf, RetainedRecordKeepsItsInputFilters) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgSideline> side = make_sideline({{SPACING, SIDELINE_LOW_QUAL}});
+    attach_sideline_src(side, "LowConf", "DP=30");
+
+    std::vector<std::string> cols = split(records_at(sideline_vcf(dir, nullptr, side),
+            SPACING + 1).at(0), '\t');
+    EXPECT_EQ("LowConf;VCFDIST_LOW_QUAL", cols.at(FILTER_COL));
+    EXPECT_EQ("rs1", cols.at(ID_COL));
+    EXPECT_EQ("5", cols.at(QUAL_COL));
+    EXPECT_EQ("DP=30", cols.at(INFO_COL));
+    EXPECT_EQ("GT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP", cols.at(FORMAT_COL));
+    EXPECT_EQ("29", split(cols.at(QUERY_COL), ':').back());
+    EXPECT_EQ(".", split(cols.at(TRUTH_COL), ':').back());
+}
+
+// Nothing split a retained record, so it keeps the whole source ALT list rather than one allele of
+// it, and an ALT-indexed value still indexes the alleles beside it. Subsetting is what a split
+// record needs; doing it here would drop values that are already correct, and would leave a GT
+// naming an ALT ordinal the record no longer carries.
+TEST(WriteSummaryVcf, MultiAllelicRetainedRecordKeepsEveryAllele) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgSideline> side(new ctgSideline(CTG));
+    side->add(0, SIDELINE_ALL_HAPS, SPACING, "A", "C,G", "1|2", SIDELINE_LOW_QUAL);
+    std::shared_ptr<srcRecords> src = attach_sideline_src(side, "PASS", "DP=30;AF=0.4,0.6");
+    src->info_lens["AF"] = BCF_VL_A;
+    src->hdr_keys.push_back("INFO/AF");
+    src->hdr_lines.push_back(
+            "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">");
+
+    std::vector<std::string> cols = split(records_at(sideline_vcf(dir, nullptr, side),
+            SPACING + 1).at(0), '\t');
+    EXPECT_EQ("C,G", cols.at(ALT_COL));
+    EXPECT_EQ("DP=30;AF=0.4,0.6", cols.at(INFO_COL));
+    EXPECT_EQ("1|2", split(cols.at(QUERY_COL), ':').at(FMT_GT));
+}
+
+// Retained records are merged into the evaluated walk by position, not appended to it, so the file
+// stays sorted whether a retained record precedes or follows the calls around it.
+TEST(WriteSummaryVcf, RetainedRecordsInterleaveByPosition) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = sideline_vcf(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF),
+            make_sideline({{0, SIDELINE_LOW_QUAL}, {2*SPACING, SIDELINE_FAILED_FILTER}}));
+
+    std::vector<int> written;
+    std::istringstream lines(vcf);
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (line.rfind(CTG + "\t", 0) != 0) continue;
+        written.push_back(std::stoi(split(line, '\t').at(1)));
+    }
+    EXPECT_EQ(std::vector<int>({1, SPACING + 1, 2*SPACING + 1}), written);
+}
+
+// Each callset's retained records are its own, so the sample carrying the call is the one that
+// called it and the other stays empty.
+TEST(WriteSummaryVcf, TruthRetainedRecordCarriesTheTruthCall) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = sideline_vcf(dir, nullptr, nullptr,
+            make_sideline({{SPACING, SIDELINE_LOW_QUAL}}));
+
+    std::vector<std::string> cols = split(records_at(vcf, SPACING + 1).at(0), '\t');
+    EXPECT_EQ("1|0", split(cols.at(TRUTH_COL), ':').at(FMT_GT));
+    EXPECT_EQ("N", split(cols.at(TRUTH_COL), ':').at(FMT_BD));
+    EXPECT_EQ(std::string(".:.:.:.:.:.:.:.:.:.:.:.:.:.:."), cols.at(QUERY_COL));
+}
+
+// Every tag a retained record can carry is declared, whether or not this run wrote one, and BD's
+// description covers the value they report.
+TEST(WriteSummaryVcf, HeaderDeclaresEveryRetentionReason) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = sideline_vcf(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF),
+            nullptr);
+    for (const std::string & tag : sideline_strs)
+        EXPECT_NE(std::string::npos, vcf.find("##FILTER=<ID=" + tag + ",Description=\"")) << tag;
+    EXPECT_NE(std::string::npos, vcf.find("N for a call that was not assessed")) << vcf;
 }
 
 } // namespace

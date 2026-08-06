@@ -313,13 +313,15 @@ superclusterData::superclusterData(
     // set reference pointer
     this->ref = ref_ptr;
 
-    // save samples, filenames, and retained source records
+    // save samples, filenames, and retained records
     this->samples[QUERY] = query_ptr->sample;
     this->samples[TRUTH] = truth_ptr->sample;
     this->filenames[QUERY] = query_ptr->filename;
     this->filenames[TRUTH] = truth_ptr->filename;
     this->callset_src_recs[QUERY] = query_ptr->src_recs;
     this->callset_src_recs[TRUTH] = truth_ptr->src_recs;
+    this->callset_sidelined[QUERY] = query_ptr->sidelined;
+    this->callset_sidelined[TRUTH] = truth_ptr->sidelined;
 
     // create list of all contigs covered by truth/query
     for (int i = 0; i < int(query_ptr->contigs.size()); i++) {

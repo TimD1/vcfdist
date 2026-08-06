@@ -106,6 +106,8 @@ extern EnumArray<gt_t, std::string, GT_SLOTS> gt_strs;      ///< String represen
 extern EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs;      ///< String representations of AC_ERR_* allele count error types
 extern EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs;   ///< String representations of PHASE_* constants
 extern EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs;  ///< String representations of BED_* location constants
+extern EnumArray<sideline_t, std::string, SIDELINE_SLOTS> sideline_strs;  ///< FILTER IDs of SIDELINE_* retention reasons
+extern EnumArray<sideline_t, std::string, SIDELINE_SLOTS> sideline_descs; ///< Descriptions of each sideline_strs FILTER ID
 extern EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs;  ///< String representations of SWITCHTYPE_* constants
 extern EnumArray<stage_t, std::string, STAGE_SLOTS> timer_strs; ///< String names for pipeline stage timers (TIME_* order)
 extern EnumArray<edittype_t, std::string, EDITTYPE_SLOTS> type_strs;    ///< String representations of TYPE_* variant type constants

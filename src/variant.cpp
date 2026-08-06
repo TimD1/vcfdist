@@ -473,8 +473,8 @@ static const std::string NO_EXTRA_FMT = "";
 /**
  * @brief Stores one record's preserved columns at its 0-based ordinal within the input VCF.
  *
- * Ordinals arrive in increasing order but not contiguously, since a record dropped before
- * retention still consumes one; the gap it leaves is filled with an empty entry.
+ * Ordinals arrive in increasing order, and any the caller skips are filled with an empty entry, so
+ * that a gap reads back as no source record rather than shifting every later ordinal.
  * @param[in] rec_idx 0-based ordinal of the record within its input VCF
  * @param[in] id ID column, verbatim
  * @param[in] qual QUAL column, verbatim
@@ -521,22 +521,21 @@ void srcRecords::shrink() {
 
 
 /**
- * @brief Returns a variant's entry in a retained column, or the fallback if it has none.
+ * @brief Returns one record's entry in a retained column, or the fallback if it has none.
  *
- * A retained column is empty at every ordinal whose record was dropped before retention, and the
- * whole store is absent for a container built without parsing a VCF, so both stand in as "no
- * source record". An empty FORMAT key list is indistinguishable from an absent one, which is
- * correct: both render as no appended keys.
+ * A retained column is empty at every ordinal it holds no record for, and the whole store is absent
+ * for a container built without parsing a VCF, so both stand in as "no source record". An empty
+ * FORMAT key list is indistinguishable from an absent one, which is correct: both render as no
+ * appended keys.
  * @param[in] column Retained column to read, or nullptr when nothing was retained
- * @param[in] vi Variant index in this container
- * @param[in] fallback Value to return when the variant has no retained entry
+ * @param[in] rec_idx 0-based ordinal of the source record within its input VCF (-1 = unknown)
+ * @param[in] fallback Value to return when the record has no retained entry
  * @return The retained entry, or fallback
  */
-const std::string & ctgVariants::src_field(const std::vector<std::string> * column, int vi,
-        const std::string & fallback) const {
-    if (column == nullptr || vi < 0 || vi >= this->n) return fallback;
-    int rec_idx = this->rec_idxs[vi];
-    if (rec_idx < 0 || rec_idx >= int(column->size()) || (*column)[rec_idx].empty())
+static const std::string & src_column(const std::vector<std::string> * column, int rec_idx,
+        const std::string & fallback) {
+    if (column == nullptr || rec_idx < 0 || rec_idx >= int(column->size()) ||
+            (*column)[rec_idx].empty())
         return fallback;
     return (*column)[rec_idx];
 }
@@ -547,7 +546,8 @@ const std::string & ctgVariants::src_field(const std::vector<std::string> * colu
  * @return The ID column
  */
 const std::string & ctgVariants::src_id(int vi) const {
-    return this->src_field(this->src_recs ? &this->src_recs->ids : nullptr, vi, DOT);
+    if (vi < 0 || vi >= this->n) return DOT;
+    return src_column(this->src_recs ? &this->src_recs->ids : nullptr, this->rec_idxs[vi], DOT);
 }
 
 /**
@@ -556,7 +556,8 @@ const std::string & ctgVariants::src_id(int vi) const {
  * @return The QUAL column
  */
 const std::string & ctgVariants::src_qual(int vi) const {
-    return this->src_field(this->src_recs ? &this->src_recs->quals : nullptr, vi, DOT);
+    if (vi < 0 || vi >= this->n) return DOT;
+    return src_column(this->src_recs ? &this->src_recs->quals : nullptr, this->rec_idxs[vi], DOT);
 }
 
 /**
@@ -565,7 +566,9 @@ const std::string & ctgVariants::src_qual(int vi) const {
  * @return The FILTER column
  */
 const std::string & ctgVariants::src_filter(int vi) const {
-    return this->src_field(this->src_recs ? &this->src_recs->filters : nullptr, vi, PASS);
+    if (vi < 0 || vi >= this->n) return PASS;
+    return src_column(this->src_recs ? &this->src_recs->filters : nullptr, this->rec_idxs[vi],
+            PASS);
 }
 
 /**
@@ -614,17 +617,18 @@ static bool subset_value(int len_class, int alt_idx, ploidy_t ploidy, const std:
  * @return The INFO column, or "." if no source record was retained or no field survived
  */
 std::string ctgVariants::src_info(int vi) const {
-    const std::string & info =
-            this->src_field(this->src_recs ? &this->src_recs->infos : nullptr, vi, DOT);
-    if (this->src_recs == nullptr || info == DOT || this->src_recs->info_lens.empty()) return info;
+    if (vi < 0 || vi >= this->n) return DOT;
+    const std::shared_ptr<srcRecords> & src = this->src_recs;
+    const std::string & info = src_column(src ? &src->infos : nullptr, this->rec_idxs[vi], DOT);
+    if (src == nullptr || info == DOT || src->info_lens.empty()) return info;
 
     std::string kept;
     for (const std::string & field : split(info, ';')) {
         if (field.empty()) continue;
         const size_t eq = field.find('=');
-        const auto len = this->src_recs->info_lens.find(field.substr(0, eq));
+        const auto len = src->info_lens.find(field.substr(0, eq));
         std::string subset = field;
-        if (len != this->src_recs->info_lens.end()) {
+        if (len != src->info_lens.end()) {
             if (eq == std::string::npos) continue; // ALT-indexed but valueless: nothing to subset
             if (!subset_value(len->second, this->alt_idxs[vi], this->ploidies[vi],
                     field.substr(eq+1), subset)) continue;
@@ -641,7 +645,9 @@ std::string ctgVariants::src_info(int vi) const {
  * @return The keys to append to the fixed FORMAT list, or "" if there are none
  */
 const std::string & ctgVariants::src_fmt_keys(int vi) const {
-    return this->src_field(this->src_recs ? &this->src_recs->fmt_keys : nullptr, vi, NO_EXTRA_FMT);
+    if (vi < 0 || vi >= this->n) return NO_EXTRA_FMT;
+    return src_column(this->src_recs ? &this->src_recs->fmt_keys : nullptr, this->rec_idxs[vi],
+            NO_EXTRA_FMT);
 }
 
 /**
@@ -654,9 +660,11 @@ const std::string & ctgVariants::src_fmt_keys(int vi) const {
  * @return The values to append to the fixed sample fields, each prefixed with ':', or "" if none
  */
 std::string ctgVariants::src_fmt_vals(int vi) const {
+    if (vi < 0 || vi >= this->n) return NO_EXTRA_FMT;
+    const std::shared_ptr<srcRecords> & src = this->src_recs;
     const std::string & vals =
-            this->src_field(this->src_recs ? &this->src_recs->fmt_vals : nullptr, vi, NO_EXTRA_FMT);
-    if (this->src_recs == nullptr || vals.empty() || this->src_recs->fmt_lens.empty()) return vals;
+            src_column(src ? &src->fmt_vals : nullptr, this->rec_idxs[vi], NO_EXTRA_FMT);
+    if (src == nullptr || vals.empty() || src->fmt_lens.empty()) return vals;
 
     // both columns are ':'-prefixed, so splitting each leaves a leading empty field to skip
     const std::vector<std::string> keys = split(this->src_fmt_keys(vi), ':');
@@ -664,9 +672,9 @@ std::string ctgVariants::src_fmt_vals(int vi) const {
     std::string kept;
     for (size_t i = 1; i < keys.size(); i++) {
         const std::string & val = i < src_vals.size() ? src_vals[i] : DOT;
-        const auto len = this->src_recs->fmt_lens.find(keys[i]);
+        const auto len = src->fmt_lens.find(keys[i]);
         std::string subset;
-        if (len == this->src_recs->fmt_lens.end()) subset = val;
+        if (len == src->fmt_lens.end()) subset = val;
         else if (!subset_value(len->second, this->alt_idxs[vi], this->ploidies[vi], val, subset))
             subset = DOT; // no element can be tied to the emitted allele, so none is reported
         kept += ":" + subset;
@@ -937,8 +945,16 @@ bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
     // every record PASSes, and htslib rejects a filter its header does not declare; bcf_hdr_init()
     // declares PASS itself, and appending an ID it already holds is a no-op rather than a duplicate
     lines.push_back("##FILTER=<ID=PASS,Description=\"All filters passed\">");
+
+    // a retained record names why it was not evaluated; the IDs are prefixed so that no input
+    // FILTER ID can collide with one, and uppercase to match the convention for FILTER IDs
+    for (sideline_t reason : EnumRange<sideline_t, SIDELINE_SLOTS>{}) {
+        lines.push_back("##FILTER=<ID=" + sideline_strs[reason] + ",Description=\"" +
+                sideline_descs[reason] + "\">");
+    }
+
     lines.push_back("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">");
-    lines.push_back("##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN)." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN, or N for a call that was not assessed)." + per_allele + " A record retained without evaluation was not assessed as a whole, so it carries a single N.\">");
     lines.push_back("##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance)." + per_allele + "\">");
     lines.push_back("##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group." + per_allele + "\">");
     lines.push_back("##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group." + per_allele + "\">");
@@ -964,10 +980,13 @@ bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
             "INS and a DEL, a het-alt into one record per ALT), each repeating the same preserved "
             "values, so summing a count-like field over records double-counts the source value. "
             "Number=A/R/G values index the source ALT list, so each is subset to the one allele "
-            "its record carries.\">");
+            "its record carries; a record retained without evaluation was never split, and keeps "
+            "the whole source ALT list and those values with it.\">");
 
-    // declare the fields carried over from the inputs, PASS excluded since it is declared above
+    // declare the fields carried over from the inputs, less the ones declared above
     std::unordered_set<std::string> declared = {"FILTER/PASS"};
+    for (sideline_t reason : EnumRange<sideline_t, SIDELINE_SLOTS>{})
+        declared.insert("FILTER/" + sideline_strs[reason]);
     for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         if (src_recs[c] == nullptr) continue;
         const srcRecords & src = *src_recs[c];
@@ -1237,6 +1256,138 @@ void set_record_samples(const bcf_hdr_t* hdr, bcf1_t* rec,
 /**************************************************************************************************/
 
 /**
+ * @brief Constructs a contig-specific container of retained variants.
+ * @param[in] ctg Contig name
+ */
+ctgSideline::ctgSideline(const std::string & ctg) {
+    this->ctg = ctg;
+}
+
+/**
+ * @brief Appends one retained variant, in source record order.
+ * @param[in] rec_idx 0-based ordinal of the source record within its input VCF
+ * @param[in] hap Haplotype the reason applies to, or SIDELINE_ALL_HAPS for the whole record
+ * @param[in] pos Source record start position (0-based)
+ * @param[in] ref REF column of the source record, verbatim
+ * @param[in] alt ALT column of the source record, verbatim
+ * @param[in] gt Sample's GT value, verbatim ("." if the record declared none)
+ * @param[in] reason SIDELINE_* reason the variant was not evaluated
+ */
+void ctgSideline::add(int rec_idx, int8_t hap, int pos, const std::string & ref,
+        const std::string & alt, const std::string & gt, sideline_t reason) {
+    this->rec_idxs.push_back(rec_idx);
+    this->haps.push_back(hap);
+    this->poss.push_back(pos);
+    this->refs.push_back(ref);
+    this->alts.push_back(alt);
+    this->gts.push_back(gt);
+    this->reasons.push_back(reason);
+    this->n++;
+}
+
+/**
+ * @brief Encodes a retained record's GT text as htslib allele indices.
+ *
+ * The text is the source sample's own, never normalized, so it may name any ALT ordinal of the
+ * whole list the record emits beside it. A '.' allele is encoded missing, and the separator decides
+ * the phase bit htslib writes each allele back out with.
+ * @param[in] gt GT value as the source record wrote it, or "." if it declared none
+ * @return One encoded allele per element of the genotype
+ */
+static std::vector<int32_t> retained_genotype_alleles(const std::string & gt) {
+    std::vector<int32_t> alleles;
+    size_t start = 0;
+    bool phased = false;
+    for (size_t i = 0; i <= gt.size(); i++) {
+        if (i != gt.size() && gt[i] != '|' && gt[i] != '/') continue;
+        const std::string allele = gt.substr(start, i - start);
+        if (allele == "." || allele.empty()) alleles.push_back(bcf_gt_missing);
+        else if (phased) alleles.push_back(bcf_gt_phased(std::stoi(allele)));
+        else alleles.push_back(bcf_gt_unphased(std::stoi(allele)));
+        if (i != gt.size()) phased = gt[i] == '|';
+        start = i + 1;
+    }
+    return alleles;
+}
+
+/**
+ * @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO) of one record.
+ *
+ * POS, REF, and ALT are the source record's own, since a retained record is never normalized or
+ * split, so its whole ALT list is emitted as written and every retained INFO field indexes it
+ * unchanged. FILTER gains the tag naming why the record was not evaluated, which htslib adds to the
+ * record's own filters and which displaces a lone PASS: a record excluded from evaluation passed
+ * nothing it was held to.
+ * @param[in] hdr Summary VCF header, which must declare this contig and every preserved field
+ * @param[in,out] rec Cleared record to fill
+ * @param[in] ctg Contig name
+ * @param[in] si Entry index in this container
+ * @throws ERROR The contig is not declared in the header
+ * @throws ERROR The reason's FILTER tag is not declared in the header
+ * @throws ERROR htslib rejects the record's ID, FILTER, alleles, or any preserved INFO field
+ */
+void ctgSideline::set_var_record(const bcf_hdr_t* hdr, bcf1_t* rec, const std::string & ctg,
+        int si) const {
+
+    const srcRecords* src = this->src_recs.get();
+    const int rec_idx = this->rec_idxs[si];
+    rec->rid = bcf_hdr_name2id(hdr, ctg.data());
+    if (rec->rid < 0) ERROR("Contig '%s' is not declared in the summary VCF header", ctg.data());
+    rec->pos = this->poss[si];
+    set_record_qual(rec, src_column(src ? &src->quals : nullptr, rec_idx, DOT));
+    set_record_id(hdr, rec, src_column(src ? &src->ids : nullptr, rec_idx, DOT), ctg,
+            this->poss[si]);
+    set_record_filters(hdr, rec, src_column(src ? &src->filters : nullptr, rec_idx, PASS),
+            ctg, this->poss[si]);
+
+    const std::string & tag = sideline_strs[this->reasons[si]];
+    const int tag_id = bcf_hdr_id2int(hdr, BCF_DT_ID, tag.data());
+    if (tag_id < 0 || !bcf_hdr_idinfo_exists(hdr, BCF_HL_FLT, tag_id))
+        ERROR("FILTER '%s' is not declared in the summary VCF header", tag.data());
+    if (bcf_add_filter(hdr, rec, tag_id) < 0)
+        ERROR("Failed to set FILTER on summary VCF record at %s:%d", ctg.data(), this->poss[si]);
+
+    // the ALT column is verbatim, so a multi-allelic record keeps every allele it was written with
+    std::string alleles = this->refs[si] + "," + this->alts[si];
+    if (bcf_update_alleles_str(hdr, rec, alleles.data()) < 0)
+        ERROR("Failed to set alleles on summary VCF record at %s:%d", ctg.data(), this->poss[si]);
+
+    set_record_info(hdr, rec, src_column(src ? &src->infos : nullptr, rec_idx, DOT));
+}
+
+/**
+ * @brief Returns the FORMAT values of the sample that called one retained variant.
+ *
+ * A retained record was excluded from evaluation before any comparison ran, so it is never matched
+ * and only the callset that called it reports anything. That call reports its own GT and BD=N, the
+ * GA4GH decision for a variant that was not assessed; every other field is the result of an
+ * evaluation that never ran, and SC and PB are locus-wide indices it belongs to no instance of.
+ * @param[in] si Entry index in this container
+ * @return This sample's FORMAT values, htslib-encoded
+ */
+sample_fields ctgSideline::var_sample_fields(int si) const {
+    sample_fields fields;
+    fields.gt = retained_genotype_alleles(this->gts[si]);
+    fields.bd = "N";
+    bcf_float_set_missing(fields.qq);
+    fields.sc = bcf_int32_missing;
+    fields.ps = bcf_int32_missing;
+    fields.pb = bcf_int32_missing;
+    fields.bs = bcf_int32_missing;
+    fields.vp = bcf_int32_missing;
+    fields.fe = bcf_int32_missing;
+
+    // nothing split this record, so its preserved values are carried over as the source wrote them
+    const srcRecords* src = this->src_recs.get();
+    const int rec_idx = this->rec_idxs[si];
+    fields.src_keys = src_column(src ? &src->fmt_keys : nullptr, rec_idx, NO_EXTRA_FMT);
+    fields.src_vals = src_column(src ? &src->fmt_vals : nullptr, rec_idx, NO_EXTRA_FMT);
+    return fields;
+}
+
+/**************************************************************************************************/
+
+/**
  * @brief Constructs an empty variant data container defaulting to QUERY callset.
  */
 variantData::variantData() : callset(QUERY) { ; }
@@ -1278,11 +1429,50 @@ gtparse_t classify_gt(const int32_t * gt, int ngt) {
 }
 
 /**
+ * @brief Returns one FORMAT key's value in a record's sample column, or "." if it has none.
+ * @param[in] fmt_col FORMAT column of one record
+ * @param[in] sample_col Sample column of one record
+ * @param[in] key FORMAT key to read
+ * @return The sample's value for that key, or "." if the record or the sample omitted it
+ */
+static std::string format_value(const std::string & fmt_col, const std::string & sample_col,
+        const std::string & key) {
+    const std::vector<std::string> keys = split(fmt_col, ':');
+    const std::vector<std::string> vals = split(sample_col, ':');
+    for (size_t i = 0; i < keys.size(); i++) {
+        if (keys[i] != key) continue;
+        return (i < vals.size() && !vals[i].empty()) ? vals[i] : DOT;
+    }
+    return DOT;
+}
+
+/**
+ * @brief Retains one record in the sideline container, excluded from evaluation but not from output.
+ *
+ * Nothing is retained for a run writing no output, since the summary VCF is the only consumer.
+ * @param[in,out] variant_data Container whose sideline container receives the record
+ * @param[in] ctg Contig the record sits on
+ * @param[in] rec_idx 0-based ordinal of the record within its input VCF
+ * @param[in] pos Record start position (0-based)
+ * @param[in] cols Columns of the rendered source record
+ * @param[in] reason SIDELINE_* reason the record was not evaluated
+ */
+static void sideline_record(std::shared_ptr<variantData> variant_data, const std::string & ctg,
+        int rec_idx, int pos, const std::vector<std::string> & cols, sideline_t reason) {
+    if (variant_data->src_recs == nullptr) return;
+    variant_data->sidelined[ctg]->add(rec_idx, SIDELINE_ALL_HAPS, pos, cols[REF_COL], cols[ALT_COL],
+            format_value(cols[FORMAT_COL], cols[SAMPLE_COL], "GT"), reason);
+}
+
+/**
  * @brief Parses variants from a VCF file into a variantData container, with filtering and validation.
  * @param[in] vcf_fn Input VCF filename
  * @param[out] variant_data Container to populate with parsed variants
  * @param[in] reference Reference FASTA data for coordinate validation
  * @param[in] callset QUERY or TRUTH callset identifier
+ * @note A record failing FILTER or falling below --min-qual is retained in the sideline container
+ *       rather than discarded, so the summary VCF can report it as a call that was not evaluated.
+ *       It never enters ctgVariants, so no analysis can reach it.
  * @throws ERROR A record htslib cannot parse, a record on a contig the header does not declare,
  *         a header declaring 'GT' with a type other than String, a header declaring other than one
  *         sample or a contig line without 'IDX' and 'length', an unsorted VCF, a variant of ploidy
@@ -1349,8 +1539,9 @@ void parse_variants(const std::string & vcf_fn,
     int * PS      = NULL;
     bool PS_warn  = false;
 
-    // source column retention, reusing one render buffer across every record
+    // source column retention, reusing one render buffer and column list across every record
     kstring_t rec_str = {0, 0, NULL};
+    std::vector<std::string> cols;
 
     /* int gq_missing_total = 0; */
     int bcf_errcode_total = 0; // records htslib parsed despite a non-critical error
@@ -1456,6 +1647,9 @@ void parse_variants(const std::string & vcf_fn,
                 std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
         variant_data->variants[HAP1][ctgnames[i]]->src_recs = variant_data->src_recs;
         variant_data->variants[HAP2][ctgnames[i]]->src_recs = variant_data->src_recs;
+        variant_data->sidelined[ctgnames[i]] =
+                std::shared_ptr<ctgSideline>(new ctgSideline(ctgnames[i]));
+        variant_data->sidelined[ctgnames[i]]->src_recs = variant_data->src_recs;
     }
 
     // struct for storing each record
@@ -1518,6 +1712,29 @@ void parse_variants(const std::string & vcf_fn,
         bcf_unpack(rec, BCF_UN_ALL);
         n++;
 
+        // retain the columns the summary VCF writer cannot derive from the internal arrays;
+        // rendering the whole record reuses htslib's own formatting instead of re-deriving the
+        // text of each field, and indexing by record ordinal shares one copy across the entries
+        // a multi-allelic or complex record splits into. This precedes every filtering decision,
+        // since a record excluded from evaluation is still written out and still needs its columns
+        if (variant_data->src_recs != nullptr) {
+            rec_str.l = 0;
+            if (vcf_format(hdr, rec, &rec_str) < 0)
+                ERROR("Failed to format %s VCF record at %s:%lld",
+                        callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+            std::string rendered(rec_str.s, rec_str.l);
+            while (!rendered.empty() && rendered.back() == '\n') rendered.pop_back();
+            cols = split(rendered, '\t');
+            if (int(cols.size()) < VCF_COLS)
+                ERROR("Expected %d columns but found %d in %s VCF record at %s:%lld",
+                        int(VCF_COLS), int(cols.size()), callset_strs[callset].data(),
+                        ctg.data(), (long long)rec->pos);
+            std::string fmt_keys, fmt_vals;
+            keep_format(cols[FORMAT_COL], cols[SAMPLE_COL], fmt_keys, fmt_vals);
+            variant_data->src_recs->add(n-1, cols[ID_COL], cols[QUAL_COL], cols[FILTER_COL],
+                    cols[INFO_COL], fmt_keys, fmt_vals);
+        }
+
         // check that variant contained a passing filter
         pass = false;
         if (rec->d.n_flt == 0 || g.filters.size() == 0) { // no filters, default pass
@@ -1533,6 +1750,7 @@ void parse_variants(const std::string & vcf_fn,
         // variant doesn't contain a passing filter
         if (!pass) {
             failed_filter_total++;
+            sideline_record(variant_data, ctg, n-1, rec->pos, cols, SIDELINE_FAILED_FILTER);
             continue;
         }
 
@@ -1541,28 +1759,9 @@ void parse_variants(const std::string & vcf_fn,
         if (std::isnan(vq)) vq = 0; // no quality reported (.)
         pass = vq >= g.min_qual;
         pass_min_qual[pass]++;
-        if (!pass) continue;
-
-        // retain the columns the summary VCF writer cannot derive from the internal arrays;
-        // rendering the whole record reuses htslib's own formatting instead of re-deriving the
-        // text of each field, and indexing by record ordinal shares one copy across the entries
-        // a multi-allelic or complex record splits into
-        if (variant_data->src_recs != nullptr) {
-            rec_str.l = 0;
-            if (vcf_format(hdr, rec, &rec_str) < 0)
-                ERROR("Failed to format %s VCF record at %s:%lld",
-                        callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
-            std::string rendered(rec_str.s, rec_str.l);
-            while (!rendered.empty() && rendered.back() == '\n') rendered.pop_back();
-            std::vector<std::string> cols = split(rendered, '\t');
-            if (int(cols.size()) < VCF_COLS)
-                ERROR("Expected %d columns but found %d in %s VCF record at %s:%lld",
-                        int(VCF_COLS), int(cols.size()), callset_strs[callset].data(),
-                        ctg.data(), (long long)rec->pos);
-            std::string fmt_keys, fmt_vals;
-            keep_format(cols[FORMAT_COL], cols[SAMPLE_COL], fmt_keys, fmt_vals);
-            variant_data->src_recs->add(n-1, cols[ID_COL], cols[QUAL_COL], cols[FILTER_COL],
-                    cols[INFO_COL], fmt_keys, fmt_vals);
+        if (!pass) {
+            sideline_record(variant_data, ctg, n-1, rec->pos, cols, SIDELINE_LOW_QUAL);
+            continue;
         }
 
         // parse GQ in either INT or FLOAT format
@@ -1851,12 +2050,12 @@ void parse_variants(const std::string & vcf_fn,
     /*     WARN("%d total missing GQ tags in %s VCF, all considered GQ=0", */
     /*         gq_missing_total, callset_strs[callset].data()); */
 
-    if (failed_filter_total && print) 
-        INFO("%d variants failed FILTER in %s VCF, skipped",
+    if (failed_filter_total && print)
+        INFO("%d variants failed FILTER in %s VCF, not evaluated",
             failed_filter_total, callset_strs[callset].data());
 
     if (pass_min_qual[false] && print)
-        INFO("%d variants of low quality (<%d) in %s VCF, skipped",
+        INFO("%d variants of low quality (<%d) in %s VCF, not evaluated",
             pass_min_qual[false], g.min_qual, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");

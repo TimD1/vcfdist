@@ -33,6 +33,13 @@ EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs =
 /** @brief String representations of BED_* location constants. */
 EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs =
     {{"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"}};
+/** @brief FILTER IDs tagging why a retained variant was not evaluated, in SIDELINE_* order. */
+EnumArray<sideline_t, std::string, SIDELINE_SLOTS> sideline_strs =
+    {{"VCFDIST_FAILED_FILTER", "VCFDIST_LOW_QUAL"}};
+/** @brief Descriptions of each sideline_strs FILTER ID, for the summary VCF header. */
+EnumArray<sideline_t, std::string, SIDELINE_SLOTS> sideline_descs =
+    {{"Record's FILTER holds none of the filters --filter selected, so it was not evaluated",
+      "Record's QUAL is below --min-qual, so it was not evaluated"}};
 /** @brief String representations of SWITCHTYPE_* switch/flip error type constants. */
 EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs =
     {{"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"}};

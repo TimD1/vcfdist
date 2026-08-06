@@ -70,8 +70,8 @@ struct var_fields {
  * the writer. Indexing by record ordinal rather than by variant stores one copy per source
  * record, which the two halves of a split complex variant and the two entries of a het-alt
  * record share; the entries of a het-alt record then subset that copy's ALT-indexed fields to
- * their own allele. Ordinals dropped before retention leave an empty entry, so every vector is
- * indexable by any ordinal below its size.
+ * their own allele. Columns are retained before any filtering decision, since a record excluded
+ * from evaluation is still written out, so every vector is indexable by any ordinal below its size.
  *
  * Columns are held as the VCF text htslib rendered them from the input, and are re-typed against
  * the output header's own declarations when written. Holding one string per column per record
@@ -137,6 +137,57 @@ struct sample_fields {
     std::string ge = ".";      ///< GE, allele count (genotype) error
     std::string src_keys;      ///< preserved source FORMAT keys, each prefixed with ':'
     std::string src_vals;      ///< values parallel to src_keys, each prefixed with ':'
+};
+
+/**
+ * @class ctgSideline
+ * @brief Variants of one contig and callset retained in the output but excluded from evaluation.
+ *
+ * A retained variant never enters ctgVariants, so every loop over `poss`/`n` in clustering,
+ * alignment, phasing, and reporting is unreachable for it and "excluded from all analysis" holds by
+ * construction rather than by a check at each of those sites. The summary VCF writer is the only
+ * consumer: it merges these entries into its position-ordered walk and writes each as a record no
+ * callset was evaluated on.
+ *
+ * Entries are keyed by (source record ordinal, haplotype), since a per-allele reason can leave one
+ * haplotype evaluated while the other is not. A record-scope reason is decided before the genotype
+ * is read, so it applies to the whole record and stores SIDELINE_ALL_HAPS.
+ *
+ * The site columns come from the source record verbatim, because a retained record was never
+ * normalized or split: nothing derived them the way it does for an evaluated variant. Its whole ALT
+ * list is emitted as written, so an ALT-indexed value still indexes the alleles beside it and is
+ * carried over unsubset, at the cardinality the propagated declaration already states. Nothing here
+ * subsets or reformats a retained column, so the store is read where it is written rather than
+ * through the per-column accessors ctgVariants needs for its own subsetting.
+ */
+class ctgSideline {
+public:
+
+    /** @brief Constructs a contig-specific container of retained variants. */
+    ctgSideline(const std::string & ctg);
+
+    /** @brief Appends one retained variant, in source record order. */
+    void add(int rec_idx, int8_t hap, int pos, const std::string & ref, const std::string & alt,
+            const std::string & gt, sideline_t reason);
+
+    /** @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO) of one record. */
+    void set_var_record(const bcf_hdr_t* hdr, bcf1_t* rec, const std::string & ctg, int si) const;
+
+    /** @brief Returns the FORMAT values of the sample that called one retained variant. */
+    sample_fields var_sample_fields(int si) const;
+
+    std::string ctg;                 ///< Contig name (chromosome identifier)
+    std::vector<int> rec_idxs;       ///< source VCF record ordinal (0-based)
+    std::vector<int8_t> haps;        ///< haplotype the reason applies to (SIDELINE_ALL_HAPS = record)
+    std::vector<int> poss;           ///< source record start position (0-based), for output order
+    std::vector<std::string> refs;   ///< REF column, verbatim
+    std::vector<std::string> alts;   ///< ALT column, verbatim (comma-separated if multi-allelic)
+    std::vector<std::string> gts;    ///< sample's GT value, verbatim ("." if the record has none)
+    std::vector<sideline_t> reasons; ///< retention reason, selecting this record's FILTER tag
+    int n = 0;                       ///< Total number of retained variants
+
+    // shared with every other container of this callset, indexed by rec_idxs
+    std::shared_ptr<srcRecords> src_recs; ///< retained source records (nullptr = none retained)
 };
 
 /**
@@ -238,12 +289,6 @@ public:
 
     // shared with every other container of this callset, indexed by rec_idxs
     std::shared_ptr<srcRecords> src_recs; ///< retained source records (nullptr = none retained)
-
-private:
-
-    /** @brief Returns a variant's entry in a retained column, or the fallback if it has none. */
-    const std::string & src_field(const std::vector<std::string> * column, int vi,
-            const std::string & fallback) const;
 };
 
 /**
@@ -268,6 +313,9 @@ public:
     ///< Per-haplotype, per-contig variant containers: variants[hap][ctg]
     EnumArray<hap_t,
         std::unordered_map<std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> variants;
+    std::unordered_map<                ///< Per-contig containers of retained, unevaluated variants
+        std::string,
+        std::shared_ptr<ctgSideline> > sidelined;
     std::shared_ptr<srcRecords>       ///< Source records retained from this callset's VCF
         src_recs;
 };

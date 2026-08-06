@@ -29,16 +29,22 @@
  *       does not own a record writes '.' for each appended FORMAT key
  * @note Number=A/R/G values index the source record's ALT list, while these records carry
  *       normalized, split alleles, so each is subset to the one allele its record emits. Every
- *       record written here is biallelic, so the input's own declaration already states the
- *       resulting cardinality and is propagated unchanged
+ *       evaluated record written here is biallelic, so the input's own declaration already states
+ *       the resulting cardinality and is propagated unchanged
  * @note A source record that parsing split into several entries yields several records here, each
  *       repeating that record's preserved columns, so summing a count-like preserved field over
  *       records double-counts the one source value. The header states this for the reader
- * @note The input FILTER is preserved verbatim, on evaluated records included. A GA4GH consumer
- *       reads a non-PASS FILTER on an evaluated record as a filtered call and demotes it, turning
- *       filtered TPs into FNs and filtered FPs into Ns, so a caller's own non-PASS filter accepted
- *       via --filter will demote those calls downstream. Rewriting it to PASS would misreport the
- *       input, so it is reported here rather than designed around
+ * @note A variant retained without being evaluated is held outside the evaluated arrays, so it is
+ *       merged in by position rather than walked alongside them. It was never normalized or split,
+ *       so it keeps the whole source ALT list and every value indexing it. It was also excluded
+ *       before any comparison ran, so it is never matched: one sample carries its call, reporting
+ *       BD=N and nothing else, and the other is entirely missing
+ * @note The input FILTER is preserved verbatim, on evaluated records included. A retained record
+ *       adds the VCFDIST_-prefixed tag naming why it was not evaluated, replacing a lone PASS.
+ *       A GA4GH consumer reads a non-PASS FILTER on an evaluated record as a filtered call and
+ *       demotes it, turning filtered TPs into FNs and filtered FPs into Ns, so a caller's own
+ *       non-PASS filter accepted via --filter will demote those calls downstream. Rewriting it to
+ *       PASS would misreport the input, so it is reported here rather than designed around
  * @throws ERROR if the output summary VCF file cannot be opened for writing
  * @throws ERROR if the header or any record cannot be written
  * @throws ERROR if neither callset is selected next while variants remain
@@ -69,6 +75,50 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = ctg_pbs->ctg_superclusters->callset_vars[TRUTH];
 
+        // the retained records of each callset, absent on a contig that retained none
+        EnumArray<callset_t, std::shared_ptr<ctgSideline>, CALLSET_SLOTS> side{};
+        for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+            const auto found = this->callset_sidelined[c].find(ctg);
+            if (found != this->callset_sidelined[c].end()) side[c] = found->second;
+        }
+        EnumArray<callset_t, int, CALLSET_SLOTS> side_ptrs{};
+
+        // Retained records are interleaved into the evaluated ones by position, the query's first
+        // where the two callsets tie. A tie against an evaluated variant is resolved the other way,
+        // by emitting the evaluated record first, since a retained one belongs to no supercluster
+        // and so has no place within the evaluated ordering of a position.
+        auto write_sidelined = [&](int limit) {
+            while (true) {
+                callset_t owner = QUERY;
+                int owner_pos = limit;
+                bool any = false;
+                for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+                    if (side[c] == nullptr || side_ptrs[c] >= side[c]->n) continue;
+                    if (side[c]->poss[side_ptrs[c]] < owner_pos) {
+                        owner_pos = side[c]->poss[side_ptrs[c]];
+                        owner = c;
+                        any = true;
+                    }
+                }
+                if (!any) return;
+
+                // a retained record was never matched, so the callset that did not call it reports
+                // nothing at all, and neither sample belongs to a supercluster or a phase block
+                bcf_clear(rec);
+                side[owner]->set_var_record(hdr, rec, ctg, side_ptrs[owner]);
+                const sample_fields called = side[owner]->var_sample_fields(side_ptrs[owner]);
+                const sample_fields uncalled =
+                        empty_sample_fields(bcf_int32_missing, bcf_int32_missing);
+                set_record_samples(hdr, rec, owner == TRUTH ? called : uncalled,
+                        owner == QUERY ? called : uncalled);
+                if (bcf_write(out_vcf, hdr, rec) != 0) {
+                    ERROR("Failed to write summary VCF record at %s:%lld", ctg.data(),
+                            static_cast<long long>(rec->pos+1));
+                }
+                side_ptrs[owner]++;
+            }
+        };
+
         // flip/swap state comes from the query; these defaults hold on a contig it never calls on
         int phase_block = 0;
         phase_t block_state = PHASE_ORIG;
@@ -91,6 +141,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 next[c] = (poss[c] == pos);
             }
+            write_sidelined(pos);
 
             // update phasing
             if (ptrs[QUERY] < qvars->n) {
@@ -172,6 +223,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         static_cast<long long>(rec->pos+1));
             }
         }
+        write_sidelined(std::numeric_limits<int>::max());
     }
     bcf_destroy(rec);
     bcf_hdr_destroy(hdr);
@@ -199,6 +251,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     }
     this->ref = clusterdata_ptr->ref;
     this->callset_src_recs = clusterdata_ptr->callset_src_recs;
+    this->callset_sidelined = clusterdata_ptr->callset_sidelined;
 
     // add pointers to superclusters
     for (const std::string & ctg : this->contigs) {
