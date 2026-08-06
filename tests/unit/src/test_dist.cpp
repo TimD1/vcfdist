@@ -2023,7 +2023,7 @@ TEST(PrecisionRecallWrapper, EmptyRangeReturns) {
     GraphFixture f = build_fixture("ACGTACGT",
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
-    auto sc_data = make_superclusterData({"chr1"}, {8}, {2}, {f.sc}, f.ref);
+    auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
     const std::vector< std::vector< std::vector<int> > > sc_groups;
     precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 0, false, false);
@@ -2041,7 +2041,7 @@ TEST(PrecisionRecallWrapper, EvaluatesBothHaplotypesForOneSupercluster) {
     GraphFixture f = build_fixture("ACGTACGT",
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
-    auto sc_data = make_superclusterData({"chr1"}, {8}, {2}, {f.sc}, f.ref);
+    auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
     const std::vector< std::vector< std::vector<int> > > sc_groups = {{{0}, {0}}};
     precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 1, false, false);

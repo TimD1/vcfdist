@@ -88,7 +88,6 @@ public:
     std::shared_ptr<fastaData> ref;   ///< Pointer to reference FASTA data
     std::vector<std::string> contigs; ///< List of all contig names
     std::vector<int> lengths;         ///< List of all contig lengths
-    std::vector<int> ploidy;          ///< List of all contig ploidies
     std::unordered_map<std::string,   ///< Map from contig name to ctgPhaseblocks
         std::shared_ptr<ctgPhaseblocks> > phase_blocks;
 };

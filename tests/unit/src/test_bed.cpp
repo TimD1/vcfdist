@@ -375,8 +375,8 @@ TEST(IntersectContigs, BedDropsExtraneous) {
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{0, 10}});
     std::shared_ptr<variantData> query =
-            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {2, 2});
-    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {2});
+            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
     std::shared_ptr<fastaData> ref = two_contig_ref();
 
     testing::internal::CaptureStderr();
@@ -386,7 +386,7 @@ TEST(IntersectContigs, BedDropsExtraneous) {
     // chr2 is absent from the BED, so it is dropped from the query along with its parallel fields
     EXPECT_EQ(std::vector<std::string>({"chr1"}), query->contigs);
     EXPECT_EQ(std::vector<int>({12}), query->lengths);
-    EXPECT_EQ(std::vector<int>({2}), query->ploidy);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}}), query->observed_ploidies);
     EXPECT_EQ(size_t(0), query->variants[HAP1].count("chr2"));
     EXPECT_EQ(size_t(0), query->variants[HAP2].count("chr2"));
 
@@ -400,8 +400,8 @@ TEST(IntersectContigs, BedMissingInFastaErrors) {
     g.bed_exists = true;
     g.bed = make_bed({{"chr1", {{0, 10}}}, {"chr2", {{0, 10}}}});
     EXPECT_EXIT({
-                std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {2});
-                std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {2});
+                std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
+                std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
                 std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
                 intersect_contigs(query, truth, ref);
             }, testing::ExitedWithCode(1), "Contig 'chr2' found in BED but not reference FASTA");
@@ -411,19 +411,19 @@ TEST(IntersectContigs, BedAddsEmptyContig) {
     GlobalsGuard guard;
     g.bed_exists = true;
     g.bed = make_bed({{"chr1", {{0, 10}}}, {"chr2", {{0, 10}}}});
-    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {2});
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
     std::shared_ptr<variantData> truth =
-            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {2, 2});
+            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
     std::shared_ptr<fastaData> ref = two_contig_ref();
 
     testing::internal::CaptureStderr();
     intersect_contigs(query, truth, ref);
     std::string out = testing::internal::GetCapturedStderr();
 
-    // a BED contig missing from the query is injected empty, with ploidy 0 marking it variant-free
+    // a BED contig missing from the query is injected empty, having observed no ploidy at all
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), query->contigs);
     EXPECT_EQ(std::vector<int>({12, 12}), query->lengths);
-    EXPECT_EQ(std::vector<int>({2, 0}), query->ploidy);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}, {}}), query->observed_ploidies);
     ASSERT_EQ(size_t(1), query->variants[HAP1].count("chr2"));
     ASSERT_EQ(size_t(1), query->variants[HAP2].count("chr2"));
     EXPECT_EQ(0, query->variants[HAP1]["chr2"]->n);
@@ -433,12 +433,30 @@ TEST(IntersectContigs, BedAddsEmptyContig) {
     EXPECT_NE(std::string::npos, out.find("found in BED but not query VCF")) << out;
 }
 
+// A contig injected empty has no observed ploidy at all, which is not a disagreement with the
+// other callset. Matches "has ploidy" and "has ploidies" alike, so it pins both message forms.
+TEST(IntersectContigs, InjectedEmptyContigDoesNotWarnOnPloidy) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed({{"chr1", {{0, 10}}}, {"chr2", {{0, 10}}}});
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<variantData> truth =
+            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+    std::shared_ptr<fastaData> ref = two_contig_ref();
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(std::string::npos, out.find("contig 'chr2' has ploid")) << out;
+}
+
 TEST(IntersectContigs, NobedQueryOnlyContigWarns) {
     GlobalsGuard guard;
     g.bed_exists = false;
     std::shared_ptr<variantData> query =
-            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {2, 1});
-    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {2});
+            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {1}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
     std::shared_ptr<fastaData> ref = two_contig_ref();
 
     testing::internal::CaptureStderr();
@@ -449,10 +467,10 @@ TEST(IntersectContigs, NobedQueryOnlyContigWarns) {
     EXPECT_NE(std::string::npos,
             out.find("Contig 'chr2' found in query VCF but not truth VCF")) << out;
 
-    // the truth gains an empty chr2 inheriting the query ploidy, so all query calls there are FPs
+    // the truth gains an empty chr2 with no observed ploidy, so all query calls there are FPs
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), truth->contigs);
     EXPECT_EQ(std::vector<int>({12, 12}), truth->lengths);
-    EXPECT_EQ(std::vector<int>({2, 1}), truth->ploidy);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}, {}}), truth->observed_ploidies);
     ASSERT_EQ(size_t(1), truth->variants[HAP1].count("chr2"));
     EXPECT_EQ(0, truth->variants[HAP1]["chr2"]->n);
     EXPECT_EQ(0, truth->variants[HAP2]["chr2"]->n);
@@ -461,9 +479,9 @@ TEST(IntersectContigs, NobedQueryOnlyContigWarns) {
 TEST(IntersectContigs, NobedTruthOnlyContigWarns) {
     GlobalsGuard guard;
     g.bed_exists = false;
-    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {2});
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
     std::shared_ptr<variantData> truth =
-            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {2, 1});
+            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {1}});
     std::shared_ptr<fastaData> ref = two_contig_ref();
 
     testing::internal::CaptureStderr();
@@ -474,10 +492,10 @@ TEST(IntersectContigs, NobedTruthOnlyContigWarns) {
     EXPECT_NE(std::string::npos,
             out.find("Contig 'chr2' found in truth VCF but not query VCF")) << out;
 
-    // the query gains an empty chr2 inheriting the truth ploidy, so all truth calls there are FNs
+    // the query gains an empty chr2 with no observed ploidy, so all truth calls there are FNs
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), query->contigs);
     EXPECT_EQ(std::vector<int>({12, 12}), query->lengths);
-    EXPECT_EQ(std::vector<int>({2, 1}), query->ploidy);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}, {}}), query->observed_ploidies);
     ASSERT_EQ(size_t(1), query->variants[HAP1].count("chr2"));
     EXPECT_EQ(0, query->variants[HAP1]["chr2"]->n);
     EXPECT_EQ(0, query->variants[HAP2]["chr2"]->n);
@@ -487,9 +505,9 @@ TEST(IntersectContigs, NobedFastaMissingErrors) {
     GlobalsGuard guard;
     g.bed_exists = false;
     EXPECT_EXIT({
-                std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {2});
+                std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
                 std::shared_ptr<variantData> truth =
-                        make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {2, 2});
+                        make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
                 std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
                 intersect_contigs(query, truth, ref);
             }, testing::ExitedWithCode(1),
@@ -499,8 +517,8 @@ TEST(IntersectContigs, NobedFastaMissingErrors) {
 TEST(IntersectContigs, PloidyMismatchWarns) {
     GlobalsGuard guard;
     g.bed_exists = false;
-    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {1});
-    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {2});
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{1}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
     std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
 
     testing::internal::CaptureStderr();
@@ -509,7 +527,41 @@ TEST(IntersectContigs, PloidyMismatchWarns) {
 
     EXPECT_NE(std::string::npos, out.find("[WARN")) << out;
     EXPECT_NE(std::string::npos,
-            out.find("TRUTH contig 'chr1' has ploidy 2 and QUERY contig 'chr1' has ploidy 1"))
+            out.find("TRUTH contig 'chr1' has ploidies {2} and"
+                     " QUERY contig 'chr1' has ploidies {1}"))
+            << out;
+}
+
+// A contig legitimately carrying both ploidies in both callsets is not a disagreement.
+TEST(IntersectContigs, MatchingMixedPloidyDoesNotWarn) {
+    GlobalsGuard guard;
+    g.bed_exists = false;
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{1, 2}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{1, 2}});
+    std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(std::string::npos, out.find("has ploidies")) << out;
+}
+
+// Sets that overlap but are not equal still disagree: one callset saw a ploidy the other never did.
+TEST(IntersectContigs, PartiallyOverlappingPloidySetsWarn) {
+    GlobalsGuard guard;
+    g.bed_exists = false;
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{1, 2}});
+    std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(std::string::npos,
+            out.find("TRUTH contig 'chr1' has ploidies {1,2} and"
+                     " QUERY contig 'chr1' has ploidies {2}"))
             << out;
 }
 

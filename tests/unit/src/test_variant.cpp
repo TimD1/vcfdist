@@ -1067,7 +1067,7 @@ TEST(VariantDataCtor, EmptyMembers) {
     EXPECT_EQ("", vcf.sample);
     EXPECT_TRUE(vcf.contigs.empty());
     EXPECT_TRUE(vcf.lengths.empty());
-    EXPECT_TRUE(vcf.ploidy.empty());
+    EXPECT_TRUE(vcf.observed_ploidies.empty());
 }
 
 /* parse-time filtering, counters, and summary warnings *******************************************/
@@ -1266,8 +1266,7 @@ TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
     EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
     EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
-    ASSERT_EQ(size_t(1), r.vars->ploidy.size());
-    EXPECT_EQ(1, r.vars->ploidy[0]);
+    EXPECT_EQ(std::vector< std::set<int> >({{1}}), r.vars->observed_ploidies);
 }
 
 // A haploid alternate call is reported on haplotype 1 alone, with ploidy 1 recorded.
@@ -1368,22 +1367,33 @@ TEST_F(ParseVariants, PolyploidErrors) {
             testing::ExitedWithCode(1), "found variant with ploidy 3");
 }
 
-// Ploidy is fixed by a contig's first record; later records that disagree are counted, not dropped.
-TEST_F(ParseVariants, PloidyMismatchWarnsAndKeeps) {
+// Every record's ploidy is recorded, and a contig carrying more than one is not an error.
+TEST_F(ParseVariants, MixedPloidyRecordedAndKept) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|1"),
                                         record(200, "A", "G", "1")});
-    EXPECT_TRUE(logged(r, "1 variants with incorrect ploidy in QUERY VCF, kept"));
+    EXPECT_EQ(std::vector< std::set<int> >({{1, 2}}), r.vars->observed_ploidies);
+    EXPECT_FALSE(logged(r, "ploidy"));
     EXPECT_EQ(2, hap_vars(r, HAP1)->n);
     EXPECT_EQ(1, hap_vars(r, HAP2)->n);
 }
 
-// Mixed ploidy is expected on a sex chromosome, so a contig named for one is exempt.
-TEST_F(ParseVariants, PloidyMismatchOnChrXSilent) {
+// chrX was previously exempted from the mismatch warning by name; nothing warns now, so the
+// exemption is gone and the contig is treated no differently from any other.
+TEST_F(ParseVariants, MixedPloidyOnChrXSilent) {
     vcf_opts opts = make_vcf_opts(QUERY, {"chrX"});
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|1", "chrX"),
                                         record(200, "A", "G", "1", "chrX")}, opts);
-    EXPECT_FALSE(logged(r, "incorrect ploidy"));
+    EXPECT_FALSE(logged(r, "ploidy"));
     EXPECT_EQ(2, r.vars->variants[HAP1]["chrX"]->n);
+}
+
+// chrY never had that exemption, so it warned on every record after the first. It no longer does.
+TEST_F(ParseVariants, MixedPloidyOnChrYSilent) {
+    vcf_opts opts = make_vcf_opts(QUERY, {"chrY"});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|1", "chrY"),
+                                        record(200, "A", "G", "1", "chrY")}, opts);
+    EXPECT_FALSE(logged(r, "ploidy"));
+    EXPECT_EQ(2, r.vars->variants[HAP1]["chrY"]->n);
 }
 
 /* missing (.) alleles ****************************************************************************/

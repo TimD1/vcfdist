@@ -5,6 +5,7 @@
 #ifndef _VARIANT_H_
 #define _VARIANT_H_
 
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -163,7 +164,8 @@ public:
     std::string sample;               ///< Sample name from VCF header
     std::vector<std::string> contigs; ///< List of all contig names
     std::vector<int> lengths;         ///< List of all contig lengths
-    std::vector<int> ploidy;          ///< List of all contig ploidies
+    std::vector<                      ///< Ploidies observed on each contig, parallel to contigs
+        std::set<int> > observed_ploidies;
     std::vector<                      ///< Per-haplotype, per-contig variant containers: variants[hap][ctg]
         std::unordered_map<
             std::string,
