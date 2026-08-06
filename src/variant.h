@@ -112,22 +112,35 @@ public:
  * consumer: it merges these entries into its position-ordered walk and writes each as a record no
  * callset was evaluated on.
  *
- * Entries are keyed by (source record ordinal, haplotype), since a per-allele reason can leave one
- * haplotype evaluated while the other is not. A record-scope reason is decided before the genotype
- * is read, so it applies to the whole record and stores SIDELINE_ALL_HAPS.
+ * Entries are keyed by (source record ordinal, retention reason), and each records the haplotype it
+ * applies to. A record-scope reason is decided before the genotype is read, so it applies to the
+ * whole record and stores SIDELINE_ALL_HAPS; a per-allele reason can leave one haplotype evaluated
+ * while the other is not, and stores the haplotype it excluded. Where it excludes both alleles of a
+ * record alike, the two collapse into one SIDELINE_ALL_HAPS entry, since a record is written once
+ * however many of its alleles went unevaluated.
  *
  * The site columns come from the source record verbatim, because a retained record was never
- * normalized or split: nothing derived them the way it does for an evaluated variant.
+ * normalized or split: nothing derived them the way it does for an evaluated variant. A partially
+ * retained record is therefore written with its whole ALT list and its own GT, alongside the
+ * separate record its evaluated allele produces.
+ *
+ * The contig's own header ordinal and length are held here as well, since a contig absent from the
+ * BED file is dropped from the evaluated contig list while its records are retained, leaving this
+ * the only place the writer can read them back from.
  */
 class ctgSideline {
 public:
 
     /** @brief Constructs a contig-specific container of retained variants. */
-    ctgSideline(const std::string & ctg);
+    ctgSideline(const std::string & ctg, int rid = 0, int length = 0);
 
     /** @brief Appends one retained variant, in source record order. */
     void add(int rec_idx, int hap, int pos, const std::string & ref, const std::string & alt,
             const std::string & gt, uint8_t reason);
+
+    /** @brief Retains one allele, widening the record's existing entry if it shares the reason. */
+    void add_allele(int rec_idx, int hap, int pos, const std::string & ref,
+            const std::string & alt, const std::string & gt, uint8_t reason);
 
     /** @brief Writes one retained variant as a complete summary VCF record. */
     void print_var(FILE* out_fp, const std::string & ctg, int si, callset_t callset) const;
@@ -151,6 +164,8 @@ public:
     std::string src_fmt_vals(int si) const;
 
     std::string ctg;                ///< Contig name (chromosome identifier)
+    int rid = 0;                    ///< contig's ordinal in its input VCF header, for output order
+    int length = 0;                 ///< contig length its input VCF header declared
     std::vector<int> rec_idxs;      ///< source VCF record ordinal (0-based)
     std::vector<int> haps;          ///< haplotype the reason applies to (-1 = the whole record)
     std::vector<int> poss;          ///< source record start position (0-based), for output order

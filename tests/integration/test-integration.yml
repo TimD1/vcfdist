@@ -306,6 +306,74 @@
     do diff "inert_retained_$f" "inert_dropped_$f" || exit 1; done'
   exit_code: 0
 
+# --- retention reasons decided per allele (synthetic 2-contig reference) ---
+# sideline_oob.bed covers sc1:100-300 only, so the same VCF reaches all three BED conditions and,
+# with -l 5, the size limit as well. Each of these is decided after the genotype is read, so it can
+# drop one allele of a record and leave the other evaluated; 250 is exactly that case.
+# sideline_oob_query_prefiltered removes only the wholly unevaluated records, keeping the partial
+# one, since its evaluated allele is what a run over either file must agree on.
+
+- name: test_summary-vcf_retains-out-of-bounds-records
+  # Each reason tags the record it excluded with a FILTER ID of its own, and reports BD=N on the
+  # calling sample alone. The three BED conditions are tagged apart: a user whose BED file is
+  # missing a contig is looking at a different problem from one whose regions end mid-variant.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob.bed"
+    -l 5
+    -p "oob_out_"'
+  files:
+    - path: oob_out_summary.vcf
+      contains:
+        # each reason declares the FILTER tag it writes
+        - "##FILTER=<ID=VCFDIST_TOO_LARGE,"
+        - "##FILTER=<ID=VCFDIST_BED_OUTSIDE,"
+        - "##FILTER=<ID=VCFDIST_BED_BORDER,"
+        - "##FILTER=<ID=VCFDIST_BED_OFF_CTG,"
+        # a call before the first region is in no region at all
+        - "sc1\t50\trs50\tT\tC\t60\tVCFDIST_BED_OUTSIDE\tDP=30\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|1:N:.:.:.:.:.:.:.:.:.:.:.:.:.:29"
+        # a 10bp insertion is longer than -l 5, though it sits well inside a region
+        - "sc1\t150\trs150\tA\tAGGGGGGGGGG\t60\tVCFDIST_TOO_LARGE\tDP=31\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|1:N:.:.:.:.:.:.:.:.:.:.:.:.:.:30"
+        # the one evaluated call is unaffected: PASS, and assessed on both haplotypes
+        - "sc1\t200\trs200\tA\tG\t60\tPASS\tDP=32;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t1|1:TP,TP:"
+        # 250 is het-alt with one oversized allele: the other is evaluated and written on its own,
+        # normalized to the single ALT it emits, while the retained record keeps the whole ALT list
+        - "sc1\t250\trs250\tA\tG\t60\tPASS\tDP=33;AF=0.5\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:1:.:.:0:.:.:.:.:.\t1|0:FP,.:"
+        - "sc1\t250\trs250\tA\tG,ATTTTTTTTTT\t60\tVCFDIST_TOO_LARGE\tDP=33\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|2:N:.:.:.:.:.:.:.:.:.:.:.:.:.:32"
+        # a deletion running from inside sc1:100-300 out past its end straddles the region edge
+        - "sc1\t298\trs298\tCCAGTC\tC\t60\tVCFDIST_BED_BORDER\tDP=34\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|1:N:.:.:.:.:.:.:.:.:.:.:.:.:.:33"
+        # sc2 is dropped from the evaluated contigs for being absent from the BED, so its records
+        # are written after every evaluated contig, and it is declared in the header to match
+        - "##contig=<ID=sc2,length=100>"
+        - "sc2\t50\trs50sc2\tT\tC\t60\tVCFDIST_BED_OFF_CTG\tDP=35\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.\t1|1:N:.:.:.:.:.:.:.:.:.:.:.:.:.:34"
+    - path: oob_out_precision-recall-summary.tsv
+      contains:
+        # only 200 (hom, matched) and the evaluated allele of 250 (het, unmatched) are counted
+        - "SNP\tNONE\t0\t2\t2\t0\t1\t"
+
+- name: test_summary-vcf_out-of-bounds-records-are-inert
+  # Retention is output-only for the per-allele reasons too, including on the record only half of
+  # which was retained: every analysis output must be byte-identical to the same run over an input
+  # the wholly unevaluated records were removed from.
+  command: bash -c '"${VCFDIST_REPO_PATH}/src/vcfdist"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob.bed"
+    -l 5 -p "inert_oob_retained_" &&
+    "${VCFDIST_REPO_PATH}/src/vcfdist"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob_query_prefiltered.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/sideline_oob.bed"
+    -l 5 -p "inert_oob_dropped_" &&
+    for f in precision-recall-summary.tsv precision-recall.tsv phase-blocks.tsv
+    phasing-summary.tsv switchflips.tsv genotype-errors.tsv query.tsv truth.tsv;
+    do diff "inert_oob_retained_$f" "inert_oob_dropped_$f" || exit 1; done'
+  exit_code: 0
+
 # --- one-sided contigs: a contig called by only one callset (synthetic 2-contig reference) ---
 # Both scenarios share one pair of VCFs, swapped between the query and truth argument slots, so
 # each direction of "contig present in one callset only" is covered without duplicate fixtures.

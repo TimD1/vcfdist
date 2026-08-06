@@ -1,0 +1,11 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total read depth">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency of each ALT">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=SDP,Number=1,Type=Integer,Description="Sample read depth">
+##contig=<ID=sc1,length=400>
+##contig=<ID=sc2,length=100>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	QUERY
+sc1	200	rs200	A	G	60	PASS	DP=32;AF=0.5	GT:SDP	1|1:31
+sc1	250	rs250	A	G,ATTTTTTTTTT	60	PASS	DP=33;AF=0.5,0.4	GT:SDP	1|2:32

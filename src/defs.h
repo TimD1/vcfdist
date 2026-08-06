@@ -161,7 +161,11 @@ constexpr std::size_t GTPARSE_SLOTS = 9; ///< Slots needed by a gtparse_t-keyed 
  */
 #define SIDELINE_FAILED_FILTER 0 ///< Record's FILTER holds none of the filters --filter selected
 #define SIDELINE_LOW_QUAL      1 ///< Record's QUAL is below --min-qual
-#define SIDELINES              2 ///< Total number of retention reasons
+#define SIDELINE_TOO_LARGE     2 ///< Allele is longer than --largest-variant
+#define SIDELINE_BED_OUTSIDE   3 ///< Allele falls outside every --bed region
+#define SIDELINE_BED_BORDER    4 ///< Allele straddles the edge of a --bed region
+#define SIDELINE_BED_OFF_CTG   5 ///< Allele's contig is absent from the --bed file
+#define SIDELINES              6 ///< Total number of retention reasons
 #define SIDELINE_ALL_HAPS     -1 ///< Haplotype key of a reason that applies to the whole record
 /** @} */
 

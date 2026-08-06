@@ -1518,6 +1518,7 @@ TEST(WriteSummaryVcf, PerAlleleFieldsAreDeclaredUnbounded) {
 /* write_summary_vcf(): preserved source fields ***************************************************/
 
 const int ID_COL = 2;     ///< 0-based column of ID within a summary VCF record
+const int ALT_COL = 4;    ///< 0-based column of ALT within a summary VCF record
 const int QUAL_COL = 5;   ///< 0-based column of QUAL within a summary VCF record
 const int FILTER_COL = 6; ///< 0-based column of FILTER within a summary VCF record
 const int INFO_COL = 7;   ///< 0-based column of INFO within a summary VCF record
@@ -1810,6 +1811,93 @@ TEST(WriteSummaryVcf, HeaderDeclaresEveryRetentionReason) {
     for (const std::string & tag : sideline_strs)
         EXPECT_NE(std::string::npos, vcf.find("##FILTER=<ID=" + tag + ",Description=\"")) << tag;
     EXPECT_NE(std::string::npos, vcf.find("N for a call that was not assessed")) << vcf;
+}
+
+// Each reason writes a tag of its own, so a user reading the output can tell which check excluded
+// the record; two reasons sharing a tag would make the three BED conditions indistinguishable.
+TEST(WriteSummaryVcf, EachRetentionReasonWritesItsOwnTag) {
+    GlobalsGuard guard;
+    for (uint8_t reason = 0; reason < SIDELINES; reason++) {
+        TempDir dir;
+        std::vector<std::string> recs = records_at(
+                sideline_vcf(dir, nullptr, make_sideline({{SPACING, reason}})), SPACING + 1);
+        ASSERT_EQ(size_t(1), recs.size()) << int(reason);
+        EXPECT_EQ(sideline_strs[reason], split(recs[0], '\t').at(FILTER_COL)) << int(reason);
+    }
+}
+
+/**
+ * @brief Runs the pipeline over one query variant plus retained records on a second contig.
+ * @param[in] dir Temporary directory receiving the pipeline's output
+ * @param[in] off Retained query records of a contig the evaluated walk does not cover
+ * @return The summary VCF the writer produced
+ */
+std::string off_contig_vcf(const TempDir & dir, std::shared_ptr<ctgSideline> off) {
+    pipeline_result result = run_pipeline(dir,
+            make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF), nullptr, CTG_LENGTH,
+            make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+    std::unordered_map< std::string, std::shared_ptr<ctgSideline> > qmap;
+    qmap[off->ctg] = off;
+    result.data->callset_sidelined = {qmap,
+            std::unordered_map< std::string, std::shared_ptr<ctgSideline> >()};
+    return summary_vcf(dir, *result.data);
+}
+
+// A contig absent from the BED file is dropped before evaluation, so the evaluated walk never
+// reaches it, yet its records are retained and still belong in the output. They are written after
+// the evaluated contigs, and the contig is declared in the same order: a record on an undeclared
+// contig is not a valid VCF, and a header ordering the contigs otherwise would unsort the file.
+TEST(WriteSummaryVcf, RetainedRecordsOnAnUncoveredContigAreStillWritten) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgSideline> off(new ctgSideline("chr9", 3, 250));
+    off->add(0, SIDELINE_ALL_HAPS, 40, "T", "C", "1|1", SIDELINE_BED_OFF_CTG);
+    std::string vcf = off_contig_vcf(dir, off);
+
+    EXPECT_NE(std::string::npos, vcf.find("##contig=<ID=chr9,length=250>")) << vcf;
+    EXPECT_LT(vcf.find("##contig=<ID=" + CTG + ","), vcf.find("##contig=<ID=chr9,")) << vcf;
+
+    std::string record;
+    std::istringstream lines(vcf);
+    std::string line;
+    while (std::getline(lines, line)) if (line.rfind("chr9\t", 0) == 0) record = line;
+    ASSERT_FALSE(record.empty()) << vcf;
+    std::vector<std::string> cols = split(record, '\t');
+    EXPECT_EQ("41", cols.at(1));
+    EXPECT_EQ("VCFDIST_BED_OFF_CTG", cols.at(FILTER_COL));
+    EXPECT_EQ("N", split(cols.at(QUERY_COL), ':').at(FMT_BD));
+}
+
+// Only a contig that retained something is declared, since a container exists for every contig of
+// every input and declaring them all would add contigs the run never had a record on.
+TEST(WriteSummaryVcf, AnUncoveredContigRetainingNothingIsNotDeclared) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = off_contig_vcf(dir, std::shared_ptr<ctgSideline>(
+            new ctgSideline("chr9", 3, 250)));
+    EXPECT_EQ(std::string::npos, vcf.find("##contig=<ID=chr9,")) << vcf;
+}
+
+// A per-allele reason can exclude one haplotype of a record while the other stays evaluated, so
+// both land at the record's position. The evaluated record is written first: a retained one
+// belongs to no supercluster, so it has no place within the evaluated ordering of a position. It
+// carries the whole ALT list and genotype of the record it came from, neither having been split.
+TEST(WriteSummaryVcf, PartiallyRetainedRecordIsWrittenBesideItsEvaluatedAllele) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgSideline> side(new ctgSideline(CTG));
+    side->add(0, int(HAP2), SPACING, "A", "C,CCCCCCCC", "1|2", SIDELINE_TOO_LARGE);
+    std::vector<std::string> recs = records_at(
+            sideline_vcf(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF), side),
+            SPACING + 1);
+
+    ASSERT_EQ(size_t(2), recs.size());
+    EXPECT_EQ("PASS", split(recs[0], '\t').at(FILTER_COL));
+    EXPECT_EQ("C", split(recs[0], '\t').at(ALT_COL));
+    EXPECT_EQ("VCFDIST_TOO_LARGE", split(recs[1], '\t').at(FILTER_COL));
+    EXPECT_EQ("C,CCCCCCCC", split(recs[1], '\t').at(ALT_COL));
+    EXPECT_EQ("1|2", split(split(recs[1], '\t').at(QUERY_COL), ':').at(FMT_GT));
+    EXPECT_EQ("N", split(split(recs[1], '\t').at(QUERY_COL), ':').at(FMT_BD));
 }
 
 } // namespace

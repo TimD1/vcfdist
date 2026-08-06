@@ -17,13 +17,14 @@ look for them, so a test run leaves this directory untouched.
 - `synthetic.bed` — `sc1  0  400`, the whole of `sc1`. Used by every single-contig scenario, which
   therefore never sees `sc2`.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
+- `sideline_oob.bed` — `sc1  100  300` only, so `sc1` is covered in part and `sc2` not at all.
 
 Every variant `REF` allele below matches the reference at its 1-based position, and every evaluated
-variant is homozygous (`1/1`, or `1|1` in `record_shapes`, `preserved_fields`, and `sideline`)
-except in the `contig_start_snp` and `contig_end_snp` scenarios, which are phased heterozygous
-(`1|0`), and the one het-alt call that `record_shapes` and `preserved_fields` each add. Summary
-counts are therefore per-haplotype (doubled, except in those heterozygous scenarios) and are listed
-as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
+variant is homozygous (`1/1`, or `1|1` in `record_shapes`, `preserved_fields`, `sideline`, and
+`sideline_oob`) except in the `contig_start_snp` and `contig_end_snp` scenarios, which are phased
+heterozygous (`1|0`), and the one het-alt call that `record_shapes`, `preserved_fields`, and
+`sideline_oob` each add. Summary counts are therefore per-haplotype (doubled, except in those
+heterozygous scenarios) and are listed as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
 `*precision-recall-summary.tsv`.
 
 ## Scenarios
@@ -122,6 +123,31 @@ is the one its allele carries. SNP 2/2/0/0: retaining them adds no TP, FP, or FN
 
 The second scenario runs both query files and diffs every analysis output, which pins that
 retention is output-only.
+
+### sideline_oob — retention reasons decided per allele
+
+Run with `-b sideline_oob.bed -l 5`, which covers `sc1:100-300` and nothing else, so one VCF
+reaches all three BED conditions plus the size limit. Every one of these is decided after the
+genotype is read, so it can exclude one allele of a record and leave the other evaluated:
+
+- `sideline_oob_query.vcf` — hom SNP 50 T>C (`rs50`), before the first region; hom 10 bp insertion
+  150 (`rs150`), inside the region but longer than `-l 5`; hom SNP 200 A>G (`rs200`), evaluated;
+  het-alt 250 (`rs250`, `1|2`) whose first allele is an evaluated SNP and whose second is a 10 bp
+  insertion; hom 5 bp deletion 298 (`rs298`), running from inside the region out past its end; hom
+  SNP `sc2`:50 T>C (`rs50sc2`), on a contig the BED never mentions.
+- `sideline_oob_query_prefiltered.vcf` — the same file with the four wholly unevaluated records
+  removed, keeping `rs200` and `rs250`, whose evaluated allele both runs must agree on.
+- `sideline_oob_truth.vcf` — SNP 200 A>G only.
+
+The five records land four distinct tags: `VCFDIST_BED_OUTSIDE`, `VCFDIST_TOO_LARGE`,
+`VCFDIST_BED_BORDER`, and `VCFDIST_BED_OFF_CTG`. `rs250` is written twice, once as the record its
+evaluated allele produces and once as the retained record, which keeps the whole `ALT` list and
+`GT` the input declared. `sc2` is dropped from the evaluated contigs for being absent from the BED,
+so its record is written after every evaluated contig and its `##contig` line follows theirs. SNP
+2/2/0/1: the FP is the evaluated allele of `rs250`, which the truth does not call.
+
+The second scenario runs both query files and diffs every analysis output, which pins that these
+reasons are output-only as well, the partially retained record included.
 
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 

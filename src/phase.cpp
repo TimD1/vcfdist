@@ -15,6 +15,89 @@
 
 /**************************************************************************************************/
 
+/** @brief Retained records of one contig, indexed by callset (nullptr = that callset retained none). */
+typedef std::vector< std::shared_ptr<ctgSideline> > ctg_sidelines;
+
+/** @brief Retained records of every contig, indexed by callset then contig. */
+typedef EnumArray<callset_t, std::unordered_map< std::string, std::shared_ptr<ctgSideline> >,
+        CALLSET_SLOTS> all_sidelines;
+
+/**
+ * @brief Returns each callset's retained records for one contig, nullptr where it retained none.
+ * @param[in] all Retained records of every contig, by callset
+ * @param[in] ctg Contig to look up
+ * @return One entry per callset, in callset order
+ */
+static ctg_sidelines sidelines_of(const all_sidelines & all, const std::string & ctg) {
+    ctg_sidelines side(CALLSETS, nullptr);
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+        const auto found = all[c].find(ctg);
+        if (found != all[c].end()) side[idx(c)] = found->second;
+    }
+    return side;
+}
+
+/**
+ * @brief Writes the retained records of one contig that begin before a position, in position order.
+ *
+ * The query's records come first where the two callsets tie. A tie against an evaluated variant is
+ * resolved the other way, by the caller passing that variant's position as the limit: a retained
+ * record belongs to no supercluster, so it has no place within the evaluated ordering of a position.
+ * @param[in] out_fp Open file pointer to output VCF
+ * @param[in] ctg Contig name
+ * @param[in] side Retained records of this contig, by callset
+ * @param[in,out] side_ptrs Index of each callset's next unwritten record, advanced as records write
+ * @param[in] limit Position (0-based) at or past which records are left for a later call
+ */
+static void write_sidelined(FILE* out_fp, const std::string & ctg, const ctg_sidelines & side,
+        std::vector<int> & side_ptrs, int limit) {
+    while (true) {
+        int next = -1;
+        int next_pos = limit;
+        for (int c = 0; c < CALLSETS; c++) {
+            if (side[c] == nullptr || side_ptrs[c] >= side[c]->n) continue;
+            if (side[c]->poss[side_ptrs[c]] < next_pos) {
+                next_pos = side[c]->poss[side_ptrs[c]];
+                next = c;
+            }
+        }
+        if (next < 0) return;
+        side[next]->print_var(out_fp, ctg, side_ptrs[next], callset_t(next));
+        side_ptrs[next]++;
+    }
+}
+
+/**
+ * @brief Returns the contigs holding retained records but no evaluated ones, in input header order.
+ *
+ * A contig the BED file never mentions is dropped from the evaluated contig list before any
+ * analysis runs, so the walk over that list never reaches it, yet its records are retained and
+ * still belong in the output. One container per such contig is returned, the query's where both
+ * callsets retained records on it, since only the contig's name and length are read from it.
+ * @param[in] all Retained records of every contig, by callset
+ * @param[in] evaluated Contigs the evaluated walk already covers
+ * @return One container per uncovered contig holding records, ordered by input header ordinal
+ */
+static ctg_sidelines retained_only_contigs(const all_sidelines & all,
+        const std::vector<std::string> & evaluated) {
+    ctg_sidelines found;
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+        for (const auto & [ctg, side] : all[c]) {
+            if (side->n == 0) continue;
+            if (std::find(evaluated.begin(), evaluated.end(), ctg) != evaluated.end()) continue;
+            bool seen = false;
+            for (const auto & other : found) seen = seen || other->ctg == ctg;
+            if (!seen) found.push_back(side);
+        }
+    }
+    // the map they were collected from is unordered, so the sort is what makes the output stable
+    std::sort(found.begin(), found.end(), [](const std::shared_ptr<ctgSideline> & a,
+            const std::shared_ptr<ctgSideline> & b) {
+        return (a->rid != b->rid) ? a->rid < b->rid : a->ctg < b->ctg;
+    });
+    return found;
+}
+
 /**
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
@@ -37,6 +120,12 @@
  *       merged in by position rather than walked alongside them. It was excluded before any
  *       comparison ran, so it is never matched: one sample carries its call, reporting BD=N and
  *       nothing else, and the other is entirely missing
+ * @note A reason decided per allele can retain one haplotype of a record while the other is
+ *       evaluated, in which case the record appears twice: once normalized to the allele that was
+ *       evaluated, and once whole, since nothing split the retained one
+ * @note A contig absent from the BED file is dropped from the evaluated contig list before any
+ *       analysis runs, so its retained records are declared and written after every evaluated
+ *       contig rather than in the walk over that list
  * @note The input FILTER is preserved verbatim, on evaluated records included. A retained record
  *       adds the VCFDIST_-prefixed tag naming why it was not evaluated, replacing a lone PASS.
  *       A GA4GH consumer reads a non-PASS FILTER on an evaluated record as a filtered call and
@@ -64,6 +153,15 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     for (size_t i = 0; i < this->contigs.size(); i++) {
         fprintf(out_vcf, "##contig=<ID=%s,length=%d>\n",
                 this->contigs[i].data(), this->lengths[i]);
+    }
+
+    // A contig absent from the BED file is dropped before evaluation, but its records are retained
+    // and written below, so it is declared here: a record on an undeclared contig is not valid VCF.
+    // These follow the evaluated contigs in the header because their records follow in the body.
+    const ctg_sidelines retained_only =
+            retained_only_contigs(this->callset_sidelined, this->contigs);
+    for (const std::shared_ptr<ctgSideline> & side : retained_only) {
+        fprintf(out_vcf, "##contig=<ID=%s,length=%d>\n", side->ctg.data(), side->length);
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
 
@@ -122,34 +220,9 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = ctg_pbs->ctg_superclusters->callset_vars[TRUTH];
 
-        // the retained records of each callset, absent on a contig that retained none
-        std::vector< std::shared_ptr<ctgSideline> > side(CALLSETS, nullptr);
-        for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
-            const auto found = this->callset_sidelined[c].find(ctg);
-            if (found != this->callset_sidelined[c].end()) side[idx(c)] = found->second;
-        }
+        // retained records are interleaved into the evaluated ones by position, not appended
+        const ctg_sidelines side = sidelines_of(this->callset_sidelined, ctg);
         std::vector<int> side_ptrs = std::vector<int>(CALLSETS, 0);
-
-        // Retained records are interleaved into the evaluated ones by position, the query's first
-        // where the two callsets tie. A tie against an evaluated variant is resolved the other way,
-        // by emitting the evaluated record first, since a retained one belongs to no supercluster
-        // and so has no place within the evaluated ordering of a position.
-        auto write_sidelined = [&](int limit) {
-            while (true) {
-                int next = -1;
-                int next_pos = limit;
-                for (int c = 0; c < CALLSETS; c++) {
-                    if (side[c] == nullptr || side_ptrs[c] >= side[c]->n) continue;
-                    if (side[c]->poss[side_ptrs[c]] < next_pos) {
-                        next_pos = side[c]->poss[side_ptrs[c]];
-                        next = c;
-                    }
-                }
-                if (next < 0) return;
-                side[next]->print_var(out_vcf, ctg, side_ptrs[next], callset_t(next));
-                side_ptrs[next]++;
-            }
-        };
 
         // flip/swap state comes from the query; these defaults hold on a contig it never calls on
         int phase_block = 0;
@@ -173,7 +246,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 next[c] = (poss[c] == pos);
             }
-            write_sidelined(pos);
+            write_sidelined(out_vcf, ctg, side, side_ptrs, pos);
 
             // update phasing
             if (ptrs[QUERY] < qvars->n) {
@@ -254,7 +327,15 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 ERROR("No variants are selected next.");
             }
         }
-        write_sidelined(std::numeric_limits<int>::max());
+        write_sidelined(out_vcf, ctg, side, side_ptrs, std::numeric_limits<int>::max());
+    }
+
+    // a contig absent from the BED file was dropped before evaluation, so the walk above never
+    // reached it; nothing of it was evaluated, leaving its retained records the whole of its output
+    for (const std::shared_ptr<ctgSideline> & only : retained_only) {
+        std::vector<int> side_ptrs = std::vector<int>(CALLSETS, 0);
+        write_sidelined(out_vcf, only->ctg, sidelines_of(this->callset_sidelined, only->ctg),
+                side_ptrs, std::numeric_limits<int>::max());
     }
     fclose(out_vcf);
 }

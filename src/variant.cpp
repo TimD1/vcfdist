@@ -921,9 +921,13 @@ static const std::string NOT_EVALUATED = missing_fixed_fields(2);
 /**
  * @brief Constructs a contig-specific container of retained variants.
  * @param[in] ctg Contig name
+ * @param[in] rid Contig's ordinal in its input VCF header
+ * @param[in] length Contig length its input VCF header declared
  */
-ctgSideline::ctgSideline(const std::string & ctg) {
+ctgSideline::ctgSideline(const std::string & ctg, int rid, int length) {
     this->ctg = ctg;
+    this->rid = rid;
+    this->length = length;
 }
 
 /**
@@ -946,6 +950,31 @@ void ctgSideline::add(int rec_idx, int hap, int pos, const std::string & ref,
     this->gts.push_back(gt);
     this->reasons.push_back(reason);
     this->n++;
+}
+
+/**
+ * @brief Retains one allele, widening the record's existing entry if it shares the reason.
+ *
+ * A record is written once however many of its alleles went unevaluated, so a reason excluding
+ * both alleles alike, as every one of them does on a homozygous or biallelic call, must not append
+ * a second copy of the same record. Entries arrive in record order, so the other allele's entry, if
+ * it has one, is among the trailing entries of this record.
+ * @param[in] rec_idx 0-based ordinal of the source record within its input VCF
+ * @param[in] hap Haplotype the excluded allele sits on
+ * @param[in] pos Source record start position (0-based)
+ * @param[in] ref REF column of the source record, verbatim
+ * @param[in] alt ALT column of the source record, verbatim
+ * @param[in] gt Sample's GT value, verbatim ("." if the record declared none)
+ * @param[in] reason SIDELINE_* reason the allele was not evaluated
+ */
+void ctgSideline::add_allele(int rec_idx, int hap, int pos, const std::string & ref,
+        const std::string & alt, const std::string & gt, uint8_t reason) {
+    for (int si = this->n - 1; si >= 0 && this->rec_idxs[si] == rec_idx; si--) {
+        if (this->reasons[si] != reason) continue;
+        this->haps[si] = SIDELINE_ALL_HAPS; // the reason took both alleles, so it took the record
+        return;
+    }
+    this->add(rec_idx, hap, pos, ref, alt, gt, reason);
 }
 
 /**
@@ -1115,14 +1144,15 @@ static std::string format_value(const std::string & fmt_col, const std::string &
  * @param[in,out] variant_data Container whose sideline container receives the record
  * @param[in] ctg Contig the record sits on
  * @param[in] rec_idx 0-based ordinal of the record within its input VCF
+ * @param[in] hap Haplotype the reason excluded, or SIDELINE_ALL_HAPS for the whole record
  * @param[in] pos Record start position (0-based)
  * @param[in] cols Columns of the rendered source record
  * @param[in] reason SIDELINE_* reason the record was not evaluated
  */
 static void sideline_record(std::shared_ptr<variantData> variant_data, const std::string & ctg,
-        int rec_idx, int pos, const std::vector<std::string> & cols, uint8_t reason) {
+        int rec_idx, int hap, int pos, const std::vector<std::string> & cols, uint8_t reason) {
     if (variant_data->src_recs == nullptr) return;
-    variant_data->sidelined[ctg]->add(rec_idx, SIDELINE_ALL_HAPS, pos, cols[REF_COL], cols[ALT_COL],
+    variant_data->sidelined[ctg]->add_allele(rec_idx, hap, pos, cols[REF_COL], cols[ALT_COL],
             format_value(cols[FORMAT_COL], cols[SAMPLE_COL], "GT"), reason);
 }
 
@@ -1132,9 +1162,11 @@ static void sideline_record(std::shared_ptr<variantData> variant_data, const std
  * @param[out] variant_data Container to populate with parsed variants
  * @param[in] reference Reference FASTA data for coordinate validation
  * @param[in] callset QUERY or TRUTH callset identifier
- * @note A record failing FILTER or falling below --min-qual is retained in the sideline container
- *       rather than discarded, so the summary VCF can report it as a call that was not evaluated.
- *       It never enters ctgVariants, so no analysis can reach it.
+ * @note A record failing FILTER or falling below --min-qual, and an allele exceeding
+ *       --largest-variant or falling outside the --bed regions, are retained in the sideline
+ *       container rather than discarded, so the summary VCF can report each as a call that was not
+ *       evaluated. Neither ever enters ctgVariants, so no analysis can reach them. The per-allele
+ *       reasons can retain one haplotype of a multi-allelic record while the other is evaluated.
  * @throws Various errors for malformed VCF or invalid reference coordinates
  * @throws WARNING Per-reason summary totals for records dropped or altered at parse time: no-call
  *         and half-call genotypes, unphased heterozygous genotypes, spanning deletions, reference
@@ -1300,8 +1332,10 @@ void parse_variants(const std::string & vcf_fn,
                 std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
         variant_data->variants[HAP1][ctgnames[i]]->src_recs = variant_data->src_recs;
         variant_data->variants[HAP2][ctgnames[i]]->src_recs = variant_data->src_recs;
+        // the header ordinal and length are kept with the retained records, since a contig the BED
+        // file never mentions is dropped from the evaluated contig list before the writer runs
         variant_data->sidelined[ctgnames[i]] =
-                std::shared_ptr<ctgSideline>(new ctgSideline(ctgnames[i]));
+                std::shared_ptr<ctgSideline>(new ctgSideline(ctgnames[i], i, ctglens[i]));
         variant_data->sidelined[ctgnames[i]]->src_recs = variant_data->src_recs;
     }
 
@@ -1375,7 +1409,8 @@ void parse_variants(const std::string & vcf_fn,
         // variant doesn't contain a passing filter
         if (!pass) {
             failed_filter_total++;
-            sideline_record(variant_data, ctg, n-1, rec->pos, cols, SIDELINE_FAILED_FILTER);
+            sideline_record(variant_data, ctg, n-1, SIDELINE_ALL_HAPS, rec->pos, cols,
+                    SIDELINE_FAILED_FILTER);
             continue;
         }
 
@@ -1385,7 +1420,8 @@ void parse_variants(const std::string & vcf_fn,
         pass = vq >= g.min_qual;
         pass_min_qual[pass]++;
         if (!pass) {
-            sideline_record(variant_data, ctg, n-1, rec->pos, cols, SIDELINE_LOW_QUAL);
+            sideline_record(variant_data, ctg, n-1, SIDELINE_ALL_HAPS, rec->pos, cols,
+                    SIDELINE_LOW_QUAL);
             continue;
         }
 
@@ -1583,23 +1619,31 @@ void parse_variants(const std::string & vcf_fn,
             // check that variant (original representation) is in region of interest
             bedloc_t loc = g.bed.contains(ctg, rec->pos, rec->pos + reflen, type);
             switch (loc) {
-                case BED_OUTSIDE: 
+                case BED_OUTSIDE:
                 case BED_OFFCTG:
                 case BED_BORDER:
                     nregions[loc]++;
-                    continue; // discard variant
-                case BED_INSIDE:
+                    // three tags rather than one, since straddling a region edge is a materially
+                    // different condition from sitting in no region at all, and a user debugging
+                    // their BED file's coverage has to be able to tell the two apart
+                    sideline_record(variant_data, ctg, n-1, int(hap), rec->pos, cols,
+                            loc == BED_BORDER ? SIDELINE_BED_BORDER :
+                            loc == BED_OFFCTG ? SIDELINE_BED_OFF_CTG : SIDELINE_BED_OUTSIDE);
+                    continue; // not evaluated
+                case BED_INSIDE: 
                     nregions[loc]++;
                     break;
             }
 
-            // skip variants that are too large
+            // do not evaluate variants that are too large
             if (int(ref.size()) > g.max_size || int(alt.size()) > g.max_size) {
                 if (g.verbosity > 1)
-                    WARN("Large variant of length %d in %s VCF at %s:%lld, skipping",
+                    WARN("Large variant of length %d in %s VCF at %s:%lld, not evaluated",
                         int(std::max(ref.size(), alt.size())),
                         callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
                 too_large_var_total++;
+                sideline_record(variant_data, ctg, n-1, int(hap), rec->pos, cols,
+                        SIDELINE_TOO_LARGE);
                 continue;
             }
 
@@ -1703,16 +1747,16 @@ void parse_variants(const std::string & vcf_fn,
             ref_call_total, callset_strs[callset].data());
 
     if (nregions[BED_OFFCTG] + nregions[BED_OUTSIDE] && print)
-        INFO("%d variants outside selected regions in %s VCF, skipped",
-                nregions[BED_OFFCTG] + nregions[BED_OUTSIDE], 
+        INFO("%d variants outside selected regions in %s VCF, not evaluated",
+                nregions[BED_OFFCTG] + nregions[BED_OUTSIDE],
                 callset_strs[callset].data());
 
     if (nregions[BED_BORDER] && print)
-        INFO("%d variants on border of selected regions in %s VCF, skipped",
+        INFO("%d variants on border of selected regions in %s VCF, not evaluated",
                 nregions[BED_BORDER], callset_strs[callset].data());
 
     if (too_large_var_total)
-        WARN("%d large (size > %d) variants in %s VCF, skipped", 
+        WARN("%d large (size > %d) variants in %s VCF, not evaluated",
                 too_large_var_total, g.max_size, callset_strs[callset].data());
 
     if (overlapping_var_total)

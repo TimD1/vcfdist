@@ -4,6 +4,7 @@
  */
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -1877,40 +1878,40 @@ TEST_F(ParseVariants, InsideRegionKept) {
     EXPECT_EQ(BED_INSIDE, hap_vars(r, HAP1)->locs[0]);
 }
 
-TEST_F(ParseVariants, OutsideRegionSkipped) {
+TEST_F(ParseVariants, OutsideRegionNotEvaluated) {
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{200, 300}});
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, "1 variants outside selected regions in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants outside selected regions in QUERY VCF, not evaluated"));
 }
 
-// A variant straddling a region boundary is only partly evaluable, so it is dropped as a border
+// A variant straddling a region boundary is only partly evaluable, so it is excluded as a border
 // case.
-TEST_F(ParseVariants, BorderRegionSkipped) {
+TEST_F(ParseVariants, BorderRegionNotEvaluated) {
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{100, 200}});
     ParseResult r = parse_records(dir, {record(100, "AGGG", "A", "1|0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, "1 variants on border of selected regions in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants on border of selected regions in QUERY VCF, not evaluated"));
 }
 
 // A contig absent from the BED was not selected at all, and is reported alongside outside variants.
-TEST_F(ParseVariants, OffContigSkipped) {
+TEST_F(ParseVariants, OffContigNotEvaluated) {
     g.bed_exists = true;
     g.bed = make_bed("chr2", {{50, 200}});
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, "1 variants outside selected regions in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 variants outside selected regions in QUERY VCF, not evaluated"));
 }
 
 // The size limit is applied to the trimmed alleles, so the anchor base does not count toward it.
-TEST_F(ParseVariants, TooLargeVariantSkipped) {
+TEST_F(ParseVariants, TooLargeVariantNotEvaluated) {
     g.max_size = 5;
     ParseResult r = parse_records(dir, {record(100, "A", "A" + std::string(10, 'G'), "1|0"),
                                         record(200, "A", "A" + std::string(5, 'G'), "1|0")});
     EXPECT_EQ(1, total_kept(r));
-    EXPECT_TRUE(logged(r, "1 large (size > 5) variants in QUERY VCF, skipped"));
+    EXPECT_TRUE(logged(r, "1 large (size > 5) variants in QUERY VCF, not evaluated"));
 }
 
 // Overlapping variants are still dropped at parse time, with their counter and warning intact.
@@ -2442,13 +2443,166 @@ TEST_F(ParseVariants, EvaluatedVariantsAreNotRetained) {
     EXPECT_EQ(1, total_kept(r));
 }
 
-// A record dropped for any other reason is discarded outright, since this step wires up only the
-// two that precede the genotype parse.
+// A record dropped for a reason no tag names yet is discarded outright: an unphased heterozygous
+// genotype is one, and every drop between it and the BED check is another.
 TEST_F(ParseVariants, OtherDropReasonsAreNotYetRetained) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "0/1")});
     ASSERT_NE(nullptr, sidelined(r));
     EXPECT_EQ(0, sidelined(r)->n);
     EXPECT_EQ(0, total_kept(r));
+}
+
+// The overlap check is the last one an allele passes through, and no tag names it, so an allele
+// dropped there is discarded rather than retained.
+TEST_F(ParseVariants, OverlappingVariantsAreNotYetRetained) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
+                                        record(100, "A", "T", "1|0")});
+    ASSERT_NE(nullptr, sidelined(r));
+    EXPECT_EQ(0, sidelined(r)->n);
+    EXPECT_EQ(1, total_kept(r));
+}
+
+/* parse_variants(): per-allele retention reasons **************************************************/
+
+/** @brief Header declaring two contigs, so a BED covering one leaves the other off-contig. */
+vcf_opts two_ctg_opts() {
+    return make_vcf_opts(QUERY, {"chr1", "chr2"}, 1000);
+}
+
+// An allele longer than --largest-variant is retained rather than discarded, tagged with the
+// reason that excluded it and keyed to the haplotype it sat on.
+TEST_F(ParseVariants, OversizedAlleleIsRetained) {
+    g.max_size = 4;
+    ParseResult r = parse_records(dir, {record(100, "A", "ACCCCCCC", "1|0")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_EQ(SIDELINE_TOO_LARGE, sidelined(r)->reasons[0]);
+    EXPECT_EQ(int(HAP1), sidelined(r)->haps[0]);
+    EXPECT_EQ("VCFDIST_TOO_LARGE", sidelined(r)->src_filter(0));
+}
+
+// A reason excluding both alleles alike excluded the record, which is written once however many of
+// its alleles went unevaluated, so the two haplotypes collapse into a single entry.
+TEST_F(ParseVariants, BothOversizedAllelesShareOneEntry) {
+    g.max_size = 4;
+    ParseResult r = parse_records(dir, {record(100, "A", "ACCCCCCC", "1|1")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(SIDELINE_ALL_HAPS, sidelined(r)->haps[0]);
+    EXPECT_EQ(SIDELINE_TOO_LARGE, sidelined(r)->reasons[0]);
+}
+
+// An allele in no BED region at all is retained, tagged apart from the two other BED reasons.
+TEST_F(ParseVariants, AlleleOutsideEveryRegionIsRetained) {
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{200, 300}});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_EQ(SIDELINE_BED_OUTSIDE, sidelined(r)->reasons[0]);
+    EXPECT_EQ("VCFDIST_BED_OUTSIDE", sidelined(r)->src_filter(0));
+}
+
+// An allele straddling a region edge is a materially different condition from one in no region,
+// so it carries its own tag: the region covers part of the call but not all of it.
+TEST_F(ParseVariants, AlleleStraddlingARegionEdgeIsRetained) {
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{200, 300}});
+    ParseResult r = parse_records(dir, {record(295, "AAAAAAAAAA", "A", "1|0")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_EQ(SIDELINE_BED_BORDER, sidelined(r)->reasons[0]);
+    EXPECT_EQ("VCFDIST_BED_BORDER", sidelined(r)->src_filter(0));
+}
+
+// A contig the BED file never mentions is not the same as a contig it covers only in part, so an
+// allele on one carries its own tag: the BED file, not the call, is what is incomplete.
+TEST_F(ParseVariants, AlleleOnAnUncoveredContigIsRetained) {
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 1000}});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0", "chr2")}, two_ctg_opts());
+    ASSERT_NE(nullptr, sidelined(r, "chr2"));
+    ASSERT_EQ(1, sidelined(r, "chr2")->n);
+    EXPECT_EQ(0, total_kept(r, "chr2"));
+    EXPECT_EQ(SIDELINE_BED_OFF_CTG, sidelined(r, "chr2")->reasons[0]);
+    EXPECT_EQ("VCFDIST_BED_OFF_CTG", sidelined(r, "chr2")->src_filter(0));
+}
+
+// A user debugging their BED file's coverage has to be able to tell the three conditions apart, so
+// no two of them may resolve to the same tag.
+TEST_F(ParseVariants, TheThreeBedReasonsAreTaggedDistinctly) {
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{200, 300}});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
+                                        record(295, "AAAAAAAAAA", "A", "1|0"),
+                                        record(100, "A", "G", "1|0", "chr2")}, two_ctg_opts());
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_NE(nullptr, sidelined(r, "chr2"));
+    ASSERT_EQ(2, sidelined(r)->n);
+    ASSERT_EQ(1, sidelined(r, "chr2")->n);
+    std::set<std::string> tags = {sidelined(r)->src_filter(0), sidelined(r)->src_filter(1),
+            sidelined(r, "chr2")->src_filter(0)};
+    EXPECT_EQ(std::set<std::string>({"VCFDIST_BED_OUTSIDE", "VCFDIST_BED_BORDER",
+            "VCFDIST_BED_OFF_CTG"}), tags);
+}
+
+// The size test reads the allele the haplotype resolves to, so on a multi-allelic record it can
+// exclude one haplotype and leave the other evaluated.
+TEST_F(ParseVariants, OversizedAlleleOfAMultiallelicRecordIsRetainedAlone) {
+    g.max_size = 4;
+    ParseResult r = parse_records(dir, {record(100, "A", "G,ACCCCCCC", "1|2")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(1, kept_on_hap(r, HAP1));
+    EXPECT_EQ(0, kept_on_hap(r, HAP2));
+    EXPECT_EQ(int(HAP2), sidelined(r)->haps[0]);
+    EXPECT_EQ(SIDELINE_TOO_LARGE, sidelined(r)->reasons[0]);
+}
+
+// bedData::contains reads the record's own POS and REF length, which no allele varies, so the only
+// BED result an allele can change is an insertion's: one exactly at a region end is on the border.
+TEST_F(ParseVariants, InsertionAtARegionEndIsRetainedAlone) {
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{200, 300}});
+    ParseResult r = parse_records(dir, {record(300, "A", "G,AC", "1|2")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(1, kept_on_hap(r, HAP1));
+    EXPECT_EQ(0, kept_on_hap(r, HAP2));
+    EXPECT_EQ(int(HAP2), sidelined(r)->haps[0]);
+    EXPECT_EQ(SIDELINE_BED_BORDER, sidelined(r)->reasons[0]);
+}
+
+// Entries are keyed by reason as well as by record, since collapsing two haplotypes excluded for
+// different reasons into one entry would drop whichever reason lost the race.
+TEST_F(ParseVariants, AllelesExcludedForDifferentReasonsAreRetainedSeparately) {
+    g.max_size = 4;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{200, 300}});
+    ParseResult r = parse_records(dir, {record(300, "A", "AC,CCCCCCCC", "1|2")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(2, sidelined(r)->n);
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_EQ(int(HAP1), sidelined(r)->haps[0]);
+    EXPECT_EQ(SIDELINE_BED_BORDER, sidelined(r)->reasons[0]);
+    EXPECT_EQ(int(HAP2), sidelined(r)->haps[1]);
+    EXPECT_EQ(SIDELINE_TOO_LARGE, sidelined(r)->reasons[1]);
+}
+
+// A retained allele was never normalized or split, so its record's site columns are written whole,
+// with the ALT list and genotype the input declared.
+TEST_F(ParseVariants, RetainedAlleleKeepsItsRecordsOwnColumns) {
+    g.max_size = 4;
+    ParseResult r = parse_records(dir, {record(100, "A", "G,ACCCCCCC", "1|2")});
+    ASSERT_NE(nullptr, sidelined(r));
+    ASSERT_EQ(1, sidelined(r)->n);
+    EXPECT_EQ(99, sidelined(r)->poss[0]);
+    EXPECT_EQ("A", sidelined(r)->refs[0]);
+    EXPECT_EQ("G,ACCCCCCC", sidelined(r)->alts[0]);
+    EXPECT_EQ("1|2", sidelined(r)->gts[0]);
 }
 
 } // namespace

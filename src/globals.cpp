@@ -35,11 +35,16 @@ EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs =
     {{"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"}};
 /** @brief FILTER IDs tagging why a retained variant was not evaluated, in SIDELINE_* order. */
 std::vector<std::string> sideline_strs =
-    {"VCFDIST_FAILED_FILTER", "VCFDIST_LOW_QUAL"};
+    {"VCFDIST_FAILED_FILTER", "VCFDIST_LOW_QUAL", "VCFDIST_TOO_LARGE", "VCFDIST_BED_OUTSIDE",
+     "VCFDIST_BED_BORDER", "VCFDIST_BED_OFF_CTG"};
 /** @brief Descriptions of each sideline_strs FILTER ID, for the summary VCF header. */
 std::vector<std::string> sideline_descs =
     {"Record's FILTER holds none of the filters --filter selected, so it was not evaluated",
-     "Record's QUAL is below --min-qual, so it was not evaluated"};
+     "Record's QUAL is below --min-qual, so it was not evaluated",
+     "An allele is longer than --largest-variant, so it was not evaluated",
+     "An allele falls outside every --bed region, so it was not evaluated",
+     "An allele straddles the edge of a --bed region, so it was not evaluated",
+     "An allele's contig is absent from the --bed file, so it was not evaluated"};
 /** @brief String representations of SWITCHTYPE_* switch/flip error type constants. */
 EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs =
     {{"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"}};
