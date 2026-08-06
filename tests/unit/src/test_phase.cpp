@@ -185,6 +185,28 @@ std::shared_ptr<ctgVariants> qvars_of(const pipeline_result & result) {
     return result.data->phase_blocks[CTG]->ctg_superclusters->callset_vars[QUERY];
 }
 
+/** @brief Returns the truth variants of the single contig every helper above builds. */
+std::shared_ptr<ctgVariants> tvars_of(const pipeline_result & result) {
+    return result.data->phase_blocks[CTG]->ctg_superclusters->callset_vars[TRUTH];
+}
+
+/**
+ * @brief Builds truth variants SPACING bases apart with the given genotypes.
+ *
+ * A truth variant's calc_gt is the query genotype recovered for it by alignment, which calc_gts
+ * carries in place of the reference call it is initialized to.
+ * @param[in] gts Original genotype and recovered query genotype of each variant, in order
+ * @return Truth variants with orig_gts and calc_gts set
+ */
+std::shared_ptr<ctgVariants> make_tvars(const std::vector< std::pair<uint8_t, uint8_t> > & gts) {
+    std::vector<var_desc> descs;
+    for (size_t i = 0; i < gts.size(); i++)
+        descs.push_back({int(i) * SPACING, 1, TYPE_SUB, "A", "C", gts[i].first, 60, 1});
+    std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG, descs);
+    for (size_t i = 0; i < gts.size(); i++) tvars->calc_gts[i] = gts[i].second;
+    return tvars;
+}
+
 /* correct_block_sizes ****************************************************************************/
 
 TEST(CorrectBlockSizes, NoVariants) {
@@ -694,6 +716,69 @@ TEST(FixAlleleCounts, ZeroToTwoTallied) {
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_ALT1_ALT1, GT_REF_REF, PHASE_ORIG));
     EXPECT_EQ(AC_ERR_0_TO_2, qvars_of(result)->ac_errtype[1]);
+}
+
+// The truth callset gets the same value the query callset does, read from the other side: a truth
+// record's own orig_gt supplies the truth allele count and its recovered calc_gt the query's.
+
+TEST(FixAlleleCounts, TruthHeterozygousFalseNegativeTallied) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // one truth allele that no query allele matched, so its recovered genotype stayed 0|0
+    pipeline_result result = run_pipeline(dir, nullptr,
+            make_tvars({{GT_REF_ALT1, GT_REF_REF}}));
+    EXPECT_EQ(AC_ERR_1_TO_0, tvars_of(result)->ac_errtype[0]);
+}
+
+TEST(FixAlleleCounts, TruthHomozygousFalseNegativeTallied) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, nullptr,
+            make_tvars({{GT_ALT1_ALT1, GT_REF_REF}}));
+    EXPECT_EQ(AC_ERR_2_TO_0, tvars_of(result)->ac_errtype[0]);
+}
+
+TEST(FixAlleleCounts, TruthGenotypeErrorTallied) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // one truth allele the query called on both haplotypes: the truth record reports it too
+    pipeline_result result = run_pipeline(dir, nullptr,
+            make_tvars({{GT_REF_ALT1, GT_ALT1_ALT1}}));
+    EXPECT_EQ(AC_ERR_1_TO_2, tvars_of(result)->ac_errtype[0]);
+}
+
+TEST(FixAlleleCounts, TruthHomozygousMatchTallied) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, nullptr,
+            make_tvars({{GT_ALT1_ALT1, GT_ALT1_ALT1}}));
+    EXPECT_EQ(AC_ERR_2_TO_2, tvars_of(result)->ac_errtype[0]);
+}
+
+TEST(FixAlleleCounts, NoTruthVariantLeftUnknown) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // a pure false negative, a genotype error, and a homozygous match all reach a defined value
+    pipeline_result result = run_pipeline(dir, nullptr,
+            make_tvars({{GT_REF_ALT1, GT_REF_REF},
+                        {GT_REF_ALT1, GT_ALT1_ALT1},
+                        {GT_ALT1_ALT1, GT_ALT1_ALT1}}));
+    for (int vi = 0; vi < tvars_of(result)->n; vi++)
+        EXPECT_NE(AC_UNKNOWN, tvars_of(result)->ac_errtype[vi]) << "truth variant " << vi;
+}
+
+TEST(FixAlleleCounts, TruthValuesStayOutOfTheGenotypeErrorSummary) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // the summary tallies the query loop plus the hand-rolled truth false-negative branches, so a
+    // truth record now reporting 0/1 -> 1/1 must not add a second count to that row
+    pipeline_result result = run_pipeline(dir, nullptr,
+            make_tvars({{GT_REF_ALT1, GT_ALT1_ALT1}}));
+    EXPECT_TRUE(logged(result.log, "0/1 -> 1/1: 0")) << result.log;
 }
 
 TEST(FixAlleleCounts, ForceOneOneKeepsGt) {

@@ -1588,6 +1588,58 @@ TEST(PrecRecall, MissedVariantIsFalseNegativeViaBypass) {
     EXPECT_EQ(0, f.tvars->ref_ed[HAP1][0]);
     EXPECT_EQ(0, f.tvars->query_ed[HAP1][0]);
     EXPECT_EQ(0, f.tvars->sync_group[HAP1][0]);
+
+    // no query allele reached it, so no query genotype is recovered onto it
+    EXPECT_EQ(GT_REF_REF, f.tvars->calc_gts[0]);
+}
+
+TEST(PrecRecall, TruePositiveRecoversQueryGenotypeOntoTruthVariant) {
+    GlobalsGuard guard;
+
+    // Mirror of the query side: a TP records the matched query variant's own call on the truth
+    // variant's calc_gt, so the truth record can report the query's allele count. The query calls
+    // this SNP on both haplotypes, so both are recovered.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->calc_gts[0]);
+}
+
+TEST(PrecRecall, TruePositiveRecoversOnlyTheHaplotypesTheQueryCalled) {
+    GlobalsGuard guard;
+
+    // The recovered genotype comes from the query's own orig_gt, not from which truth haplotype the
+    // alignment ran against, so a heterozygous query call recovers one allele and not two.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}});
+
+    align_and_label(f.graph, HAP1);
+
+    ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+    EXPECT_EQ(GT_ALT1_REF, f.tvars->calc_gts[0]);
+}
+
+TEST(PrecRecall, HomozygousTruthVariantIsNotRecoveredTwiceAcrossPasses) {
+    GlobalsGuard guard;
+
+    // evaluate_variants runs one graph per truth haplotype over the same containers, so a 1|1 truth
+    // variant is emitted in both passes. set_var_calcgt_on_hap errors on an already-set haplotype,
+    // so the second pass must not re-set what the first recovered.
+    GraphFixture f = build_fixture("ACGTACGT",
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}}, HAP1);
+
+    align_and_label(f.graph, HAP1);
+    align_and_label(make_graph(f.sc, f.ref, "chr1", HAP2), HAP2);
+
+    ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
+    ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP2][0]);
+    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->calc_gts[0]);
 }
 
 TEST(PrecRecall, ContigStartSubstitutionIsTruePositive) {

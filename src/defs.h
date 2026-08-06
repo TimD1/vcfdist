@@ -102,7 +102,12 @@ class idx4;
 /** @} */
 
 /** @defgroup ac_err_constants Allele count error type constants (AC_ERR_*)
- *  Encode transitions between original and calculated genotype allele counts.
+ *  A site's truth alternate allele count, then its query alternate allele count. The direction is
+ *  absolute, so the query and truth records of a matched site carry the same value; what differs is
+ *  which genotype supplies which count, since a record's orig_gt is its own callset's call and its
+ *  calc_gt is the other callset's genotype recovered by alignment. A callset's own allele count is
+ *  never zero, so a query record never reaches AC_ERR_1_TO_0 or AC_ERR_2_TO_0 and a truth record
+ *  never reaches AC_ERR_0_TO_1 or AC_ERR_0_TO_2.
  *  @{
  */
 #define AC_ERR_0_TO_1  0 ///< 0/0 -> 0/1: 1 QUERY_FP

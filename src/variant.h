@@ -56,7 +56,7 @@ struct var_fields {
     int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
     uint8_t ploidy = 0;           ///< variant ploidy from std::abs(ngt) (0 = unknown)
     int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
-    uint8_t calc_gt = GT_REF_REF; ///< calculated genotype, only set for query
+    uint8_t calc_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
     hap_fields hap[HAPS] = {};    ///< per-haplotype results, indexed by HAP1 and HAP2
 };
 
@@ -96,8 +96,8 @@ public:
     /** @brief Classifies variant as SNP, INDEL, or SV based on reference length and g.sv_threshold. */
     int get_vartype(int vi);
 
-    /** @brief Records allele count error type by comparing original and calculated genotypes. */
-    int set_allele_errtype(int vi);
+    /** @brief Records a variant's allele count error type from its original and calculated genotypes. */
+    int set_allele_errtype(int vi, bool query);
 
     /** @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt. */
     bool calcgt_is_swapped(int vi) const;
@@ -127,7 +127,7 @@ public:
     int nc = 0;                     ///< Total number of clusters (size of clusters vector is nc+1 with sentinel)
 
     // set during prec_recall_aln() (size (2, n), additional axis for haplotype)
-    std::vector<uint8_t> calc_gts;                ///< calculated genotype (0|1, 1|0, or 1|1), only set for query
+    std::vector<uint8_t> calc_gts;                ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
     std::vector< std::vector<uint8_t> > errtypes; ///< error type: TP, FP, FN
     std::vector< std::vector<int> > sync_group;   ///< group of variants that participate in credit
     std::vector< std::vector<float> > callq;      ///< min call quality in sync group (for truth, of associated call)
@@ -138,7 +138,7 @@ public:
     // set during phase() (size n)
     std::vector<int> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
     std::vector<int> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
-    std::vector<int> ac_errtype; ///< allele count error type (e.g. 0|1 -> 1|1)
+    std::vector<int> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
 };
 
 /**
