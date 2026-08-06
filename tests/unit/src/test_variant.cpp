@@ -2065,6 +2065,7 @@ vcf_opts retention_opts() {
         "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">"};
     opts.formats.push_back("##FORMAT=<ID=SDP,Number=1,Type=Integer,Description=\"Sample depth\">");
     opts.formats.push_back("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allele depth\">");
+    opts.formats.push_back("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Likelihoods\">");
     return opts;
 }
 
@@ -2081,6 +2082,13 @@ std::string retained_record(const std::string & info, const std::string & format
 
 /** @brief Returns the source records retained from a parse, or nullptr if none were. */
 std::shared_ptr<srcRecords> retained(const ParseResult & r) { return r.vars->src_recs; }
+
+/** @brief Returns the retained header line declaring a "<line type>/<ID>" key, or "" if absent. */
+std::string hdr_line(std::shared_ptr<srcRecords> src, const std::string & key) {
+    for (size_t i = 0; i < src->hdr_keys.size(); i++)
+        if (src->hdr_keys[i] == key) return src->hdr_lines[i];
+    return "";
+}
 
 TEST_F(ParseVariants, RetainsIdQualAndFilter) {
     vcf_record rec;
@@ -2102,21 +2110,29 @@ TEST_F(ParseVariants, RetainsAltIndependentInfoFields) {
     EXPECT_EQ("DP=30;SB=11,19;SOMATIC", retained(r)->infos[0]);
 }
 
-// An ALT-indexed value would be read against the emitted allele rather than the ALT it indexes.
-TEST_F(ParseVariants, DropsAltIndexedInfoField) {
+// An ALT-indexed value is subset against the ALT ordinal of the variant being written, which
+// belongs to the variant rather than to the record, so the record's copy is kept whole.
+TEST_F(ParseVariants, RetainsAltIndexedFieldsWhole) {
     ParseResult r = parse_records(dir,
-            {retained_record("DP=30;AF=0.5", "GT:PS", "1|0:1")}, retention_opts());
-    ASSERT_NE(nullptr, retained(r));
-    EXPECT_EQ("DP=30", retained(r)->infos[0]);
-    EXPECT_TRUE(logged(r, "INFO/AF"));
-    EXPECT_TRUE(logged(r, "1 ALT-indexed (Number=A/R/G) field(s) in QUERY VCF"));
-}
-
-TEST_F(ParseVariants, InfoOfOnlyAltIndexedFieldsBecomesMissing) {
-    ParseResult r = parse_records(dir, {retained_record("AF=0.5", "GT:PS", "1|0:1")},
+            {retained_record("DP=30;AF=0.5", "GT:PS:AD:PL", "1|0:1:1,28:255,60,0")},
             retention_opts());
     ASSERT_NE(nullptr, retained(r));
-    EXPECT_EQ(".", retained(r)->infos[0]);
+    EXPECT_EQ("DP=30;AF=0.5", retained(r)->infos[0]);
+    EXPECT_EQ(":AD:PL", retained(r)->fmt_keys[0]);
+    EXPECT_EQ(":1,28:255,60,0", retained(r)->fmt_vals[0]);
+}
+
+// The writer subsets without a header to consult, so each ALT-indexed field's length class is read
+// once at parse time and carried alongside the columns.
+TEST_F(ParseVariants, RecordsTheLengthClassOfEachAltIndexedField) {
+    ParseResult r = parse_records(dir, {retained_record("DP=30", "GT:PS", "1|0:1")},
+            retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ(BCF_VL_A, retained(r)->info_lens.at("AF"));
+    EXPECT_EQ(BCF_VL_R, retained(r)->fmt_lens.at("AD"));
+    EXPECT_EQ(BCF_VL_G, retained(r)->fmt_lens.at("PL"));
+    EXPECT_EQ(size_t(1), retained(r)->info_lens.size()); // DP, SB, and SOMATIC are not ALT-indexed
+    EXPECT_EQ(size_t(2), retained(r)->fmt_lens.size());  // nor is SDP
 }
 
 TEST_F(ParseVariants, RetainsFormatKeysAndValues) {
@@ -2136,13 +2152,13 @@ TEST_F(ParseVariants, DropsFormatKeysTheWriterEmits) {
     EXPECT_EQ("", retained(r)->fmt_vals[0]);
 }
 
-TEST_F(ParseVariants, DropsAltIndexedFormatField) {
+// Preserved keys stay in the order the record declared them, ALT-indexed ones included.
+TEST_F(ParseVariants, RetainsFormatKeysInRecordOrder) {
     ParseResult r = parse_records(dir, {retained_record(".", "GT:PS:AD:SDP", "1|0:1:1,28:29")},
             retention_opts());
     ASSERT_NE(nullptr, retained(r));
-    EXPECT_EQ(":SDP", retained(r)->fmt_keys[0]);
-    EXPECT_EQ(":29", retained(r)->fmt_vals[0]);
-    EXPECT_TRUE(logged(r, "FORMAT/AD"));
+    EXPECT_EQ(":AD:SDP", retained(r)->fmt_keys[0]);
+    EXPECT_EQ(":1,28:29", retained(r)->fmt_vals[0]);
 }
 
 // Both entries a complex record splits into point at the one retained copy of its columns.
@@ -2181,17 +2197,37 @@ TEST_F(ParseVariants, DroppedRecordLeavesItsOrdinalEmpty) {
     EXPECT_EQ("rsKept", hap_vars(r, HAP1)->src_id(0));
 }
 
-// Fields the writer never emits are left undeclared, and PASS is declared by the writer itself.
+// Fields the writer emits itself are left undeclared, and PASS is declared by the writer too.
 TEST_F(ParseVariants, RetainsHeaderLinesOfPreservedFieldsOnly) {
     ParseResult r = parse_records(dir, {retained_record("DP=30", "GT:PS:SDP", "1|0:1:29")},
             retention_opts());
     ASSERT_NE(nullptr, retained(r));
     const std::vector<std::string> & keys = retained(r)->hdr_keys;
     EXPECT_EQ(std::vector<std::string>({"FILTER/LowConf", "INFO/DP", "INFO/SB", "INFO/SOMATIC",
-            "FORMAT/GQ", "FORMAT/SDP"}), keys);
+            "INFO/AF", "FORMAT/GQ", "FORMAT/SDP", "FORMAT/AD", "FORMAT/PL"}), keys);
     ASSERT_EQ(keys.size(), retained(r)->hdr_lines.size());
     EXPECT_EQ("##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
             retained(r)->hdr_lines[1]);
+}
+
+// Every record the writer emits is biallelic, so an ALT-indexed declaration already states the
+// cardinality that subsetting leaves behind: Number=A is one value, Number=R two, and Number=G the
+// record's own genotype count. Rewriting any of them to a literal would only be wrong at some
+// ploidy, so all three propagate verbatim.
+TEST_F(ParseVariants, PropagatesAltIndexedHeaderCardinalityVerbatim) {
+    ParseResult r = parse_records(dir, {retained_record("DP=30", "GT:PS", "1|0:1")},
+            retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ("##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">",
+            hdr_line(retained(r), "INFO/AF"));
+    EXPECT_EQ("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allele depth\">",
+            hdr_line(retained(r), "FORMAT/AD"));
+    EXPECT_EQ("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Likelihoods\">",
+            hdr_line(retained(r), "FORMAT/PL"));
+
+    // an ALT-independent declaration is propagated untouched too
+    EXPECT_EQ("##INFO=<ID=SB,Number=2,Type=Integer,Description=\"Strand counts\">",
+            hdr_line(retained(r), "INFO/SB"));
 }
 
 /* ctgVariants source column accessors ************************************************************/
@@ -2237,6 +2273,131 @@ TEST(SrcFields, ReadBackARetainedRecord) {
     EXPECT_EQ(":SDP", vars->src_fmt_keys(0));
     EXPECT_EQ(":29", vars->src_fmt_vals(0));
     EXPECT_EQ("", vars->src_recs->ids[0]); // the skipped ordinal stayed empty
+}
+
+/* ctgVariants ALT-indexed field subsetting *******************************************************/
+
+/**
+ * @brief Builds the two entries a het-alt (1|2) record is parsed into, sharing record ordinal 0.
+ *
+ * Both point at the same retained record but carry different ALT ordinals, which is exactly the
+ * case an ALT-indexed value must be subset for: the two entries take different elements.
+ * @param[in] ploidy Variant ploidy, which sets the shape of a Number=G value list
+ * @return Container holding the entries for ALT ordinals 1 and 2, in that order
+ */
+std::shared_ptr<ctgVariants> make_het_alt_vars(ploidy_t ploidy = PLOIDY_DIPLOID) {
+    std::vector<var_desc> descs;
+    for (int alt_idx = 1; alt_idx <= 2; alt_idx++) {
+        var_desc desc;
+        desc.pos = 100;
+        desc.rlen = 1;
+        desc.ref = "A";
+        desc.alt = alt_idx == 1 ? "C" : "G";
+        desc.rec_idx = 0;
+        desc.alt_idx = alt_idx;
+        desc.ploidy = ploidy;
+        descs.push_back(desc);
+    }
+    return make_ctgVariants("chr1", descs);
+}
+
+/**
+ * @brief Attaches a source store declaring AF as Number=A, AD as Number=R, and PL as Number=G.
+ * @param[in,out] vars Container whose variants are pointed at the retained record
+ * @param[in] info INFO column of the retained record
+ * @param[in] keys Preserved FORMAT keys, each prefixed with ':'
+ * @param[in] vals Preserved FORMAT values, each prefixed with ':'
+ */
+void attach_alt_indexed(std::shared_ptr<ctgVariants> vars, const std::string & info,
+        const std::string & keys, const std::string & vals) {
+    vars->src_recs = std::shared_ptr<srcRecords>(new srcRecords());
+    vars->src_recs->add(0, "rs1", "37", "PASS", info, keys, vals);
+    vars->src_recs->info_lens["AF"] = BCF_VL_A;
+    vars->src_recs->fmt_lens["AD"] = BCF_VL_R;
+    vars->src_recs->fmt_lens["PL"] = BCF_VL_G;
+}
+
+TEST(SubsetAltIndexed, NumberATakesTheEntrysOwnAltElement) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, "DP=30;AF=0.4,0.6;SOMATIC", "", "");
+    EXPECT_EQ("DP=30;AF=0.4;SOMATIC", vars->src_info(0));
+    EXPECT_EQ("DP=30;AF=0.6;SOMATIC", vars->src_info(1));
+}
+
+TEST(SubsetAltIndexed, NumberRKeepsTheReferenceAndTheEntrysAlt) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, ".", ":AD:SDP", ":0,15,16:31");
+    EXPECT_EQ(":0,15:31", vars->src_fmt_vals(0));
+    EXPECT_EQ(":0,16:31", vars->src_fmt_vals(1));
+}
+
+// Genotype g(j,k) with j <= k sits at index k(k+1)/2 + j, so the entries of the second ALT are 0,
+// 3, and 5 of a three-allele list rather than the leading three the first ALT takes.
+TEST(SubsetAltIndexed, NumberGKeepsTheGenotypesOfTheEntrysAlleles) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, ".", ":PL", ":255,60,0,44,11,7");
+    EXPECT_EQ(":255,60,0", vars->src_fmt_vals(0));
+    EXPECT_EQ(":255,44,7", vars->src_fmt_vals(1));
+}
+
+// A haploid genotype list holds one entry per allele rather than one per unordered pair, so the
+// diploid index arithmetic would read past its end.
+TEST(SubsetAltIndexed, HaploidNumberGKeepsOneEntryPerAllele) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars(PLOIDY_HAPLOID);
+    attach_alt_indexed(vars, ".", ":PL", ":255,60,7");
+    EXPECT_EQ(":255,60", vars->src_fmt_vals(0));
+    EXPECT_EQ(":255,7", vars->src_fmt_vals(1));
+}
+
+TEST(SubsetAltIndexed, AltIndependentFieldsArePassedThrough) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, "DP=30;SB=11,19;SOMATIC", ":SDP:SAC", ":31:14,17");
+    for (int i = 0; i < 2; i++) {
+        EXPECT_EQ("DP=30;SB=11,19;SOMATIC", vars->src_info(i));
+        EXPECT_EQ(":31:14,17", vars->src_fmt_vals(i));
+    }
+}
+
+// A list shorter than the ALT ordinal it is indexed by cannot be tied to the emitted allele.
+// FORMAT expresses that as a missing value, while INFO can only express it by omitting the field.
+TEST(SubsetAltIndexed, UnsubsettableValuesAreReportedMissing) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, "DP=30;AF=0.5", ":AD:SDP", ":1,28:31");
+    EXPECT_EQ("DP=30", vars->src_info(1));
+    EXPECT_EQ(":.:31", vars->src_fmt_vals(1));
+}
+
+TEST(SubsetAltIndexed, InfoOfOnlyAnUnsubsettableFieldBecomesMissing) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, "AF=0.5", "", "");
+    EXPECT_EQ("AF=0.5", vars->src_info(0));
+    EXPECT_EQ(".", vars->src_info(1));
+}
+
+// A variant built outside the VCF parser has no ALT ordinal to index the source list with.
+TEST(SubsetAltIndexed, UnknownAltOrdinalDropsTheField) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    vars->alt_idxs[0] = -1;
+    attach_alt_indexed(vars, "DP=30;AF=0.4,0.6", ":AD", ":0,15,16");
+    EXPECT_EQ("DP=30", vars->src_info(0));
+    EXPECT_EQ(":.", vars->src_fmt_vals(0));
+}
+
+// A source sample that stopped short of the key list supplied no value to subset.
+TEST(SubsetAltIndexed, MissingSourceValueStaysMissing) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_het_alt_vars();
+    attach_alt_indexed(vars, ".", ":AD:PL", ":.:.");
+    EXPECT_EQ(":.:.", vars->src_fmt_vals(0));
+    EXPECT_EQ(":.:.", vars->src_fmt_vals(1));
 }
 
 } // namespace

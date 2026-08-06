@@ -27,8 +27,10 @@
  *       record, which is the query wherever it calls and the truth only on a pure false negative.
  *       A matched record therefore drops the truth record's INFO and FORMAT, and the callset that
  *       does not own a record writes '.' for each appended FORMAT key
- * @note Number=A/R/G fields are omitted: their values index the source record's ALT list, while
- *       these records carry normalized, split alleles. parse_variants() names what it dropped
+ * @note Number=A/R/G values index the source record's ALT list, while these records carry
+ *       normalized, split alleles, so each is subset to the one allele its record emits. Every
+ *       record written here is biallelic, so the input's own declaration already states the
+ *       resulting cardinality and is propagated unchanged
  * @note A source record that parsing split into several entries yields several records here, each
  *       repeating that record's preserved columns, so summing a count-like preserved field over
  *       records double-counts the one source value. The header states this for the reader

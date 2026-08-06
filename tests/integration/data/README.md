@@ -93,8 +93,11 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
 - query: hom SNP 200 A>G (`rs200`, QUAL 31, `PASS`), hom CPX 210 `CAAGA`>`TT` (`rs210`, QUAL 32,
   `LowConf`), and a het-alt SNP 250 A>C,G called `1|2` (`rs250`, QUAL 33, `PASS`). Its header
   declares a `Number=1` (`INFO/DP`, `FORMAT/SDP`), a fixed `Number=2` (`INFO/SB`, `FORMAT/SAC`),
-  and a `Flag` (`INFO/SOMATIC`) field, all of which survive onto the output, plus `Number=A/R/G`
-  fields (`INFO/AF`, `FORMAT/AD`, `FORMAT/PL`) that do not.
+  and a `Flag` (`INFO/SOMATIC`) field, all of which pass through untouched, plus `Number=A/R/G`
+  fields (`INFO/AF`, `FORMAT/AD`, `FORMAT/PL`) whose values index the source ALT list and so are
+  subset to the one allele each output record carries. The het-alt at 250 carries distinct values
+  per ALT (`AF=0.4,0.6`, `AD=0,15,16`, `PL=255,60,0,44,11,7`) so that its two output records are
+  observably different rather than coincidentally equal.
 - truth: the same three calls, plus SNP 256 G>A (`tv256`) that the query misses, and an
   `INFO/TRUTHSET` field the query never declares.
 - default `-ct`: the three shared calls are TP and owned by the query, so they carry the query's

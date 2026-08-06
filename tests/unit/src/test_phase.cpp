@@ -1457,13 +1457,14 @@ TEST(WriteSummaryVcf, PerAlleleValuesAreInGenotypeAlleleOrder) {
     EXPECT_EQ("1,0.75", sample.at(FMT_BC));
 }
 
-// A het-alt (1|2) source record is parsed into two entries with different ALTs, and the
-// cross-haplotype merge only collapses entries whose position and alleles match exactly, so
-// nothing rejoins them. Pinned explicitly: this asymmetry against the homozygous case is
-// deliberate, since the two alleles need not even share a position once normalized.
-TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
-    GlobalsGuard guard;
-    TempDir dir;
+/**
+ * @brief Builds the two co-located entries a het-alt (1|2) source record is parsed into.
+ *
+ * Both entries share one record ordinal but carry different ALT ordinals, which is what an
+ * ALT-indexed source value has to be subset against.
+ * @return Query variants holding the entries for ALT ordinals 1 and 2, in that order
+ */
+std::shared_ptr<ctgVariants> make_het_alt_qvars() {
     std::vector<var_desc> descs;
     for (const std::string & alt : {"C", "G"}) {
         var_desc desc;
@@ -1473,6 +1474,7 @@ TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
         desc.alt = alt;
         desc.gt = alt == "C" ? GT_ALT_REF : GT_REF_ALT;
         desc.phase_set = 1;
+        desc.alt_idx = alt == "C" ? 1 : 2;
         desc.ploidy = PLOIDY_DIPLOID;
         descs.push_back(desc);
     }
@@ -1481,8 +1483,17 @@ TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
     qvars->matched_gts[1] = GT_REF_ALT;
     set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 0, 60, 1, 0, 1.0);
     set_hap_data(qvars, HAP2, 1, ERRTYPE_TP, 0, 60, 1, 0, 1.0);
+    return qvars;
+}
 
-    std::vector<std::string> recs = records_at(shape_vcf(dir, qvars), SPACING + 1);
+// A het-alt (1|2) source record is parsed into two entries with different ALTs, and the
+// cross-haplotype merge only collapses entries whose position and alleles match exactly, so
+// nothing rejoins them. Pinned explicitly: this asymmetry against the homozygous case is
+// deliberate, since the two alleles need not even share a position once normalized.
+TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::vector<std::string> recs = records_at(shape_vcf(dir, make_het_alt_qvars()), SPACING + 1);
     ASSERT_EQ(size_t(2), recs.size());
     EXPECT_EQ("C", split(recs[0], '\t').at(4));
     EXPECT_EQ("G", split(recs[1], '\t').at(4));
@@ -1670,6 +1681,44 @@ TEST(WriteSummaryVcf, MultiValuedFormatFieldStaysWithinItsSample) {
             SPACING + 1).at(0), '\t');
     EXPECT_EQ("12,17", split(cols.at(QUERY_COL), ':').back());
     EXPECT_EQ(".", split(cols.at(TRUTH_COL), ':').back());
+}
+
+// The two entries of a het-alt record share one retained copy of the source columns, so an
+// ALT-indexed value only becomes correct once it is subset: each output line must receive the
+// elements of its own ALT rather than the whole list the source record wrote.
+TEST(WriteSummaryVcf, HetAltEntriesReceiveDifferentAltIndexedValues) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars = make_het_alt_qvars();
+    std::shared_ptr<srcRecords> src = attach_src(qvars, "rs250", "DP=32;AF=0.4,0.6",
+            ":AD:PL", ":0,15,16:255,60,0,44,11,7");
+
+    // the writer re-types each value against the output header, so the ALT-indexed fields this
+    // test writes have to be declared there as well as recorded as ALT-indexed
+    src->hdr_keys.insert(src->hdr_keys.end(), {"INFO/AF", "FORMAT/AD", "FORMAT/PL"});
+    src->hdr_lines.insert(src->hdr_lines.end(), {
+            "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">",
+            "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allele depth\">",
+            "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Likelihoods\">"});
+    src->info_lens["AF"] = BCF_VL_A;
+    src->fmt_lens["AD"] = BCF_VL_R;
+    src->fmt_lens["PL"] = BCF_VL_G;
+
+    pipeline_result result = run_with_src(dir, qvars);
+    std::vector<std::string> recs = records_at(summary_vcf(dir, *result.data), SPACING + 1);
+    ASSERT_EQ(size_t(2), recs.size());
+    std::vector<std::string> first = split(recs[0], '\t');
+    std::vector<std::string> second = split(recs[1], '\t');
+    EXPECT_EQ("DP=32;AF=0.4", first.at(INFO_COL));
+    EXPECT_EQ("DP=32;AF=0.6", second.at(INFO_COL));
+
+    // AD and PL close out the sample column, in the order their keys were appended
+    std::vector<std::string> first_sample = split(first.at(QUERY_COL), ':');
+    std::vector<std::string> second_sample = split(second.at(QUERY_COL), ':');
+    EXPECT_EQ("0,15", first_sample.at(first_sample.size() - 2));
+    EXPECT_EQ("255,60,0", first_sample.back());
+    EXPECT_EQ("0,16", second_sample.at(second_sample.size() - 2));
+    EXPECT_EQ("255,44,7", second_sample.back());
 }
 
 // One FORMAT key list serves both samples, so the callset that did not supply the appended keys

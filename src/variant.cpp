@@ -59,60 +59,40 @@ static std::set<std::string> fixed_fmt_key_set() {
 static const std::set<std::string> FIXED_FMT_KEY_SET = fixed_fmt_key_set();
 
 /**
- * @brief Reports whether a field's declared Number ties its values to the record's ALT list.
- *
- * Number=A, R, and G fields carry one value per original ALT allele, while the summary VCF emits
- * normalized, split alleles, so passing such a value through verbatim would silently mislabel it.
+ * @brief Returns a field's declared length class, or BCF_VL_FIXED when it is undeclared.
  * @param[in] hdr Header of the VCF the field was declared in
  * @param[in] line_type Header line type the field is declared on (BCF_HL_INFO or BCF_HL_FMT)
  * @param[in] key Field name
- * @return True if the field's Number is A, R, or G
+ * @return The htslib length class (BCF_VL_FIXED, BCF_VL_VAR, BCF_VL_A, BCF_VL_R, or BCF_VL_G)
  */
-static bool alt_indexed(const bcf_hdr_t * hdr, int line_type, const std::string & key) {
+static int length_class(const bcf_hdr_t * hdr, int line_type, const std::string & key) {
     int id = bcf_hdr_id2int(hdr, BCF_DT_ID, key.data());
-    if (id < 0 || !bcf_hdr_idinfo_exists(hdr, line_type, id)) return false;
-    int number = bcf_hdr_id2length(hdr, line_type, id);
-    return number == BCF_VL_A || number == BCF_VL_R || number == BCF_VL_G;
+    if (id < 0 || !bcf_hdr_idinfo_exists(hdr, line_type, id)) return BCF_VL_FIXED;
+    return bcf_hdr_id2length(hdr, line_type, id);
 }
 
 /**
- * @brief Returns an INFO column with its ALT-indexed fields removed.
- * @param[in] hdr Header of the VCF the record was read from
- * @param[in] info INFO column of one record
- * @param[in,out] dropped Names of the removed fields, accumulated across records
- * @return The remaining fields, or "." if none remain
+ * @brief Reports whether a length class ties a field's values to the record's ALT list.
+ * @param[in] len_class Length class from length_class()
+ * @return True if the field's Number is A, R, or G
  */
-static std::string keep_info(const bcf_hdr_t * hdr, const std::string & info,
-        std::set<std::string> & dropped) {
-    if (info == ".") return info;
-    std::string kept;
-    for (const std::string & field : split(info, ';')) {
-        if (field.empty()) continue;
-        std::string key = field.substr(0, field.find('='));
-        if (alt_indexed(hdr, BCF_HL_INFO, key)) {
-            dropped.insert("INFO/" + key);
-            continue;
-        }
-        kept += kept.empty() ? field : ";" + field;
-    }
-    return kept.empty() ? "." : kept;
+static bool alt_indexed(int len_class) {
+    return len_class == BCF_VL_A || len_class == BCF_VL_R || len_class == BCF_VL_G;
 }
 
 /**
  * @brief Splits a record's FORMAT and sample columns into the keys and values worth preserving.
  *
- * A key the writer already emits is dropped rather than duplicated, and an ALT-indexed one is
- * dropped for the reason alt_indexed() gives. The sample may stop short of the key list, which
- * the VCF spec allows, so a value it never supplied is written as missing.
- * @param[in] hdr Header of the VCF the record was read from
+ * A key the writer already emits is dropped rather than duplicated. An ALT-indexed value is kept
+ * verbatim and subset to the emitted allele at write time, since the ALT ordinal it is subset
+ * against belongs to the variant rather than to the record. The sample may stop short of the key
+ * list, which the VCF spec allows, so a value it never supplied is written as missing.
  * @param[in] fmt_col FORMAT column of one record
  * @param[in] sample_col Sample column of one record
- * @param[in,out] dropped Names of the removed fields, accumulated across records
  * @param[out] keys Preserved keys, each prefixed with ':'
  * @param[out] vals Preserved values parallel to keys, each prefixed with ':'
  */
-static void keep_format(const bcf_hdr_t * hdr, const std::string & fmt_col,
-        const std::string & sample_col, std::set<std::string> & dropped,
+static void keep_format(const std::string & fmt_col, const std::string & sample_col,
         std::string & keys, std::string & vals) {
     if (fmt_col == ".") return; // record declares no FORMAT keys at all
     const std::vector<std::string> src_keys = split(fmt_col, ':');
@@ -120,22 +100,22 @@ static void keep_format(const bcf_hdr_t * hdr, const std::string & fmt_col,
     for (size_t i = 0; i < src_keys.size(); i++) {
         const std::string & key = src_keys[i];
         if (key.empty() || FIXED_FMT_KEY_SET.count(key)) continue;
-        if (alt_indexed(hdr, BCF_HL_FMT, key)) {
-            dropped.insert("FORMAT/" + key);
-            continue;
-        }
         keys += ":" + key;
         vals += ":" + (i < src_vals.size() && !src_vals[i].empty() ? src_vals[i] : ".");
     }
 }
 
 /**
- * @brief Retains the header lines declaring every field the summary VCF writer can preserve.
+ * @brief Retains the header lines declaring every field the summary VCF writer preserves.
  *
- * A field the writer never emits is left undeclared, so an ALT-indexed one is skipped here as
- * well as at retention. PASS and the fixed FORMAT keys are declared by the writer itself.
+ * Every declaration is propagated verbatim, an ALT-indexed one included: the record it describes
+ * here is biallelic, so Number=A already means one value, Number=R two, and Number=G that record's
+ * own genotype count, which is what subsetting leaves behind. The length class is recorded
+ * alongside, since the writer subsets without a header to look it up in. PASS and the fixed FORMAT
+ * keys are declared by the writer itself.
  * @param[in] hdr Header of the VCF being parsed
- * @param[out] src Store receiving one hdr_keys/hdr_lines entry per retained declaration
+ * @param[out] src Store receiving one hdr_keys/hdr_lines entry per retained declaration, and one
+ *             info_lens/fmt_lens entry per ALT-indexed field
  */
 static void retain_header_lines(const bcf_hdr_t * hdr, std::shared_ptr<srcRecords> src) {
     kstring_t line = {0, 0, NULL};
@@ -151,7 +131,11 @@ static void retain_header_lines(const bcf_hdr_t * hdr, std::shared_ptr<srcRecord
         if (id.empty()) continue;
         if (line_type == BCF_HL_FLT && id == "PASS") continue;
         if (line_type == BCF_HL_FMT && FIXED_FMT_KEY_SET.count(id)) continue;
-        if (line_type != BCF_HL_FLT && alt_indexed(hdr, line_type, id)) continue;
+
+        // a FILTER declares no Number, so only INFO and FORMAT can be ALT-indexed
+        int len_class = line_type == BCF_HL_FLT ? BCF_VL_FIXED : length_class(hdr, line_type, id);
+        if (alt_indexed(len_class))
+            (line_type == BCF_HL_INFO ? src->info_lens : src->fmt_lens)[id] = len_class;
 
         line.l = 0;
         if (bcf_hrec_format(hrec, &line) < 0) continue;
@@ -585,12 +569,70 @@ const std::string & ctgVariants::src_filter(int vi) const {
 }
 
 /**
- * @brief Returns the source record's preserved INFO column, or "." if none was retained.
- * @param[in] vi Variant index in this container
- * @return The INFO column
+ * @brief Subsets one ALT-indexed value list to the alleles this variant's output record carries.
+ *
+ * An output record is biallelic, carrying the reference and the single ALT the variant normalized
+ * from, so a Number=A list collapses to that ALT's element, a Number=R list to the reference's and
+ * that ALT's, and a Number=G list to the genotypes over those two alleles. Genotype g(j,k) with
+ * j <= k sits at index k(k+1)/2 + j, which gives the three diploid entries; a haploid genotype
+ * list holds one entry per allele instead.
+ * @param[in] len_class Length class of the field (BCF_VL_A, BCF_VL_R, or BCF_VL_G)
+ * @param[in] alt_idx 1-based ALT ordinal the variant derives from (-1 = unknown)
+ * @param[in] ploidy Variant ploidy, which sets the shape of a Number=G list
+ * @param[in] value Comma-separated value list, as the source record wrote it
+ * @param[out] subset The kept elements, comma-separated; untouched when the subset is undefined
+ * @return True if the subset could be taken, false if the ordinal or the list length forbids it
  */
-const std::string & ctgVariants::src_info(int vi) const {
-    return this->src_field(this->src_recs ? &this->src_recs->infos : nullptr, vi, DOT);
+static bool subset_value(int len_class, int alt_idx, ploidy_t ploidy, const std::string & value,
+        std::string & subset) {
+    if (alt_idx < 1) return false; // no ALT ordinal to index the list with
+    std::vector<int> keep;
+    switch (len_class) {
+        case BCF_VL_A: keep = {alt_idx - 1}; break;
+        case BCF_VL_R: keep = {0, alt_idx}; break;
+        case BCF_VL_G: keep = ploidy == PLOIDY_HAPLOID ? std::vector<int>{0, alt_idx} :
+                std::vector<int>{0, alt_idx*(alt_idx+1)/2, alt_idx*(alt_idx+1)/2 + alt_idx};
+                break;
+        default: return false;
+    }
+    const std::vector<std::string> vals = split(value, ',');
+    std::string kept;
+    for (int i : keep) {
+        if (i >= int(vals.size())) return false; // list is shorter than the ALT list it indexes
+        kept += kept.empty() ? vals[i] : "," + vals[i];
+    }
+    subset = kept;
+    return true;
+}
+
+/**
+ * @brief Returns the source record's INFO column subset to this variant's allele, or ".".
+ *
+ * A field whose values index the original ALT list is subset to the one ALT this variant emits;
+ * one that cannot be subset is left out, since INFO expresses a missing field by its absence.
+ * @param[in] vi Variant index in this container
+ * @return The INFO column, or "." if no source record was retained or no field survived
+ */
+std::string ctgVariants::src_info(int vi) const {
+    const std::string & info =
+            this->src_field(this->src_recs ? &this->src_recs->infos : nullptr, vi, DOT);
+    if (this->src_recs == nullptr || info == DOT || this->src_recs->info_lens.empty()) return info;
+
+    std::string kept;
+    for (const std::string & field : split(info, ';')) {
+        if (field.empty()) continue;
+        const size_t eq = field.find('=');
+        const auto len = this->src_recs->info_lens.find(field.substr(0, eq));
+        std::string subset = field;
+        if (len != this->src_recs->info_lens.end()) {
+            if (eq == std::string::npos) continue; // ALT-indexed but valueless: nothing to subset
+            if (!subset_value(len->second, this->alt_idxs[vi], this->ploidies[vi],
+                    field.substr(eq+1), subset)) continue;
+            subset = field.substr(0, eq) + "=" + subset;
+        }
+        kept += kept.empty() ? subset : ";" + subset;
+    }
+    return kept.empty() ? DOT : kept;
 }
 
 /**
@@ -603,12 +645,33 @@ const std::string & ctgVariants::src_fmt_keys(int vi) const {
 }
 
 /**
- * @brief Returns the source sample's preserved FORMAT values, each prefixed with ':'.
+ * @brief Returns the source sample's FORMAT values subset to this variant's allele.
+ *
+ * A field whose values index the original ALT list is subset to the one ALT this variant emits;
+ * one that cannot be subset is reported as missing, so the value list stays parallel to the key
+ * list src_fmt_keys() returns.
  * @param[in] vi Variant index in this container
- * @return The values to append to the fixed sample fields, or "" if there are none
+ * @return The values to append to the fixed sample fields, each prefixed with ':', or "" if none
  */
-const std::string & ctgVariants::src_fmt_vals(int vi) const {
-    return this->src_field(this->src_recs ? &this->src_recs->fmt_vals : nullptr, vi, NO_EXTRA_FMT);
+std::string ctgVariants::src_fmt_vals(int vi) const {
+    const std::string & vals =
+            this->src_field(this->src_recs ? &this->src_recs->fmt_vals : nullptr, vi, NO_EXTRA_FMT);
+    if (this->src_recs == nullptr || vals.empty() || this->src_recs->fmt_lens.empty()) return vals;
+
+    // both columns are ':'-prefixed, so splitting each leaves a leading empty field to skip
+    const std::vector<std::string> keys = split(this->src_fmt_keys(vi), ':');
+    const std::vector<std::string> src_vals = split(vals, ':');
+    std::string kept;
+    for (size_t i = 1; i < keys.size(); i++) {
+        const std::string & val = i < src_vals.size() ? src_vals[i] : DOT;
+        const auto len = this->src_recs->fmt_lens.find(keys[i]);
+        std::string subset;
+        if (len == this->src_recs->fmt_lens.end()) subset = val;
+        else if (!subset_value(len->second, this->alt_idxs[vi], this->ploidies[vi], val, subset))
+            subset = DOT; // no element can be tied to the emitted allele, so none is reported
+        kept += ":" + subset;
+    }
+    return kept;
 }
 
 
@@ -900,7 +963,8 @@ bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
             "One source record may yield several records here (a complex variant is split into an "
             "INS and a DEL, a het-alt into one record per ALT), each repeating the same preserved "
             "values, so summing a count-like field over records double-counts the source value. "
-            "Number=A/R/G fields are omitted, since their values index the source ALT list.\">");
+            "Number=A/R/G values index the source ALT list, so each is subset to the one allele "
+            "its record carries.\">");
 
     // declare the fields carried over from the inputs, PASS excluded since it is declared above
     std::unordered_set<std::string> declared = {"FILTER/PASS"};
@@ -930,7 +994,8 @@ bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
 /**
  * @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO) of one record.
  *
- * ID, QUAL, FILTER, and INFO come from the source record, as POS, REF, and ALT already do. A
+ * ID, QUAL, FILTER, and INFO come from the source record, as POS, REF, and ALT already do. INFO
+ * fields whose values index the source ALT list are subset to the one allele this record emits. A
  * variant with no retained source record falls back to the placeholders '.', '.', PASS, and '.'
  * that this writer emitted before any field was preserved.
  * @param[in] hdr Summary VCF header, which must declare this contig and every preserved field
@@ -1225,8 +1290,8 @@ gtparse_t classify_gt(const int32_t * gt, int ngt) {
  * @throws WARNING Per-reason summary totals for records dropped or altered at parse time: no-call
  *         and half-call genotypes, records whose FORMAT column omits GT, unphased heterozygous
  *         genotypes, spanning deletions, reference calls, missing PS tags, records htslib parsed
- *         despite a non-critical error, oversized variants, overlapping variants, complex
- *         variants split into INS + DEL, and ALT-indexed fields left out of the summary VCF
+ *         despite a non-critical error, oversized variants, overlapping variants, and complex
+ *         variants split into INS + DEL
  */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
@@ -1286,7 +1351,6 @@ void parse_variants(const std::string & vcf_fn,
 
     // source column retention, reusing one render buffer across every record
     kstring_t rec_str = {0, 0, NULL};
-    std::set<std::string> dropped_fields; // ALT-indexed INFO/FORMAT fields left out of the output
 
     /* int gq_missing_total = 0; */
     int bcf_errcode_total = 0; // records htslib parsed despite a non-critical error
@@ -1496,10 +1560,9 @@ void parse_variants(const std::string & vcf_fn,
                         int(VCF_COLS), int(cols.size()), callset_strs[callset].data(),
                         ctg.data(), (long long)rec->pos);
             std::string fmt_keys, fmt_vals;
-            keep_format(hdr, cols[FORMAT_COL], cols[SAMPLE_COL], dropped_fields,
-                    fmt_keys, fmt_vals);
+            keep_format(cols[FORMAT_COL], cols[SAMPLE_COL], fmt_keys, fmt_vals);
             variant_data->src_recs->add(n-1, cols[ID_COL], cols[QUAL_COL], cols[FILTER_COL],
-                    keep_info(hdr, cols[INFO_COL], dropped_fields), fmt_keys, fmt_vals);
+                    cols[INFO_COL], fmt_keys, fmt_vals);
         }
 
         // parse GQ in either INT or FLOAT format
@@ -1859,15 +1922,6 @@ void parse_variants(const std::string & vcf_fn,
     if (complex_total)
         WARN("%d complex (CPX) variants in %s VCF, split into INS + DEL",
                 complex_total, callset_strs[callset].data());
-
-    if (!dropped_fields.empty()) {
-        std::string names;
-        for (const std::string & field : dropped_fields)
-            names += names.empty() ? field : ", " + field;
-        WARN("%d ALT-indexed (Number=A/R/G) field(s) in %s VCF, left out of the summary VCF "
-                "because their values index the original ALT list: %s",
-                int(dropped_fields.size()), callset_strs[callset].data(), names.data());
-    }
 
     if (print) INFO(" ");
     if (print) INFO("  Variant types:");

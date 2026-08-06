@@ -69,7 +69,8 @@ struct var_fields {
  * input, so the columns it cannot derive are held here for the run's lifetime and read back by
  * the writer. Indexing by record ordinal rather than by variant stores one copy per source
  * record, which the two halves of a split complex variant and the two entries of a het-alt
- * record share. Ordinals dropped before retention leave an empty entry, so every vector is
+ * record share; the entries of a het-alt record then subset that copy's ALT-indexed fields to
+ * their own allele. Ordinals dropped before retention leave an empty entry, so every vector is
  * indexable by any ordinal below its size.
  *
  * Columns are held as the VCF text htslib rendered them from the input, and are re-typed against
@@ -98,6 +99,12 @@ public:
     // set once from the input VCF header (size equal to each other)
     std::vector<std::string> hdr_keys;  ///< "<line type>/<ID>" of each retained header line
     std::vector<std::string> hdr_lines; ///< FILTER, INFO, and FORMAT lines declaring those fields
+
+    // set once from the input VCF header; a key absent from either map is not ALT-indexed
+    std::unordered_map<std::string, int> ///< BCF_VL_A/R/G length class of each INFO key
+        info_lens;
+    std::unordered_map<std::string, int> ///< BCF_VL_A/R/G length class of each FORMAT key
+        fmt_lens;
 };
 
 /**
@@ -166,14 +173,14 @@ public:
     /** @brief Returns the source record's FILTER column, or "PASS" if none was retained. */
     const std::string & src_filter(int vi) const;
 
-    /** @brief Returns the source record's preserved INFO column, or "." if none was retained. */
-    const std::string & src_info(int vi) const;
+    /** @brief Returns the source record's INFO column subset to this variant's allele, or ".". */
+    std::string src_info(int vi) const;
 
     /** @brief Returns the source record's preserved FORMAT keys, each prefixed with ':'. */
     const std::string & src_fmt_keys(int vi) const;
 
-    /** @brief Returns the source sample's preserved FORMAT values, each prefixed with ':'. */
-    const std::string & src_fmt_vals(int vi) const;
+    /** @brief Returns the source sample's FORMAT values subset to this variant's allele. */
+    std::string src_fmt_vals(int vi) const;
 
     /** @brief Returns true if a variant is present on the specified haplotype. */
     bool var_on_hap(int var_idx, hap_t hap, bool matched = false) const;
