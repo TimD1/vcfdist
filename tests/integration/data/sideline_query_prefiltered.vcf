@@ -1,0 +1,11 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##FILTER=<ID=LowConf,Description="Low confidence call">
+##FILTER=<ID=Bias,Description="Strand bias">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total read depth">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency of each ALT">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=SDP,Number=1,Type=Integer,Description="Sample read depth">
+##contig=<ID=sc1,length=400>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	QUERY
+sc1	200	rs200	A	G	60	PASS	DP=30;AF=0.5	GT:SDP	1|1:29

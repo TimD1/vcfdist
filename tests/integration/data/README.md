@@ -18,12 +18,12 @@ look for them, so a test run leaves this directory untouched.
   therefore never sees `sc2`.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
 
-Every variant `REF` allele below matches the reference at its 1-based position, and every variant
-is homozygous (`1/1`, or `1|1` in `record_shapes` and `preserved_fields`) except in the
-`contig_start_snp` and `contig_end_snp` scenarios, which are phased heterozygous (`1|0`), and the
-one het-alt call that `record_shapes` and `preserved_fields` each add. Summary counts are therefore
-per-haplotype (doubled, except in those heterozygous scenarios) and are listed as
-`TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
+Every variant `REF` allele below matches the reference at its 1-based position, and every evaluated
+variant is homozygous (`1/1`, or `1|1` in `record_shapes`, `preserved_fields`, and `sideline`)
+except in the `contig_start_snp` and `contig_end_snp` scenarios, which are phased heterozygous
+(`1|0`), and the one het-alt call that `record_shapes` and `preserved_fields` each add. Summary
+counts are therefore per-haplotype (doubled, except in those heterozygous scenarios) and are listed
+as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
 `*precision-recall-summary.tsv`.
 
 ## Scenarios
@@ -101,6 +101,27 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   columns and the truth sample writes `.` for each appended FORMAT key; the false negative at 256
   is owned by the truth and the query sample pads instead. The `LowConf` `FILTER` is preserved
   verbatim on an evaluated record rather than rewritten to `PASS`.
+
+### sideline — variants retained in the output but excluded from evaluation
+
+Run with `-f PASS,LowConf -q 20`, so that both retention reasons are reachable and each can be
+paired with an input `FILTER` of its own:
+
+- `sideline_query.vcf` — hom SNP 200 A>G (`rs200`, QUAL 60, `PASS`), evaluated; het SNP 220 C>T
+  (`rs220`, QUAL 60, `Bias`), whose `FILTER` the run did not select; het SNP 250 A>C (`rs250`,
+  QUAL 5, `PASS`) and het SNP 300 A>T (`rs300`, QUAL 5, `LowConf`), both below `-q 20`. Its header
+  declares `INFO/DP` (`Number=1`) and `INFO/AF` (`Number=A`).
+- `sideline_query_prefiltered.vcf` — the same file with the three unevaluated records removed.
+- `sideline_truth.vcf` — SNP 200 A>G only.
+
+The three unevaluated records are still written to `*summary.vcf`, interleaved by position and
+carrying `BD=N` on the query sample alone, with the reason's `VCFDIST_`-prefixed tag added to the
+record's own `FILTER` list (replacing a lone `PASS`). `INFO/AF` is dropped from them, since a
+retained record keeps the whole `ALT` list it was written with and no element of a `Number=A` field
+is the one its allele carries. SNP 2/2/0/0: retaining them adds no TP, FP, or FN.
+
+The second scenario runs both query files and diffs every analysis output, which pins that
+retention is output-only.
 
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 

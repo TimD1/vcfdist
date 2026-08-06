@@ -16,18 +16,6 @@
 /**************************************************************************************************/
 
 /**
- * @brief Returns one missing value per key in a ':'-prefixed FORMAT key list.
- * @param[in] keys FORMAT keys appended by the record's owning callset, each prefixed with ':'
- * @return A ":." for each key, to fill the sample column of the callset that does not own them
- */
-static std::string dot_fields(const std::string & keys) {
-    std::string dots;
-    for (char c : keys) if (c == ':') dots += ":.";
-    return dots;
-}
-
-
-/**
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
  * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
@@ -45,11 +33,16 @@ static std::string dot_fields(const std::string & keys) {
  *       normalized, split alleles, so each is subset to the one allele its record emits. The
  *       propagated declaration is rewritten to match: Number=A becomes 1 and Number=R becomes 2,
  *       while Number=G stands, already resolving to the genotype count of the record's ploidy
- * @note The input FILTER is preserved verbatim, on evaluated records included. A GA4GH consumer
- *       reads a non-PASS FILTER on an evaluated record as a filtered call and demotes it, turning
- *       filtered TPs into FNs and filtered FPs into Ns, so a caller's own non-PASS filter accepted
- *       via --filter will demote those calls downstream. Rewriting it to PASS would misreport the
- *       input, so it is reported here rather than designed around
+ * @note A variant retained without being evaluated is held outside the evaluated arrays, so it is
+ *       merged in by position rather than walked alongside them. It was excluded before any
+ *       comparison ran, so it is never matched: one sample carries its call, reporting BD=N and
+ *       nothing else, and the other is entirely missing
+ * @note The input FILTER is preserved verbatim, on evaluated records included. A retained record
+ *       adds the VCFDIST_-prefixed tag naming why it was not evaluated, replacing a lone PASS.
+ *       A GA4GH consumer reads a non-PASS FILTER on an evaluated record as a filtered call and
+ *       demotes it, turning filtered TPs into FNs and filtered FPs into Ns, so a caller's own
+ *       non-PASS filter accepted via --filter will demote those calls downstream. Rewriting it to
+ *       PASS would misreport the input, so it is reported here rather than designed around
  * @throws ERROR if the output summary VCF file cannot be opened for writing
  * @throws ERROR if neither callset is selected next while variants remain
  */
@@ -74,10 +67,18 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
 
+    // Declare the tag each retained record carries. The IDs are prefixed so that no input FILTER
+    // ID can collide with one, and uppercase to match the convention for FILTER IDs.
+    std::unordered_set<std::string> declared = {"FILTER/PASS"};
+    for (int r = 0; r < SIDELINES; r++) {
+        fprintf(out_vcf, "##FILTER=<ID=%s,Description=\"%s\">\n",
+                sideline_strs[r].data(), sideline_descs[r].data());
+        declared.insert("FILTER/" + sideline_strs[r]);
+    }
+
     // Declare every FILTER, INFO, and FORMAT field carried over from an input. A record's
     // site-level columns come from whichever callset owns it, so both callsets contribute; where
     // the two disagree about an ID, the query's declaration wins, as it does for a matched record.
-    std::unordered_set<std::string> declared = {"FILTER/PASS"};
     for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         if (this->callset_src_recs[c] == nullptr) continue;
         const srcRecords & src = *this->callset_src_recs[c];
@@ -94,7 +95,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     const char* per_allele = " One value per allele of this sample's GT, in GT allele order, "
             "'.' for a reference allele.";
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).%s\">\n", per_allele);
+    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN, or N for a call that was not assessed).%s A record retained without evaluation was not assessed as a whole, so it carries a single N.\">\n", per_allele);
     fprintf(out_vcf, "##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance).%s\">\n", per_allele);
     fprintf(out_vcf, "##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group.%s\">\n", per_allele);
     fprintf(out_vcf, "##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group.%s\">\n", per_allele);
@@ -121,6 +122,35 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
         std::shared_ptr<ctgVariants> tvars = ctg_pbs->ctg_superclusters->callset_vars[TRUTH];
 
+        // the retained records of each callset, absent on a contig that retained none
+        std::vector< std::shared_ptr<ctgSideline> > side(CALLSETS, nullptr);
+        for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+            const auto found = this->callset_sidelined[c].find(ctg);
+            if (found != this->callset_sidelined[c].end()) side[idx(c)] = found->second;
+        }
+        std::vector<int> side_ptrs = std::vector<int>(CALLSETS, 0);
+
+        // Retained records are interleaved into the evaluated ones by position, the query's first
+        // where the two callsets tie. A tie against an evaluated variant is resolved the other way,
+        // by emitting the evaluated record first, since a retained one belongs to no supercluster
+        // and so has no place within the evaluated ordering of a position.
+        auto write_sidelined = [&](int limit) {
+            while (true) {
+                int next = -1;
+                int next_pos = limit;
+                for (int c = 0; c < CALLSETS; c++) {
+                    if (side[c] == nullptr || side_ptrs[c] >= side[c]->n) continue;
+                    if (side[c]->poss[side_ptrs[c]] < next_pos) {
+                        next_pos = side[c]->poss[side_ptrs[c]];
+                        next = c;
+                    }
+                }
+                if (next < 0) return;
+                side[next]->print_var(out_vcf, ctg, side_ptrs[next], callset_t(next));
+                side_ptrs[next]++;
+            }
+        };
+
         // flip/swap state comes from the query; these defaults hold on a contig it never calls on
         int phase_block = 0;
         phase_t block_state = PHASE_ORIG;
@@ -143,6 +173,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 next[c] = (poss[c] == pos);
             }
+            write_sidelined(pos);
 
             // update phasing
             if (ptrs[QUERY] < qvars->n) {
@@ -223,6 +254,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 ERROR("No variants are selected next.");
             }
         }
+        write_sidelined(std::numeric_limits<int>::max());
     }
     fclose(out_vcf);
 }
@@ -246,6 +278,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
     }
     this->ref = clusterdata_ptr->ref;
     this->callset_src_recs = clusterdata_ptr->callset_src_recs;
+    this->callset_sidelined = clusterdata_ptr->callset_sidelined;
 
     // add pointers to superclusters
     for (const std::string & ctg : this->contigs) {
