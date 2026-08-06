@@ -150,35 +150,64 @@ int ctgVariants::get_vartype(int vi) {
 
 
 /**
- * @brief Records allele count error type by comparing original and calculated genotypes.
+ * @brief Returns the alternate allele count of a diploid genotype.
+ * @param[in] gt Genotype (GT_*)
+ * @return 0, 1, or 2 alternate alleles, or -1 if gt carries no diploid allele count
+ */
+static int allele_count(uint8_t gt) {
+    switch (gt) {
+        case GT_REF_REF:   return 0;
+        case GT_REF_ALT1:
+        case GT_ALT1_REF:  return 1;
+        case GT_ALT1_ALT1: return 2;
+        default:           return -1;
+    }
+}
+
+
+/**
+ * @brief Maps a site's truth and query alternate allele counts to an allele count error type.
+ * @param[in] truth_ac Truth alternate allele count, or -1 if unknown
+ * @param[in] query_ac Query alternate allele count, or -1 if unknown
+ * @return AC_ERR_*_TO_*, or AC_UNKNOWN if either count is unknown or both are zero
+ */
+static int ac_errtype_from_counts(int truth_ac, int query_ac) {
+    switch (truth_ac) {
+        case 0:
+            if (query_ac == 1) return AC_ERR_0_TO_1;
+            if (query_ac == 2) return AC_ERR_0_TO_2;
+            break;
+        case 1:
+            if (query_ac == 0) return AC_ERR_1_TO_0;
+            if (query_ac == 1) return AC_ERR_1_TO_1;
+            if (query_ac == 2) return AC_ERR_1_TO_2;
+            break;
+        case 2:
+            if (query_ac == 0) return AC_ERR_2_TO_0;
+            if (query_ac == 1) return AC_ERR_2_TO_1;
+            if (query_ac == 2) return AC_ERR_2_TO_2;
+            break;
+    }
+    return AC_UNKNOWN;
+}
+
+
+/**
+ * @brief Records a variant's allele count error type from its original and calculated genotypes.
+ *
+ * The value keeps one absolute truth-allele-count-then-query-allele-count direction on both
+ * callsets, so the two records of a matched site report it identically. Which genotype supplies
+ * which count is what differs: a record's orig_gt is its own callset's call and its calc_gt is the
+ * other callset's genotype as recovered by alignment.
+ *
  * @param[in] vi Variant index
+ * @param[in] query True if this container holds query variants, false for truth variants
  * @return Allele count error type (AC_ERR_*_TO_* or AC_UNKNOWN); also stored in ac_errtype[vi]
  */
-int ctgVariants::set_allele_errtype(int vi) {
-    if (this->calc_gts[vi] == GT_ALT1_REF || this->calc_gts[vi] == GT_REF_ALT1) {
-        if (this->orig_gts[vi] == GT_ALT1_ALT1) {
-            return this->ac_errtype[vi] = AC_ERR_1_TO_2;
-        } else if (this->orig_gts[vi] == GT_ALT1_REF || this->orig_gts[vi] == GT_REF_ALT1) {
-            return this->ac_errtype[vi] = AC_ERR_1_TO_1;
-        } else {
-            return this->ac_errtype[vi] = AC_ERR_1_TO_0;
-        }
-    } else if (this->calc_gts[vi] == GT_ALT1_ALT1) {
-        if (this->orig_gts[vi] == GT_ALT1_ALT1) {
-            return this->ac_errtype[vi] = AC_ERR_2_TO_2;
-        } else if (this->orig_gts[vi] == GT_ALT1_REF || this->orig_gts[vi] == GT_REF_ALT1) {
-            return this->ac_errtype[vi] = AC_ERR_2_TO_1;
-        } else {
-            return this->ac_errtype[vi] = AC_ERR_2_TO_0;
-        }
-    } else if (this->calc_gts[vi] == GT_REF_REF) {
-        if (this->orig_gts[vi] == GT_ALT1_ALT1) {
-            return this->ac_errtype[vi] = AC_ERR_0_TO_2;
-        } else if (this->orig_gts[vi] == GT_ALT1_REF || this->orig_gts[vi] == GT_REF_ALT1) {
-            return this->ac_errtype[vi] = AC_ERR_0_TO_1;
-        }
-    }
-    return this->ac_errtype[vi] = AC_UNKNOWN;
+int ctgVariants::set_allele_errtype(int vi, bool query) {
+    int truth_ac = allele_count(query ? this->calc_gts[vi] : this->orig_gts[vi]);
+    int query_ac = allele_count(query ? this->orig_gts[vi] : this->calc_gts[vi]);
+    return this->ac_errtype[vi] = ac_errtype_from_counts(truth_ac, query_ac);
 }
 
 

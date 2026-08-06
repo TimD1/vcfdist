@@ -645,61 +645,64 @@ TEST(GetVartype, CpxFallsToSv) {
 
 /* set_allele_errtype *****************************************************************************/
 
-TEST(SetAlleleErrtype, ZeroToOne) {
+// On a query record the truth allele count comes from calc_gts, recovered by alignment, and the
+// query allele count from orig_gts, the record's own call.
+
+TEST(SetAlleleErrtype, QueryZeroToOne) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_REF);
-    EXPECT_EQ(AC_ERR_0_TO_1, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_0_TO_1, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_0_TO_1, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, ZeroToTwo) {
+TEST(SetAlleleErrtype, QueryZeroToTwo) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
-    EXPECT_EQ(AC_ERR_0_TO_2, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_0_TO_2, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_0_TO_2, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, OneToZero) {
+TEST(SetAlleleErrtype, QueryOneToZero) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_ALT1);
-    EXPECT_EQ(AC_ERR_1_TO_0, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_1_TO_0, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_0, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, OneToOne) {
+TEST(SetAlleleErrtype, QueryOneToOne) {
     GlobalsGuard guard;
 
     // a heterozygous call on the opposite haplotype is still one allele called for one expected
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_REF, GT_REF_ALT1);
-    EXPECT_EQ(AC_ERR_1_TO_1, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_1_TO_1, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_1, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, OneToTwo) {
+TEST(SetAlleleErrtype, QueryOneToTwo) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
-    EXPECT_EQ(AC_ERR_1_TO_2, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_1_TO_2, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_2, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, TwoToZero) {
+TEST(SetAlleleErrtype, QueryTwoToZero) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_ALT1_ALT1);
-    EXPECT_EQ(AC_ERR_2_TO_0, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_2_TO_0, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_0, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, TwoToOne) {
+TEST(SetAlleleErrtype, QueryTwoToOne) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
-    EXPECT_EQ(AC_ERR_2_TO_1, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_2_TO_1, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_1, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, TwoToTwo) {
+TEST(SetAlleleErrtype, QueryTwoToTwo) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
-    EXPECT_EQ(AC_ERR_2_TO_2, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_ERR_2_TO_2, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_2, vars->ac_errtype[0]);
 }
 
@@ -710,18 +713,112 @@ TEST(SetAlleleErrtype, RefrefRefrefUnknown) {
     // seed a different value so that a return-without-store would leave it behind
     vars->ac_errtype[0] = AC_ERR_2_TO_2;
 
-    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, HaploidUnknown) {
     GlobalsGuard guard;
 
-    // a haploid calc_gt matches none of the diploid branches, so it falls through to AC_UNKNOWN
+    // a haploid genotype is not a diploid allele count, so it falls through to AC_UNKNOWN
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_ALT1);
     vars->ac_errtype[0] = AC_ERR_1_TO_1;
 
-    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0));
+    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, true));
+    EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, UnparseableGenotypeIsUnknownNotZeroAlleles) {
+    GlobalsGuard guard;
+
+    // a genotype carrying no diploid allele count is unknown, never silently zero alleles
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_MISSING, GT_ALT1_REF);
+    vars->ac_errtype[0] = AC_ERR_1_TO_1;
+
+    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, true));
+    EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
+}
+
+// On a truth record the two sides swap: the truth allele count is the record's own orig_gts and the
+// query allele count is calc_gts, recovered by alignment. The value keeps its absolute
+// truth-then-query direction, so a truth record can reach *_TO_0 but never 0_TO_*.
+
+TEST(SetAlleleErrtype, TruthOneToZero) {
+    GlobalsGuard guard;
+
+    // one truth allele, matched by no query allele: a pure false negative
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_REF);
+    EXPECT_EQ(AC_ERR_1_TO_0, vars->set_allele_errtype(0, false));
+    EXPECT_EQ(AC_ERR_1_TO_0, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, TruthOneToOne) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_REF);
+    EXPECT_EQ(AC_ERR_1_TO_1, vars->set_allele_errtype(0, false));
+    EXPECT_EQ(AC_ERR_1_TO_1, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, TruthOneToTwo) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
+    EXPECT_EQ(AC_ERR_1_TO_2, vars->set_allele_errtype(0, false));
+    EXPECT_EQ(AC_ERR_1_TO_2, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, TruthTwoToZero) {
+    GlobalsGuard guard;
+
+    // two truth alleles, matched by no query allele: a pure false negative
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    EXPECT_EQ(AC_ERR_2_TO_0, vars->set_allele_errtype(0, false));
+    EXPECT_EQ(AC_ERR_2_TO_0, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, TruthTwoToOne) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    EXPECT_EQ(AC_ERR_2_TO_1, vars->set_allele_errtype(0, false));
+    EXPECT_EQ(AC_ERR_2_TO_1, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, TruthTwoToTwo) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    EXPECT_EQ(AC_ERR_2_TO_2, vars->set_allele_errtype(0, false));
+    EXPECT_EQ(AC_ERR_2_TO_2, vars->ac_errtype[0]);
+}
+
+TEST(SetAlleleErrtype, FalseHomozygousAgreesAcrossCallsets) {
+    GlobalsGuard guard;
+
+    // one truth allele called as two: both records report it, so GE reads '+' on both samples
+    std::shared_ptr<ctgVariants> qvars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> tvars = make_gt_var(GT_ALT1_REF, GT_ALT1_ALT1);
+    EXPECT_EQ(AC_ERR_1_TO_2, qvars->set_allele_errtype(0, true));
+    EXPECT_EQ(AC_ERR_1_TO_2, tvars->set_allele_errtype(0, false));
+    EXPECT_EQ("+", ac_strs[tvars->ac_errtype[0]]);
+}
+
+TEST(SetAlleleErrtype, FalseHeterozygousAgreesAcrossCallsets) {
+    GlobalsGuard guard;
+
+    // two truth alleles called as one: both records report it, so GE reads '-' on both samples
+    std::shared_ptr<ctgVariants> qvars = make_gt_var(GT_ALT1_REF, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> tvars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    EXPECT_EQ(AC_ERR_2_TO_1, qvars->set_allele_errtype(0, true));
+    EXPECT_EQ(AC_ERR_2_TO_1, tvars->set_allele_errtype(0, false));
+    EXPECT_EQ("-", ac_strs[tvars->ac_errtype[0]]);
+}
+
+TEST(SetAlleleErrtype, TruthHaploidUnknown) {
+    GlobalsGuard guard;
+
+    // a haploid genotype is not a diploid allele count on either side
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_ALT1);
+    vars->ac_errtype[0] = AC_ERR_1_TO_1;
+
+    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
 }
 

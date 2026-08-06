@@ -71,7 +71,8 @@ public:
 
     /**
      * @brief Corrects calculated genotypes to preserve allele counts matching original calls.
-     * @note Tracks and reports genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
+     * @note Records each variant's allele count error type on both callsets, and tracks and reports
+     *       genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
      */
     void fix_allele_counts();
 

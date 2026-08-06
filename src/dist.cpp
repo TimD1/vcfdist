@@ -292,6 +292,10 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
  * either its alt node (labeled here) or its reference-allele bypass node (false negative), so the
  * trace labels every truth variant; none is left unlabeled.
  *
+ * Each matched variant also records the other callset's genotype in its calc_gt: a query variant
+ * gains the truth haplotype it matched, and a truth variant the haplotypes its matching query
+ * variants were called on.
+ *
  * @param[in] graph The alignment graph used during the forward pass.
  * @param[in] ptrs Predecessor pointer map from calc_prec_recall_aln().
  * @param[in] truth_hap Truth haplotype index (0 or 1).
@@ -396,6 +400,23 @@ void calc_prec_recall(
             tvars->ref_ed[truth_hap][tvar_idx] = ref_dist;
             tvars->query_ed[truth_hap][tvar_idx] = query_dist;
             tvars->credit[truth_hap][tvar_idx] = credit;
+
+            // Mirror of the query side above: record the matched query calls on the truth variant,
+            // so its ac_errtype can report the query's allele count. The sync group is the atomic
+            // matching unit, so the count is the union over the calls it holds -- two oppositely
+            // phased heterozygous calls therefore recover both haplotypes, not one.
+            //
+            // A 1|1 truth variant is emitted in both truth-haplotype passes, so a haplotype the
+            // first pass recovered is skipped rather than re-set, which would be an error.
+            if (errtype == ERRTYPE_TP) {
+                for (int qvar_idx : sync_qvars) {
+                    for (int hap = 0; hap < HAPS; hap++) {
+                        if (qvars->var_on_hap(qvar_idx, hap) &&
+                                !tvars->var_on_hap(tvar_idx, hap, /*calc=*/ true))
+                            tvars->set_var_calcgt_on_hap(tvar_idx, hap, true);
+                    }
+                }
+            }
         }
         sync_group++;
         sync_qvars.clear();

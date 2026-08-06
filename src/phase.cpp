@@ -360,7 +360,10 @@ void phaseblockData::fix_phase_set_tags() {
 
 /**
  * @brief Corrects calculated genotypes to preserve allele counts matching original calls.
- * @note Tracks and reports genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
+ * @note Records each variant's allele count error type on both callsets, and tracks and reports
+ *       genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
+ * @throws ERROR if a query or truth variant's allele count error type is AC_UNKNOWN
+ * @throws ERROR if the output genotype error TSV file cannot be opened for writing
  */
 void phaseblockData::fix_allele_counts() {
     std::vector< std::vector<int> > allele_error_counts(AC_ERRTYPES, std::vector<int>(VARTYPES, 0));
@@ -369,7 +372,7 @@ void phaseblockData::fix_allele_counts() {
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[QUERY];
 
         for (int vi = 0; vi < qvars->n; vi++) {
-            int allele_count_errtype = qvars->set_allele_errtype(vi);
+            int allele_count_errtype = qvars->set_allele_errtype(vi, true);
             if (allele_count_errtype == AC_UNKNOWN) {
                 ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), qvars->poss[vi],
                         gt_strs[qvars->calc_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
@@ -433,6 +436,15 @@ void phaseblockData::fix_allele_counts() {
         std::shared_ptr<ctgVariants> tvars = 
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[TRUTH];
         for (int vi = 0; vi < tvars->n; vi++) {
+
+            // the same value the query loop above records, read from the other side: a truth
+            // record's own orig_gt supplies the truth allele count and its alignment-recovered
+            // calc_gt the query's. This tallies nothing; the branches below own the summary.
+            if (tvars->set_allele_errtype(vi, false) == AC_UNKNOWN) {
+                ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), tvars->poss[vi],
+                        gt_strs[tvars->orig_gts[vi]].data(), gt_strs[tvars->calc_gts[vi]].data());
+            }
+
             int vartype = tvars->get_vartype(vi);
             if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
