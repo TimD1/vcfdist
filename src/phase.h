@@ -43,6 +43,8 @@ public:
     /**
      * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
      * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
+     * @note ID, QUAL, FILTER, INFO, and the source FORMAT fields are carried over from whichever
+     *       callset owns each record; Number=A/R/G fields are omitted
      */
     void write_summary_vcf(std::string out_vcf_fn);
 
@@ -91,6 +93,8 @@ public:
     std::shared_ptr<fastaData> ref;   ///< Pointer to reference FASTA data
     std::vector<std::string> contigs; ///< List of all contig names
     std::vector<int> lengths;         ///< List of all contig lengths
+    EnumArray<callset_t, std::shared_ptr<srcRecords>, CALLSET_SLOTS>
+        callset_src_recs;             ///< Retained source records of each callset
     std::unordered_map<std::string,   ///< Map from contig name to ctgPhaseblocks
         std::shared_ptr<ctgPhaseblocks> > phase_blocks;
 };

@@ -172,17 +172,66 @@
     - path: record_shapes_out_summary.vcf
       contains:
         # hom SNP, hom CPX (as INS then DEL), and hom DEL: one record each, two values per field
-        - "sc1\t200\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
-        - "sc1\t209\t.\tG\tGTT\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
-        - "sc1\t209\t.\tGCAAGA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
-        - "sc1\t220\t.\tCAACT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t200\t.\tA\tG\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
+        - "sc1\t209\t.\tG\tGTT\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t209\t.\tGCAAGA\tG\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t220\t.\tCAACT\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
         # het-alt: two co-located records, each carrying '.' for its reference allele
-        - "sc1\t250\t.\tA\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1.000000,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
-        - "sc1\t250\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1.000000:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
+        - "sc1\t250\t.\tA\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1.000000,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
+        - "sc1\t250\t.\tA\tG\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1.000000:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
       must_not_contain:
         # the pre-#103 shape: a homozygous call written once per haplotype
         - "\t1|0:TP:"
         - "\t0|1:TP:"
+
+- name: test_summary-vcf_preserves-source-fields
+  # preserved_fields: ID, QUAL, FILTER, and INFO are sourced from the input rather than written as
+  # the placeholders '.', '.', PASS, and '.', and the source record's FORMAT keys are appended to
+  # the fixed list. Each record's columns come from the callset that owns it: the query for the
+  # three it calls, the truth for the false negative it alone calls at 256. The callset that does
+  # not own a record has no values for the appended keys and writes '.' for each.
+  #
+  # The query declares one Number=1 (DP, SDP), one fixed Number=2 (SB, SAC), and one Flag
+  # (SOMATIC) field, all of which survive; its Number=A/R/G fields (AF, AD, PL) are ALT-indexed
+  # and are dropped, since the emitted alleles are normalized and split rather than the original
+  # ALT list they index into.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/preserved_fields_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/preserved_fields_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "preserved_fields_out_"'
+  stderr:
+    contains:
+      - "3 ALT-indexed (Number=A/R/G) field(s) in QUERY VCF, left out of the summary VCF"
+      - "FORMAT/AD, FORMAT/PL, INFO/AF"
+  files:
+    - path: preserved_fields_out_summary.vcf
+      contains:
+        # every preserved field is declared, and the dropped ones are not
+        - "##FILTER=<ID=LowConf,Description=\"Low confidence call\">"
+        - "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total read depth\">"
+        - "##INFO=<ID=SB,Number=2,Type=Integer,Description=\"Forward and reverse strand read counts\">"
+        - "##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description=\"Somatic call\">"
+        - "##INFO=<ID=TRUTHSET,Number=1,Type=String,Description=\"Truth set the call came from\">"
+        - "##FORMAT=<ID=SDP,Number=1,Type=Integer,Description=\"Sample read depth\">"
+        - "##FORMAT=<ID=SAC,Number=2,Type=Integer,Description=\"Forward and reverse sample read counts\">"
+        # the merged record of a 1|1 call carries the query's columns; the truth sample pads
+        - "sc1\t200\trs200\tA\tG\t31\tPASS\tDP=30;SB=11,19;SOMATIC\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:60:0:2,2:0:0:.:.:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:31:0:2,2:0:0:0:.:0:.:29:12,17"
+        # both halves of the CPX split carry the one source record's columns, FILTER included
+        - "sc1\t209\trs210\tG\tGTT\t32\tLowConf\tDP=31;SB=12,19\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
+        - "sc1\t209\trs210\tGCAAGA\tG\t32\tLowConf\tDP=31;SB=12,19\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
+        # both co-located entries of the het-alt record carry it too
+        - "sc1\t250\trs250\tA\tC\t33\tPASS\tDP=32;SOMATIC\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
+        - "sc1\t250\trs250\tA\tG\t33\tPASS\tDP=32;SOMATIC\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC\t"
+        # a pure FN is owned by the truth, so its columns and its lone FORMAT key are the truth's
+        - "sc1\t256\ttv256\tG\tA\t60\tPASS\tDP=98;TRUTHSET=hc\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP\t1|1:FN,FN:0.000000,0.000000:.,.:.,.:.,.:60:1:0,0:0:1:.:.:.:.:97\t.:.:.:.:.:.:.:1:.:.:1:.:.:.:.:."
+      must_not_contain:
+        # an ALT-indexed field is neither declared nor emitted
+        - "ID=AF,"
+        - "ID=AD,"
+        - "ID=PL,"
+        - "AF=0.5"
 
 # --- one-sided contigs: a contig called by only one callset (synthetic 2-contig reference) ---
 # Both scenarios share one pair of VCFs, swapped between the query and truth argument slots, so
@@ -212,7 +261,7 @@
     # truth-only direction below, where it used to be dropped
     - path: one_sided_contig_query_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
+        - "sc2\t50\t.\tT\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
 
 - name: test_one-sided-contig_truth-only
   # The mirror of the case above: sc2 is called by the truth only. Superclustering used to
@@ -238,7 +287,7 @@
     # sample reports its own 1|1 call, one FN per allele.
     - path: one_sided_contig_truth_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
+        - "sc2\t50\t.\tT\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
 
 # --- variants at reference position 0 (synthetic sc1 reference) ---
 

@@ -56,6 +56,8 @@ public:
 
     EnumArray<callset_t, std::string, CALLSET_SLOTS> samples;   ///< list containing QUERY and TRUTH VCF SAMPLE names
     EnumArray<callset_t, std::string, CALLSET_SLOTS> filenames; ///< list containing QUERY and TRUTH VCF filenames
+    EnumArray<callset_t, std::shared_ptr<srcRecords>, CALLSET_SLOTS>
+        callset_src_recs;                ///< retained source records of each callset
     std::vector<std::string> contigs;    ///< list of all contig names
     std::vector<int> lengths;            ///< list of all contig lengths
     std::unordered_map<std::string,      ///< map from contig names to ctgSuperclusters

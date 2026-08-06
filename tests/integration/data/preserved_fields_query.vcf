@@ -1,0 +1,17 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##FILTER=<ID=LowConf,Description="Low confidence call">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total read depth">
+##INFO=<ID=SB,Number=2,Type=Integer,Description="Forward and reverse strand read counts">
+##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description="Somatic call">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency of each ALT">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=SDP,Number=1,Type=Integer,Description="Sample read depth">
+##FORMAT=<ID=SAC,Number=2,Type=Integer,Description="Forward and reverse sample read counts">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Read depth of each allele">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">
+##contig=<ID=sc1,length=400>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	QUERY
+sc1	200	rs200	A	G	31	PASS	DP=30;SB=11,19;SOMATIC;AF=0.5	GT:SDP:SAC:AD:PL	1|1:29:12,17:1,28:255,60,0
+sc1	210	rs210	CAAGA	TT	32	LowConf	DP=31;SB=12,19	GT:SDP:SAC:AD:PL	1|1:30:13,17:2,28:255,60,0
+sc1	250	rs250	A	C,G	33	PASS	DP=32;SOMATIC	GT:SDP:SAC:AD:PL	1|2:31:14,17:0,15,16:255,60,0,60,0,0

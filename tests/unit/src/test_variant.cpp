@@ -1975,4 +1975,191 @@ TEST_F(ParseVariants, HomozygousInsertionDowngradedWhenColocatedWithInsertion) {
     EXPECT_TRUE(logged(hap2_kept, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
+/* parse_variants(): source column retention ******************************************************/
+
+/** @brief Header declaring one field of each Number the retention rule distinguishes. */
+vcf_opts retention_opts() {
+    vcf_opts opts = make_vcf_opts();
+    opts.filters.push_back("##FILTER=<ID=LowConf,Description=\"Low confidence call\">");
+    opts.infos = {
+        "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+        "##INFO=<ID=SB,Number=2,Type=Integer,Description=\"Strand counts\">",
+        "##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description=\"Somatic\">",
+        "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">"};
+    opts.formats.push_back("##FORMAT=<ID=SDP,Number=1,Type=Integer,Description=\"Sample depth\">");
+    opts.formats.push_back("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allele depth\">");
+    return opts;
+}
+
+/** @brief Builds a phased 1|0 SNP carrying the given INFO, FORMAT, and sample columns. */
+std::string retained_record(const std::string & info, const std::string & format,
+        const std::string & sample) {
+    vcf_record rec;
+    rec.id = "rs1";
+    rec.info = info;
+    rec.format = format;
+    rec.sample = sample;
+    return vcf_line(rec);
+}
+
+/** @brief Returns the source records retained from a parse, or nullptr if none were. */
+std::shared_ptr<srcRecords> retained(const ParseResult & r) { return r.vars->src_recs; }
+
+TEST_F(ParseVariants, RetainsIdQualAndFilter) {
+    vcf_record rec;
+    rec.id = "rs99";
+    rec.qual = "37";
+    rec.filter = "LowConf";
+    ParseResult r = parse_records(dir, {vcf_line(rec)}, retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ("rs99", retained(r)->ids[0]);
+    EXPECT_EQ("37", retained(r)->quals[0]);
+    EXPECT_EQ("LowConf", retained(r)->filters[0]);
+}
+
+// Number=1, fixed Number=2, and Flag fields are all independent of the ALT list, so all survive.
+TEST_F(ParseVariants, RetainsAltIndependentInfoFields) {
+    ParseResult r = parse_records(dir,
+            {retained_record("DP=30;SB=11,19;SOMATIC", "GT:PS", "1|0:1")}, retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ("DP=30;SB=11,19;SOMATIC", retained(r)->infos[0]);
+}
+
+// An ALT-indexed value would be read against the emitted allele rather than the ALT it indexes.
+TEST_F(ParseVariants, DropsAltIndexedInfoField) {
+    ParseResult r = parse_records(dir,
+            {retained_record("DP=30;AF=0.5", "GT:PS", "1|0:1")}, retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ("DP=30", retained(r)->infos[0]);
+    EXPECT_TRUE(logged(r, "INFO/AF"));
+    EXPECT_TRUE(logged(r, "1 ALT-indexed (Number=A/R/G) field(s) in QUERY VCF"));
+}
+
+TEST_F(ParseVariants, InfoOfOnlyAltIndexedFieldsBecomesMissing) {
+    ParseResult r = parse_records(dir, {retained_record("AF=0.5", "GT:PS", "1|0:1")},
+            retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ(".", retained(r)->infos[0]);
+}
+
+TEST_F(ParseVariants, RetainsFormatKeysAndValues) {
+    ParseResult r = parse_records(dir, {retained_record(".", "GT:PS:SDP", "1|0:1:29")},
+            retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ(":SDP", retained(r)->fmt_keys[0]);
+    EXPECT_EQ(":29", retained(r)->fmt_vals[0]);
+}
+
+// GT and PS are written by the summary VCF itself; keeping the input's copies would emit each key
+// twice on one record.
+TEST_F(ParseVariants, DropsFormatKeysTheWriterEmits) {
+    ParseResult r = parse_records(dir, {retained_record(".", "GT:PS", "1|0:1")}, retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ("", retained(r)->fmt_keys[0]);
+    EXPECT_EQ("", retained(r)->fmt_vals[0]);
+}
+
+TEST_F(ParseVariants, DropsAltIndexedFormatField) {
+    ParseResult r = parse_records(dir, {retained_record(".", "GT:PS:AD:SDP", "1|0:1:1,28:29")},
+            retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    EXPECT_EQ(":SDP", retained(r)->fmt_keys[0]);
+    EXPECT_EQ(":29", retained(r)->fmt_vals[0]);
+    EXPECT_TRUE(logged(r, "FORMAT/AD"));
+}
+
+// Both entries a complex record splits into point at the one retained copy of its columns.
+TEST_F(ParseVariants, SplitRecordEntriesShareOneRetainedRecord) {
+    vcf_record cpx;
+    cpx.id = "rsCPX";
+    cpx.ref = "CAAGA";
+    cpx.alt = "TT";
+    cpx.info = "DP=30";
+    ParseResult r = parse_records(dir, {vcf_line(cpx)}, retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    ASSERT_EQ(1u, retained(r)->ids.size());
+    ASSERT_EQ(2, kept_on_hap(r, HAP1)); // split into an INS and a DEL
+    for (int i = 0; i < 2; i++) {
+        EXPECT_EQ(0, hap_vars(r, HAP1)->rec_idxs[i]);
+        EXPECT_EQ("rsCPX", hap_vars(r, HAP1)->src_id(i));
+        EXPECT_EQ("DP=30", hap_vars(r, HAP1)->src_info(i));
+    }
+}
+
+// A record dropped before retention still consumes an ordinal, so later records stay addressable.
+TEST_F(ParseVariants, DroppedRecordLeavesItsOrdinalEmpty) {
+    g.min_qual = 40;
+    vcf_record low;
+    low.qual = "10";
+    vcf_record high;
+    high.pos = 200;
+    high.id = "rsKept";
+    high.qual = "50";
+    ParseResult r = parse_records(dir, {vcf_line(low), vcf_line(high)}, retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    ASSERT_EQ(2u, retained(r)->ids.size());
+    EXPECT_EQ("", retained(r)->ids[0]);
+    EXPECT_EQ("rsKept", retained(r)->ids[1]);
+    ASSERT_EQ(1, kept_on_hap(r, HAP1));
+    EXPECT_EQ("rsKept", hap_vars(r, HAP1)->src_id(0));
+}
+
+// Fields the writer never emits are left undeclared, and PASS is declared by the writer itself.
+TEST_F(ParseVariants, RetainsHeaderLinesOfPreservedFieldsOnly) {
+    ParseResult r = parse_records(dir, {retained_record("DP=30", "GT:PS:SDP", "1|0:1:29")},
+            retention_opts());
+    ASSERT_NE(nullptr, retained(r));
+    const std::vector<std::string> & keys = retained(r)->hdr_keys;
+    EXPECT_EQ(std::vector<std::string>({"FILTER/LowConf", "INFO/DP", "INFO/SB", "INFO/SOMATIC",
+            "FORMAT/GQ", "FORMAT/SDP"}), keys);
+    ASSERT_EQ(keys.size(), retained(r)->hdr_lines.size());
+    EXPECT_EQ("##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+            retained(r)->hdr_lines[1]);
+}
+
+/* ctgVariants source column accessors ************************************************************/
+
+// A container built without parsing a VCF has no source records, so every accessor stands in the
+// placeholder the summary VCF used before any field was preserved.
+TEST(SrcFields, FallBackWithoutSourceRecords) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {{100, 1, TYPE_SUB, "A", "C"}});
+    EXPECT_EQ(".", vars->src_id(0));
+    EXPECT_EQ(".", vars->src_qual(0));
+    EXPECT_EQ("PASS", vars->src_filter(0));
+    EXPECT_EQ(".", vars->src_info(0));
+    EXPECT_EQ("", vars->src_fmt_keys(0));
+    EXPECT_EQ("", vars->src_fmt_vals(0));
+}
+
+TEST(SrcFields, FallBackWhenVariantHasNoRecordOrdinal) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {{100, 1, TYPE_SUB, "A", "C"}});
+    vars->src_recs = std::shared_ptr<srcRecords>(new srcRecords());
+    vars->src_recs->add(0, "rs1", "37", "LowConf", "DP=30", ":SDP", ":29");
+    ASSERT_EQ(-1, vars->rec_idxs[0]); // make_ctgVariants leaves the ordinal unknown
+    EXPECT_EQ(".", vars->src_id(0));
+    EXPECT_EQ("PASS", vars->src_filter(0));
+}
+
+TEST(SrcFields, ReadBackARetainedRecord) {
+    GlobalsGuard guard;
+    var_desc desc;
+    desc.pos = 100;
+    desc.rlen = 1;
+    desc.ref = "A";
+    desc.alt = "C";
+    desc.rec_idx = 1;
+    std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {desc});
+    vars->src_recs = std::shared_ptr<srcRecords>(new srcRecords());
+    vars->src_recs->add(1, "rs1", "37", "LowConf", "DP=30", ":SDP", ":29");
+    EXPECT_EQ("rs1", vars->src_id(0));
+    EXPECT_EQ("37", vars->src_qual(0));
+    EXPECT_EQ("LowConf", vars->src_filter(0));
+    EXPECT_EQ("DP=30", vars->src_info(0));
+    EXPECT_EQ(":SDP", vars->src_fmt_keys(0));
+    EXPECT_EQ(":29", vars->src_fmt_vals(0));
+    EXPECT_EQ("", vars->src_recs->ids[0]); // the skipped ordinal stayed empty
+}
+
 } // namespace

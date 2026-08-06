@@ -1504,4 +1504,143 @@ TEST(WriteSummaryVcf, PerAlleleFieldsAreDeclaredUnbounded) {
     }
 }
 
+/* write_summary_vcf(): preserved source fields ***************************************************/
+
+const int ID_COL = 2;     ///< 0-based column of ID within a summary VCF record
+const int QUAL_COL = 5;   ///< 0-based column of QUAL within a summary VCF record
+const int FILTER_COL = 6; ///< 0-based column of FILTER within a summary VCF record
+const int INFO_COL = 7;   ///< 0-based column of INFO within a summary VCF record
+const int FORMAT_COL = 8; ///< 0-based column of FORMAT within a summary VCF record
+const int TRUTH_COL = 9;  ///< 0-based column of the TRUTH sample within a summary VCF record
+
+/**
+ * @brief Attaches a one-record source store to a variant container, at record ordinal 0.
+ * @param[in,out] vars Container whose sole variant is pointed at the retained record
+ * @param[in] id ID column of the retained record
+ * @param[in] info INFO column of the retained record
+ * @param[in] keys Preserved FORMAT keys, each prefixed with ':'
+ * @param[in] vals Preserved FORMAT values, each prefixed with ':'
+ * @return The store, so a caller can also hand it to phaseblockData for its header lines
+ */
+std::shared_ptr<srcRecords> attach_src(std::shared_ptr<ctgVariants> vars, const std::string & id,
+        const std::string & info, const std::string & keys, const std::string & vals) {
+    vars->src_recs = std::shared_ptr<srcRecords>(new srcRecords());
+    vars->src_recs->add(0, id, "37", "LowConf", info, keys, vals);
+    for (int i = 0; i < vars->n; i++) vars->rec_idxs[i] = 0;
+    return vars->src_recs;
+}
+
+/** @brief Builds one truth variant matching make_shape_qvars()'s substitution, allele for allele. */
+std::shared_ptr<ctgVariants> make_shape_tvars(gt_t orig_gt) {
+    var_desc desc;
+    desc.pos = SPACING;
+    desc.rlen = 1;
+    desc.ref = "A";
+    desc.alt = "C";
+    desc.gt = orig_gt;
+    desc.phase_set = 1;
+    desc.ploidy = 2;
+    return make_ctgVariants(CTG, {desc});
+}
+
+// Before any field was preserved these four columns were hardcoded, so a variant whose source
+// record was never retained must still render exactly what it used to.
+TEST(WriteSummaryVcf, PlaceholdersWhenNoSourceRecordWasRetained) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string vcf = shape_vcf(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF));
+    std::vector<std::string> cols = split(records_at(vcf, SPACING + 1).at(0), '\t');
+    EXPECT_EQ(".", cols.at(ID_COL));
+    EXPECT_EQ(".", cols.at(QUAL_COL));
+    EXPECT_EQ("PASS", cols.at(FILTER_COL));
+    EXPECT_EQ(".", cols.at(INFO_COL));
+    EXPECT_EQ("GT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE", cols.at(FORMAT_COL));
+}
+
+TEST(WriteSummaryVcf, SourceColumnsReplacePlaceholders) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars = make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF);
+    attach_src(qvars, "rs1", "DP=30;SOMATIC", ":SDP:SAC", ":29:12,17");
+
+    std::vector<std::string> cols = split(records_at(shape_vcf(dir, qvars),
+            SPACING + 1).at(0), '\t');
+    EXPECT_EQ("rs1", cols.at(ID_COL));
+    EXPECT_EQ("37", cols.at(QUAL_COL));
+    EXPECT_EQ("LowConf", cols.at(FILTER_COL));
+    EXPECT_EQ("DP=30;SOMATIC", cols.at(INFO_COL));
+    EXPECT_EQ("GT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP:SAC", cols.at(FORMAT_COL));
+
+    // the appended values close out the query sample, in the order the keys were appended
+    std::vector<std::string> sample = split(cols.at(QUERY_COL), ':');
+    EXPECT_EQ("29", sample.at(sample.size() - 2));
+    EXPECT_EQ("12,17", sample.at(sample.size() - 1));
+}
+
+// One FORMAT key list serves both samples, so the callset that did not supply the appended keys
+// has no values for them and reports each as missing.
+TEST(WriteSummaryVcf, TruthSamplePadsQueryOwnedFormatKeys) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> qvars = make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF);
+    attach_src(qvars, "rs1", "DP=30", ":SDP:SAC", ":29:12,17");
+
+    pipeline_result result = run_pipeline(dir, qvars, make_shape_tvars(GT_ALT_REF), CTG_LENGTH,
+            make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+    std::vector<std::string> cols = split(records_at(summary_vcf(dir, *result.data),
+            SPACING + 1).at(0), '\t');
+    std::vector<std::string> truth = split(cols.at(TRUTH_COL), ':');
+    EXPECT_EQ(".", truth.at(truth.size() - 2));
+    EXPECT_EQ(".", truth.at(truth.size() - 1));
+}
+
+// A record the query never calls on is owned by the truth, so its columns and appended keys are
+// the truth's and the query sample is the one that pads.
+TEST(WriteSummaryVcf, TruthOnlyRecordCarriesTruthColumns) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::shared_ptr<ctgVariants> tvars = make_shape_tvars(GT_ALT_REF);
+    attach_src(tvars, "tv1", "TRUTHSET=hc", ":SDP", ":98");
+
+    pipeline_result result = run_pipeline(dir, nullptr, tvars, CTG_LENGTH,
+            make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+    std::vector<std::string> cols = split(records_at(summary_vcf(dir, *result.data),
+            SPACING + 1).at(0), '\t');
+    EXPECT_EQ("tv1", cols.at(ID_COL));
+    EXPECT_EQ("TRUTHSET=hc", cols.at(INFO_COL));
+    EXPECT_EQ("GT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE:SDP", cols.at(FORMAT_COL));
+    EXPECT_EQ("98", split(cols.at(TRUTH_COL), ':').back());
+    EXPECT_EQ(".", split(cols.at(QUERY_COL), ':').back());
+}
+
+// Both callsets contribute declarations, but a header may declare an ID only once; the query's
+// wins, matching which callset supplies the columns of a record both call.
+TEST(WriteSummaryVcf, HeaderDeclaresEachRetainedFieldOnce) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF,
+            GT_ALT_REF), nullptr, CTG_LENGTH, make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+
+    std::shared_ptr<srcRecords> qsrc(new srcRecords());
+    qsrc->hdr_keys = {"INFO/DP", "FILTER/LowConf"};
+    qsrc->hdr_lines = {"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Query depth\">",
+                       "##FILTER=<ID=LowConf,Description=\"Low confidence call\">"};
+    std::shared_ptr<srcRecords> tsrc(new srcRecords());
+    tsrc->hdr_keys = {"INFO/DP", "INFO/TRUTHSET"};
+    tsrc->hdr_lines = {"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Truth depth\">",
+                       "##INFO=<ID=TRUTHSET,Number=1,Type=String,Description=\"Truth set\">"};
+    result.data->callset_src_recs = {qsrc, tsrc};
+
+    std::string vcf = summary_vcf(dir, *result.data);
+    EXPECT_NE(std::string::npos, vcf.find("Query depth")) << vcf;
+    EXPECT_EQ(std::string::npos, vcf.find("Truth depth")) << vcf;
+    EXPECT_NE(std::string::npos, vcf.find("##FILTER=<ID=LowConf,")) << vcf;
+    EXPECT_NE(std::string::npos, vcf.find("##INFO=<ID=TRUTHSET,")) << vcf;
+
+    // the writer declares PASS itself, so an input declaration of it would be a duplicate
+    size_t first_pass = vcf.find("##FILTER=<ID=PASS,");
+    ASSERT_NE(std::string::npos, first_pass);
+    EXPECT_EQ(std::string::npos, vcf.find("##FILTER=<ID=PASS,", first_pass + 1));
+}
+
 } // namespace

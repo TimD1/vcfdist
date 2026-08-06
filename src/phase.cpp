@@ -5,6 +5,8 @@
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
+#include <string>
+#include <unordered_set>
 
 #include "phase.h"
 #include "print.h"
@@ -12,6 +14,18 @@
 
 
 /**************************************************************************************************/
+
+/**
+ * @brief Returns one missing value per key in a ':'-prefixed FORMAT key list.
+ * @param[in] keys FORMAT keys appended by the record's owning callset, each prefixed with ':'
+ * @return A ":." for each key, to fill the sample column of the callset that does not own them
+ */
+static std::string dot_fields(const std::string & keys) {
+    std::string dots;
+    for (char c : keys) if (c == ':') dots += ":.";
+    return dots;
+}
+
 
 /**
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
@@ -23,6 +37,17 @@
  *       two entries whose alleles normalize independently
  * @note Contigs called by only one callset are included; a contig with no query variants has no
  *       phase block to read, so its truth records are written with PB and BS defaulted
+ * @note ID, QUAL, FILTER, INFO, and the appended FORMAT keys come from whichever callset owns the
+ *       record, which is the query wherever it calls and the truth only on a pure false negative.
+ *       A matched record therefore drops the truth record's INFO and FORMAT, and the callset that
+ *       does not own a record writes '.' for each appended FORMAT key
+ * @note Number=A/R/G fields are omitted: their values index the source record's ALT list, while
+ *       these records carry normalized, split alleles. parse_variants() names what it dropped
+ * @note The input FILTER is preserved verbatim, on evaluated records included. A GA4GH consumer
+ *       reads a non-PASS FILTER on an evaluated record as a filtered call and demotes it, turning
+ *       filtered TPs into FNs and filtered FPs into Ns, so a caller's own non-PASS filter accepted
+ *       via --filter will demote those calls downstream. Rewriting it to PASS would misreport the
+ *       input, so it is reported here rather than designed around
  * @throws ERROR if the output summary VCF file cannot be opened for writing
  * @throws ERROR if neither callset is selected next while variants remain
  */
@@ -46,6 +71,20 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 this->contigs[i].data(), this->lengths[i]);
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
+
+    // Declare every FILTER, INFO, and FORMAT field carried over from an input. A record's
+    // site-level columns come from whichever callset owns it, so both callsets contribute; where
+    // the two disagree about an ID, the query's declaration wins, as it does for a matched record.
+    std::unordered_set<std::string> declared = {"FILTER/PASS"};
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+        if (this->callset_src_recs[c] == nullptr) continue;
+        const srcRecords & src = *this->callset_src_recs[c];
+        for (size_t i = 0; i < src.hdr_lines.size(); i++) {
+            if (!declared.insert(src.hdr_keys[i]).second) continue;
+            fprintf(out_vcf, "%s\n", src.hdr_lines[i].data());
+        }
+    }
+
     // The per-haplotype fields carry one value per allele of the sample's GT, which is what VCF
     // 4.4's Number=P declares. BCF_VL_P only reaches htslib in 1.23, so a consumer on any older
     // bcftools or pysam would report a cardinality error; Number=. produces byte-identical records
@@ -154,22 +193,29 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 bool matched = next[TRUTH] &&
                         vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]];
+
+                // the query owns every record it appears on, so its source record supplies the
+                // appended FORMAT keys and the truth sample has no values of its own for them
+                const std::string pad = dot_fields(vars[QUERY]->src_fmt_keys(ptrs[QUERY]));
                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                 if (matched) {
                     vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH],
-                            sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
+                            sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, false, pad);
                 } else {
-                    vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
+                    vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block, false, pad);
                 }
                 vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY],
-                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
+                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true,
+                        vars[QUERY]->src_fmt_vals(ptrs[QUERY]));
                 ptrs[QUERY]++;
                 if (matched) ptrs[TRUTH]++;
             } else if (next[TRUTH]) {
+                const std::string pad = dot_fields(vars[TRUTH]->src_fmt_keys(ptrs[TRUTH]));
                 vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                 vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH],
-                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
-                vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
+                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, false,
+                        vars[TRUTH]->src_fmt_vals(ptrs[TRUTH]));
+                vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true, pad);
                 ptrs[TRUTH]++;
             } else {
                 ERROR("No variants are selected next.");
@@ -197,6 +243,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
         this->phase_blocks[ctg] = std::shared_ptr<ctgPhaseblocks>(new ctgPhaseblocks());
     }
     this->ref = clusterdata_ptr->ref;
+    this->callset_src_recs = clusterdata_ptr->callset_src_recs;
 
     // add pointers to superclusters
     for (const std::string & ctg : this->contigs) {

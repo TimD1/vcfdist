@@ -62,6 +62,40 @@ struct var_fields {
 };
 
 /**
+ * @class srcRecords
+ * @brief Site-level columns retained from one input VCF, indexed by source record ordinal.
+ *
+ * The summary VCF is synthesized from the internal variant arrays rather than copied from the
+ * input, so the columns it cannot derive are held here for the run's lifetime and read back by
+ * the writer. Indexing by record ordinal rather than by variant stores one copy per source
+ * record, which the two halves of a split complex variant and the two entries of a het-alt
+ * record share. Ordinals dropped before retention leave an empty entry, so every vector is
+ * indexable by any ordinal below its size.
+ */
+class srcRecords {
+public:
+
+    /** @brief Stores one record's preserved columns at its 0-based ordinal within the input VCF. */
+    void add(int rec_idx, const std::string & id, const std::string & qual,
+            const std::string & filter, const std::string & info,
+            const std::string & fmt_keys, const std::string & fmt_vals);
+
+    /** @brief Releases the spare capacity that appending record by record left behind. */
+    void shrink();
+
+    std::vector<std::string> ids;       ///< ID column, verbatim
+    std::vector<std::string> quals;     ///< QUAL column, verbatim
+    std::vector<std::string> filters;   ///< FILTER column, verbatim
+    std::vector<std::string> infos;     ///< INFO column, preserved fields only
+    std::vector<std::string> fmt_keys;  ///< preserved FORMAT keys, each prefixed with ':'
+    std::vector<std::string> fmt_vals;  ///< sample values parallel to fmt_keys, each ':'-prefixed
+
+    // set once from the input VCF header (size equal to each other)
+    std::vector<std::string> hdr_keys;  ///< "<line type>/<ID>" of each retained header line
+    std::vector<std::string> hdr_lines; ///< FILTER, INFO, and FORMAT lines declaring those fields
+};
+
+/**
  * @class ctgVariants
  * @brief Store all variant information for a single contig and callset.
  */
@@ -82,11 +116,31 @@ public:
             const std::string & ctg, int idx);
 
     /** @brief Writes dot-separated empty sample fields for a variant with no call on this haplotype. */
-    void print_var_empty(FILE* out_fp, int sc_idx, int phase_block, bool query = false);
+    void print_var_empty(FILE* out_fp, int sc_idx, int phase_block, bool query = false,
+            const std::string & extra_fmt = "");
 
     /** @brief Writes sample-specific FORMAT fields for one variant to output VCF. */
     void print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
-            bool phase_switch, bool phase_flip, bool query = false);
+            bool phase_switch, bool phase_flip, bool query = false,
+            const std::string & extra_fmt = "");
+
+    /** @brief Returns the source record's ID column, or "." if none was retained. */
+    const std::string & src_id(int vi) const;
+
+    /** @brief Returns the source record's QUAL column, or "." if none was retained. */
+    const std::string & src_qual(int vi) const;
+
+    /** @brief Returns the source record's FILTER column, or "PASS" if none was retained. */
+    const std::string & src_filter(int vi) const;
+
+    /** @brief Returns the source record's preserved INFO column, or "." if none was retained. */
+    const std::string & src_info(int vi) const;
+
+    /** @brief Returns the source record's preserved FORMAT keys, each prefixed with ':'. */
+    const std::string & src_fmt_keys(int vi) const;
+
+    /** @brief Returns the source sample's preserved FORMAT values, each prefixed with ':'. */
+    const std::string & src_fmt_vals(int vi) const;
 
     /** @brief Returns true if a variant is present on the specified haplotype. */
     bool var_on_hap(int var_idx, hap_t hap, bool matched = false) const;
@@ -141,6 +195,15 @@ public:
     std::vector<phase_t> phases;     ///< variant keep/swap/unknown, from alignment (matched_gt relative to orig_gt)
     std::vector<phase_t> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
     std::vector<ac_errtype_t> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
+
+    // shared with every other container of this callset, indexed by rec_idxs
+    std::shared_ptr<srcRecords> src_recs; ///< retained source records (nullptr = none retained)
+
+private:
+
+    /** @brief Returns a variant's entry in a retained column, or the fallback if it has none. */
+    const std::string & src_field(const std::vector<std::string> * column, int vi,
+            const std::string & fallback) const;
 };
 
 /**
@@ -165,6 +228,8 @@ public:
     ///< Per-haplotype, per-contig variant containers: variants[hap][ctg]
     EnumArray<hap_t,
         std::unordered_map<std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> variants;
+    std::shared_ptr<srcRecords>       ///< Source records retained from this callset's VCF
+        src_recs;
 };
 
 /** @brief Classifies a record's raw GT array into its parse-time genotype shape. */
