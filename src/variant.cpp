@@ -376,7 +376,7 @@ void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
                 (ref_base + this->alts[idx]).data());
         break;
     default:
-        ERROR("print_var_info not implemented for type %d", this->types[idx]);
+        ERROR("print_var_info not implemented for type %d", static_cast<int>(this->types[idx]));
     }
 }
 
@@ -516,7 +516,8 @@ void variantData::add_variants(
                 break;
 
             default:
-                ERROR("Unexpected CIGAR operation (%d) in add_variants", cigar[cig_idx]);
+                ERROR("Unexpected CIGAR operation (%d) in add_variants",
+                        int(idx(cigar[cig_idx])));
         }
     }
 }

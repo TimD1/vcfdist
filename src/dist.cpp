@@ -88,6 +88,8 @@ std::string generate_str(
                         str += vars->alts[var_idx];
                         ref_pos += vars->refs[var_idx].size();
                         break;
+                    case TYPE_REF: // not a stored variant type, so nothing to consume
+                        break;
                 }
             }
             var_idx++; // next variant

@@ -216,6 +216,8 @@ void print_wfa_ptrs(
                         case PTR_DEL:
                             ptr_str[query_pos][truth_pos] = '?';
                             break;
+                        case PTR_MAT: // the INS matrix carries no match pointer
+                            break;
                     }
 
                 } else if (m == MAT_DEL) {
@@ -228,6 +230,8 @@ void print_wfa_ptrs(
                             break;
                         case PTR_DEL:
                             ptr_str[query_pos][truth_pos] = '-';
+                            break;
+                        case PTR_MAT: // the DEL matrix carries no match pointer
                             break;
                     }
                 }
