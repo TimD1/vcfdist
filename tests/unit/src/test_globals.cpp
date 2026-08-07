@@ -21,7 +21,7 @@
 namespace {
 
 /** @brief Returns the names of the given timers, in order. */
-std::vector<std::string> timer_names(std::vector<timer> & timers) {
+std::vector<std::string> timer_names(EnumArray<timer_t, timer, TIMER_SLOTS> & timers) {
     std::vector<std::string> names;
     for (timer & t : timers) names.push_back(t.get_name());
     return names;
@@ -145,48 +145,36 @@ TEST(CreateDirectory, EmptyNoop) {
 
 TEST(InitTimers, Populates) {
     GlobalsGuard guard;
-    g.timers.clear();
 
-    g.init_timers(timer_strs);
+    g.init_timers();
 
-    ASSERT_EQ(idx(TIME_TOTAL)+1, g.timers.size());
-    EXPECT_EQ(timer_strs, timer_names(g.timers));
-    EXPECT_EQ("reading", g.stage(TIME_READ).get_name());
-    EXPECT_EQ("total", g.stage(TIME_TOTAL).get_name());
+    ASSERT_EQ(TIMER_SLOTS, g.timers.size());
+    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+        EXPECT_EQ(timer_strs[t], g.stage(t).get_name()) << "stage " << idx(t);
+    }
 }
 
-TEST(InitTimers, EmptyInput) {
+TEST(InitTimers, Idempotent) {
     GlobalsGuard guard;
-    g.timers.clear();
 
-    g.init_timers({});
+    // slots are assigned rather than appended, so a second call cannot duplicate the stages
+    g.init_timers();
+    g.init_timers();
 
-    EXPECT_TRUE(g.timers.empty());
-}
-
-TEST(InitTimers, AppendsNotClears) {
-    GlobalsGuard guard;
-    g.timers.clear();
-
-    // each call pushes onto the existing vector rather than replacing it
-    g.init_timers({"first"});
-    g.init_timers({"second", "third"});
-
-    ASSERT_EQ(size_t(3), g.timers.size());
-    EXPECT_EQ(std::vector<std::string>({"first", "second", "third"}), timer_names(g.timers));
+    ASSERT_EQ(TIMER_SLOTS, g.timers.size());
+    EXPECT_EQ(std::vector<std::string>(timer_strs.begin(), timer_strs.end()),
+            timer_names(g.timers));
 }
 
 TEST(InitTimers, WritesThisNotGlobal) {
     GlobalsGuard guard;
-    g.timers.clear();
 
-    // the timers land on the instance the method was called on, not on the global `g`
+    // the names land on the instance the method was called on, not on the global `g`
     Globals local;
-    local.init_timers({"local"});
+    local.init_timers();
 
-    ASSERT_EQ(size_t(1), local.timers.size());
-    EXPECT_EQ("local", local.timers[0].get_name());
-    EXPECT_TRUE(g.timers.empty());
+    EXPECT_EQ("reading", local.stage(TIME_READ).get_name());
+    EXPECT_EQ("default", g.stage(TIME_READ).get_name());
 }
 
 /* String lookup tables ***************************************************************************/
@@ -210,9 +198,9 @@ TEST(StringTables, SizesWithSentinel) {
 
     // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
     EXPECT_EQ(GT_SLOTS, gt_strs.size());
-    EXPECT_EQ(idx(TIME_TOTAL)+1, timer_strs.size());
+    EXPECT_EQ(TIMER_SLOTS, timer_strs.size());
     EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
-    EXPECT_EQ("total", timer_strs[idx(TIME_TOTAL)]);
+    EXPECT_EQ("total", timer_strs[TIME_TOTAL]);
 }
 
 TEST(StringTables, IndexMapping) {

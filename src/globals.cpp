@@ -35,8 +35,8 @@ EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs =
 EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs =
     {{"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"}};
 /** @brief String names for pipeline stage timers in TIME_* index order. */
-std::vector<std::string> timer_strs =
-    {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};
+EnumArray<timer_t, std::string, TIMER_SLOTS> timer_strs =
+    {{"reading", "clustering", "alignment eval", "phasing", "writing", "total"}};
 /** @brief String representations of TYPE_* variant type constants. */
 EnumArray<edittype_t, std::string, EDITTYPE_SLOTS> type_strs =
     {{"REF", "SNP", "INS", "DEL", "CPX"}};
@@ -527,12 +527,12 @@ void Globals::print_usage() const
 
 
 /**
- * @brief Initializes one named timer object per pipeline stage.
- * @param[in] timer_strs Vector of timer names matching TIME_* constant indices
+ * @brief Names every pipeline stage timer from timer_strs.
+ * @note Assigns each slot rather than appending, so calling this twice is idempotent.
  */
-void Globals::init_timers(const std::vector<std::string> & timer_strs) {
-    for (const std::string & timer_name : timer_strs) {
-        this->timers.push_back( timer(timer_name) );
+void Globals::init_timers() {
+    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+        this->timers[t] = timer(timer_strs[t]);
     }
 }
 
@@ -543,7 +543,7 @@ void Globals::init_timers(const std::vector<std::string> & timer_strs) {
  * @return Reference to that stage's timer
  */
 timer & Globals::stage(timer_t t) {
-    return this->timers[idx(t)];
+    return this->timers[t];
 }
 
 

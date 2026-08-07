@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 
     // parse and store command-line args
     g.parse_args(argc, argv);
-    g.init_timers(timer_strs);
+    g.init_timers();
 
     g.stage(TIME_WRITE).start();
     write_params();

@@ -8,7 +8,6 @@
 #include <string>
 #include <chrono>
 
-#include "globals.h"
 #include "defs.h"
 
 /**

@@ -112,8 +112,7 @@ TEST(WriteRuntime, OneRowPerStage) {
     GlobalsGuard guard;
     TempDir dir;
     g.out_prefix = dir.path() + "/";
-    g.timers.clear();
-    g.init_timers(timer_strs);
+    g.init_timers();
 
     write_runtime();
 
@@ -125,7 +124,7 @@ TEST(WriteRuntime, OneRowPerStage) {
 
     ASSERT_EQ(idx(TIME_TOTAL)+1, lines.size());
     for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
-        EXPECT_EQ(size_t(0), lines[idx(t)].rfind(timer_strs[idx(t)] + "\t", 0))
+        EXPECT_EQ(size_t(0), lines[idx(t)].rfind(timer_strs[t] + "\t", 0))
                 << "row " << idx(t) << ": " << lines[idx(t)];
     }
 }
@@ -134,8 +133,7 @@ TEST(WriteRuntime, UnwritableDirectoryErrors) {
     GlobalsGuard guard;
     TempDir dir;
     g.out_prefix = dir.path("missing/");
-    g.timers.clear();
-    g.init_timers(timer_strs);
+    g.init_timers();
 
     EXPECT_EXIT(write_runtime(), testing::ExitedWithCode(1), "Failed to open runtime TSV file");
 }
