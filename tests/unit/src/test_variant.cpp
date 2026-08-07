@@ -2,6 +2,7 @@
  * @file test_variant.cpp
  * @brief Unit tests for variant.cpp: genotype, allele-count, and variant-type logic.
  */
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -1070,6 +1071,124 @@ TEST(VariantDataCtor, EmptyMembers) {
     EXPECT_TRUE(vcf.contigs.empty());
     EXPECT_TRUE(vcf.lengths.empty());
     EXPECT_TRUE(vcf.observed_ploidies.empty());
+}
+
+/* classify_gt ************************************************************************************/
+
+// Builds a GT array the way htslib hands one over: every allele index carries a phase bit, and a
+// missing allele is bcf_gt_missing. A negative index here means missing.
+std::vector<int32_t> encode_gt(const std::vector<int> & alleles, bool phased = true) {
+    std::vector<int32_t> gt;
+    for (int allele : alleles) {
+        if (allele < 0) gt.push_back(bcf_gt_missing);
+        else gt.push_back(phased ? bcf_gt_phased(allele) : bcf_gt_unphased(allele));
+    }
+    return gt;
+}
+
+gtparse_t classify(const std::vector<int> & alleles, bool phased = true) {
+    std::vector<int32_t> gt = encode_gt(alleles, phased);
+    return classify_gt(gt.data(), int(gt.size()));
+}
+
+TEST(ClassifyGt, HaploidRefAltAndMissing) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_HAP_REF, classify({0}));
+    EXPECT_EQ(GT_PARSE_HAP_ALT, classify({1}));
+
+    // the missing test precedes the truthiness test on bcf_gt_allele()'s -1, which would read as ALT
+    EXPECT_EQ(GT_PARSE_HAP_MISSING, classify({-1}));
+}
+
+// The parse vocabulary is allele-index-agnostic, so any alternate is A on a haploid record.
+TEST(ClassifyGt, HaploidSecondAlternateIsStillAlt) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_HAP_ALT, classify({2}));
+    EXPECT_EQ(GT_PARSE_HAP_ALT, classify({7}));
+}
+
+// A record whose VCF declares no GT tag is assumed monoploid alternate, and its gt is never read.
+TEST(ClassifyGt, NoGtTagIsHaploidAlt) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_HAP_ALT, classify_gt(nullptr, -1));
+}
+
+TEST(ClassifyGt, DiploidHomRef) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_DIP_HOM_REF, classify({0, 0}));
+}
+
+// 0|2 is heterozygous, so it shares a bin with 0|1 rather than landing anywhere multi-allelic.
+TEST(ClassifyGt, DiploidHetAltRegardlessOfWhichAlternate) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_DIP_HET_ALT, classify({0, 1}));
+    EXPECT_EQ(GT_PARSE_DIP_HET_ALT, classify({1, 0}));
+    EXPECT_EQ(GT_PARSE_DIP_HET_ALT, classify({0, 2}));
+    EXPECT_EQ(GT_PARSE_DIP_HET_ALT, classify({2, 0}));
+}
+
+// 2|2 is homozygous, the same shape as 1|1, so it is not a compound heterozygote.
+TEST(ClassifyGt, DiploidHomAltRegardlessOfWhichAlternate) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_DIP_HOM_ALT, classify({1, 1}));
+    EXPECT_EQ(GT_PARSE_DIP_HOM_ALT, classify({2, 2}));
+    EXPECT_EQ(GT_PARSE_DIP_HOM_ALT, classify({5, 5}));
+}
+
+// Two distinct nonzero alleles are compound heterozygous whatever their indices.
+TEST(ClassifyGt, DiploidCompoundHet) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_DIP_CPD_HET_ALT, classify({1, 2}));
+    EXPECT_EQ(GT_PARSE_DIP_CPD_HET_ALT, classify({2, 1}));
+    EXPECT_EQ(GT_PARSE_DIP_CPD_HET_ALT, classify({1, 3}));
+    EXPECT_EQ(GT_PARSE_DIP_CPD_HET_ALT, classify({3, 1}));
+}
+
+// Missing alleles are resolved before allele indices, so a half call is never read as homozygous.
+TEST(ClassifyGt, DiploidHalfCallOnEitherSide) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_DIP_HALF_MISSING, classify({1, -1}));
+    EXPECT_EQ(GT_PARSE_DIP_HALF_MISSING, classify({-1, 1}));
+    EXPECT_EQ(GT_PARSE_DIP_HALF_MISSING, classify({0, -1}));
+    EXPECT_EQ(GT_PARSE_DIP_HALF_MISSING, classify({-1, 2}));
+}
+
+TEST(ClassifyGt, DiploidNoCall) {
+    GlobalsGuard guard;
+    EXPECT_EQ(GT_PARSE_DIP_MISSING, classify({-1, -1}));
+}
+
+// Classification reads allele indices only, so the phase bit cannot change the bin. Whether an
+// unphased heterozygote is evaluated is decided later, by parse_vcf.
+TEST(ClassifyGt, PhasingDoesNotAffectClassification) {
+    GlobalsGuard guard;
+    const std::vector< std::vector<int> > genotypes = {
+        {0, 0}, {0, 1}, {1, 0}, {1, 1}, {1, 2}, {2, 2}, {1, -1}, {-1, -1},
+    };
+    for (const std::vector<int> & alleles : genotypes) {
+        EXPECT_EQ(classify(alleles, true), classify(alleles, false))
+                << alleles[0] << "/" << alleles[1];
+    }
+}
+
+// Every haploid and diploid shape is covered, so nothing reaches a catch-all bin.
+TEST(ClassifyGt, DiploidSpaceIsExhaustive) {
+    GlobalsGuard guard;
+    for (int allele1 = -1; allele1 < 4; allele1++) {
+        for (int allele2 = -1; allele2 < 4; allele2++) {
+            const gtparse_t parse_gt = classify({allele1, allele2});
+            EXPECT_GE(idx(parse_gt), idx(GT_PARSE_DIP_HOM_REF)) << allele1 << "/" << allele2;
+            EXPECT_LE(idx(parse_gt), idx(GT_PARSE_DIP_MISSING)) << allele1 << "/" << allele2;
+        }
+    }
+}
+
+// parse_vcf rejects higher ploidies first, so reaching classify_gt with one is a programming error.
+TEST(ClassifyGt, PolyploidErrors) {
+    GlobalsGuard guard;
+    std::vector<int32_t> gt = encode_gt({1, 1, 1});
+    EXPECT_EXIT(classify_gt(gt.data(), 3), testing::ExitedWithCode(1),
+            "classify_gt\\(\\) expects monoploid/diploid GT, got ploidy 3");
 }
 
 /* parse-time filtering, counters, and summary warnings *******************************************/
