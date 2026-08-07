@@ -177,6 +177,30 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
 			std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hi,
             bool print = false);
 
+/**
+ * @class ReachOffsets
+ * @brief Typed view over the flat wavefront offset buffer, strided as [matrix][score][diagonal].
+ *
+ * The buffer stays a caller-allocated std::vector<int> so it can be reused across calls, but the
+ * matrix dimension is keyed by mat_t, so no other family's enumerator can supply that stride.
+ */
+class ReachOffsets {
+public:
+    /** @brief Wraps a flat buffer holding MATS matrices of `scores` rows and `mat_len` diagonals. */
+    ReachOffsets(std::vector<int> & offs, int scores, int mat_len) :
+            buf(offs), score_stride(mat_len), mat_stride(mat_len * scores) { ; }
+
+    /** @brief Returns the offset for one matrix, score and diagonal. */
+    int & operator()(mat_t m, int score, int diag) {
+        return this->buf[idx(m)*this->mat_stride + score*this->score_stride + diag];
+    }
+
+private:
+    std::vector<int> & buf;  ///< flat backing buffer, owned by the caller
+    int score_stride;        ///< distance between consecutive scores
+    int mat_stride;          ///< distance between consecutive matrices
+};
+
 /** @brief Runs graph-based alignment and returns the optimal alignment score. */
 int calc_prec_recall_aln(
         const std::shared_ptr<Graph> query_graph,
