@@ -3,8 +3,9 @@ INSTALLDIR = /usr/local/bin
 OBJS = globals.o print.o variant.o dist.o bed.o cluster.o phase.o timer.o
 
 CXX ?= g++
-# CXXFLAGS = -O3
-CXXFLAGS = -g -pg -O1
+# Must stay identical to tests/unit/build/Makefile: both builds share the object files below.
+CXXFLAGS = -g -O3
+# For gprof profiling (see ./profile) add -pg here and in the test build, then make clean.
 CXXFLAGS += -Wall -Wextra -std=c++17
 # var_fields members with no default are required; omitting one must not compile (GCC only)
 CXXFLAGS += -Werror=missing-field-initializers
