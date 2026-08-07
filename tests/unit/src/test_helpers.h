@@ -310,7 +310,7 @@ struct var_desc {
     float qual = 60;           ///< Sets both var_qual and gt_qual (each clamped to g.max_qual)
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)
-    uint8_t loc = BED_INSIDE;  ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
+    bedloc_t loc = BED_INSIDE; ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
     int rec_idx = -1;          ///< Source VCF record ordinal, 0-based (-1 = unknown)
     int alt_idx = -1;          ///< Original ALT ordinal, 1-based (-1 = unknown)
     uint8_t ploidy = 0;        ///< Variant ploidy from the VCF genotype (0 = unknown)

@@ -46,7 +46,7 @@ struct var_fields {
     int pos;                      ///< variant start position (0-based)
     int rlen;                     ///< reference length
     uint8_t type;                 ///< variant type: NONE, SUB, INS, DEL, CPX
-    uint8_t loc;                  ///< BED location: INSIDE, OUTSIDE, BORDER
+    bedloc_t loc;                 ///< BED location: INSIDE, OUTSIDE, BORDER
     std::string ref;              ///< variant reference allele
     std::string alt;              ///< variant alternate allele
     uint8_t orig_gt;              ///< simple genotype (0|1, 1|0, or 1|1)
@@ -108,7 +108,7 @@ public:
     std::vector<int> poss;          ///< variant start positions (0-based)
     std::vector<int> rlens;         ///< reference lengths
     std::vector<uint8_t> types;     ///< variant type: NONE, SUB, INS, DEL, CPX
-    std::vector<uint8_t> locs;      ///< BED location: INSIDE, OUTSIDE, BORDER
+    std::vector<bedloc_t> locs;      ///< BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  ///< variant reference allele
     std::vector<std::string> alts;  ///< variant alternate allele (always one)
     std::vector<uint8_t> orig_gts;  ///< simple genotype (0|1, 1|0, or 1|1)

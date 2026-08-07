@@ -96,14 +96,18 @@ constexpr std::size_t idx(K k) { return static_cast<std::size_t>(k); }
 #define HAPS 2 ///< Number of haplotypes
 /** @} */
 
-/** @defgroup bed_constants BED region location constants
- *  @{
- */
-#define BED_OUTSIDE 0 ///< Variant is fully outside all BED regions
-#define BED_INSIDE  1 ///< Variant is fully inside a BED region
-#define BED_BORDER  2 ///< Variant overlaps a BED region boundary
-#define BED_OFFCTG  3 ///< Variant is on a contig not present in BED file
-/** @} */
+/** @brief Location of a variant relative to the BED regions. */
+enum class bedloc_t : int8_t {
+    BED_OUTSIDE = 0, ///< Variant is fully outside all BED regions
+    BED_INSIDE  = 1, ///< Variant is fully inside a BED region
+    BED_BORDER  = 2, ///< Variant overlaps a BED region boundary
+    BED_OFFCTG  = 3, ///< Variant is on a contig not present in BED file
+};
+constexpr bedloc_t BED_OUTSIDE = bedloc_t::BED_OUTSIDE;
+constexpr bedloc_t BED_INSIDE  = bedloc_t::BED_INSIDE;
+constexpr bedloc_t BED_BORDER  = bedloc_t::BED_BORDER;
+constexpr bedloc_t BED_OFFCTG  = bedloc_t::BED_OFFCTG;
+constexpr std::size_t BEDLOC_SLOTS = 4; ///< Subscript slots needed by a bedloc_t-keyed array
 
 /** @defgroup gt_constants Genotype code constants (GT_*)
  *  @{

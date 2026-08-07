@@ -146,7 +146,8 @@ void bedData::check() {
  * @return One of: BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG.
  * @throws ERROR if the variant stop precedes the variant start.
  */
-int bedData::contains(std::string contig, const int & start, const int & stop, const int & type) {
+bedloc_t bedData::contains(std::string contig, const int & start, const int & stop,
+        const int & type) {
 
     if (!g.bed_exists) return BED_INSIDE;
 

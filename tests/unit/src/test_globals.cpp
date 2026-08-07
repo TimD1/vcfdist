@@ -250,7 +250,7 @@ TEST(StringTables, RegionUnpadded) {
     EXPECT_EQ("BORDER", region_strs[BED_BORDER]);
     EXPECT_EQ("OFF_CTG", region_strs[BED_OFFCTG]);
 
-    ASSERT_FALSE(region_strs.empty());
+    ASSERT_EQ(BEDLOC_SLOTS, region_strs.size());
     for (const std::string & s : region_strs) {
         EXPECT_EQ(std::string::npos, s.find(' ')) << "padded entry '" << s << "'";
     }

@@ -574,7 +574,7 @@ void parse_variants(const std::string & vcf_fn,
     int prev_rid = -1;
     std::unordered_map<int, int> ctglens;
     std::string ctg;
-    std::vector<int> nregions(region_strs.size(), 0);
+    EnumArray<bedloc_t, int, BEDLOC_SLOTS> nregions{};
     std::vector<int> pass_min_qual(2, 0);
 
     // quality data for each call
@@ -986,18 +986,15 @@ void parse_variants(const std::string & vcf_fn,
             }
 
             // check that variant (original representation) is in region of interest
-            uint8_t loc = g.bed.contains(ctg, rec->pos, rec->pos + reflen, type);
+            bedloc_t loc = g.bed.contains(ctg, rec->pos, rec->pos + reflen, type);
             switch (loc) {
                 case BED_OUTSIDE: 
                 case BED_OFFCTG:
                 case BED_BORDER:
                     nregions[loc]++;
                     continue; // discard variant
-                case BED_INSIDE: 
+                case BED_INSIDE:
                     nregions[loc]++;
-                    break;
-                default:
-                    ERROR("Unexpected BED region type: %d", loc);
                     break;
             }
 
