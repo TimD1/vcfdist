@@ -431,6 +431,42 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, hap_t hi, const std::st
 variantData::variantData() : callset(QUERY) { ; }
 
 /**
+ * @brief Classifies a record's raw GT array into its parse-time genotype shape.
+ *
+ * Allele-index-agnostic: A and B stand for any alternate, so 1|2, 2|1, and 1|3 all classify as
+ * compound heterozygous. Missing alleles are handled first, which leaves the diploid space
+ * exhaustive over four cases on the two allele indices (both zero, exactly one zero, equal and
+ * nonzero, distinct and nonzero) and the haploid space exhaustive over missing, zero, and nonzero.
+ *
+ * @param[in] gt Raw GT array as returned by bcf_get_format_int32(), unread when ngt is -1
+ * @param[in] ngt Number of alleles in gt, or -1 when the record's VCF declares no GT tag
+ * @return Parse-time genotype shape of the record
+ * @throws ERROR Ploidy above 2, which the caller is expected to reject first
+ */
+gtparse_t classify_gt(const int32_t * gt, int ngt) {
+
+    if (ngt == -1) return GT_PARSE_HAP_ALT; // no GT tag, assumed monoploid alternate
+    if (ngt == 1) { // monoploid/haploid
+        if (bcf_gt_is_missing(gt[0])) return GT_PARSE_HAP_MISSING;
+        return bcf_gt_allele(gt[0]) ? GT_PARSE_HAP_ALT : GT_PARSE_HAP_REF;
+    }
+    if (ngt != 2) ERROR("classify_gt() expects monoploid/diploid GT, got ploidy %d", ngt);
+
+    // distinguish a no-call (both alleles missing) from a half call (exactly one missing)
+    const bool hap1_missing = bcf_gt_is_missing(gt[idx(HAP1)]);
+    const bool hap2_missing = bcf_gt_is_missing(gt[idx(HAP2)]);
+    if (hap1_missing && hap2_missing) return GT_PARSE_DIP_MISSING;
+    if (hap1_missing || hap2_missing) return GT_PARSE_DIP_HALF_MISSING;
+
+    const int allele1 = bcf_gt_allele(gt[idx(HAP1)]);
+    const int allele2 = bcf_gt_allele(gt[idx(HAP2)]);
+    if (!allele1 && !allele2) return GT_PARSE_DIP_HOM_REF;
+    if (!allele1 || !allele2) return GT_PARSE_DIP_HET_ALT;
+    if (allele1 == allele2)   return GT_PARSE_DIP_HOM_ALT;
+    return GT_PARSE_DIP_CPD_HET_ALT;
+}
+
+/**
  * @brief Parses variants from a VCF file into a variantData container, with filtering and validation.
  * @param[in] vcf_fn Input VCF filename
  * @param[out] variant_data Container to populate with parsed variants
@@ -488,7 +524,7 @@ void parse_variants(const std::string & vcf_fn,
     // genotype data for each call
     int GT_memsize   = 0;
     int ngt       = 0;
-    EnumArray<gt_t, int, GT_SLOTS> GT_counts{};
+    EnumArray<gtparse_t, int, GTPARSE_SLOTS> GT_counts{};
     int * gt      = NULL;
     bool gt_warn  = false;
 
@@ -694,65 +730,22 @@ void parse_variants(const std::string & vcf_fn,
         variant_data->observed_ploidies[ctg_idx].insert(std::abs(ngt));
 
         // parse genotype info
-        gt_t orig_gt = GT_REF_REF;
-        bool same = false;
-        if (ngt == -1) { // no info, assume monoploid
-            orig_gt = GT_ALT1;
-        } else if (ngt == 1) { // monoploid/haploid
-
-            // set 1 if allele_idx > 0, no-call if the single allele is missing
-            if (bcf_gt_is_missing(gt[0])) orig_gt = GT_MISSING;
-            else orig_gt = bcf_gt_allele(gt[0]) ? GT_ALT1 : GT_REF;
-
-        } else if (ngt == 2) { // diploid
-
-            // distinguish a no-call (both alleles missing) from a half call (exactly one missing)
-            bool hap1_missing = bcf_gt_is_missing(gt[idx(HAP1)]);
-            bool hap2_missing = bcf_gt_is_missing(gt[idx(HAP2)]);
-            if (hap1_missing && hap2_missing) { // no call (.|.), record is dropped
-                orig_gt = GT_MISSING;
-
-            } else if (hap1_missing || hap2_missing) { // half call (1|.), known allele is kept
-                orig_gt = GT_HALF;
-
-            } else { // useful
-
-                // allow setting N/N to 1/1 later
-                if (bcf_gt_allele(gt[0]) == bcf_gt_allele(gt[1])) same = true;
-
-                if (bcf_gt_allele(gt[0]) == 0) { // REF
-                    switch (bcf_gt_allele(gt[1])) {
-                        case 0: orig_gt = GT_REF_REF; break;
-                        case 1: orig_gt = GT_REF_ALT; break;
-                        default: orig_gt = GT_OTHER; break;
-                    }
-                } else if (bcf_gt_allele(gt[0]) == 1) { // ALT1
-                    switch (bcf_gt_allele(gt[1])) {
-                        case 0: orig_gt = GT_ALT_REF; break;
-                        case 1: orig_gt = GT_ALT_ALT; break;
-                        case 2: orig_gt = GT_ALT1_ALT2; break;
-                        default: orig_gt = GT_OTHER; break;
-                    }
-                } else if (bcf_gt_allele(gt[0]) == 2) { // ALT2
-                    orig_gt = (bcf_gt_allele(gt[1]) == 1) ? GT_ALT2_ALT1 : GT_OTHER;
-                } else {
-                    orig_gt = GT_OTHER;
-                }
-            }
-
-        } else if (ngt > 2) { // polyploid
+        if (ngt > 2) // polyploid, rejected before classify_gt() sees it
             ERROR("Expected monoploid/diploid %s VCF, found variant with ploidy %d",
                     callset_strs[callset].data(), ngt);
-        }
-        GT_counts[orig_gt]++;
+        const gtparse_t parse_gt = classify_gt(gt, ngt);
+        GT_counts[parse_gt]++;
+
+        // both alleles equal allows setting N/N to 1/1 later
+        const bool same = parse_gt == GT_PARSE_DIP_HOM_REF || parse_gt == GT_PARSE_DIP_HOM_ALT;
 
         // count missing alleles once per record, not once per haplotype
-        if (orig_gt == GT_MISSING) {
+        if (parse_gt == GT_PARSE_DIP_MISSING || parse_gt == GT_PARSE_HAP_MISSING) {
             if (g.verbosity > 1)
                 WARN("Variant with no known alleles (.|.) in %s VCF at %s:%lld, skipping",
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
             unknown_allele_total += 1;
-        } else if (orig_gt == GT_HALF) {
+        } else if (parse_gt == GT_PARSE_DIP_HALF_MISSING) {
             if (g.verbosity > 1)
                 WARN("Variant with a half call (1|.) in %s VCF at %s:%lld, keeping known allele",
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
@@ -970,20 +963,16 @@ void parse_variants(const std::string & vcf_fn,
             pass_min_qual[false], g.min_qual, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");
-    for (gt_t gt : EnumRange<gt_t, GT_SLOTS>{}) {
-        if (print && GT_counts[gt]) INFO("    %3s: %i", gt_strs[gt].data(), GT_counts[gt]);
+    for (gtparse_t gt : EnumRange<gtparse_t, GTPARSE_SLOTS>{}) {
+        if (print && GT_counts[gt]) INFO("    %3s: %i", gtparse_strs[gt].data(), GT_counts[gt]);
     }
-    if (float(GT_counts[GT_REF_ALT]) / (GT_counts[GT_ALT_REF]+1) > 2 ||
-        float(GT_counts[GT_ALT_REF]) / (GT_counts[GT_REF_ALT]+1) > 2)
-        WARN("Imbalance of heterozygous variant phasing, VCF may be improperly phased")
     if (print) INFO(" ");
 
     if (PS_missing_total) 
         WARN("%d variants missing PS tags in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
-    multi_total = GT_counts[GT_ALT_ALT] + GT_counts[GT_ALT1_ALT2] +
-        GT_counts[GT_ALT2_ALT1] + GT_counts[GT_OTHER];
+    multi_total = GT_counts[GT_PARSE_DIP_HOM_ALT] + GT_counts[GT_PARSE_DIP_CPD_HET_ALT];
     if (multi_total && print)
         INFO("%d homozygous and multi-allelic variants in %s VCF, split for evaluation",
             multi_total, callset_strs[callset].data());

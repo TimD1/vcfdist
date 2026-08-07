@@ -1339,7 +1339,7 @@ TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
     EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_HAP_ALT, 1)));
     EXPECT_EQ(std::vector< std::set<int> >({{1}}), r.vars->observed_ploidies);
 }
 
@@ -1350,13 +1350,13 @@ TEST_F(ParseVariants, HaploidAltKeptOnHap1) {
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_HAP_ALT, 1)));
 }
 
 TEST_F(ParseVariants, HaploidRefSkipped) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "0")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_REF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_HAP_REF, 1)));
 }
 
 TEST_F(ParseVariants, Gt01KeptOnHap2) {
@@ -1364,7 +1364,7 @@ TEST_F(ParseVariants, Gt01KeptOnHap2) {
     EXPECT_EQ(0, hap_vars(r, HAP1)->n);
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
     EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_REF_ALT, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HET_ALT, 1)));
 }
 
 TEST_F(ParseVariants, Gt10KeptOnHap1) {
@@ -1372,7 +1372,7 @@ TEST_F(ParseVariants, Gt10KeptOnHap1) {
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT_REF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HET_ALT, 1)));
 }
 
 // A homozygous record yields the same allele on both haplotypes.
@@ -1384,7 +1384,7 @@ TEST_F(ParseVariants, Gt11SplitAcrossBothHaps) {
     EXPECT_EQ("G", hap_vars(r, HAP2)->alts[0]);
     EXPECT_EQ(99, hap_vars(r, HAP1)->poss[0]);
     EXPECT_EQ(99, hap_vars(r, HAP2)->poss[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT_ALT, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HOM_ALT, 1)));
     EXPECT_TRUE(logged(r, "1 homozygous and multi-allelic variants in QUERY VCF, split"));
 }
 
@@ -1415,7 +1415,7 @@ TEST_F(ParseVariants, Gt12SplitByAllele) {
     EXPECT_EQ("T", hap_vars(r, HAP2)->alts[0]);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_ALT2, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_CPD_HET_ALT, 1)));
 }
 
 TEST_F(ParseVariants, Gt21SplitByAllele) {
@@ -1424,16 +1424,16 @@ TEST_F(ParseVariants, Gt21SplitByAllele) {
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
     EXPECT_EQ("T", hap_vars(r, HAP1)->alts[0]);
     EXPECT_EQ("G", hap_vars(r, HAP2)->alts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT2_ALT1, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_CPD_HET_ALT, 1)));
 }
 
-// 0|2 reaches no named genotype, so it is tallied as other while its second ALT is still kept.
-TEST_F(ParseVariants, Gt02TalliedAsOther) {
+// 0|2 is heterozygous, so it shares the 0/A bin with 0|1 while its second ALT is still kept.
+TEST_F(ParseVariants, Gt02TalliedAsHeterozygous) {
     ParseResult r = parse_records(dir, {record(100, "A", "G,T", "0|2")});
     EXPECT_EQ(0, hap_vars(r, HAP1)->n);
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
     EXPECT_EQ("T", hap_vars(r, HAP2)->alts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_OTHER, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HET_ALT, 1)));
 }
 
 TEST_F(ParseVariants, PolyploidErrors) {
@@ -1478,7 +1478,7 @@ TEST_F(ParseVariants, NoCallDroppedAndCounted) {
     EXPECT_EQ(0, total_kept(r));
     EXPECT_FALSE(kept_pos(r, 100));
     EXPECT_TRUE(logged(r, "1 variants with no known alleles (.|.) in QUERY VCF, skipped"));
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_MISSING, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_MISSING, 1)));
 }
 
 // A no-call is one dropped record, not one dropped record per haplotype.
@@ -1491,8 +1491,8 @@ TEST_F(ParseVariants, NoCallCountedOncePerRecord) {
 // A half call keeps its known allele, so it must not be tallied as a no-call.
 TEST_F(ParseVariants, HalfCallCountedDistinctlyFromNoCall) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
-    EXPECT_FALSE(logged(r, ".|.:")); // histogram line is only printed for nonzero counts
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HALF_MISSING, 1)));
+    EXPECT_FALSE(logged(r, "./.:")); // histogram line is only printed for nonzero counts
     EXPECT_FALSE(logged(r, "no known alleles"));
 }
 
@@ -1511,7 +1511,7 @@ TEST_F(ParseVariants, HalfCallKeptOnTheHaplotypeWithTheKnownAllele) {
                                         record(200, "A", "G", ".|1")});
     EXPECT_EQ(1, kept_on_hap(r, HAP1));
     EXPECT_EQ(1, kept_on_hap(r, HAP2));
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 2)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HALF_MISSING, 2)));
     EXPECT_TRUE(logged(r, "2 variants with a half call"));
 }
 
@@ -1522,7 +1522,7 @@ TEST_F(ParseVariants, HalfCallHap1AlleleKept) {
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HALF_MISSING, 1)));
 }
 
 TEST_F(ParseVariants, HalfCallHap2AlleleKept) {
@@ -1530,14 +1530,14 @@ TEST_F(ParseVariants, HalfCallHap2AlleleKept) {
     EXPECT_EQ(0, hap_vars(r, HAP1)->n);
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
     EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HALF_MISSING, 1)));
 }
 
 // An unphased half call is still a half call, but its known allele is dropped as unphased.
 TEST_F(ParseVariants, UnphasedHalfCallSkipped) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "./1")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_DIP_HALF_MISSING, 1)));
     EXPECT_TRUE(logged(r, "1 variants with a half call (1|.) in QUERY VCF, known allele kept"));
     EXPECT_TRUE(logged(r, "1 variants with unphased genotypes in QUERY VCF, skipped"));
 }
@@ -1547,8 +1547,8 @@ TEST_F(ParseVariants, UnphasedHalfCallSkipped) {
 TEST_F(ParseVariants, HaploidNoCallSkippedNotTalliedAsAlt) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", ".")});
     EXPECT_EQ(0, total_kept(r));
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_MISSING, 1)));
-    EXPECT_FALSE(logged(r, gt_hist_line(GT_ALT1, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_HAP_MISSING, 1)));
+    EXPECT_FALSE(logged(r, gt_hist_line(GT_PARSE_HAP_ALT, 1)));
     EXPECT_TRUE(logged(r, "1 variants with no known alleles (.|.) in QUERY VCF, skipped"));
 }
 
@@ -1574,7 +1574,7 @@ TEST_F(ParseVariants, SpanningDeletionTalliedAsRefTypeButNoCallIsNot) {
 
     ParseResult missing = parse_records(dir, {record(100, "A", "G", ".|.")});
     EXPECT_FALSE(logged(missing, type_hist_line(TYPE_REF, 1)));
-    EXPECT_TRUE(logged(missing, gt_hist_line(GT_MISSING, 1)));
+    EXPECT_TRUE(logged(missing, gt_hist_line(GT_PARSE_DIP_MISSING, 1)));
 }
 
 /* phase set **************************************************************************************/
@@ -1937,23 +1937,6 @@ TEST_F(ParseVariants, HomozygousInsertionDowngradedWhenColocatedWithInsertion) {
     EXPECT_EQ("TT", hap_vars(hap2_kept, HAP2)->alts[0]);
     EXPECT_EQ(GT_REF_ALT, hap_vars(hap2_kept, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(hap2_kept, "1 overlapping variants in QUERY VCF, skipped"));
-}
-
-// Heterozygotes should land on either haplotype about equally; a lopsided split suggests the VCF
-// was never really phased.
-TEST_F(ParseVariants, HeterozygousImbalanceWarns) {
-    ParseResult r = parse_records(dir, {record(100, "A", "G", "0|1"),
-                                        record(200, "A", "G", "0|1"),
-                                        record(300, "A", "G", "0|1")});
-    EXPECT_TRUE(logged(r, "Imbalance of heterozygous variant phasing"));
-}
-
-TEST_F(ParseVariants, BalancedHeterozygotesDoNotWarn) {
-    ParseResult r = parse_records(dir, {record(100, "A", "G", "0|1"),
-                                        record(200, "A", "G", "1|0"),
-                                        record(300, "A", "G", "0|1"),
-                                        record(400, "A", "G", "1|0")});
-    EXPECT_FALSE(logged(r, "Imbalance of heterozygous variant phasing"));
 }
 
 } // namespace

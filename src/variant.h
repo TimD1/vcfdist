@@ -167,6 +167,9 @@ public:
         std::unordered_map<std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> variants;
 };
 
+/** @brief Classifies a record's raw GT array into its parse-time genotype shape. */
+gtparse_t classify_gt(const int32_t * gt, int ngt);
+
 /** @brief Parses variants from a VCF file into a variantData container, with filtering and validation. */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,

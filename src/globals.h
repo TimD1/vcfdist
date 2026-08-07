@@ -101,7 +101,8 @@ extern Globals g; ///< Global program configuration instance
 // defined in globals.cpp
 extern EnumArray<callset_t, std::string, CALLSET_SLOTS> callset_strs; ///< String representations of QUERY/TRUTH callset indices
 extern EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs;   ///< String representations of ERRTYPE_* constants
-extern EnumArray<gt_t, std::string, GT_SLOTS> gt_strs;      ///< String representations of GT_* genotype constants
+extern EnumArray<gtparse_t, std::string, GTPARSE_SLOTS> gtparse_strs;  ///< String representations of GT_PARSE_* genotype shapes
+extern EnumArray<gt_t, std::string, GT_SLOTS> gt_strs;      ///< String representations of the four gt_t evaluation genotypes
 extern EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs;      ///< String representations of AC_ERR_* allele count error types
 extern EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs;   ///< String representations of PHASE_* constants
 extern EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs;  ///< String representations of BED_* location constants

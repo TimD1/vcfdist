@@ -257,7 +257,7 @@ bool kept_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 
 /** @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count. */
-std::string gt_hist_line(gt_t gt, int count);
+std::string gt_hist_line(gtparse_t gt, int count);
 
 /** @brief Returns the variant-type line parse_variants() prints for a type and count. */
 std::string type_hist_line(edittype_t type, int count);

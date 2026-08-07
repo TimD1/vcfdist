@@ -20,7 +20,10 @@ const std::string Globals::PROGRAM = "vcfdist";
 EnumArray<callset_t, std::string, CALLSET_SLOTS> callset_strs = {{"QUERY", "TRUTH"}};
 /** @brief String representations of ERRTYPE_* constants (TP, FP, FN, unknown). */
 EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs = {{"TP", "FP", "FN", "??"}};
-/** @brief String representations of GT_* genotype constants. */
+/** @brief String representations of GT_PARSE_* genotype shapes, A and B being any alternates. */
+EnumArray<gtparse_t, std::string, GTPARSE_SLOTS> gtparse_strs =
+    {{"0", "A", ".", "0/0", "0/A", "A/A", "A/B", "./A", "./."}};
+/** @brief String representations of the four gt_t evaluation genotypes. */
 EnumArray<gt_t, std::string, GT_SLOTS> gt_strs =
     {{"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y"}};
 /** @brief String representations of PHASE_* constants (keep, swap, missing). */

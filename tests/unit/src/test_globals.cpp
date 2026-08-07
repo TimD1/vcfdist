@@ -208,6 +208,11 @@ TEST(StringTables, IndexMapping) {
     EXPECT_EQ("1|1", gt_strs[GT_ALT_ALT]);
     EXPECT_EQ(".|.", gt_strs[GT_MISSING]);
     EXPECT_EQ("X|.", gt_strs[GT_HALF]);
+    EXPECT_EQ(GTPARSE_SLOTS, gtparse_strs.size());
+    EXPECT_EQ("0/A", gtparse_strs[GT_PARSE_DIP_HET_ALT]);
+    EXPECT_EQ("A/B", gtparse_strs[GT_PARSE_DIP_CPD_HET_ALT]);
+    EXPECT_EQ("./.", gtparse_strs[GT_PARSE_DIP_MISSING]);
+    EXPECT_EQ(".", gtparse_strs[GT_PARSE_HAP_MISSING]);
     EXPECT_EQ("SNP", type_strs[TYPE_SUB]);
     EXPECT_EQ("QUERY", callset_strs[QUERY]);
     EXPECT_EQ("TRUTH", callset_strs[TRUTH]);
