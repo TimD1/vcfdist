@@ -334,7 +334,7 @@ std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & re
         const std::string & alt, const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Sets all six per-haplotype evaluation lanes for one variant. */
-void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, uint8_t errtype,
+void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, errtype_t errtype,
         int sync_group, float callq, int ref_ed, int query_ed, float credit);
 
 /** @brief Sets cluster boundaries and reaches; nc defaults to clusters.size()-1. */

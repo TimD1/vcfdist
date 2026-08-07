@@ -101,7 +101,7 @@ extern Globals g; ///< Global program configuration instance
 
 // defined in globals.cpp
 extern std::vector<std::string> callset_strs; ///< String representations of QUERY/TRUTH callset indices
-extern std::vector<std::string> error_strs;   ///< String representations of ERRTYPE_* constants
+extern EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs;   ///< String representations of ERRTYPE_* constants
 extern std::vector<std::string> gt_strs;      ///< String representations of GT_* genotype constants
 extern std::vector<std::string> ac_strs;      ///< String representations of AC_ERR_* allele count error types
 extern std::vector<std::string> phase_strs;   ///< String representations of PHASE_* constants

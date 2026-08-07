@@ -271,12 +271,15 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
 
     // for each class, store variant counts above each quality threshold
     // init counters; ax0: SNP/INDEL/SV/ALL, ax1: TP,FP,FN ax2: QUAL
-    std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
-            std::vector< std::vector<float> >(ERRTYPES,
-            std::vector<float>(max_qual-min_qual+1, 0.0))) ;
-    std::vector< std::vector< std::vector<float> > > truth_counts(VARTYPES,
-            std::vector< std::vector<float> >(ERRTYPES,
-            std::vector<float>(max_qual-min_qual+1, 0.0))) ;
+    const EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> per_errtype = {{
+            std::vector<float>(max_qual-min_qual+1, 0.0),
+            std::vector<float>(max_qual-min_qual+1, 0.0),
+            std::vector<float>(max_qual-min_qual+1, 0.0),
+            std::vector<float>(max_qual-min_qual+1, 0.0)}};
+    std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> >
+            query_counts(VARTYPES, per_errtype);
+    std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> >
+            truth_counts(VARTYPES, per_errtype);
 
     // calculate summary statistics
     for (const std::string & ctg : phasedata_ptr->contigs) {
@@ -384,8 +387,10 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 
     // tally variant counts above each quality threshold
     pr_counts counts = tally_counts_by_qual(phasedata_ptr, g.min_qual, g.max_qual);
-    const std::vector< std::vector< std::vector<float> > > & query_counts = counts.query;
-    const std::vector< std::vector< std::vector<float> > > & truth_counts = counts.truth;
+    const std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> > &
+            query_counts = counts.query;
+    const std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> > &
+            truth_counts = counts.truth;
 
     // write results
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";

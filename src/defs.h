@@ -125,15 +125,20 @@ constexpr std::size_t BEDLOC_SLOTS = 4; ///< Subscript slots needed by a bedloc_
 #define GT_OTHER    10 ///< Other/unknown genotype
 /** @} */
 
-/** @defgroup errtype_constants Benchmark error type constants (ERRTYPE_*)
- *  @{
- */
-#define ERRTYPE_TP 0 ///< True positive
-#define ERRTYPE_FP 1 ///< False positive
-#define ERRTYPE_FN 2 ///< False negative
-#define ERRTYPE_UN 3 ///< Unknown (not yet evaluated)
-#define ERRTYPES   4 ///< Total number of error types
-/** @} */
+/** @brief Benchmark error type. */
+enum class errtype_t : int8_t {
+    ERRTYPE_TP = 0, ///< True positive
+    ERRTYPE_FP = 1, ///< False positive
+    ERRTYPE_FN = 2, ///< False negative
+    ERRTYPE_UN = 3, ///< Unknown (not yet evaluated)
+};
+constexpr errtype_t ERRTYPE_TP = errtype_t::ERRTYPE_TP;
+constexpr errtype_t ERRTYPE_FP = errtype_t::ERRTYPE_FP;
+constexpr errtype_t ERRTYPE_FN = errtype_t::ERRTYPE_FN;
+constexpr errtype_t ERRTYPE_UN = errtype_t::ERRTYPE_UN;
+constexpr std::size_t ERRTYPE_SLOTS = 4; ///< Subscript slots needed by an errtype_t-keyed array
+constexpr int8_t ERRTYPES = 4;           ///< Total number of error types
+static_assert(ERRTYPE_SLOTS == std::size_t(ERRTYPES), "errtype_t slots must match ERRTYPES");
 
 /** @defgroup ac_err_constants Allele count error type constants (AC_ERR_*)
  *  A site's truth alternate allele count, then its query alternate allele count. The direction is

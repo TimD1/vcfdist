@@ -371,7 +371,7 @@ void calc_prec_recall(
         } else {
             credit = 1 - float(query_dist) / ref_dist;
         }
-        uint8_t errtype = (credit >= g.credit_threshold) ? ERRTYPE_TP : ERRTYPE_FP;
+        errtype_t errtype = (credit >= g.credit_threshold) ? ERRTYPE_TP : ERRTYPE_FP;
         float qual = g.max_qual;
         for (int qvar_idx : sync_qvars) {
             qual = std::min(qual, qvars->var_quals[qvar_idx]);

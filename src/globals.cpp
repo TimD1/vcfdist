@@ -19,7 +19,7 @@ const std::string Globals::PROGRAM = "vcfdist";
 /** @brief String representations of QUERY/TRUTH callset indices. */
 std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
 /** @brief String representations of ERRTYPE_* constants (TP, FP, FN, unknown). */
-std::vector<std::string> error_strs = {"TP", "FP", "FN", "??"};
+EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs = {{"TP", "FP", "FN", "??"}};
 /** @brief String representations of GT_* genotype constants. */
 std::vector<std::string> gt_strs =
     {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y" };

@@ -603,7 +603,7 @@ std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & re
  * @param[in] query_ed Query edit distance
  * @param[in] credit Partial credit
  */
-void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, uint8_t errtype,
+void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, errtype_t errtype,
         int sync_group, float callq, int ref_ed, int query_ed, float credit) {
     vars->errtypes[hap][idx] = errtype;
     vars->sync_group[hap][idx] = sync_group;

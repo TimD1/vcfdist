@@ -83,10 +83,10 @@ void print_wfa_ptrs(
  */
 struct pr_counts {
     /// query counts; ax0: SNP/INDEL/SV/ALL, ax1: TP/FP/FN, ax2: QUAL - min_qual
-    std::vector< std::vector< std::vector<float> > > query;
+    std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> > query;
 
     /// truth counts; ax0: SNP/INDEL/SV/ALL, ax1: TP/FP/FN, ax2: QUAL - min_qual
-    std::vector< std::vector< std::vector<float> > > truth;
+    std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> > truth;
 };
 
 /** @brief Tallies query and truth variant counts at each quality threshold, across all contigs. */

@@ -25,7 +25,7 @@ ctgVariants::ctgVariants(const std::string & ctg) {
     this->ctg = ctg;
     this->n = 0; 
     for (int i = 0; i < PHASES; i++) {
-        this->errtypes.push_back(std::vector<uint8_t>());
+        this->errtypes.push_back(std::vector<errtype_t>());
         this->sync_group.push_back(std::vector<int>());
         this->callq.push_back(std::vector<float>());
         this->credit.push_back(std::vector<float>());

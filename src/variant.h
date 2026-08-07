@@ -21,7 +21,7 @@
  * @brief One haplotype's evaluation results for a single variant, set during prec_recall_aln().
  */
 struct hap_fields {
-    uint8_t errtype = ERRTYPE_UN; ///< error type: TP, FP, FN
+    errtype_t errtype = ERRTYPE_UN; ///< error type: TP, FP, FN
     int sync_group = 0;           ///< group of variants that participate in credit
     float callq = 0;              ///< min call quality in sync group
     int ref_ed = 0;               ///< reference edit distance in sync group
@@ -129,7 +129,7 @@ public:
 
     // set during prec_recall_aln() (size (2, n), additional axis for haplotype)
     std::vector<uint8_t> calc_gts;                ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
-    std::vector< std::vector<uint8_t> > errtypes; ///< error type: TP, FP, FN
+    std::vector< std::vector<errtype_t> > errtypes; ///< error type: TP, FP, FN
     std::vector< std::vector<int> > sync_group;   ///< group of variants that participate in credit
     std::vector< std::vector<float> > callq;      ///< min call quality in sync group (for truth, of associated call)
     std::vector< std::vector<int> > ref_ed;       ///< reference edit distance in sync group
