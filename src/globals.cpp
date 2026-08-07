@@ -26,7 +26,8 @@ std::vector<std::string> gt_strs =
 /** @brief String representations of PHASE_* constants (keep, swap, missing). */
 std::vector<std::string> phase_strs = {"0", "1", "."};
 /** @brief String representations of AC_ERR_* allele count error types. */
-std::vector<std::string> ac_strs = {".", ".", ".", ".", "+", ".", "-", ".", "."};
+EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs =
+    {{".", ".", ".", ".", "+", ".", "-", ".", "."}};
 /** @brief String representations of BED_* location constants. */
 EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs =
     {{"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"}};

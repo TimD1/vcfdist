@@ -78,7 +78,8 @@ public:
 
     /** @brief Writes allele count error cross-tabulation table to TSV file. */
     void write_genotype_error_summary(
-            const std::vector< std::vector<int> > & allele_error_counts);
+            const EnumArray<ac_errtype_t, std::vector<int>, AC_ERRTYPE_SLOTS> &
+                    allele_error_counts);
 
     /**
      * @brief Calculates NGC50 of phase blocks, optionally broken at switch or flip errors.

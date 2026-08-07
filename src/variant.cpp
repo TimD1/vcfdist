@@ -171,7 +171,7 @@ static int allele_count(uint8_t gt) {
  * @param[in] query_ac Query alternate allele count, or -1 if unknown
  * @return AC_ERR_*_TO_*, or AC_UNKNOWN if either count is unknown or both are zero
  */
-static int ac_errtype_from_counts(int truth_ac, int query_ac) {
+static ac_errtype_t ac_errtype_from_counts(int truth_ac, int query_ac) {
     switch (truth_ac) {
         case 0:
             if (query_ac == 1) return AC_ERR_0_TO_1;
@@ -204,7 +204,7 @@ static int ac_errtype_from_counts(int truth_ac, int query_ac) {
  * @param[in] query True if this container holds query variants, false for truth variants
  * @return Allele count error type (AC_ERR_*_TO_* or AC_UNKNOWN); also stored in ac_errtype[vi]
  */
-int ctgVariants::set_allele_errtype(int vi, bool query) {
+ac_errtype_t ctgVariants::set_allele_errtype(int vi, bool query) {
     int truth_ac = allele_count(query ? this->calc_gts[vi] : this->orig_gts[vi]);
     int query_ac = allele_count(query ? this->orig_gts[vi] : this->calc_gts[vi]);
     return this->ac_errtype[vi] = ac_errtype_from_counts(truth_ac, query_ac);

@@ -203,7 +203,7 @@ TEST(StringTables, SizesMatchCount) {
 TEST(StringTables, SizesWithSentinel) {
     // these four are one longer than their count constant, because a sentinel value is also a
     // valid subscript; shortening any of them to its count would read out of bounds
-    EXPECT_EQ(size_t(AC_ERRTYPES+1), ac_strs.size());
+    EXPECT_EQ(AC_ERRTYPE_SLOTS, ac_strs.size());
     EXPECT_EQ(size_t(PHASES+1), phase_strs.size());
     EXPECT_EQ(".", ac_strs[AC_UNKNOWN]);
     EXPECT_EQ(".", phase_strs[PHASE_NONE]);
@@ -236,9 +236,9 @@ TEST(StringTables, AcSparse) {
     // non-"." string; every other allele-count error type prints as "."
     EXPECT_EQ("+", ac_strs[AC_ERR_1_TO_2]);
     EXPECT_EQ("-", ac_strs[AC_ERR_2_TO_1]);
-    for (size_t i = 0; i < ac_strs.size(); i++) {
-        if (i == AC_ERR_1_TO_2 || i == AC_ERR_2_TO_1) continue;
-        EXPECT_EQ(".", ac_strs[i]) << "ac_strs[" << i << "]";
+    for (ac_errtype_t ac : EnumRange<ac_errtype_t, AC_ERRTYPE_SLOTS>{}) {
+        if (ac == AC_ERR_1_TO_2 || ac == AC_ERR_2_TO_1) continue;
+        EXPECT_EQ(".", ac_strs[ac]) << "ac_strs[" << idx(ac) << "]";
     }
 }
 

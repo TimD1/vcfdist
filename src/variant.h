@@ -98,7 +98,7 @@ public:
     int get_vartype(int vi);
 
     /** @brief Records a variant's allele count error type from its original and calculated genotypes. */
-    int set_allele_errtype(int vi, bool query);
+    ac_errtype_t set_allele_errtype(int vi, bool query);
 
     /** @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt. */
     bool calcgt_is_swapped(int vi) const;
@@ -139,7 +139,7 @@ public:
     // set during phase() (size n)
     std::vector<int> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
     std::vector<int> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
-    std::vector<int> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
+    std::vector<ac_errtype_t> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
 };
 
 /**

@@ -140,26 +140,39 @@ constexpr std::size_t ERRTYPE_SLOTS = 4; ///< Subscript slots needed by an errty
 constexpr int8_t ERRTYPES = 4;           ///< Total number of error types
 static_assert(ERRTYPE_SLOTS == std::size_t(ERRTYPES), "errtype_t slots must match ERRTYPES");
 
-/** @defgroup ac_err_constants Allele count error type constants (AC_ERR_*)
- *  A site's truth alternate allele count, then its query alternate allele count. The direction is
- *  absolute, so the query and truth records of a matched site carry the same value; what differs is
- *  which genotype supplies which count, since a record's orig_gt is its own callset's call and its
- *  calc_gt is the other callset's genotype recovered by alignment. A callset's own allele count is
- *  never zero, so a query record never reaches AC_ERR_1_TO_0 or AC_ERR_2_TO_0 and a truth record
- *  never reaches AC_ERR_0_TO_1 or AC_ERR_0_TO_2.
- *  @{
+/**
+ * @brief A site's truth alternate allele count, then its query alternate allele count.
+ *
+ * The direction is absolute, so the query and truth records of a matched site carry the same value;
+ * what differs is which genotype supplies which count, since a record's orig_gt is its own
+ * callset's call and its calc_gt is the other callset's genotype recovered by alignment. A
+ * callset's own allele count is never zero, so a query record never reaches AC_ERR_1_TO_0 or
+ * AC_ERR_2_TO_0 and a truth record never reaches AC_ERR_0_TO_1 or AC_ERR_0_TO_2.
  */
-#define AC_ERR_0_TO_1  0 ///< 0/0 -> 0/1: 1 QUERY_FP
-#define AC_ERR_0_TO_2  1 ///< 0/0 -> 1/1: 2 QUERY_FP
-#define AC_ERR_1_TO_0  2 ///< 0/1 -> 0/0: 1 TRUTH_FN
-#define AC_ERR_1_TO_1  3 ///< 0/1 -> 0/1: 1 QUERY_TP, 1 TRUTH_TP
-#define AC_ERR_1_TO_2  4 ///< 0/1 -> 1/1: 1 QUERY_TP, 1 TRUTH_TP 
-#define AC_ERR_2_TO_0  5 ///< 1/1 -> 0/0: 2 TRUTH_FN
-#define AC_ERR_2_TO_1  6 ///< 1/1 -> 0/1: 1 QUERY_TP, 1 TRUTH_TP
-#define AC_ERR_2_TO_2  7 ///< 1/1 -> 1/1: 2 QUERY_TP, 2 TRUTH_TP
-#define AC_UNKNOWN     8 ///< Unknown allele count error type
-#define AC_ERRTYPES    8 ///< Total number of allele count error types
-/** @} */
+enum class ac_errtype_t : int8_t {
+    AC_ERR_0_TO_1 = 0, ///< 0/0 -> 0/1: 1 QUERY_FP
+    AC_ERR_0_TO_2 = 1, ///< 0/0 -> 1/1: 2 QUERY_FP
+    AC_ERR_1_TO_0 = 2, ///< 0/1 -> 0/0: 1 TRUTH_FN
+    AC_ERR_1_TO_1 = 3, ///< 0/1 -> 0/1: 1 QUERY_TP, 1 TRUTH_TP
+    AC_ERR_1_TO_2 = 4, ///< 0/1 -> 1/1: 1 QUERY_TP, 1 TRUTH_TP
+    AC_ERR_2_TO_0 = 5, ///< 1/1 -> 0/0: 2 TRUTH_FN
+    AC_ERR_2_TO_1 = 6, ///< 1/1 -> 0/1: 1 QUERY_TP, 1 TRUTH_TP
+    AC_ERR_2_TO_2 = 7, ///< 1/1 -> 1/1: 2 QUERY_TP, 2 TRUTH_TP
+    AC_UNKNOWN    = 8, ///< Unknown allele count error type
+};
+constexpr ac_errtype_t AC_ERR_0_TO_1 = ac_errtype_t::AC_ERR_0_TO_1;
+constexpr ac_errtype_t AC_ERR_0_TO_2 = ac_errtype_t::AC_ERR_0_TO_2;
+constexpr ac_errtype_t AC_ERR_1_TO_0 = ac_errtype_t::AC_ERR_1_TO_0;
+constexpr ac_errtype_t AC_ERR_1_TO_1 = ac_errtype_t::AC_ERR_1_TO_1;
+constexpr ac_errtype_t AC_ERR_1_TO_2 = ac_errtype_t::AC_ERR_1_TO_2;
+constexpr ac_errtype_t AC_ERR_2_TO_0 = ac_errtype_t::AC_ERR_2_TO_0;
+constexpr ac_errtype_t AC_ERR_2_TO_1 = ac_errtype_t::AC_ERR_2_TO_1;
+constexpr ac_errtype_t AC_ERR_2_TO_2 = ac_errtype_t::AC_ERR_2_TO_2;
+constexpr ac_errtype_t AC_UNKNOWN    = ac_errtype_t::AC_UNKNOWN;
+constexpr std::size_t AC_ERRTYPE_SLOTS = 9; ///< Slots needed by an ac_errtype_t-keyed array
+constexpr int8_t AC_ERRTYPES = 8;           ///< Total number of allele count error types
+// AC_UNKNOWN is a storable sentinel rather than a real error type, so it needs a slot of its own
+static_assert(AC_ERRTYPE_SLOTS == std::size_t(AC_ERRTYPES) + 1, "AC_UNKNOWN needs its own slot");
 
 /** @brief Phase switch or flip error type. */
 enum class switchtype_t : int8_t {
