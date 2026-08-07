@@ -134,9 +134,9 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 phase_block++;
 
             /* if (next[QUERY] && ptrs[QUERY] < qvars->n) { */
-            /*     fprintf(out_vcf, "orig_gt: %s\tcalc_gt: %s\tcredit: %.2f|%.2f\tref_dist: %d|%d\tphase: %s\n", */ 
+            /*     fprintf(out_vcf, "orig_gt: %s\tmatched_gt: %s\tcredit: %.2f|%.2f\tref_dist: %d|%d\tphase: %s\n", */ 
             /*             gt_strs[vars[QUERY]->orig_gts[ptrs[QUERY]]].data(), */
-            /*             gt_strs[vars[QUERY]->calc_gts[ptrs[QUERY]]].data(), */
+            /*             gt_strs[vars[QUERY]->matched_gts[ptrs[QUERY]]].data(), */
             /*             vars[QUERY]->credit[HAP1][ptrs[QUERY]], */
             /*             vars[QUERY]->credit[HAP2][ptrs[QUERY]], */
             /*             vars[QUERY]->ref_ed[HAP1][ptrs[QUERY]], */
@@ -155,7 +155,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
                         // print data for each haplotype
                         for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                            bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                            bool swap = vars[QUERY]->matched_gt_is_swapped(ptrs[QUERY]);
                             bool to_other = swap ^ (block_state == PHASE_SWAP) ^ flip_error;
                             hap_t thi = to_other ? other_hap(qhi) : qhi;
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true) || 
@@ -180,7 +180,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         ptrs[QUERY]++; ptrs[TRUTH]++;
                     } else { // positional tie, diff vars, just print query
                         for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                            bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                            bool swap = vars[QUERY]->matched_gt_is_swapped(ptrs[QUERY]);
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
@@ -193,7 +193,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     }
                 } else { // query is next
                     for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                        bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
+                        bool swap = vars[QUERY]->matched_gt_is_swapped(ptrs[QUERY]);
                         if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
@@ -361,7 +361,7 @@ void phaseblockData::fix_phase_set_tags() {
 
 
 /**
- * @brief Corrects calculated genotypes to preserve allele counts matching original calls.
+ * @brief Corrects matched genotypes to preserve allele counts matching original calls.
  * @note Records each variant's allele count error type on both callsets, and tracks and reports
  *       genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
  * @throws ERROR if a query or truth variant's allele count error type is AC_UNKNOWN
@@ -378,7 +378,7 @@ void phaseblockData::fix_allele_counts() {
             ac_errtype_t allele_count_errtype = qvars->set_allele_errtype(vi, true);
             if (allele_count_errtype == AC_UNKNOWN) {
                 ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), qvars->poss[vi],
-                        gt_strs[qvars->calc_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
+                        gt_strs[qvars->matched_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
             }
             sizeclass_t vartype = qvars->get_vartype(vi);
             allele_error_counts[allele_count_errtype][vartype]++;
@@ -386,10 +386,10 @@ void phaseblockData::fix_allele_counts() {
 
             // force 1|1 query variants to be evaluated as such
             if (qvars->orig_gts[vi] == GT_ALT1_ALT1) {
-                qvars->calc_gts[vi] = qvars->orig_gts[vi];
+                qvars->matched_gts[vi] = qvars->orig_gts[vi];
 
                 // if we're in a PHASE_SWAP phase block, we should swap data here since otherwise
-                // there's no way based on calc_gt 1|1 to know to look at data from other hap
+                // there's no way based on matched_gt 1|1 to know to look at data from other hap
                 if (qvars->pb_phases[vi] == PHASE_SWAP) {
                     std::swap(qvars->errtypes[HAP1][vi], qvars->errtypes[HAP2][vi]);
                     std::swap(qvars->sync_group[HAP1][vi], qvars->sync_group[HAP2][vi]);
@@ -401,34 +401,34 @@ void phaseblockData::fix_allele_counts() {
             }
 
             // force original 0|1 and 1|0 query variants to be evaluated as such, though truth differs
-            // (calc_gt has allele count 2, orig_gt has allele count 1)
+            // (matched_gt has allele count 2, orig_gt has allele count 1)
             else if (allele_count_errtype == AC_ERR_2_TO_1) {
 
                 // for called 1|1 variants, keep variant call with better calculated credit
                 if (qvars->credit[HAP1][vi] > qvars->credit[HAP2][vi]) {
-                    qvars->set_var_calcgt_on_hap(vi, HAP2, false);
+                    qvars->set_var_matched_gt_on_hap(vi, HAP2, false);
                 } else if (qvars->credit[HAP1][vi] < qvars->credit[HAP2][vi]) {
-                    qvars->set_var_calcgt_on_hap(vi, HAP1, false);
+                    qvars->set_var_matched_gt_on_hap(vi, HAP1, false);
                 } else { // default to current phasing
                     if (qvars->pb_phases[vi] == PHASE_ORIG) {
-                        qvars->calc_gts[vi] = qvars->orig_gts[vi];
+                        qvars->matched_gts[vi] = qvars->orig_gts[vi];
                     } else { // PHASE_SWAP
-                        qvars->calc_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
+                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
                             GT_ALT1_REF : GT_REF_ALT1;
                     }
                 }
-            // (calc_gt has allele count 0, orig_gt has allele count 1)
+            // (matched_gt has allele count 0, orig_gt has allele count 1)
             } else if (allele_count_errtype == AC_ERR_0_TO_1) {
                 // try to use hap with max credit
                 if (qvars->credit[HAP1][vi] > qvars->credit[HAP2][vi]) {
-                    qvars->set_var_calcgt_on_hap(vi, HAP1, true);
+                    qvars->set_var_matched_gt_on_hap(vi, HAP1, true);
                 } else if (qvars->credit[HAP1][vi] < qvars->credit[HAP2][vi]) {
-                    qvars->set_var_calcgt_on_hap(vi, HAP2, true);
+                    qvars->set_var_matched_gt_on_hap(vi, HAP2, true);
                 } else { // default to current phasing
                     if (qvars->pb_phases[vi] == PHASE_ORIG) {
-                        qvars->calc_gts[vi] = qvars->orig_gts[vi];
+                        qvars->matched_gts[vi] = qvars->orig_gts[vi];
                     } else { // PHASE_SWAP
-                        qvars->calc_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
+                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
                             GT_ALT1_REF : GT_REF_ALT1;
                     }
                 }
@@ -442,10 +442,10 @@ void phaseblockData::fix_allele_counts() {
 
             // the same value the query loop above records, read from the other side: a truth
             // record's own orig_gt supplies the truth allele count and its alignment-recovered
-            // calc_gt the query's. This tallies nothing; the branches below own the summary.
+            // matched_gt the query's. This tallies nothing; the branches below own the summary.
             if (tvars->set_allele_errtype(vi, false) == AC_UNKNOWN) {
                 ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), tvars->poss[vi],
-                        gt_strs[tvars->orig_gts[vi]].data(), gt_strs[tvars->calc_gts[vi]].data());
+                        gt_strs[tvars->orig_gts[vi]].data(), gt_strs[tvars->matched_gts[vi]].data());
             }
 
             sizeclass_t vartype = tvars->get_vartype(vi);
@@ -548,11 +548,11 @@ void phaseblockData::phase()
 
         // calculate phasings for each variant
         for (int i = 0; i < qvars->n; i++) {
-            if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->calc_gts[i] == GT_ALT1_REF) || // same
-                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->calc_gts[i] == GT_REF_ALT1)) {
+            if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->matched_gts[i] == GT_ALT1_REF) || // same
+                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->matched_gts[i] == GT_REF_ALT1)) {
                 qvars->phases[i] = PHASE_ORIG;
-            } else if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->calc_gts[i] == GT_REF_ALT1) || // diff
-                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->calc_gts[i] == GT_ALT1_REF)) {
+            } else if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->matched_gts[i] == GT_REF_ALT1) || // diff
+                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->matched_gts[i] == GT_ALT1_REF)) {
                 qvars->phases[i] = PHASE_SWAP;
             } else {
                 qvars->phases[i] = PHASE_NONE;

@@ -70,7 +70,7 @@ public:
     void fix_phase_set_tags();
 
     /**
-     * @brief Corrects calculated genotypes to preserve allele counts matching original calls.
+     * @brief Corrects matched genotypes to preserve allele counts matching original calls.
      * @note Records each variant's allele count error type on both callsets, and tracks and reports
      *       genotype error statistics (0/0->0/1, 1/1->0/1, etc.)
      */

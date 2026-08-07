@@ -57,7 +57,7 @@ struct var_fields {
     int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
     uint8_t ploidy = 0;           ///< variant ploidy from std::abs(ngt) (0 = unknown)
     int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
-    gt_t calc_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
+    gt_t matched_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
     EnumArray<hap_t, hap_fields, HAP_SLOTS> hap = {}; ///< per-haplotype results, indexed by HAP1 and HAP2
 };
 
@@ -89,20 +89,20 @@ public:
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
 
     /** @brief Returns true if a variant is present on the specified haplotype. */
-    bool var_on_hap(int var_idx, hap_t hap, bool calc = false) const;
+    bool var_on_hap(int var_idx, hap_t hap, bool matched = false) const;
 
-    /** @brief Sets or unsets the alternate allele on one haplotype for a calculated genotype. */
-    void set_var_calcgt_on_hap(int var_idx, hap_t hap, bool set = true,
+    /** @brief Sets or unsets the alternate allele on one haplotype for a matched genotype. */
+    void set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set = true,
             bool ignore_errors = false);
 
     /** @brief Classifies variant as SNP, INDEL, or SV based on reference length and g.sv_threshold. */
     sizeclass_t get_vartype(int vi);
 
-    /** @brief Records a variant's allele count error type from its original and calculated genotypes. */
+    /** @brief Records a variant's allele count error type from its original and matched genotypes. */
     ac_errtype_t set_allele_errtype(int vi, bool query);
 
-    /** @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt. */
-    bool calcgt_is_swapped(int vi) const;
+    /** @brief Returns true if haplotypes should be swapped when reporting matched_gt data relative to orig_gt. */
+    bool matched_gt_is_swapped(int vi) const;
 
     // originally parsed data (size n)
     std::string ctg;                ///< Contig name (chromosome identifier)
@@ -129,7 +129,7 @@ public:
     int nc = 0;                     ///< Total number of clusters (size of clusters vector is nc+1 with sentinel)
 
     // set during prec_recall_aln() (size (2, n), additional axis for haplotype)
-    std::vector<gt_t> calc_gts;  ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
+    std::vector<gt_t> matched_gts;  ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
     EnumArray<hap_t, std::vector<errtype_t>, HAP_SLOTS> errtypes; ///< error type: TP, FP, FN
     EnumArray<hap_t, std::vector<int>, HAP_SLOTS> sync_group;   ///< group of variants that participate in credit
     EnumArray<hap_t, std::vector<float>, HAP_SLOTS> callq;      ///< min call quality in sync group (for truth, of associated call)
@@ -138,7 +138,7 @@ public:
     EnumArray<hap_t, std::vector<float>, HAP_SLOTS> credit;     ///< percentage reduction in edit dist (ref->query)
 
     // set during phase() (size n)
-    std::vector<phase_t> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
+    std::vector<phase_t> phases;     ///< variant keep/swap/unknown, from alignment (matched_gt relative to orig_gt)
     std::vector<phase_t> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
     std::vector<ac_errtype_t> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
 };

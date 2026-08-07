@@ -294,7 +294,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
  * either its alt node (labeled here) or its reference-allele bypass node (false negative), so the
  * trace labels every truth variant; none is left unlabeled.
  *
- * Each matched variant also records the other callset's genotype in its calc_gt: a query variant
+ * Each matched variant also records the other callset's genotype in its matched_gt: a query variant
  * gains the truth haplotype it matched, and a truth variant the haplotypes its matching query
  * variants were called on.
  *
@@ -389,7 +389,7 @@ void calc_prec_recall(
             qvars->query_ed[truth_hap][qvar_idx] = query_dist;
             qvars->credit[truth_hap][qvar_idx] = credit;
             if (errtype == ERRTYPE_TP)
-                qvars->set_var_calcgt_on_hap(qvar_idx, truth_hap, true);
+                qvars->set_var_matched_gt_on_hap(qvar_idx, truth_hap, true);
         }
         if (errtype == ERRTYPE_FP) errtype = ERRTYPE_FN;
         for (int tvar_idx : sync_tvars) {
@@ -414,8 +414,8 @@ void calc_prec_recall(
                 for (int qvar_idx : sync_qvars) {
                     for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
                         if (qvars->var_on_hap(qvar_idx, hap) &&
-                                !tvars->var_on_hap(tvar_idx, hap, /*calc=*/ true))
-                            tvars->set_var_calcgt_on_hap(tvar_idx, hap, true);
+                                !tvars->var_on_hap(tvar_idx, hap, /*matched=*/ true))
+                            tvars->set_var_matched_gt_on_hap(tvar_idx, hap, true);
                     }
                 }
             }
