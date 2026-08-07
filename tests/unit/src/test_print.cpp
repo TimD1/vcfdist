@@ -228,7 +228,7 @@ std::unique_ptr<phaseblockData> one_ctg(std::shared_ptr<ctgVariants> qvars,
  * @param[in] ctg Contig name
  * @return Container whose single variant carries genotype 1|0 and error type ERRTYPE_UN
  */
-std::shared_ptr<ctgVariants> hap1_var(uint8_t type, const std::string & ref,
+std::shared_ptr<ctgVariants> hap1_var(edittype_t type, const std::string & ref,
         const std::string & alt, const std::string & ctg = "chr1") {
     std::shared_ptr<ctgVariants> vars = make_typed_var(type, ref, alt, ctg);
     vars->orig_gts[0] = GT_ALT1_REF;
@@ -243,7 +243,8 @@ std::shared_ptr<ctgVariants> hap1_var(uint8_t type, const std::string & ref,
  * @param[in] errtype Error type (ERRTYPE_*)
  * @return One count per quality threshold, in ascending threshold order
  */
-std::vector<float> sweep(const pr_counts & counts, int callset, int vartype, int errtype) {
+std::vector<float> sweep(const pr_counts & counts, callset_t callset, sizeclass_t vartype,
+        errtype_t errtype) {
     return callset == QUERY ? counts.query[vartype][errtype] : counts.truth[vartype][errtype];
 }
 
@@ -384,10 +385,12 @@ TEST(TallyCountsByQual, ErrtypeUnknownWarnsAndSkips) {
 
     // an unevaluated variant contributes nothing at all, not even the truth-side FN tail
     std::vector<float> zeros(6, 0);
-    for (int type = 0; type < VARTYPES; type++) {
-        for (int err = 0; err < ERRTYPES; err++) {
-            EXPECT_EQ(zeros, sweep(counts, QUERY, type, err)) << "query " << type << " " << err;
-            EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err)) << "truth " << type << " " << err;
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
+        for (errtype_t err : EnumRange<errtype_t, ERRTYPE_SLOTS>{}) {
+            EXPECT_EQ(zeros, sweep(counts, QUERY, type, err))
+                    << "query " << idx(type) << " " << idx(err);
+            EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err))
+                    << "truth " << idx(type) << " " << idx(err);
         }
     }
 }
@@ -399,10 +402,12 @@ TEST(TallyCountsByQual, EmptyContig) {
             one_ctg(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {})), 0, 2);
 
     std::vector<float> zeros(3, 0);
-    for (int type = 0; type < VARTYPES; type++) {
-        for (int err = 0; err < ERRTYPES; err++) {
-            EXPECT_EQ(zeros, sweep(counts, QUERY, type, err)) << "query " << type << " " << err;
-            EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err)) << "truth " << type << " " << err;
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
+        for (errtype_t err : EnumRange<errtype_t, ERRTYPE_SLOTS>{}) {
+            EXPECT_EQ(zeros, sweep(counts, QUERY, type, err))
+                    << "query " << idx(type) << " " << idx(err);
+            EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err))
+                    << "truth " << idx(type) << " " << idx(err);
         }
     }
 }

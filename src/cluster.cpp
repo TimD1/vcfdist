@@ -20,7 +20,7 @@
  * Initialize an empty ctgSuperclusters object.
  */
 ctgSuperclusters::ctgSuperclusters() {
-    this->callset_vars = std::vector< std::shared_ptr<ctgVariants> > (CALLSETS, nullptr);
+    this->callset_vars = {{nullptr, nullptr}};
 }
 
 /**
@@ -82,8 +82,8 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
  * @throws ERROR if no variants are present on the contig.
  */
 void superclusterData::load_and_merge_callset_vars_across_haps(
-        int callset,
-        std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > & vars) {
+        callset_t callset,
+        EnumArray<hap_t, std::unordered_map< std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> & vars) {
     bool print = false;
 
     for (int ctg_idx = 0; ctg_idx < int(this->contigs.size()); ctg_idx++) {
@@ -94,7 +94,7 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
 
         // skip empty contigs, keeping the trailing boundary that supercluster() reads
         int nvars = 0;
-        for (int h = 0; h < HAPS; h++) nvars += vars[h][ctg]->n;
+        for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) nvars += vars[h][ctg]->n;
         if (!nvars) {
             merged_vars->clusters.push_back(0);
             this->superclusters[ctg]->callset_vars[callset] = merged_vars;
@@ -123,8 +123,8 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
         }
 
         // initialize indices
-        std::vector<int> var_idx(HAPS, 0);
-        std::vector<int> clust_idx(HAPS, 0);
+        EnumArray<hap_t, int, HAP_SLOTS> var_idx{};
+        EnumArray<hap_t, int, HAP_SLOTS> clust_idx{};
         int curr_var_idx = 0;
         int next_left_reach = std::numeric_limits<int>::max();
         int next_right_reach = std::numeric_limits<int>::min();
@@ -133,7 +133,7 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
             //////////////////
             // ADD VARIANTS //
             //////////////////
-            std::vector<bool> updated(HAPS, false);
+            EnumArray<hap_t, bool, HAP_SLOTS> updated{};
 
             if (var_idx[HAP1] < vars[HAP1][ctg]->n &&
                     var_idx[HAP2] < vars[HAP2][ctg]->n) {
@@ -159,7 +159,7 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                     updated[HAP1] = true; updated[HAP2] = true;
 
                 } else { // heterozygous, add first-occurring variant
-                    int hap_idx = HAP1; // default to HAP1
+                    hap_t hap_idx = HAP1; // default to HAP1
                     // if location is same, default to INS first
                     if (vars[HAP1][ctg]->poss[var_idx[HAP1]] ==
                             vars[HAP2][ctg]->poss[var_idx[HAP2]] &&
@@ -172,7 +172,7 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                     }
                     merged_vars->add_var(vars[hap_idx][ctg]->get_var(var_idx[hap_idx]));
                     if (print) printf("adding %s var= %s:%d\t%s\t%s\t%s\n",
-                            hap_idx == 0 ? "1|0" : "0|1",
+                            hap_idx == HAP1 ? "1|0" : "0|1",
                             ctg.data(), 
                             vars[hap_idx][ctg]->poss[var_idx[hap_idx]],
                             vars[hap_idx][ctg]->refs[var_idx[hap_idx]].data(),
@@ -210,7 +210,7 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
             /////////////////////
 
             // update cluster indices before checking reaches
-            for (int h = 0; h < HAPS; h++) {
+            for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) {
                 if (updated[h] && clust_idx[h] < vars[h][ctg]->nc) {
                     if (var_idx[h] >= vars[h][ctg]->clusters[clust_idx[h]+1]) {
                         clust_idx[h]++;
@@ -219,11 +219,11 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
             }
 
             // update reaches
-            for (int h = 0; h < HAPS; h++) {
+            for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) {
                 if (clust_idx[h] < vars[h][ctg]->nc) {
-                    if (clust_idx[h^1] >= vars[h^1][ctg]->nc ||
+                    if (clust_idx[other_hap(h)] >= vars[other_hap(h)][ctg]->nc ||
                             vars[h][ctg]->left_reaches[clust_idx[h]] <=
-                            vars[h^1][ctg]->left_reaches[clust_idx[h^1]]) {
+                            vars[other_hap(h)][ctg]->left_reaches[clust_idx[other_hap(h)]]) {
                         // TODO: why no std::min here?
                         next_left_reach = vars[h][ctg]->left_reaches[clust_idx[h]];
                         next_right_reach = std::max(next_right_reach,
@@ -254,11 +254,11 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                 // init reaches of next cluster
                 next_left_reach  = std::numeric_limits<int>::max();
                 next_right_reach = std::numeric_limits<int>::min();
-                for (int h = 0; h < HAPS; h++) {
+                for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) {
                     if (clust_idx[h] < vars[h][ctg]->nc &&
-                       (clust_idx[h^1] >= vars[h^1][ctg]->nc ||
+                       (clust_idx[other_hap(h)] >= vars[other_hap(h)][ctg]->nc ||
                             vars[h][ctg]->left_reaches[clust_idx[h]] <=
-                            vars[h^1][ctg]->left_reaches[clust_idx[h^1]])) {
+                            vars[other_hap(h)][ctg]->left_reaches[clust_idx[other_hap(h)]])) {
                         next_left_reach  = std::min(next_left_reach,
                                 vars[h][ctg]->left_reaches[clust_idx[h]]);
                         next_right_reach = std::max(next_right_reach,
@@ -310,10 +310,10 @@ superclusterData::superclusterData(
     this->ref = ref_ptr;
 
     // save samples and filenames
-    this->samples.push_back(query_ptr->sample);
-    this->samples.push_back(truth_ptr->sample);
-    this->filenames.push_back(query_ptr->filename);
-    this->filenames.push_back(truth_ptr->filename);
+    this->samples[QUERY] = query_ptr->sample;
+    this->samples[TRUTH] = truth_ptr->sample;
+    this->filenames[QUERY] = query_ptr->filename;
+    this->filenames[TRUTH] = truth_ptr->filename;
 
     // create list of all contigs covered by truth/query
     for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
@@ -365,29 +365,30 @@ void superclusterData::supercluster(bool print) {
 
         // skip empty contigs
         int nvars = 0;
-        for (int c = 0; c < CALLSETS; c++) {
+        for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
             nvars += this->superclusters[ctg]->callset_vars[c]->n;
         }
         if (!nvars) continue;
 
         // for each cluster of variants (merge query and truth)
         auto & vars = this->superclusters[ctg]->callset_vars;
-        std::vector<int> brks(CALLSETS, 0); // start of current supercluster
+        EnumArray<callset_t, int, CALLSET_SLOTS> brks{}; // start of current supercluster
         int sc_idx = 0;
         while (true) {
 
             // init: empty supercluster
-            std::vector<int> next_brks = brks; // end of current supercluster
-            std::vector<int> lefts(CALLSETS, std::numeric_limits<int>::max());
-            for (int c = 0; c < CALLSETS; c++) {
+            EnumArray<callset_t, int, CALLSET_SLOTS> next_brks = brks; // end of supercluster
+            EnumArray<callset_t, int, CALLSET_SLOTS> lefts =
+                    {{std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}};
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 if (brks[c] < vars[c]->nc) {
                     lefts[c] = vars[c]->left_reaches[ next_brks[c] ];
                 }
             }
 
             // get first cluster, end if all haps are off end
-            int c = std::distance(lefts.begin(),
-                    std::min_element(lefts.begin(), lefts.end()));
+            callset_t c = static_cast<callset_t>(std::distance(lefts.begin(),
+                    std::min_element(lefts.begin(), lefts.end())));
             if (lefts[c] == std::numeric_limits<int>::max()) break;
 
             // initialize cluster merging with first to start
@@ -401,7 +402,7 @@ void superclusterData::supercluster(bool print) {
             bool just_active = true;
             while (just_active) {
                 just_active = false;
-                for (int c = 0; c < CALLSETS; c++) {
+                for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                     while (lefts[c] <= curr_right) {
                         curr_right = std::max(curr_right,
                             vars[c]->right_reaches[ next_brks[c] ]);
@@ -424,7 +425,7 @@ void superclusterData::supercluster(bool print) {
                 printf("\nSUPERCLUSTER: %d\n", sc_idx);
                 printf("POS: %s:%d-%d\n", ctg.data(), beg_pos, end_pos);
                 printf("SIZE: %d\n", end_pos - beg_pos);
-                for (int ci = 0; ci < CALLSETS; ci++) {
+                for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                     printf("%s: clusters %d-%d of %d = %d\n",
                             callset_strs[ci].data(),
                             brks[ci], next_brks[ci], vars[ci]->nc, int(vars[ci]->clusters.size()));
@@ -438,12 +439,12 @@ void superclusterData::supercluster(bool print) {
                                 gt_strs[vars[ci]->orig_gts[vi]].data());
                     }
                 }
-                printf("curr_right: %d, lefts: %d %d\n", curr_right, lefts[0], lefts[1]);
+                printf("curr_right: %d, lefts: %d %d\n", curr_right, lefts[QUERY], lefts[TRUTH]);
             }
 
             // split large supercluster if necessary
             if (end_pos - beg_pos > g.max_supercluster_size) {
-                std::vector< std::vector<int> > all_brks = 
+                std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > all_brks = 
                     split_large_supercluster(vars, brks, next_brks, print);
                 WARN("Max supercluster size (%d) exceeded (%d) at %s:%d-%d, breaking up into %d superclusters",
                         g.max_supercluster_size, end_pos - beg_pos, ctg.data(), beg_pos, end_pos, int(all_brks.size()-1));
@@ -455,7 +456,7 @@ void superclusterData::supercluster(bool print) {
                     end_pos = poss[1];
 
                     // save supercluster information
-                    for (int ci = 0; ci < CALLSETS; ci++) {
+                    for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                         for (int vi = vars[ci]->clusters[brks[ci]]; 
                                  vi < vars[ci]->clusters[next_brks[ci]]; vi++) {
                             vars[ci]->superclusters[vi] = sc_idx;
@@ -467,7 +468,7 @@ void superclusterData::supercluster(bool print) {
                     largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
                     total_bases += end_pos-beg_pos;
                     int this_vars = 0;
-                    for (int ci = 0; ci < CALLSETS; ci++) {
+                    for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                         if (vars[ci]->nc)
                             this_vars += vars[ci]->clusters[next_brks[ci]] - vars[ci]->clusters[brks[ci]];
                     }
@@ -477,7 +478,7 @@ void superclusterData::supercluster(bool print) {
             } else { // don't split supercluster
 
                 // save supercluster information
-                for (int ci = 0; ci < CALLSETS; ci++) {
+                for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                     for (int vi = vars[ci]->clusters[brks[ci]]; 
                              vi < vars[ci]->clusters[next_brks[ci]]; vi++) {
                         vars[ci]->superclusters[vi] = sc_idx;
@@ -489,7 +490,7 @@ void superclusterData::supercluster(bool print) {
                 largest_supercluster = std::max(largest_supercluster, end_pos-beg_pos);
                 total_bases += end_pos-beg_pos;
                 int this_vars = 0;
-                for (int ci = 0; ci < CALLSETS; ci++) {
+                for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                     if (vars[ci]->nc)
                         this_vars += vars[ci]->clusters[next_brks[ci]] - vars[ci]->clusters[brks[ci]];
                 }
@@ -502,7 +503,7 @@ void superclusterData::supercluster(bool print) {
         }
 
         // add remaining variants as a supercluster
-        for (int ci = 0; ci < CALLSETS; ci++) {
+        for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
             for (int vi = vars[ci]->clusters[brks[ci]]; vi < vars[ci]->n; vi++) {
                 vars[ci]->superclusters[vi] = sc_idx;
             }
@@ -530,29 +531,28 @@ void superclusterData::supercluster(bool print) {
  *   (ctg_idx, sc_idx) for each supercluster.
  * @throws WARNING if a supercluster's predicted RAM usage exceeds the configured maximum.
  */
-std::vector< std::vector< std::vector<int> > > 
+std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> >
 sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
 
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Sorting superclusters by size");
-    std::vector< std::vector< std::vector<int> > > sc_groups(g.thread_nsteps,
-            std::vector< std::vector<int> >(2));
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups(g.thread_nsteps, EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS>{});
 
     for (int ctg_idx = 0; ctg_idx < int(sc_data->contigs.size()); ctg_idx++) {
         std::string ctg = sc_data->contigs[ctg_idx];
         std::shared_ptr<ctgSuperclusters> ctg_scs = sc_data->superclusters[ctg];
         // superclusters are numbered 0...n-1, so we need +1; a variant-free callset contributes none
         int nscs = 0;
-        for (int c = 0; c < CALLSETS; c++) {
+        for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
             std::shared_ptr<ctgVariants> vars = ctg_scs->callset_vars[c];
             if (vars->n) nscs = std::max(nscs, vars->superclusters[vars->n-1] + 1);
         }
 
         for (int sc_idx = 0; sc_idx < nscs; sc_idx++) {
 
-            std::vector<size_t> max_lens(CALLSETS, 0);
-            std::vector<size_t> lens(HAPS, 0);
-            for (int c = 0; c < CALLSETS; c++) {
+            EnumArray<callset_t, size_t, CALLSET_SLOTS> max_lens{};
+            EnumArray<hap_t, size_t, HAP_SLOTS> lens{};
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 auto vars = ctg_scs->callset_vars[c];
                 if (ctg_scs->callset_vars[c]->nc == 0) continue;
                 int var_beg = std::distance(vars->superclusters.begin(),
@@ -561,7 +561,7 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
                     std::upper_bound(vars->superclusters.begin(), vars->superclusters.end(), sc_idx));
 
                 // calculate query len as reference length plus alternate lengths
-                for (int hi = 0; hi < HAPS; hi++) {
+                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                     lens[hi] = var_beg == var_end ? 0 : vars->poss[var_end-1] - vars->poss[var_beg];
                     for (int vi = var_beg; vi < var_end; vi++) {
                         if (!vars->var_on_hap(vi, hi)) continue;
@@ -610,8 +610,8 @@ sort_superclusters(std::shared_ptr<superclusterData> sc_data) {
  * @param[in] open The Smith-Waterman-Gotoh gap-opening penalty.
  * @param[in] extend The Smith-Waterman-Gotoh gap-extension penalty.
  */
-void wf_swg_cluster(variantData * vcf, int ctg_idx, 
-        int hap, int sub, int open, int extend) {
+void wf_swg_cluster(variantData * vcf, int ctg_idx,
+        hap_t hap, int sub, int open, int extend) {
     bool print = false;
     std::string ctg = vcf->contigs[ctg_idx];
 
@@ -934,14 +934,14 @@ void wf_swg_cluster(variantData * vcf, int ctg_idx,
  * @throws ERROR if the cluster indices are invalid.
  */
 std::vector<int> get_supercluster_range(
-        const std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & cluster_start_indices, // inclusive
-        const std::vector<int> & cluster_end_indices) { // exclusive
+        const EnumArray<callset_t, std::shared_ptr<ctgVariants>, CALLSET_SLOTS> & vars,
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & cluster_start_indices, // inclusive
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & cluster_end_indices) { // exclusive
 
     int beg_pos = std::numeric_limits<int>::max();
     int end_pos = -1;
 
-    for (int c = 0; c < CALLSETS; c++) {
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         // if there is a cluster on this hap, update beginning and end positions
         if (cluster_end_indices[c] - cluster_start_indices[c]) {
             if (cluster_start_indices[c] > vars[c]->nc) {
@@ -976,17 +976,17 @@ std::vector<int> get_supercluster_range(
  * @throws WARNING if no valid split location is found, in which case the oversized supercluster is
  *     retained (its size and the --max-supercluster-size limit are reported) and processing continues.
  */
-std::vector< std::vector<int> > split_large_supercluster(
-        std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & cluster_start_indices,
-        std::vector<int> & cluster_end_indices, bool print) {
+std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > split_large_supercluster(
+        EnumArray<callset_t, std::shared_ptr<ctgVariants>, CALLSET_SLOTS> & vars,
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & cluster_start_indices,
+        EnumArray<callset_t, int, CALLSET_SLOTS> & cluster_end_indices, bool print) {
 
-    std::vector< std::vector<int> > breakpoints = {cluster_start_indices, cluster_end_indices};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {cluster_start_indices, cluster_end_indices};
     bool large_supercluster_exists = true;
     while (large_supercluster_exists) {
         large_supercluster_exists = false;
         
-        std::vector< std::vector<int> > next_breakpoints;
+        std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > next_breakpoints;
         for (int i = 0; i < int(breakpoints.size())-1; i++) {
             std::vector<int> poss = get_supercluster_range(vars, breakpoints[i], breakpoints[i+1]);
             int beg_pos = poss[0];
@@ -1001,7 +1001,8 @@ std::vector< std::vector<int> > split_large_supercluster(
                             vars, breakpoints[i], breakpoints[i+1], print);
 
                 if (int(best_var_split.size()) == CALLSETS) { // found valid split
-                    std::vector<int> cluster_split_indices = split_cluster(vars, best_var_split, breakpoints, i, print);
+                    EnumArray<callset_t, int, CALLSET_SLOTS> cluster_split_indices =
+                            split_cluster(vars, best_var_split, breakpoints, i, print);
                     next_breakpoints.push_back(cluster_split_indices);
 
                 } else { // no valid split location found; retain oversized supercluster
@@ -1039,21 +1040,21 @@ std::vector< std::vector<int> > split_large_supercluster(
  * @param[in] print Boolean indicating whether debug printing is enabled.
  * @return the index of the cluster on each callset.
  */
-std::vector<int> split_cluster(
-        std::vector< std::shared_ptr<ctgVariants> > & vars,
+EnumArray<callset_t, int, CALLSET_SLOTS> split_cluster(
+        EnumArray<callset_t, std::shared_ptr<ctgVariants>, CALLSET_SLOTS> & vars,
         const std::vector<int> & variant_split_indices,
-        std::vector< std::vector<int> > & breakpoints,
+        std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > & breakpoints,
         int breakpoint_idx,
         bool print) {
     if (print) printf("Splitting cluster at variant indices (%d, %d)\n", 
             variant_split_indices[0], variant_split_indices[1]);
 
-    std::vector<int> cluster_curr_indices(CALLSETS, 0);
-    for (int ci = 0; ci < CALLSETS; ci++) {
+    EnumArray<callset_t, int, CALLSET_SLOTS> cluster_curr_indices{};
+    for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         if(print) printf("callset: %s\n", callset_strs[ci].data());
 
         // find the cluster index corresponding to this variant index
-        int var_idx = variant_split_indices[ci];
+        int var_idx = variant_split_indices[idx(ci)];
         auto clust_itr = std::lower_bound(vars[ci]->clusters.begin(),
                 vars[ci]->clusters.end(), var_idx);
         int clust_idx = std::distance(vars[ci]->clusters.begin(), clust_itr);
@@ -1095,15 +1096,16 @@ std::vector<int> split_cluster(
  *     of the current supercluster.
  */
 var_info get_next_variant_info(
-        const std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & var_curr_indices,
-        const std::vector<int> & var_end_indices) {
+        const EnumArray<callset_t, std::shared_ptr<ctgVariants>, CALLSET_SLOTS> & vars,
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & var_curr_indices,
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & var_end_indices) {
 
-    int next_callset = -1;
+    callset_t next_callset = QUERY;
+    bool found = false;
     int next_start_pos = std::numeric_limits<int>::max();
     int next_end_pos = std::numeric_limits<int>::max();
     
-    for (int c = 0; c < CALLSETS; c++) {
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         if (var_curr_indices[c] < var_end_indices[c]) {
             int start_pos = vars[c]->poss[var_curr_indices[c]];
             int end_pos = vars[c]->poss[var_curr_indices[c]] +
@@ -1112,10 +1114,11 @@ var_info get_next_variant_info(
                 next_start_pos = start_pos;
                 next_end_pos = end_pos;
                 next_callset = c;
+                found = true;
             }
         }
     }
-    return var_info(next_callset, next_start_pos, next_end_pos);
+    return var_info(next_callset, next_start_pos, next_end_pos, found);
 }
 
 /**
@@ -1129,9 +1132,9 @@ var_info get_next_variant_info(
  * @param[in] print Whether to enable debug printing.
  */
 std::vector<int> get_supercluster_split_location(
-        const std::vector< std::shared_ptr<ctgVariants> > & vars,
-        const std::vector<int> & cluster_start_indices,
-        const std::vector<int> & cluster_end_indices, bool print) {
+        const EnumArray<callset_t, std::shared_ptr<ctgVariants>, CALLSET_SLOTS> & vars,
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & cluster_start_indices,
+        const EnumArray<callset_t, int, CALLSET_SLOTS> & cluster_end_indices, bool print) {
     if (print) printf("Finding supercluster split location\n");
 
     // get original start/end positions of supercluster
@@ -1141,20 +1144,20 @@ std::vector<int> get_supercluster_split_location(
     int orig_sc_end_pos = orig_sc_range[1];
     int orig_sc_size = orig_sc_end_pos - orig_sc_beg_pos;
 
-    std::vector<int> var_start_indices(CALLSETS, 0);
-    std::vector<int> var_end_indices(CALLSETS, 0);
-    for (int c = 0; c < CALLSETS; c++) {
+    EnumArray<callset_t, int, CALLSET_SLOTS> var_start_indices{};
+    EnumArray<callset_t, int, CALLSET_SLOTS> var_end_indices{};
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         var_start_indices[c] = vars[c]->clusters[cluster_start_indices[c]];
         var_end_indices[c] = vars[c]->clusters[cluster_end_indices[c]];
     }
 
-    std::vector<int> split_indices = var_start_indices;
+    EnumArray<callset_t, int, CALLSET_SLOTS> split_indices = var_start_indices;
     double best_split_score = 0;
     std::vector<int> var_best_split_indices = {};
 
     // check that there are 2+ variants (this supercluster can be split)
     int total_vars = 0;
-    for (int c = 0; c < CALLSETS; c++) {
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         total_vars += var_end_indices[c] - var_start_indices[c];
     }
     if (total_vars < 2) return var_best_split_indices; // empty
@@ -1163,7 +1166,7 @@ std::vector<int> get_supercluster_split_location(
     var_info curr_var = get_next_variant_info(vars, split_indices, var_end_indices);
     split_indices[curr_var.callset_idx]++;
     var_info next_var = get_next_variant_info(vars, split_indices, var_end_indices);
-    while (next_var.callset_idx >= 0) {
+    while (next_var.found) {
 
         // calculate max split size reduction factor
         // best case: it splits the supercluster exactly in half (0.5)
@@ -1187,10 +1190,11 @@ std::vector<int> get_supercluster_split_location(
             split_score = gap / splits_to_halve_size;
         }
         if (print) printf("indices: [%d, %d], gap: %d, frac: %f, splits: %f, score: %f\n",
-                split_indices[0], split_indices[1], gap, size_reduction_factor, splits_to_halve_size, split_score);
+                split_indices[QUERY], split_indices[TRUTH], gap, size_reduction_factor,
+                splits_to_halve_size, split_score);
         if (split_score > best_split_score) {
             best_split_score = split_score;
-            var_best_split_indices = split_indices;
+            var_best_split_indices = {split_indices[QUERY], split_indices[TRUTH]};
         }
 
         curr_var = next_var;

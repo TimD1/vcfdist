@@ -124,7 +124,7 @@ std::string read_text(const std::string & fn);
  * malformed contig line, an extra FILTER, or a FORMAT declaration dropped assigns over the
  * corresponding vcf_opts field afterwards.
  */
-vcf_opts make_vcf_opts(int callset = QUERY,
+vcf_opts make_vcf_opts(callset_t callset = QUERY,
         const std::vector<std::string> & contigs = {"chr1"}, int length = 1000);
 
 /* Record lines ***********************************************************************************/
@@ -221,7 +221,7 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
  * hide it; the parsed output is discarded, since a parse that errors never returns.
  */
 void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
-        const vcf_opts & opts, int callset = QUERY);
+        const vcf_opts & opts, callset_t callset = QUERY);
 
 /** @brief Reports whether a captured log contains a substring. */
 bool logged(const std::string & log, const std::string & text);
@@ -235,11 +235,11 @@ bool logged(const ParseResult & r, const std::string & text);
  * Yields nullptr for a contig the parse never reached, rather than inserting an empty entry the
  * way operator[] would; a caller that dereferences the result should assert on it first.
  */
-std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap,
+std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, hap_t hap,
         const std::string & ctg = "chr1");
 
 /** @brief Counts variants that survived parsing on one haplotype of a contig. */
-int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg = "chr1");
+int kept_on_hap(const ParseResult & r, hap_t hap, const std::string & ctg = "chr1");
 
 /** @brief Counts variants that survived parsing across both haplotypes of a contig. */
 int total_kept(const ParseResult & r, const std::string & ctg = "chr1");
@@ -257,10 +257,10 @@ bool kept_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 
 /** @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count. */
-std::string gt_hist_line(uint8_t gt, int count);
+std::string gt_hist_line(gt_t gt, int count);
 
 /** @brief Returns the variant-type line parse_variants() prints for a type and count. */
-std::string type_hist_line(uint8_t type, int count);
+std::string type_hist_line(edittype_t type, int count);
 
 /* In-memory builders *****************************************************************************/
 
@@ -289,7 +289,7 @@ bedData make_bed(const std::vector< std::pair<std::string,
  * Stands in for a parsed VCF in tests that care about the contig, length, and observed-ploidy
  * fields rather than about variants; `filename` and `sample` follow from the callset.
  */
-std::shared_ptr<variantData> make_variantData(int callset,
+std::shared_ptr<variantData> make_variantData(callset_t callset,
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
         const std::vector< std::set<int> > & observed_ploidies);
 
@@ -303,14 +303,14 @@ std::shared_ptr<variantData> make_variantData(int callset,
 struct var_desc {
     int pos = 0;               ///< 0-based reference start position
     int rlen = 0;              ///< Reference allele length
-    uint8_t type = TYPE_SUB;   ///< Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL, TYPE_CPX)
+    edittype_t type = TYPE_SUB; ///< Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL, TYPE_CPX)
     std::string ref;           ///< Reference allele sequence
     std::string alt;           ///< Alternate allele sequence
-    uint8_t gt = GT_REF_ALT1;  ///< Original genotype (GT_*)
+    gt_t gt = GT_REF_ALT1;     ///< Original genotype (GT_*)
     float qual = 60;           ///< Sets both var_qual and gt_qual (each clamped to g.max_qual)
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)
-    uint8_t loc = BED_INSIDE;  ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
+    bedloc_t loc = BED_INSIDE; ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
     int rec_idx = -1;          ///< Source VCF record ordinal, 0-based (-1 = unknown)
     int alt_idx = -1;          ///< Original ALT ordinal, 1-based (-1 = unknown)
     uint8_t ploidy = 0;        ///< Variant ploidy from the VCF genotype (0 = unknown)
@@ -326,15 +326,15 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
  * The variant is an A>C substitution, since the genotype rather than the allele is what a caller
  * of this builder is varying.
  */
-std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt,
+std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt,
         const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Builds a one-variant container of the given type with the given allele sequences. */
-std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
+std::shared_ptr<ctgVariants> make_typed_var(edittype_t type, const std::string & ref,
         const std::string & alt, const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Sets all six per-haplotype evaluation lanes for one variant. */
-void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, uint8_t errtype,
+void set_hap_data(std::shared_ptr<ctgVariants> vars, hap_t hap, int idx, errtype_t errtype,
         int sync_group, float callq, int ref_ed, int query_ed, float credit);
 
 /** @brief Sets cluster boundaries and reaches; nc defaults to clusters.size()-1. */
@@ -367,7 +367,7 @@ std::unique_ptr<phaseblockData> make_phaseblockData(
 
 /** @brief Builds an alignment graph for one supercluster and truth haplotype. */
 std::shared_ptr<Graph> make_graph(std::shared_ptr<ctgSuperclusters> sc,
-        std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hap, int sc_idx = 0);
+        std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hap, int sc_idx = 0);
 
 /** @brief Allocates the offsets buffer that wf_swg_max_reach requires from its caller. */
 std::vector<int> alloc_reach_offs(int qlen, int tlen, int x, int o, int e);

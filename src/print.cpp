@@ -163,10 +163,10 @@ void print_wfa_ptrs(
         const std::string & query,
         const std::string & truth,
         int s,
-        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        const std::vector< std::vector< std::vector<int> > > & offs) {
+        const EnumArray<mat_t, std::vector< std::vector<ptr_t> >, MAT_SLOTS> & ptrs,
+        const EnumArray<mat_t, std::vector< std::vector<int> >, MAT_SLOTS> & offs) {
 
-    for (int m = 0; m < MATS; m++) {
+    for (mat_t m : EnumRange<mat_t, MAT_SLOTS>{}) {
         int query_len = query.size();
         int truth_len = truth.size();
 
@@ -216,6 +216,8 @@ void print_wfa_ptrs(
                         case PTR_DEL:
                             ptr_str[query_pos][truth_pos] = '?';
                             break;
+                        case PTR_MAT: // the INS matrix carries no match pointer
+                            break;
                     }
 
                 } else if (m == MAT_DEL) {
@@ -229,13 +231,15 @@ void print_wfa_ptrs(
                         case PTR_DEL:
                             ptr_str[query_pos][truth_pos] = '-';
                             break;
+                        case PTR_MAT: // the DEL matrix carries no match pointer
+                            break;
                     }
                 }
             }
         }
   
         // print array
-        printf("\n%s matrix:\n", type_strs[m+1].data());
+        printf("\n%s matrix:\n", type_strs[mat_to_edittype(m)].data());
         for (int i = -1; i < query_len; i++) {
             for (int j = -1; j < truth_len; j++) {
                 if (i < 0 && j < 0) {
@@ -271,12 +275,19 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
 
     // for each class, store variant counts above each quality threshold
     // init counters; ax0: SNP/INDEL/SV/ALL, ax1: TP,FP,FN ax2: QUAL
-    std::vector< std::vector< std::vector<float> > > query_counts(VARTYPES,
-            std::vector< std::vector<float> >(ERRTYPES,
-            std::vector<float>(max_qual-min_qual+1, 0.0))) ;
-    std::vector< std::vector< std::vector<float> > > truth_counts(VARTYPES,
-            std::vector< std::vector<float> >(ERRTYPES,
-            std::vector<float>(max_qual-min_qual+1, 0.0))) ;
+    const EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> per_errtype = {{
+            std::vector<float>(max_qual-min_qual+1, 0.0),
+            std::vector<float>(max_qual-min_qual+1, 0.0),
+            std::vector<float>(max_qual-min_qual+1, 0.0),
+            std::vector<float>(max_qual-min_qual+1, 0.0)}};
+    EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> query_counts{};
+    EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> truth_counts{};
+    for (sizeclass_t sc : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
+        query_counts[sc] = per_errtype;
+        truth_counts[sc] = per_errtype;
+    }
 
     // calculate summary statistics
     for (const std::string & ctg : phasedata_ptr->contigs) {
@@ -288,9 +299,9 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
         // add query
         for (int vi = 0; vi < qvars->n; vi++) {
 
-            int vartype = qvars->get_vartype(vi);
-            for (int hi = 0; hi < HAPS; hi++) {
-                int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
+            sizeclass_t vartype = qvars->get_vartype(vi);
+            for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
+                hap_t calc_hi = qvars->calcgt_is_swapped(vi) ? other_hap(hi) : hi;
                 float q = qvars->callq[calc_hi][vi];
                 if (qvars->var_on_hap(vi, hi)) {
                     if (qvars->errtypes[calc_hi][vi] == ERRTYPE_UN) {
@@ -319,10 +330,10 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
 
         // add truth
         for (int vi = 0; vi < tvars->n; vi++) {
-            for (int hi = 0; hi < HAPS; hi++) {
+            for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                 if (!tvars->var_on_hap(vi, hi)) continue;
                 float q = tvars->callq[hi][vi];
-                int vartype = tvars->get_vartype(vi);
+                sizeclass_t vartype = tvars->get_vartype(vi);
                 if (tvars->errtypes[hi][vi] == ERRTYPE_UN) {
                     WARN("Unknown error type at TRUTH %s:%d", ctg.data(), tvars->poss[vi]);
                     continue;
@@ -384,8 +395,10 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 
     // tally variant counts above each quality threshold
     pr_counts counts = tally_counts_by_qual(phasedata_ptr, g.min_qual, g.max_qual);
-    const std::vector< std::vector< std::vector<float> > > & query_counts = counts.query;
-    const std::vector< std::vector< std::vector<float> > > & truth_counts = counts.truth;
+    const EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> & query_counts = counts.query;
+    const EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> & truth_counts = counts.truth;
 
     // write results
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
@@ -400,9 +413,9 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
                 "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     }
-    std::vector<float> max_f1_score(VARTYPES, 0);
-    std::vector<int> max_f1_qual(VARTYPES, 0);
-    for (int type = 0; type < VARTYPES; type++) {
+    EnumArray<sizeclass_t, float, SIZECLASS_SLOTS> max_f1_score{};
+    EnumArray<sizeclass_t, int, SIZECLASS_SLOTS> max_f1_qual{};
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
 
         // only sweeping query qualities; always consider all truth variants
         for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
@@ -462,7 +475,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
     INFO(" ");
     INFO("%sTYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
             COLOR_BLUE, COLOR_WHITE);
-    for (int type = 0; type < VARTYPES; type++) {
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         std::vector<std::string> thresholds = {"NONE", "BEST"};
 
@@ -537,8 +550,8 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
  */
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%d/%d] Writing results%s", COLOR_PURPLE, 
-            TIME_WRITE, TIME_TOTAL-1, COLOR_WHITE);
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Writing results%s", COLOR_PURPLE,
+            int(idx(TIME_WRITE)), int(idx(TIME_TOTAL))-1, COLOR_WHITE);
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
@@ -593,13 +606,13 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
 
             for (int vi = 0; vi < qvars->n; vi++) {
-                for (int hi = 0; hi < HAPS; hi++) {
+                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                     if (!qvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
-                    int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
+                    hap_t calc_hi = qvars->calcgt_is_swapped(vi) ? other_hap(hi) : hi;
                     fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             qvars->poss[vi],
-                            calc_hi,
+                            int(idx(calc_hi)),
                             qvars->refs[vi].data(),
                             qvars->alts[vi].data(),
                             qvars->var_quals[vi],
@@ -634,13 +647,13 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
 
             for (int vi = 0; vi < tvars->n; vi++) {
-                for (int hi = 0; hi < HAPS; hi++) {
+                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                     if (!tvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
 
                     fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             tvars->poss[vi],
-                            hi,
+                            int(idx(hi)),
                             tvars->refs[vi].data(),
                             tvars->alts[vi].data(),
                             tvars->var_quals[vi],

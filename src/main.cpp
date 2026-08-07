@@ -29,15 +29,15 @@ int main(int argc, char **argv) {
 
     // parse and store command-line args
     g.parse_args(argc, argv);
-    g.init_timers(timer_strs);
+    g.init_timers();
 
-    g.timers[TIME_WRITE].start();
+    g.stage(TIME_WRITE).start();
     write_params();
-    g.timers[TIME_WRITE].stop();
+    g.stage(TIME_WRITE).stop();
 
     // parse reference fasta
-    g.timers[TIME_TOTAL].start();
-    g.timers[TIME_READ].start();
+    g.stage(TIME_TOTAL).start();
+    g.stage(TIME_READ).start();
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
     // parse query and truth VCFs
@@ -46,21 +46,21 @@ int main(int argc, char **argv) {
 
     std::shared_ptr<variantData> truth_ptr(new variantData());
     parse_variants(g.truth_vcf_fn, truth_ptr, ref_ptr, TRUTH);
-    g.timers[TIME_READ].stop();
+    g.stage(TIME_READ).stop();
 
     // ensure each input contains all contigs in BED
     intersect_contigs(query_ptr, truth_ptr, ref_ptr);
 
     // cluster query VCF
-    g.timers[TIME_CLUSTER].start();
+    g.stage(TIME_CLUSTER).start();
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[Q %d/%d] Clustering %s VCF%s '%s'", 
-            COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, callset_strs[QUERY].data(), 
+            COLOR_PURPLE, int(idx(TIME_CLUSTER)), int(idx(TIME_TOTAL))-1, callset_strs[QUERY].data(), 
             COLOR_WHITE, query_ptr->filename.data());
     std::vector<std::thread> threads;
     for (int t = 0; t < HAPS*int(query_ptr->contigs.size()); t++) {
         threads.push_back(std::thread( wf_swg_cluster, 
-                    query_ptr.get(), t/2 /* contig */, t%2, /* hap */
+                    query_ptr.get(), t/2 /* contig */, static_cast<hap_t>(t%2),
                     g.sub, g.open, g.extend)); 
         if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
             for (std::thread & thread : threads) thread.join();
@@ -72,12 +72,12 @@ int main(int argc, char **argv) {
     // cluster truth VCF
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[T %d/%d] Clustering %s VCF%s '%s'", 
-            COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, callset_strs[TRUTH].data(), 
+            COLOR_PURPLE, int(idx(TIME_CLUSTER)), int(idx(TIME_TOTAL))-1, callset_strs[TRUTH].data(), 
             COLOR_WHITE, truth_ptr->filename.data());
     threads.clear();
     for (int t = 0; t < HAPS*int(truth_ptr->contigs.size()); t++) {
         threads.push_back(std::thread( wf_swg_cluster, 
-                    truth_ptr.get(), t/2 /* contig */, t%2, /* hap */
+                    truth_ptr.get(), t/2 /* contig */, static_cast<hap_t>(t%2),
                     g.sub, g.open, g.extend)); 
         if ((t+1) % g.max_threads == 0) { // wait for thread batch to complete
             for (std::thread & thread : threads) thread.join();
@@ -89,43 +89,43 @@ int main(int argc, char **argv) {
     // superclustering: merge per-hap variant info in constructor, then supercluster
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%d/%d] Superclustering TRUTH and QUERY variants%s",
-            COLOR_PURPLE, TIME_CLUSTER, TIME_TOTAL-1, COLOR_WHITE);
+            COLOR_PURPLE, int(idx(TIME_CLUSTER)), int(idx(TIME_TOTAL))-1, COLOR_WHITE);
     std::shared_ptr<superclusterData> sc_data_ptr(
             new superclusterData(query_ptr, truth_ptr, ref_ptr));
     auto sc_groups = sort_superclusters(sc_data_ptr);
-    g.timers[TIME_CLUSTER].stop();
+    g.stage(TIME_CLUSTER).stop();
 
     // evaluation: precision/recall and genotypes
-    g.timers[TIME_ALIGN_EVAL].start();
+    g.stage(TIME_ALIGN_EVAL).start();
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%d/%d] Evaluating variant calls %s",
-            COLOR_PURPLE, TIME_ALIGN_EVAL, TIME_TOTAL-1, COLOR_WHITE);
+            COLOR_PURPLE, int(idx(TIME_ALIGN_EVAL)), int(idx(TIME_TOTAL))-1, COLOR_WHITE);
     precision_recall_threads_wrapper(sc_data_ptr, sc_groups);
     INFO("    done with variant call evaluation");
-    g.timers[TIME_ALIGN_EVAL].stop();
+    g.stage(TIME_ALIGN_EVAL).stop();
 
     // calculate phasing statistics
-    g.timers[TIME_PHASE].start();
+    g.stage(TIME_PHASE).start();
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%d/%d] Phasing superclusters%s",
-            COLOR_PURPLE, TIME_PHASE, TIME_TOTAL-1, COLOR_WHITE);
+            COLOR_PURPLE, int(idx(TIME_PHASE)), int(idx(TIME_TOTAL))-1, COLOR_WHITE);
     std::unique_ptr<phaseblockData> phasedata_ptr(new phaseblockData(sc_data_ptr));
-    g.timers[TIME_PHASE].stop();
+    g.stage(TIME_PHASE).stop();
 
     // write phasing results
-    g.timers[TIME_WRITE].start();
+    g.stage(TIME_WRITE).start();
     if (g.write) phasedata_ptr->write_switchflips();
     write_results(phasedata_ptr);
     if (g.write) phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
-    g.timers[TIME_WRITE].stop();
+    g.stage(TIME_WRITE).stop();
 
     // report timing results
-    g.timers[TIME_TOTAL].stop();
+    g.stage(TIME_TOTAL).stop();
     write_runtime();
     if (g.verbosity >= 1) {
         INFO(" ")
         INFO("Timers:")
-        for (int i = 0; i <= TIME_TOTAL; i++) { g.timers[i].print(i); }
+        for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) { g.stage(t).print(idx(t)); }
     }
     return EXIT_SUCCESS;
 }

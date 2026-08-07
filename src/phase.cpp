@@ -14,11 +14,11 @@
 /**
  * @brief Renders one haplotype's GT, bare for a haploid record and phased for a diploid one.
  * @param[in] ploidy Ploidy of the record being written (0 = unknown, treated as diploid)
- * @param[in] alt_on_hap2 True if the alternate allele sits on the second haplotype
+ * @param[in] hap Haplotype the alternate allele sits on
  * @return "1" when haploid, otherwise "0|1" or "1|0"
  */
-static std::string hap_gt(uint8_t ploidy, bool alt_on_hap2) {
-    return ploidy == 1 ? "1" : (alt_on_hap2 ? "0|1" : "1|0");
+static std::string hap_gt(uint8_t ploidy, hap_t hap) {
+    return ploidy == 1 ? "1" : (hap == HAP2 ? "0|1" : "1|0");
 }
 
 
@@ -72,9 +72,9 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // write variants
     for (std::string ctg : this->contigs) {
-        std::vector<int> ptrs = std::vector<int>(CALLSETS, 0);
-        std::vector<int> poss = std::vector<int>(CALLSETS, 0);
-        std::vector<int> next = std::vector<int>(CALLSETS, 0);
+        EnumArray<callset_t, int, CALLSET_SLOTS> ptrs{};
+        EnumArray<callset_t, int, CALLSET_SLOTS> poss{};
+        EnumArray<callset_t, bool, CALLSET_SLOTS> next{};
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         auto & vars = ctg_pbs->ctg_superclusters->callset_vars;
@@ -83,13 +83,13 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
         // flip/swap state comes from the query; these defaults hold on a contig it never calls on
         int phase_block = 0;
-        bool block_state = PHASE_ORIG;
+        phase_t block_state = PHASE_ORIG;
         bool flip_error = false;
 
         while ( ptrs[QUERY] < qvars->n || ptrs[TRUTH] < tvars->n) {
 
             // get next positions
-            for (int c = 0; c < CALLSETS; c++) {
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 poss[c] = ptrs[c] < int(vars[c]->poss.size()) ? 
                         vars[c]->poss[ptrs[c]] : 
                         std::numeric_limits<int>::max();
@@ -100,13 +100,13 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
             // set flags for next haps
             int pos = std::min(poss[QUERY], poss[TRUTH]);
-            for (int c = 0; c < CALLSETS; c++) {
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 next[c] = (poss[c] == pos);
             }
 
             // update phasing
             if (ptrs[QUERY] < qvars->n) {
-                int phase = qvars->phases[ptrs[QUERY]];
+                phase_t phase = qvars->phases[ptrs[QUERY]];
                 block_state = qvars->pb_phases[ptrs[QUERY]];
 
                 // update switch/flip status
@@ -154,23 +154,24 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     if (vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
                         // print data for each haplotype
-                        for (int qhi = 0; qhi < HAPS; qhi++) {
+                        for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
                             bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
-                            int thi = qhi ^ swap ^ block_state ^ flip_error;
+                            bool to_other = swap ^ (block_state == PHASE_SWAP) ^ flip_error;
+                            hap_t thi = to_other ? other_hap(qhi) : qhi;
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true) || 
                                     vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) { // print truth
                                     vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
                                         hap_gt(vars[TRUTH]->ploidies[ptrs[TRUTH]], thi),
-                                        sc_idx, phase_block, block_state, flip_error);
+                                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
                                 } else {
                                     vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 }
                                 if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) { // print query
                                     vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
-                                        sc_idx, phase_block, block_state, flip_error, true);
+                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
+                                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
                                 } else {
                                     vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                                 }
@@ -178,39 +179,40 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         }
                         ptrs[QUERY]++; ptrs[TRUTH]++;
                     } else { // positional tie, diff vars, just print query
-                        for (int qhi = 0; qhi < HAPS; qhi++) {
+                        for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
                             bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
-                                        sc_idx, phase_block, block_state, flip_error, true);
+                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
+                                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
                             }
                         }
                         ptrs[QUERY]++;
                     }
                 } else { // query is next
-                    for (int qhi = 0; qhi < HAPS; qhi++) {
+                    for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
                         bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
                         if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                             vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                    hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
-                                    sc_idx, phase_block, block_state, flip_error, true);
+                                    hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
+                                    sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
                         }
                     }
                     ptrs[QUERY]++;
                 }
             } else if (next[TRUTH]) {
-                for (int qhi = 0; qhi < HAPS; qhi++) {
-                    int thi = qhi ^ block_state ^ flip_error;
+                for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
+                    bool to_other = (block_state == PHASE_SWAP) ^ flip_error;
+                    hap_t thi = to_other ? other_hap(qhi) : qhi;
                     if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                         vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
                                 hap_gt(vars[TRUTH]->ploidies[ptrs[TRUTH]], thi),
-                                sc_idx, phase_block, block_state, flip_error);
+                                sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
                         vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                     }
                 }
@@ -284,7 +286,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
  */
 void phaseblockData::fix_phase_set_tags() {
 
-    for (int ci = 0; ci < CALLSETS; ci++) {
+    for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         // one span is recorded per phase set, so its count is the phase set count
         std::vector<int> phase_set_sizes;
 
@@ -366,18 +368,19 @@ void phaseblockData::fix_phase_set_tags() {
  * @throws ERROR if the output genotype error TSV file cannot be opened for writing
  */
 void phaseblockData::fix_allele_counts() {
-    std::vector< std::vector<int> > allele_error_counts(AC_ERRTYPES, std::vector<int>(VARTYPES, 0));
+    EnumArray<ac_errtype_t, EnumArray<sizeclass_t, int, SIZECLASS_SLOTS>,
+            AC_ERRTYPE_SLOTS> allele_error_counts{};
     for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgVariants> qvars = 
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[QUERY];
 
         for (int vi = 0; vi < qvars->n; vi++) {
-            int allele_count_errtype = qvars->set_allele_errtype(vi, true);
+            ac_errtype_t allele_count_errtype = qvars->set_allele_errtype(vi, true);
             if (allele_count_errtype == AC_UNKNOWN) {
                 ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), qvars->poss[vi],
                         gt_strs[qvars->calc_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
             }
-            int vartype = qvars->get_vartype(vi);
+            sizeclass_t vartype = qvars->get_vartype(vi);
             allele_error_counts[allele_count_errtype][vartype]++;
             allele_error_counts[allele_count_errtype][VARTYPE_ALL]++;
 
@@ -445,7 +448,7 @@ void phaseblockData::fix_allele_counts() {
                         gt_strs[tvars->orig_gts[vi]].data(), gt_strs[tvars->calc_gts[vi]].data());
             }
 
-            int vartype = tvars->get_vartype(vi);
+            sizeclass_t vartype = tvars->get_vartype(vi);
             if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
                         tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
@@ -499,7 +502,8 @@ void phaseblockData::fix_allele_counts() {
  * @throws ERROR if the output genotype error TSV file cannot be opened for writing
  */
 void phaseblockData::write_genotype_error_summary(
-        const std::vector< std::vector<int> > & allele_error_counts) {
+        const EnumArray<ac_errtype_t, EnumArray<sizeclass_t, int, SIZECLASS_SLOTS>,
+            AC_ERRTYPE_SLOTS> & allele_error_counts) {
     std::string out_genotype_errors_fn = g.out_prefix + "genotype-errors.tsv";
     FILE* out_genotype_errors = 0;
     if (g.verbosity >= 1) INFO("  Writing genotype error results to '%s'", out_genotype_errors_fn.data());
@@ -508,7 +512,7 @@ void phaseblockData::write_genotype_error_summary(
         ERROR("Failed to open genotype error TSV file '%s'", out_genotype_errors_fn.data());
     }
     fprintf(out_genotype_errors, "VAR_TYPE\tALLELE_COUNT_0_TO_1\tALLELE_COUNT_0_TO_2\tALLELE_COUNT_1_TO_0\tALLELE_COUNT_1_TO_1\tALLELE_COUNT_1_TO_2\tALLELE_COUNT_2_TO_0\tALLELE_COUNT_2_TO_1\tALLELE_COUNT_2_TO_2\n");
-    for (int vartype = 0; vartype < VARTYPES; vartype++) {
+    for (sizeclass_t vartype : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
         fprintf(out_genotype_errors, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
                 vartype_strs[vartype].data(),
                 allele_error_counts[AC_ERR_0_TO_1][vartype],
@@ -537,8 +541,10 @@ void phaseblockData::phase()
     for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgVariants> qvars = ctg_pbs->ctg_superclusters->callset_vars[QUERY];
-        std::vector< std::vector<int> > mat(2, std::vector<int>(qvars->n+1));
-        std::vector< std::vector<int> > ptrs(2, std::vector<int>(qvars->n+1));
+        EnumArray<phase_t, std::vector<int>, PHASE_SLOTS> mat{};
+        EnumArray<phase_t, std::vector<phaseptr_t>, PHASE_SLOTS> ptrs{};
+        for (std::vector<int> & row : mat) row = std::vector<int>(qvars->n+1);
+        for (std::vector<phaseptr_t> & row : ptrs) row = std::vector<phaseptr_t>(qvars->n+1);
 
         // calculate phasings for each variant
         for (int i = 0; i < qvars->n; i++) {
@@ -557,7 +563,7 @@ void phaseblockData::phase()
         for (int i = 0; i < qvars->n; i++) {
 
             // determine costs (penalized if this phasing deemed incorrect)
-            std::vector<int> costs = {0, 0};
+            EnumArray<phase_t, int, PHASE_SLOTS> costs{};
             switch (qvars->phases[i]) {
                 case PHASE_ORIG:
                     costs[PHASE_ORIG] = 0; 
@@ -568,11 +574,8 @@ void phaseblockData::phase()
                     costs[PHASE_SWAP] = 0; 
                     break;
                 case PHASE_NONE:
-                    costs[PHASE_ORIG] = 0; 
-                    costs[PHASE_SWAP] = 0; 
-                    break;
-                default:
-                    ERROR("Unexpected phase (%d)", qvars->phases[i]);
+                    costs[PHASE_ORIG] = 0;
+                    costs[PHASE_SWAP] = 0;
                     break;
             }
 
@@ -585,13 +588,14 @@ void phaseblockData::phase()
                 cost_swap = 0;
             }
 
-            for (int phase = 0; phase < 2; phase++) {
-                if (mat[phase][i] + costs[phase] < mat[phase^1][i] + costs[phase^1] + cost_swap) {
+            for (phase_t phase : {PHASE_ORIG, PHASE_SWAP}) {
+                phase_t other = other_phase(phase);
+                if (mat[phase][i] + costs[phase] < mat[other][i] + costs[other] + cost_swap) {
                     mat[phase][i+1] = mat[phase][i] + costs[phase];
                     ptrs[phase][i+1] = PHASE_PTR_KEEP;
                 }
                 else {
-                    mat[phase][i+1] = mat[phase^1][i] + costs[phase^1] + cost_swap;
+                    mat[phase][i+1] = mat[other][i] + costs[other] + cost_swap;
                     ptrs[phase][i+1] = PHASE_PTR_SWAP;
                 }
             }
@@ -601,9 +605,9 @@ void phaseblockData::phase()
         if (qvars->n > 0) { // skip empty contigs
 
             // determine starting phase
-            int phase = PHASE_ORIG; // 0
+            phase_t phase = PHASE_ORIG;
             if (mat[PHASE_SWAP][qvars->n] < mat[PHASE_ORIG][qvars->n])
-                phase = PHASE_SWAP; // 1
+                phase = PHASE_SWAP;
 
             int i = qvars->n;
             while (i > 0) {
@@ -615,7 +619,7 @@ void phaseblockData::phase()
                         ctg_pbs->nswitches++;
                     }
 
-                    phase ^= 1;
+                    phase = other_phase(phase);
                 } else if (ptrs[phase][i] == PHASE_PTR_KEEP) { // within phase block
                     if (qvars->phases[i-1] != PHASE_NONE && qvars->phases[i-1] != phase) {
                         ctg_pbs->flips.push_back(i-1);
@@ -707,7 +711,7 @@ void phaseblockData::write_switchflips() {
         int vi = 0;
         int next_vi = qvars->n; // default to last
         int beg = 0; int end = 0;
-        int type = SWITCHTYPE_NONE;
+        switchtype_t type = SWITCHTYPE_NONE;
 
         while (true) {
 
@@ -861,7 +865,7 @@ std::vector<int> correct_block_sizes(const std::shared_ptr<ctgPhaseblocks> & ctg
     int next_vi = qvars->n; // default to last
     int beg = qvars->poss[0];
     int end = 0;
-    int type = SWITCHTYPE_NONE;
+    switchtype_t type = SWITCHTYPE_NONE;
 
     while (true) {
 

@@ -50,7 +50,8 @@ public:
     /** @brief Validates that all BED intervals are sorted and non-overlapping. */
     void check();
     /** @brief Returns BED location type (BED_INSIDE/OUTSIDE/BORDER/OFFCTG) for a variant interval. */
-    int contains(std::string contig, const int & start, const int & stop, const int & type);
+    bedloc_t contains(std::string contig, const int & start, const int & stop,
+            const edittype_t & type);
 
     /** @brief Returns a string representation of all stored BED regions. */
     operator std::string() const;

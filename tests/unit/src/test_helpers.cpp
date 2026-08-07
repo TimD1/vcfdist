@@ -162,7 +162,7 @@ std::string read_text(const std::string & fn) {
  * @param[in] length Length declared for every contig
  * @return Header options ready for write_tmp_vcf() or parse_records()
  */
-vcf_opts make_vcf_opts(int callset, const std::vector<std::string> & contigs, int length) {
+vcf_opts make_vcf_opts(callset_t callset, const std::vector<std::string> & contigs, int length) {
     vcf_opts opts;
     opts.sample = callset_strs[callset];
     opts.contigs.clear();
@@ -321,7 +321,7 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
  * @param[in] callset QUERY or TRUTH callset identifier
  */
 void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
-        const vcf_opts & opts, int callset) {
+        const vcf_opts & opts, callset_t callset) {
     const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
     std::shared_ptr<variantData> vars(new variantData());
     parse_variants(vcf_fn, vars, nullptr, callset);
@@ -354,7 +354,7 @@ bool logged(const ParseResult & r, const std::string & text) {
  * @param[in] ctg Contig name
  * @return Variant container for that haplotype, or nullptr if the contig is absent
  */
-std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap, const std::string & ctg) {
+std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, hap_t hap, const std::string & ctg) {
     const auto & ctg_vars = r.vars->variants[hap];
     const auto found = ctg_vars.find(ctg);
     return (found == ctg_vars.end()) ? nullptr : found->second;
@@ -367,7 +367,7 @@ std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap, const std:
  * @param[in] ctg Contig name
  * @return Number of surviving variants, or 0 if the contig is absent
  */
-int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg) {
+int kept_on_hap(const ParseResult & r, hap_t hap, const std::string & ctg) {
     std::shared_ptr<ctgVariants> vars = hap_vars(r, hap, ctg);
     return (vars == nullptr) ? 0 : vars->n;
 }
@@ -402,7 +402,7 @@ bool kept_pos(const ParseResult & r, int pos, const std::string & ctg) {
  */
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
     size_t count = 0;
-    for (int hap = 0; hap < HAPS; hap++) {
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
         std::shared_ptr<ctgVariants> vars = hap_vars(r, hap, ctg);
         if (vars == nullptr) continue;
         for (int i = 0; i < vars->n; i++) {
@@ -421,7 +421,7 @@ size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
  * @param[in] count Number of records tallied under that genotype
  * @return Substring of the INFO line, derived from gt_strs so it tracks renames
  */
-std::string gt_hist_line(uint8_t gt, int count) {
+std::string gt_hist_line(gt_t gt, int count) {
     std::string name = gt_strs[gt];
     while (name.size() < 3) name = " " + name; // the "%3s" in the INFO format right-justifies
     return "    " + name + ": " + std::to_string(count);
@@ -433,7 +433,7 @@ std::string gt_hist_line(uint8_t gt, int count) {
  * @param[in] count Number of alleles tallied under that type across both haplotypes
  * @return Substring of the INFO line, derived from type_strs so it tracks renames
  */
-std::string type_hist_line(uint8_t type, int count) {
+std::string type_hist_line(edittype_t type, int count) {
     return "    " + type_strs[type] + ": " + std::to_string(count);
 }
 
@@ -507,7 +507,7 @@ bedData make_bed(const std::vector< std::pair<std::string,
  * @return Variant container with no variants on any contig
  * @throws ERROR if the parallel vectors have differing lengths
  */
-std::shared_ptr<variantData> make_variantData(int callset,
+std::shared_ptr<variantData> make_variantData(callset_t callset,
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
         const std::vector< std::set<int> > & observed_ploidies) {
     if (contigs.size() != lengths.size() || contigs.size() != observed_ploidies.size()) {
@@ -557,7 +557,7 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
  * @param[in] pos 0-based reference start position
  * @return Container holding a single A>C substitution with the requested genotypes
  */
-std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt, const std::string & ctg,
+std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt, const std::string & ctg,
         int pos) {
     var_desc var;
     var.pos = pos;
@@ -580,7 +580,7 @@ std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt, const
  * @param[in] pos 0-based reference start position
  * @return Container holding a single variant
  */
-std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
+std::shared_ptr<ctgVariants> make_typed_var(edittype_t type, const std::string & ref,
         const std::string & alt, const std::string & ctg, int pos) {
     var_desc var;
     var.pos = pos;
@@ -603,7 +603,7 @@ std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & re
  * @param[in] query_ed Query edit distance
  * @param[in] credit Partial credit
  */
-void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, uint8_t errtype,
+void set_hap_data(std::shared_ptr<ctgVariants> vars, hap_t hap, int idx, errtype_t errtype,
         int sync_group, float callq, int ref_ed, int query_ed, float credit) {
     vars->errtypes[hap][idx] = errtype;
     vars->sync_group[hap][idx] = sync_group;
@@ -723,7 +723,7 @@ std::unique_ptr<phaseblockData> make_phaseblockData(
  * @return Graph ready for calc_prec_recall_aln()
  */
 std::shared_ptr<Graph> make_graph(std::shared_ptr<ctgSuperclusters> sc,
-        std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hap, int sc_idx) {
+        std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hap, int sc_idx) {
     return std::shared_ptr<Graph>(new Graph(sc, sc_idx, ref, ctg, truth_hap));
 }
 

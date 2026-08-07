@@ -21,7 +21,7 @@
  * @brief One haplotype's evaluation results for a single variant, set during prec_recall_aln().
  */
 struct hap_fields {
-    uint8_t errtype = ERRTYPE_UN; ///< error type: TP, FP, FN
+    errtype_t errtype = ERRTYPE_UN; ///< error type: TP, FP, FN
     int sync_group = 0;           ///< group of variants that participate in credit
     float callq = 0;              ///< min call quality in sync group
     int ref_ed = 0;               ///< reference edit distance in sync group
@@ -45,11 +45,11 @@ struct hap_fields {
 struct var_fields {
     int pos;                      ///< variant start position (0-based)
     int rlen;                     ///< reference length
-    uint8_t type;                 ///< variant type: NONE, SUB, INS, DEL, CPX
-    uint8_t loc;                  ///< BED location: INSIDE, OUTSIDE, BORDER
+    edittype_t type;              ///< variant type: NONE, SUB, INS, DEL, CPX
+    bedloc_t loc;                 ///< BED location: INSIDE, OUTSIDE, BORDER
     std::string ref;              ///< variant reference allele
     std::string alt;              ///< variant alternate allele
-    uint8_t orig_gt;              ///< simple genotype (0|1, 1|0, or 1|1)
+    gt_t orig_gt;                 ///< simple genotype (0|1, 1|0, or 1|1)
     float gt_qual;                ///< genotype quality (capped above at --max-qual when stored)
     float var_qual;               ///< variant quality (capped above at --max-qual when stored)
     int phase_set;                ///< integer representing variant phase set (0 = missing)
@@ -57,8 +57,8 @@ struct var_fields {
     int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
     uint8_t ploidy = 0;           ///< variant ploidy from std::abs(ngt) (0 = unknown)
     int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
-    uint8_t calc_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
-    hap_fields hap[HAPS] = {};    ///< per-haplotype results, indexed by HAP1 and HAP2
+    gt_t calc_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
+    EnumArray<hap_t, hap_fields, HAP_SLOTS> hap = {}; ///< per-haplotype results, indexed by HAP1 and HAP2
 };
 
 /**
@@ -85,20 +85,21 @@ public:
     void print_var_empty(FILE* out_fp, int sc_idx, int phase_block, bool query = false);
 
     /** @brief Writes sample-specific FORMAT fields for one variant to output VCF. */
-    void print_var_sample(FILE* out_fp, int vi, int hi, const std::string & gt, int sc_idx,
+    void print_var_sample(FILE* out_fp, int vi, hap_t hi, const std::string & gt, int sc_idx,
             int phase_block, bool phase_switch, bool phase_flip, bool query = false);
 
     /** @brief Returns true if a variant is present on the specified haplotype. */
-    bool var_on_hap(int var_idx, int hap, bool calc = false) const;
+    bool var_on_hap(int var_idx, hap_t hap, bool calc = false) const;
 
     /** @brief Sets or unsets the alternate allele on one haplotype for a calculated genotype. */
-    void set_var_calcgt_on_hap(int var_idx, int hap, bool set = true, bool ignore_errors = false);
+    void set_var_calcgt_on_hap(int var_idx, hap_t hap, bool set = true,
+            bool ignore_errors = false);
 
     /** @brief Classifies variant as SNP, INDEL, or SV based on reference length and g.sv_threshold. */
-    int get_vartype(int vi);
+    sizeclass_t get_vartype(int vi);
 
     /** @brief Records a variant's allele count error type from its original and calculated genotypes. */
-    int set_allele_errtype(int vi, bool query);
+    ac_errtype_t set_allele_errtype(int vi, bool query);
 
     /** @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt. */
     bool calcgt_is_swapped(int vi) const;
@@ -107,11 +108,11 @@ public:
     std::string ctg;                ///< Contig name (chromosome identifier)
     std::vector<int> poss;          ///< variant start positions (0-based)
     std::vector<int> rlens;         ///< reference lengths
-    std::vector<uint8_t> types;     ///< variant type: NONE, SUB, INS, DEL, CPX
-    std::vector<uint8_t> locs;      ///< BED location: INSIDE, OUTSIDE, BORDER
+    std::vector<edittype_t> types;     ///< variant type: NONE, SUB, INS, DEL, CPX
+    std::vector<bedloc_t> locs;      ///< BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  ///< variant reference allele
     std::vector<std::string> alts;  ///< variant alternate allele (always one)
-    std::vector<uint8_t> orig_gts;  ///< simple genotype (0|1, 1|0, or 1|1)
+    std::vector<gt_t> orig_gts;  ///< simple genotype (0|1, 1|0, or 1|1)
     std::vector<float> gt_quals;    ///< genotype quality (capped above at --max-qual)
     std::vector<float> var_quals;   ///< variant quality (capped above at --max-qual)
     std::vector<int> phase_sets;    ///< integer representing variant phase set (0 = missing)
@@ -128,18 +129,18 @@ public:
     int nc = 0;                     ///< Total number of clusters (size of clusters vector is nc+1 with sentinel)
 
     // set during prec_recall_aln() (size (2, n), additional axis for haplotype)
-    std::vector<uint8_t> calc_gts;                ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
-    std::vector< std::vector<uint8_t> > errtypes; ///< error type: TP, FP, FN
-    std::vector< std::vector<int> > sync_group;   ///< group of variants that participate in credit
-    std::vector< std::vector<float> > callq;      ///< min call quality in sync group (for truth, of associated call)
-    std::vector< std::vector<int> > ref_ed;       ///< reference edit distance in sync group
-    std::vector< std::vector<int> > query_ed;     ///< query edit distance in sync group
-    std::vector< std::vector<float> > credit;     ///< percentage reduction in edit dist (ref->query)
+    std::vector<gt_t> calc_gts;  ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
+    EnumArray<hap_t, std::vector<errtype_t>, HAP_SLOTS> errtypes; ///< error type: TP, FP, FN
+    EnumArray<hap_t, std::vector<int>, HAP_SLOTS> sync_group;   ///< group of variants that participate in credit
+    EnumArray<hap_t, std::vector<float>, HAP_SLOTS> callq;      ///< min call quality in sync group (for truth, of associated call)
+    EnumArray<hap_t, std::vector<int>, HAP_SLOTS> ref_ed;       ///< reference edit distance in sync group
+    EnumArray<hap_t, std::vector<int>, HAP_SLOTS> query_ed;     ///< query edit distance in sync group
+    EnumArray<hap_t, std::vector<float>, HAP_SLOTS> credit;     ///< percentage reduction in edit dist (ref->query)
 
     // set during phase() (size n)
-    std::vector<int> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
-    std::vector<int> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
-    std::vector<int> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
+    std::vector<phase_t> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
+    std::vector<phase_t> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
+    std::vector<ac_errtype_t> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
 };
 
 /**
@@ -152,13 +153,13 @@ public:
     variantData();
 
     /** @brief Parses a CIGAR string and adds resulting variants to the container. */
-    void add_variants(const std::vector<int> & cigar, int hap,
+    void add_variants(const std::vector<ptr_t> & cigar, hap_t hap,
             int ref_pos, const std::string & ctg, const std::string & query,
             const std::string & ref, int qual, int phase_set);
 
     // data
     std::shared_ptr<fastaData> ref;  ///< Pointer to reference FASTA data
-    int callset;                     ///< Callset type: QUERY (0) or TRUTH (1)
+    callset_t callset;               ///< Callset type: QUERY or TRUTH
     std::string filename;            ///< Source VCF filename
 
     std::string sample;               ///< Sample name from VCF header
@@ -166,15 +167,14 @@ public:
     std::vector<int> lengths;         ///< List of all contig lengths
     std::vector<                      ///< Ploidies observed on each contig, parallel to contigs
         std::set<int> > observed_ploidies;
-    std::vector<                      ///< Per-haplotype, per-contig variant containers: variants[hap][ctg]
-        std::unordered_map<
-            std::string,
-            std::shared_ptr<ctgVariants> > > variants;
+    ///< Per-haplotype, per-contig variant containers: variants[hap][ctg]
+    EnumArray<hap_t,
+        std::unordered_map<std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> variants;
 };
 
 /** @brief Parses variants from a VCF file into a variantData container, with filtering and validation. */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
-        std::shared_ptr<fastaData> reference, int callset);
+        std::shared_ptr<fastaData> reference, callset_t callset);
 
 #endif

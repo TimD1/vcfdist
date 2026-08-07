@@ -917,7 +917,7 @@ struct GraphFixture {
  * silently leave the fixture with no variants at all.
  */
 static GraphFixture build_fixture(const std::string & ref_seq, std::vector<var_desc> qv,
-        std::vector<var_desc> tv, int truth_hap = HAP1) {
+        std::vector<var_desc> tv, hap_t truth_hap = HAP1) {
     for (var_desc & v : qv) v.supercluster = 0;
     for (var_desc & v : tv) v.supercluster = 0;
     GraphFixture f;
@@ -930,7 +930,7 @@ static GraphFixture build_fixture(const std::string & ref_seq, std::vector<var_d
 }
 
 /** @brief Aligns and labels one graph exactly as evaluate_variants does, returning the score. */
-static int align_and_label(std::shared_ptr<Graph> graph, int truth_hap) {
+static int align_and_label(std::shared_ptr<Graph> graph, hap_t truth_hap) {
     std::unordered_map<idx4, idx4> ptrs;
     int score = calc_prec_recall_aln(graph, ptrs, false);
     calc_prec_recall(graph, ptrs, truth_hap, false);
@@ -961,7 +961,7 @@ TEST(GraphCtor, QuerySnpNodeLayout) {
     EXPECT_EQ(std::vector<std::string>({"_C", "_T", "_G", "_TA"}), f.graph->qseqs);
     EXPECT_EQ(std::vector<int>({0, 1, 1, 2}), f.graph->qbegs);
     EXPECT_EQ(std::vector<int>({1, 2, 2, 4}), f.graph->qends);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
     EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->qidxs);
 
     // no truth variants, so the truth side is a single reference node spanning the whole window
@@ -991,7 +991,7 @@ TEST(GraphCtor, ContigStartHasZeroWidthEntryNode) {
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->qseqs);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
     EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->qidxs);
 
     // the entry node is the unique origin: no predecessor, and both alleles hang off it
@@ -1023,7 +1023,7 @@ TEST(GraphCtor, ContigStartTruthEntryNodePrecedesBypass) {
 
     ASSERT_EQ(4, f.graph->tnodes);
     EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->tseqs);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
     EXPECT_EQ(std::vector<int>({-1, -1, 0, -1}), f.graph->tskips) << "node 2 bypasses variant 0";
     EXPECT_TRUE(f.graph->tprevs[0].empty());
     EXPECT_EQ(std::vector<int>({0}), f.graph->tprevs[2]) << "the bypass node must be reachable";
@@ -1164,7 +1164,7 @@ TEST(GraphCtor, TruthVariantPairedWithBypass) {
     EXPECT_EQ(std::vector<std::string>({"_C", "_A", "_G", "_TA"}), f.graph->tseqs);
     EXPECT_EQ(std::vector<int>({0, 1, 1, 2}), f.graph->tbegs);
     EXPECT_EQ(std::vector<int>({1, 2, 2, 4}), f.graph->tends);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
     EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->tidxs);
     EXPECT_EQ(std::vector<int>({-1, -1, 0, -1}), f.graph->tskips);
 }
@@ -2077,7 +2077,7 @@ TEST(PrecisionRecallWrapper, EmptyRangeReturns) {
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
-    const std::vector< std::vector< std::vector<int> > > sc_groups;
+    const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups;
     precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 0, false, false);
 
     EXPECT_EQ(ERRTYPE_UN, f.qvars->errtypes[HAP1][0]);
@@ -2095,7 +2095,7 @@ TEST(PrecisionRecallWrapper, EvaluatesBothHaplotypesForOneSupercluster) {
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
-    const std::vector< std::vector< std::vector<int> > > sc_groups = {{{0}, {0}}};
+    const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups = {{{{{0}, {0}}}}};
     precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 1, false, false);
 
     EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);

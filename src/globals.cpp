@@ -17,30 +17,32 @@ const std::string Globals::VERSION = "3.0.0-b0";
 /** @brief Program name string. */
 const std::string Globals::PROGRAM = "vcfdist";
 /** @brief String representations of QUERY/TRUTH callset indices. */
-std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
+EnumArray<callset_t, std::string, CALLSET_SLOTS> callset_strs = {{"QUERY", "TRUTH"}};
 /** @brief String representations of ERRTYPE_* constants (TP, FP, FN, unknown). */
-std::vector<std::string> error_strs = {"TP", "FP", "FN", "??"};
+EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs = {{"TP", "FP", "FN", "??"}};
 /** @brief String representations of GT_* genotype constants. */
-std::vector<std::string> gt_strs =
-    {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y" };
+EnumArray<gt_t, std::string, GT_SLOTS> gt_strs =
+    {{"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y"}};
 /** @brief String representations of PHASE_* constants (keep, swap, missing). */
-std::vector<std::string> phase_strs = {"0", "1", "."};
+EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs = {{"0", "1", "."}};
 /** @brief String representations of AC_ERR_* allele count error types. */
-std::vector<std::string> ac_strs = {".", ".", ".", ".", "+", ".", "-", ".", "."};
+EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs =
+    {{".", ".", ".", ".", "+", ".", "-", ".", "."}};
 /** @brief String representations of BED_* location constants. */
-std::vector<std::string> region_strs = {"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"};
+EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs =
+    {{"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"}};
 /** @brief String representations of SWITCHTYPE_* switch/flip error type constants. */
-std::vector<std::string> switch_strs =
-    {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
+EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs =
+    {{"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"}};
 /** @brief String names for pipeline stage timers in TIME_* index order. */
-std::vector<std::string> timer_strs =
-    {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};
+EnumArray<stage_t, std::string, STAGE_SLOTS> timer_strs =
+    {{"reading", "clustering", "alignment eval", "phasing", "writing", "total"}};
 /** @brief String representations of TYPE_* variant type constants. */
-std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
-/** @brief Alternate string representations of TYPE_* constants (ALL/SNP/INS/DEL/INDEL). */
-std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
+EnumArray<edittype_t, std::string, EDITTYPE_SLOTS> type_strs =
+    {{"REF", "SNP", "INS", "DEL", "CPX"}};
 /** @brief String representations of VARTYPE_* size-class constants. */
-std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
+EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs =
+    {{"SNP", "INDEL", "SV", "ALL"}};
 
 /**
  * @brief Parses command-line arguments and initializes global configuration.
@@ -136,7 +138,7 @@ void Globals::parse_args(int argc, char ** argv) {
     if (this->verbosity >= 1) {
         INFO(" ");
         INFO("%s[%d/%d] Loading reference FASTA%s '%s'", COLOR_PURPLE,
-                TIME_READ, TIME_TOTAL-1, COLOR_WHITE, ref_fasta_fn.data());
+                int(idx(TIME_READ)), int(idx(TIME_TOTAL))-1, COLOR_WHITE, ref_fasta_fn.data());
     }
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
@@ -525,13 +527,23 @@ void Globals::print_usage() const
 
 
 /**
- * @brief Initializes one named timer object per pipeline stage.
- * @param[in] timer_strs Vector of timer names matching TIME_* constant indices
+ * @brief Names every pipeline stage timer from timer_strs.
+ * @note Assigns each slot rather than appending, so calling this twice is idempotent.
  */
-void Globals::init_timers(const std::vector<std::string> & timer_strs) {
-    for (const std::string & timer_name : timer_strs) {
-        this->timers.push_back( timer(timer_name) );
+void Globals::init_timers() {
+    for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) {
+        this->timers[t] = timer(timer_strs[t]);
     }
+}
+
+
+/**
+ * @brief Returns the timer for one pipeline stage.
+ * @param[in] t Pipeline stage
+ * @return Reference to that stage's timer
+ */
+timer & Globals::stage(stage_t t) {
+    return this->timers[t];
 }
 
 

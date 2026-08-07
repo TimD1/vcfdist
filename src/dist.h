@@ -34,14 +34,14 @@ public:
     std::vector<std::string> qseqs; ///< seq data for each query node (e.g. "ACCCGT")
     std::vector<int> qbegs;         ///< reference start position
     std::vector<int> qends;         ///< reference end position
-    std::vector<int> qtypes;        ///< query node TYPE_(REF, INS, SUB, DEL)
+    std::vector<edittype_t> qtypes;        ///< query node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> qidxs;         ///< store query variant indices (-1 for TYPE_REF)
 
     int tnodes;                     ///< each tvector is of size tnodes
     std::vector<std::string> tseqs; ///< seq data for each truth node (e.g. "ACCCGT")
     std::vector<int> tbegs;         ///< reference start position
     std::vector<int> tends;         ///< reference end position
-    std::vector<int> ttypes;        ///< truth node TYPE_(REF, INS, SUB, DEL)
+    std::vector<edittype_t> ttypes;        ///< truth node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> tidxs;         ///< store truth variant indices (-1 for TYPE_REF)
     std::vector<int> tskips;        ///< truth variant idx this bypass node skips (-1 if not a bypass)
 
@@ -53,7 +53,7 @@ public:
 
     /** @brief Constructs alignment graph from supercluster variants and reference sequence. */
     Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-            std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi);
+            std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hi);
 
     /** @brief Prints graph node sequences and connectivity to console for debugging. */
     void print();
@@ -174,8 +174,32 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases);
 
 /** @brief Evaluates query variants against truth for one supercluster and haplotype combination. */
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi,
+			std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hi,
             bool print = false);
+
+/**
+ * @class ReachOffsets
+ * @brief Typed view over the flat wavefront offset buffer, strided as [matrix][score][diagonal].
+ *
+ * The buffer stays a caller-allocated std::vector<int> so it can be reused across calls, but the
+ * matrix dimension is keyed by mat_t, so no other family's enumerator can supply that stride.
+ */
+class ReachOffsets {
+public:
+    /** @brief Wraps a flat buffer holding MATS matrices of `scores` rows and `mat_len` diagonals. */
+    ReachOffsets(std::vector<int> & offs, int scores, int mat_len) :
+            buf(offs), score_stride(mat_len), mat_stride(mat_len * scores) { ; }
+
+    /** @brief Returns the offset for one matrix, score and diagonal. */
+    int & operator()(mat_t m, int score, int diag) {
+        return this->buf[idx(m)*this->mat_stride + score*this->score_stride + diag];
+    }
+
+private:
+    std::vector<int> & buf;  ///< flat backing buffer, owned by the caller
+    int score_stride;        ///< distance between consecutive scores
+    int mat_stride;          ///< distance between consecutive matrices
+};
 
 /** @brief Runs graph-based alignment and returns the optimal alignment score. */
 int calc_prec_recall_aln(
@@ -188,18 +212,18 @@ int calc_prec_recall_aln(
 void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
         const std::unordered_map<idx4, idx4> & ptrs,
-        int truth_hap,
+        hap_t truth_hap,
         bool print = false
         );
 
 /** @brief Launches threaded precision/recall evaluation across all superclusters. */
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
-        std::vector< std::vector< std::vector<int> > > sc_groups);
+        std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups);
 
 /** @brief Evaluates a subset of superclusters within a single thread. */
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
-        const std::vector< std::vector< std::vector<int> > > & sc_groups,
+        const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print = false);
 
 /**************************************************************************************************/

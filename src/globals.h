@@ -78,14 +78,17 @@ public:
     /** @brief Prints publication citation in MLA and BibTeX formats. */
     void print_citation() const;
 
-    /** @brief Initializes one named timer object per pipeline stage. */
-    void init_timers(const std::vector<std::string> & timer_strs);
+    /** @brief Names every pipeline stage timer from timer_strs. */
+    void init_timers();
+
+    /** @brief Returns the timer for one pipeline stage. */
+    timer & stage(stage_t t);
 
     // program data
     // static so that they are not per-object state, which keeps Globals copy-assignable
     static const std::string VERSION; ///< Program version string
     static const std::string PROGRAM; ///< Program name string
-    std::vector<timer> timers;        ///< Per-stage pipeline timers
+    EnumArray<stage_t, timer, STAGE_SLOTS> timers; ///< Per-stage pipeline timers
 };
 
 /** @brief Extracts the parent directory path from a file path string. */
@@ -97,16 +100,15 @@ void create_directory(const std::string & dir);
 extern Globals g; ///< Global program configuration instance
 
 // defined in globals.cpp
-extern std::vector<std::string> callset_strs; ///< String representations of QUERY/TRUTH callset indices
-extern std::vector<std::string> error_strs;   ///< String representations of ERRTYPE_* constants
-extern std::vector<std::string> gt_strs;      ///< String representations of GT_* genotype constants
-extern std::vector<std::string> ac_strs;      ///< String representations of AC_ERR_* allele count error types
-extern std::vector<std::string> phase_strs;   ///< String representations of PHASE_* constants
-extern std::vector<std::string> region_strs;  ///< String representations of BED_* location constants
-extern std::vector<std::string> switch_strs;  ///< String representations of SWITCHTYPE_* constants
-extern std::vector<std::string> timer_strs;   ///< String names for pipeline stage timers (TIME_* order)
-extern std::vector<std::string> type_strs;    ///< String representations of TYPE_* variant type constants
-extern std::vector<std::string> type_strs2;   ///< Alternate string representations of TYPE_* constants (ALL/SNP/INS/DEL/INDEL)
-extern std::vector<std::string> vartype_strs; ///< String representations of VARTYPE_* size-class constants
+extern EnumArray<callset_t, std::string, CALLSET_SLOTS> callset_strs; ///< String representations of QUERY/TRUTH callset indices
+extern EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs;   ///< String representations of ERRTYPE_* constants
+extern EnumArray<gt_t, std::string, GT_SLOTS> gt_strs;      ///< String representations of GT_* genotype constants
+extern EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs;      ///< String representations of AC_ERR_* allele count error types
+extern EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs;   ///< String representations of PHASE_* constants
+extern EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs;  ///< String representations of BED_* location constants
+extern EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs;  ///< String representations of SWITCHTYPE_* constants
+extern EnumArray<stage_t, std::string, STAGE_SLOTS> timer_strs; ///< String names for pipeline stage timers (TIME_* order)
+extern EnumArray<edittype_t, std::string, EDITTYPE_SLOTS> type_strs;    ///< String representations of TYPE_* variant type constants
+extern EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs; ///< String representations of VARTYPE_* size-class constants
 
 #endif

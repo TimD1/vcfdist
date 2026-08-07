@@ -58,20 +58,20 @@ TEST(CtgVariantsCtor, AllocatesTwoPhaseLanes) {
     ctgVariants vars("chr20");
 
     // all six per-haplotype lanes are indexed by HAP1/HAP2, so the outer vectors are sized PHASES
-    ASSERT_EQ(size_t(PHASES), vars.errtypes.size());
-    ASSERT_EQ(size_t(PHASES), vars.sync_group.size());
-    ASSERT_EQ(size_t(PHASES), vars.callq.size());
-    ASSERT_EQ(size_t(PHASES), vars.credit.size());
-    ASSERT_EQ(size_t(PHASES), vars.ref_ed.size());
-    ASSERT_EQ(size_t(PHASES), vars.query_ed.size());
+    ASSERT_EQ(HAP_SLOTS, vars.errtypes.size());
+    ASSERT_EQ(HAP_SLOTS, vars.sync_group.size());
+    ASSERT_EQ(HAP_SLOTS, vars.callq.size());
+    ASSERT_EQ(HAP_SLOTS, vars.credit.size());
+    ASSERT_EQ(HAP_SLOTS, vars.ref_ed.size());
+    ASSERT_EQ(HAP_SLOTS, vars.query_ed.size());
 
-    for (int hap = 0; hap < PHASES; hap++) {
-        EXPECT_TRUE(vars.errtypes[hap].empty()) << "hap " << hap;
-        EXPECT_TRUE(vars.sync_group[hap].empty()) << "hap " << hap;
-        EXPECT_TRUE(vars.callq[hap].empty()) << "hap " << hap;
-        EXPECT_TRUE(vars.credit[hap].empty()) << "hap " << hap;
-        EXPECT_TRUE(vars.ref_ed[hap].empty()) << "hap " << hap;
-        EXPECT_TRUE(vars.query_ed[hap].empty()) << "hap " << hap;
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
+        EXPECT_TRUE(vars.errtypes[hap].empty()) << "hap " << idx(hap);
+        EXPECT_TRUE(vars.sync_group[hap].empty()) << "hap " << idx(hap);
+        EXPECT_TRUE(vars.callq[hap].empty()) << "hap " << idx(hap);
+        EXPECT_TRUE(vars.credit[hap].empty()) << "hap " << idx(hap);
+        EXPECT_TRUE(vars.ref_ed[hap].empty()) << "hap " << idx(hap);
+        EXPECT_TRUE(vars.query_ed[hap].empty()) << "hap " << idx(hap);
     }
 }
 
@@ -100,10 +100,10 @@ TEST(AddVar, AllFields) {
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
             .alt = "GT", .orig_gt = GT_ALT1_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
             .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .calc_gt = GT_ALT1_REF,
-            .hap = {{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
-                     .query_ed = 10, .credit = 0.4},
-                    {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
-                     .query_ed = 11, .credit = 0.6}}});
+            .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
+                       .query_ed = 10, .credit = 0.4},
+                      {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
+                       .query_ed = 11, .credit = 0.6}}}}});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(500, vars.poss[0]);
@@ -265,13 +265,13 @@ TEST(AddVar, LaneLengthsTrackN) {
     EXPECT_EQ(n, vars.phases.size());
     EXPECT_EQ(n, vars.pb_phases.size());
     EXPECT_EQ(n, vars.ac_errtype.size());
-    for (int hap = 0; hap < PHASES; hap++) {
-        EXPECT_EQ(n, vars.errtypes[hap].size()) << "hap " << hap;
-        EXPECT_EQ(n, vars.sync_group[hap].size()) << "hap " << hap;
-        EXPECT_EQ(n, vars.callq[hap].size()) << "hap " << hap;
-        EXPECT_EQ(n, vars.ref_ed[hap].size()) << "hap " << hap;
-        EXPECT_EQ(n, vars.query_ed[hap].size()) << "hap " << hap;
-        EXPECT_EQ(n, vars.credit[hap].size()) << "hap " << hap;
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
+        EXPECT_EQ(n, vars.errtypes[hap].size()) << "hap " << idx(hap);
+        EXPECT_EQ(n, vars.sync_group[hap].size()) << "hap " << idx(hap);
+        EXPECT_EQ(n, vars.callq[hap].size()) << "hap " << idx(hap);
+        EXPECT_EQ(n, vars.ref_ed[hap].size()) << "hap " << idx(hap);
+        EXPECT_EQ(n, vars.query_ed[hap].size()) << "hap " << idx(hap);
+        EXPECT_EQ(n, vars.credit[hap].size()) << "hap " << idx(hap);
     }
 }
 
@@ -315,13 +315,13 @@ TEST(AddVar, OptionalFieldDefaults) {
     EXPECT_EQ(0, vars.ploidies[0]);
     EXPECT_EQ(-1, vars.superclusters[0]);
     EXPECT_EQ(GT_REF_REF, vars.calc_gts[0]);
-    for (int hap = 0; hap < HAPS; hap++) {
-        EXPECT_EQ(ERRTYPE_UN, vars.errtypes[hap][0]) << "hap " << hap;
-        EXPECT_EQ(0, vars.sync_group[hap][0]) << "hap " << hap;
-        EXPECT_FLOAT_EQ(0, vars.callq[hap][0]) << "hap " << hap;
-        EXPECT_EQ(0, vars.ref_ed[hap][0]) << "hap " << hap;
-        EXPECT_EQ(0, vars.query_ed[hap][0]) << "hap " << hap;
-        EXPECT_FLOAT_EQ(0, vars.credit[hap][0]) << "hap " << hap;
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
+        EXPECT_EQ(ERRTYPE_UN, vars.errtypes[hap][0]) << "hap " << idx(hap);
+        EXPECT_EQ(0, vars.sync_group[hap][0]) << "hap " << idx(hap);
+        EXPECT_FLOAT_EQ(0, vars.callq[hap][0]) << "hap " << idx(hap);
+        EXPECT_EQ(0, vars.ref_ed[hap][0]) << "hap " << idx(hap);
+        EXPECT_EQ(0, vars.query_ed[hap][0]) << "hap " << idx(hap);
+        EXPECT_FLOAT_EQ(0, vars.credit[hap][0]) << "hap " << idx(hap);
     }
 }
 
@@ -337,10 +337,10 @@ TEST(GetVar, RoundTripsEveryField) {
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
             .alt = "GT", .orig_gt = GT_ALT1_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
             .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .calc_gt = GT_ALT1_REF,
-            .hap = {{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
-                     .query_ed = 10, .credit = 0.4},
-                    {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
-                     .query_ed = 11, .credit = 0.6}}});
+            .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
+                       .query_ed = 10, .credit = 0.4},
+                      {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
+                       .query_ed = 11, .credit = 0.6}}}}});
 
     var_fields var = vars.get_var(0);
     EXPECT_EQ(500, var.pos);
@@ -381,10 +381,10 @@ TEST(GetVar, FeedsAddVarWithoutLoss) {
     src.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_DEL, .loc = BED_BORDER, .ref = "AC",
             .alt = "", .orig_gt = GT_REF_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
             .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .calc_gt = GT_ALT1_REF,
-            .hap = {{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
-                     .query_ed = 10, .credit = 0.4},
-                    {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
-                     .query_ed = 11, .credit = 0.6}}});
+            .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
+                       .query_ed = 10, .credit = 0.4},
+                      {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
+                       .query_ed = 11, .credit = 0.6}}}}});
 
     ctgVariants dst("chr20");
     dst.add_var(src.get_var(0));
@@ -405,13 +405,13 @@ TEST(GetVar, FeedsAddVarWithoutLoss) {
     EXPECT_EQ(src.ploidies[0], dst.ploidies[0]);
     EXPECT_EQ(src.superclusters[0], dst.superclusters[0]);
     EXPECT_EQ(src.calc_gts[0], dst.calc_gts[0]);
-    for (int hap = 0; hap < HAPS; hap++) {
-        EXPECT_EQ(src.errtypes[hap][0], dst.errtypes[hap][0]) << "hap " << hap;
-        EXPECT_EQ(src.sync_group[hap][0], dst.sync_group[hap][0]) << "hap " << hap;
-        EXPECT_FLOAT_EQ(src.callq[hap][0], dst.callq[hap][0]) << "hap " << hap;
-        EXPECT_EQ(src.ref_ed[hap][0], dst.ref_ed[hap][0]) << "hap " << hap;
-        EXPECT_EQ(src.query_ed[hap][0], dst.query_ed[hap][0]) << "hap " << hap;
-        EXPECT_FLOAT_EQ(src.credit[hap][0], dst.credit[hap][0]) << "hap " << hap;
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
+        EXPECT_EQ(src.errtypes[hap][0], dst.errtypes[hap][0]) << "hap " << idx(hap);
+        EXPECT_EQ(src.sync_group[hap][0], dst.sync_group[hap][0]) << "hap " << idx(hap);
+        EXPECT_FLOAT_EQ(src.callq[hap][0], dst.callq[hap][0]) << "hap " << idx(hap);
+        EXPECT_EQ(src.ref_ed[hap][0], dst.ref_ed[hap][0]) << "hap " << idx(hap);
+        EXPECT_EQ(src.query_ed[hap][0], dst.query_ed[hap][0]) << "hap " << idx(hap);
+        EXPECT_FLOAT_EQ(src.credit[hap][0], dst.credit[hap][0]) << "hap " << idx(hap);
     }
 }
 
@@ -965,12 +965,6 @@ TEST(VarOnHap, CalcFlagSelects) {
     EXPECT_FALSE(vars->var_on_hap(0, HAP2, true));
 }
 
-TEST(VarOnHap, HapGt1Errors) {
-    GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
-    EXPECT_EXIT(vars->var_on_hap(0, 2), testing::ExitedWithCode(1), "Unexpected haplotype 2");
-}
-
 /* set_var_calcgt_on_hap **************************************************************************/
 
 TEST(SetVarCalcgtOnHap, RefrefSetHap1) {
@@ -1103,18 +1097,11 @@ TEST(SetVarCalcgtOnHap, HaploidErrors) {
             "Unexpected calc_gts value");
 }
 
-TEST(SetVarCalcgtOnHap, HapGt1Errors) {
-    GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
-    EXPECT_EXIT(vars->set_var_calcgt_on_hap(0, 2, true), testing::ExitedWithCode(1),
-            "Unexpected hap idx 2");
-}
-
 TEST(SetVarCalcgtOnHap, ErrorsSuppressedWithIgnore) {
     GlobalsGuard guard;
 
     // every invalid (state, hap, set) triple from the four diploid states
-    struct transition { uint8_t calc_gt; int hap; bool set; };
+    struct transition { gt_t calc_gt; hap_t hap; bool set; };
     const std::vector<transition> invalid = {
         {GT_REF_REF,   HAP1, false}, {GT_REF_REF,   HAP2, false},
         {GT_REF_ALT1,  HAP2, true},  {GT_REF_ALT1,  HAP1, false},
@@ -1126,7 +1113,8 @@ TEST(SetVarCalcgtOnHap, ErrorsSuppressedWithIgnore) {
         std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, t.calc_gt);
         vars->set_var_calcgt_on_hap(0, t.hap, t.set, true);
         EXPECT_EQ(t.calc_gt, vars->calc_gts[0])
-                << "calc_gt " << int(t.calc_gt) << " hap " << t.hap << " set " << t.set;
+                << "calc_gt " << int(t.calc_gt) << " hap " << idx(t.hap)
+                << " set " << t.set;
     }
 }
 
@@ -1151,8 +1139,8 @@ TEST(VariantDataCtor, TwoHapMaps) {
     GlobalsGuard guard;
     variantData vcf;
     ASSERT_EQ(size_t(HAPS), vcf.variants.size());
-    for (int hap = 0; hap < HAPS; hap++) {
-        EXPECT_TRUE(vcf.variants[hap].empty()) << "hap " << hap;
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
+        EXPECT_TRUE(vcf.variants[hap].empty()) << "hap " << idx(hap);
     }
 }
 
@@ -1190,17 +1178,6 @@ protected:
 };
 
 /* header and validation **************************************************************************/
-
-// The callset indexes callset_strs, so an out-of-range value is rejected before the file is opened.
-TEST_F(ParseVariants, InvalidCallsetErrors) {
-    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, make_vcf_opts(), CALLSETS),
-            testing::ExitedWithCode(1), "Invalid callset");
-}
-
-TEST_F(ParseVariants, NegativeCallsetErrors) {
-    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, make_vcf_opts(), -1),
-            testing::ExitedWithCode(1), "Invalid callset");
-}
 
 // Contig lengths are copied into the output VCF header, so a contig line without one is fatal.
 // htslib supplies IDX itself, so only a missing length can trip this check.
@@ -1846,7 +1823,7 @@ TEST_F(ParseVariants, EveryAlleleShapeReachesAKnownType) {
         ParseResult r = parse_records(dir, {record(100, ref, alt, "1|0")});
         ASSERT_LE(1, hap_vars(r, HAP1)->n) << ref << " -> " << alt;
         for (int vi = 0; vi < hap_vars(r, HAP1)->n; vi++) {
-            const uint8_t type = hap_vars(r, HAP1)->types[vi];
+            const edittype_t type = hap_vars(r, HAP1)->types[vi];
             EXPECT_TRUE(type == TYPE_SUB || type == TYPE_INS || type == TYPE_DEL)
                     << ref << " -> " << alt << " variant " << vi << " type " << int(type);
         }

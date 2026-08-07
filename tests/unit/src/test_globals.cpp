@@ -21,7 +21,7 @@
 namespace {
 
 /** @brief Returns the names of the given timers, in order. */
-std::vector<std::string> timer_names(std::vector<timer> & timers) {
+std::vector<std::string> timer_names(EnumArray<stage_t, timer, STAGE_SLOTS> & timers) {
     std::vector<std::string> names;
     for (timer & t : timers) names.push_back(t.get_name());
     return names;
@@ -145,48 +145,36 @@ TEST(CreateDirectory, EmptyNoop) {
 
 TEST(InitTimers, Populates) {
     GlobalsGuard guard;
-    g.timers.clear();
 
-    g.init_timers(timer_strs);
+    g.init_timers();
 
-    ASSERT_EQ(size_t(TIME_TOTAL+1), g.timers.size());
-    EXPECT_EQ(timer_strs, timer_names(g.timers));
-    EXPECT_EQ("reading", g.timers[TIME_READ].get_name());
-    EXPECT_EQ("total", g.timers[TIME_TOTAL].get_name());
+    ASSERT_EQ(STAGE_SLOTS, g.timers.size());
+    for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) {
+        EXPECT_EQ(timer_strs[t], g.stage(t).get_name()) << "stage " << idx(t);
+    }
 }
 
-TEST(InitTimers, EmptyInput) {
+TEST(InitTimers, Idempotent) {
     GlobalsGuard guard;
-    g.timers.clear();
 
-    g.init_timers({});
+    // slots are assigned rather than appended, so a second call cannot duplicate the stages
+    g.init_timers();
+    g.init_timers();
 
-    EXPECT_TRUE(g.timers.empty());
-}
-
-TEST(InitTimers, AppendsNotClears) {
-    GlobalsGuard guard;
-    g.timers.clear();
-
-    // each call pushes onto the existing vector rather than replacing it
-    g.init_timers({"first"});
-    g.init_timers({"second", "third"});
-
-    ASSERT_EQ(size_t(3), g.timers.size());
-    EXPECT_EQ(std::vector<std::string>({"first", "second", "third"}), timer_names(g.timers));
+    ASSERT_EQ(STAGE_SLOTS, g.timers.size());
+    EXPECT_EQ(std::vector<std::string>(timer_strs.begin(), timer_strs.end()),
+            timer_names(g.timers));
 }
 
 TEST(InitTimers, WritesThisNotGlobal) {
     GlobalsGuard guard;
-    g.timers.clear();
 
-    // the timers land on the instance the method was called on, not on the global `g`
+    // the names land on the instance the method was called on, not on the global `g`
     Globals local;
-    local.init_timers({"local"});
+    local.init_timers();
 
-    ASSERT_EQ(size_t(1), local.timers.size());
-    EXPECT_EQ("local", local.timers[0].get_name());
-    EXPECT_TRUE(g.timers.empty());
+    EXPECT_EQ("reading", local.stage(TIME_READ).get_name());
+    EXPECT_EQ("default", g.stage(TIME_READ).get_name());
 }
 
 /* String lookup tables ***************************************************************************/
@@ -203,14 +191,14 @@ TEST(StringTables, SizesMatchCount) {
 TEST(StringTables, SizesWithSentinel) {
     // these four are one longer than their count constant, because a sentinel value is also a
     // valid subscript; shortening any of them to its count would read out of bounds
-    EXPECT_EQ(size_t(AC_ERRTYPES+1), ac_strs.size());
+    EXPECT_EQ(AC_ERRTYPE_SLOTS, ac_strs.size());
     EXPECT_EQ(size_t(PHASES+1), phase_strs.size());
     EXPECT_EQ(".", ac_strs[AC_UNKNOWN]);
     EXPECT_EQ(".", phase_strs[PHASE_NONE]);
 
     // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
-    EXPECT_EQ(size_t(GT_OTHER+1), gt_strs.size());
-    EXPECT_EQ(size_t(TIME_TOTAL+1), timer_strs.size());
+    EXPECT_EQ(GT_SLOTS, gt_strs.size());
+    EXPECT_EQ(STAGE_SLOTS, timer_strs.size());
     EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
     EXPECT_EQ("total", timer_strs[TIME_TOTAL]);
 }
@@ -226,29 +214,8 @@ TEST(StringTables, IndexMapping) {
     EXPECT_EQ("SV", vartype_strs[VARTYPE_SV]);
     EXPECT_EQ("SWITCH", switch_strs[SWITCHTYPE_SWITCH]);
     EXPECT_EQ("INSIDE", region_strs[BED_INSIDE]);
-}
-
-TEST(StringTables, AliasedIndices) {
-    // several constant pairs deliberately share a subscript
-    EXPECT_EQ(TYPE_REF, TYPE_ALL);
-    EXPECT_EQ(TYPE_CPX, TYPE_INDEL);
-    EXPECT_EQ(ERRTYPE_UN, ERRTYPE_NE);
-    EXPECT_EQ(REF, TRUTH);
-
-    // type_strs and type_strs2 are parallel but not interchangeable: they disagree at the
-    // aliased subscripts, since type_strs2 names the aggregation class instead of the variant type
-    ASSERT_EQ(type_strs.size(), type_strs2.size());
     EXPECT_EQ("REF", type_strs[TYPE_REF]);
-    EXPECT_EQ("ALL", type_strs2[TYPE_ALL]);
     EXPECT_EQ("CPX", type_strs[TYPE_CPX]);
-    EXPECT_EQ("INDEL", type_strs2[TYPE_INDEL]);
-
-    // the aliases agree elsewhere, so only indices 0 and 4 differ
-    EXPECT_EQ(type_strs[TYPE_SUB], type_strs2[TYPE_SUB]);
-    EXPECT_EQ(type_strs[TYPE_INS], type_strs2[TYPE_INS]);
-    EXPECT_EQ(type_strs[TYPE_DEL], type_strs2[TYPE_DEL]);
-
-    // a single string serves both unknown and not-evaluated error types
     EXPECT_EQ("??", error_strs[ERRTYPE_UN]);
 }
 
@@ -257,9 +224,9 @@ TEST(StringTables, AcSparse) {
     // non-"." string; every other allele-count error type prints as "."
     EXPECT_EQ("+", ac_strs[AC_ERR_1_TO_2]);
     EXPECT_EQ("-", ac_strs[AC_ERR_2_TO_1]);
-    for (size_t i = 0; i < ac_strs.size(); i++) {
-        if (i == AC_ERR_1_TO_2 || i == AC_ERR_2_TO_1) continue;
-        EXPECT_EQ(".", ac_strs[i]) << "ac_strs[" << i << "]";
+    for (ac_errtype_t ac : EnumRange<ac_errtype_t, AC_ERRTYPE_SLOTS>{}) {
+        if (ac == AC_ERR_1_TO_2 || ac == AC_ERR_2_TO_1) continue;
+        EXPECT_EQ(".", ac_strs[ac]) << "ac_strs[" << idx(ac) << "]";
     }
 }
 
@@ -271,7 +238,7 @@ TEST(StringTables, RegionUnpadded) {
     EXPECT_EQ("BORDER", region_strs[BED_BORDER]);
     EXPECT_EQ("OFF_CTG", region_strs[BED_OFFCTG]);
 
-    ASSERT_FALSE(region_strs.empty());
+    ASSERT_EQ(BEDLOC_SLOTS, region_strs.size());
     for (const std::string & s : region_strs) {
         EXPECT_EQ(std::string::npos, s.find(' ')) << "padded entry '" << s << "'";
     }
