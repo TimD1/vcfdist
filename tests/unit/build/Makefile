@@ -19,8 +19,8 @@ SRC_HEADERS = $(wildcard $(SRC)/*.h)
 TEST_HEADERS = $(wildcard $(TEST_SRC)/*.h)
 OBJS = $(SRC)/globals.o $(SRC)/print.o $(SRC)/variant.o $(SRC)/dist.o $(SRC)/bed.o \
        $(SRC)/cluster.o $(SRC)/phase.o $(SRC)/timer.o \
-       test_helpers.o test_bed.o test_cluster.o test_dist.o test_globals.o test_harness.o \
-       test_phase.o test_print.o test_timer.o test_variant.o
+       test_helpers.o test_bed.o test_cluster.o test_defs.o test_dist.o test_globals.o \
+       test_harness.o test_phase.o test_print.o test_timer.o test_variant.o
 
 ifeq ($(UNAME_S),Darwin)
     # macOS: link Homebrew's prebuilt Google Test; no gtest sources to compile.

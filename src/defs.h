@@ -7,11 +7,47 @@
 
 #include <sys/time.h>
 #include <unistd.h>
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <unordered_set>
 #include <unordered_map>
 
 class timer;
 class idx4;
+
+/* Enum-keyed containers **************************************************************************/
+
+/** @brief Fixed-size array keyed by one scoped enum, rejecting subscripts from any other family. */
+template <typename K, typename V, std::size_t N>
+struct EnumArray {
+    std::array<V, N> vals;
+
+    constexpr V & operator[](K k) { return this->vals[static_cast<std::size_t>(k)]; }
+    constexpr const V & operator[](K k) const { return this->vals[static_cast<std::size_t>(k)]; }
+    constexpr std::size_t size() const { return N; }
+    constexpr auto begin() { return this->vals.begin(); }
+    constexpr auto end() { return this->vals.end(); }
+    constexpr auto begin() const { return this->vals.begin(); }
+    constexpr auto end() const { return this->vals.end(); }
+};
+
+/** @brief Iterable sequence of the contiguous enumerators of K, from K(0) through K(N-1). */
+template <typename K, std::size_t N>
+struct EnumRange {
+    struct iterator {
+        std::size_t i;
+        constexpr K operator*() const { return static_cast<K>(this->i); }
+        constexpr iterator & operator++() { ++this->i; return *this; }
+        constexpr bool operator!=(const iterator & o) const { return this->i != o.i; }
+    };
+    constexpr iterator begin() const { return iterator{0}; }
+    constexpr iterator end() const { return iterator{N}; }
+};
+
+/** @brief Converts a scoped enumerator to its underlying integer, for index arithmetic. */
+template <typename K>
+constexpr std::size_t idx(K k) { return static_cast<std::size_t>(k); }
 
 // misc
 #define EPSILON 1e-9 ///< Arbitrary small float value
