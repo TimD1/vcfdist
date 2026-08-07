@@ -162,7 +162,7 @@ std::string read_text(const std::string & fn) {
  * @param[in] length Length declared for every contig
  * @return Header options ready for write_tmp_vcf() or parse_records()
  */
-vcf_opts make_vcf_opts(int callset, const std::vector<std::string> & contigs, int length) {
+vcf_opts make_vcf_opts(callset_t callset, const std::vector<std::string> & contigs, int length) {
     vcf_opts opts;
     opts.sample = callset_strs[callset];
     opts.contigs.clear();
@@ -321,7 +321,7 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
  * @param[in] callset QUERY or TRUTH callset identifier
  */
 void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
-        const vcf_opts & opts, int callset) {
+        const vcf_opts & opts, callset_t callset) {
     const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
     std::shared_ptr<variantData> vars(new variantData());
     parse_variants(vcf_fn, vars, nullptr, callset);
@@ -507,7 +507,7 @@ bedData make_bed(const std::vector< std::pair<std::string,
  * @return Variant container with no variants on any contig
  * @throws ERROR if the parallel vectors have differing lengths
  */
-std::shared_ptr<variantData> make_variantData(int callset,
+std::shared_ptr<variantData> make_variantData(callset_t callset,
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
         const std::vector< std::set<int> > & observed_ploidies) {
     if (contigs.size() != lengths.size() || contigs.size() != observed_ploidies.size()) {

@@ -243,7 +243,7 @@ std::shared_ptr<ctgVariants> hap1_var(edittype_t type, const std::string & ref,
  * @param[in] errtype Error type (ERRTYPE_*)
  * @return One count per quality threshold, in ascending threshold order
  */
-std::vector<float> sweep(const pr_counts & counts, int callset, sizeclass_t vartype,
+std::vector<float> sweep(const pr_counts & counts, callset_t callset, sizeclass_t vartype,
         errtype_t errtype) {
     return callset == QUERY ? counts.query[vartype][errtype] : counts.truth[vartype][errtype];
 }

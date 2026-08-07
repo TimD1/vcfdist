@@ -1191,17 +1191,6 @@ protected:
 
 /* header and validation **************************************************************************/
 
-// The callset indexes callset_strs, so an out-of-range value is rejected before the file is opened.
-TEST_F(ParseVariants, InvalidCallsetErrors) {
-    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, make_vcf_opts(), CALLSETS),
-            testing::ExitedWithCode(1), "Invalid callset");
-}
-
-TEST_F(ParseVariants, NegativeCallsetErrors) {
-    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0")}, make_vcf_opts(), -1),
-            testing::ExitedWithCode(1), "Invalid callset");
-}
-
 // Contig lengths are copied into the output VCF header, so a contig line without one is fatal.
 // htslib supplies IDX itself, so only a missing length can trip this check.
 TEST_F(ParseVariants, ContigLineWithoutLengthErrors) {

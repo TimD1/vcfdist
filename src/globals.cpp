@@ -17,7 +17,7 @@ const std::string Globals::VERSION = "3.0.0-b0";
 /** @brief Program name string. */
 const std::string Globals::PROGRAM = "vcfdist";
 /** @brief String representations of QUERY/TRUTH callset indices. */
-std::vector<std::string> callset_strs = {"QUERY", "TRUTH"};
+EnumArray<callset_t, std::string, CALLSET_SLOTS> callset_strs = {{"QUERY", "TRUTH"}};
 /** @brief String representations of ERRTYPE_* constants (TP, FP, FN, unknown). */
 EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs = {{"TP", "FP", "FN", "??"}};
 /** @brief String representations of GT_* genotype constants. */

@@ -543,14 +543,12 @@ variantData::variantData() : callset(QUERY), variants(HAPS) { ; }
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
         std::shared_ptr<fastaData> reference,
-        int callset) {
+        callset_t callset) {
 
     // set reference fasta pointer
     variant_data->ref = reference;
     variant_data->filename = vcf_fn;
 
-    if (callset < 0 || callset >= CALLSETS)
-        ERROR("Invalid callset (%d).", callset);
     variant_data->callset = callset;
 
     if (g.verbosity >= 1) INFO(" ");

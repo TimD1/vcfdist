@@ -234,13 +234,16 @@ constexpr timer_t TIME_WRITE      = timer_t::TIME_WRITE;
 constexpr timer_t TIME_TOTAL      = timer_t::TIME_TOTAL;
 constexpr std::size_t TIMER_SLOTS = 6; ///< Number of pipeline stage timers
 
-/** @defgroup callset_constants Callset index constants
- *  @{
- */
-#define QUERY    0 ///< Query callset index
-#define TRUTH    1 ///< Truth callset index
-#define CALLSETS 2 ///< Number of callsets
-/** @} */
+/** @brief Which of the two callsets a variant or container belongs to. */
+enum class callset_t : int8_t {
+    QUERY = 0, ///< Query callset
+    TRUTH = 1, ///< Truth callset
+};
+constexpr callset_t QUERY = callset_t::QUERY;
+constexpr callset_t TRUTH = callset_t::TRUTH;
+constexpr std::size_t CALLSET_SLOTS = 2; ///< Slots needed by a callset_t-keyed array
+constexpr int8_t CALLSETS = 2;           ///< Number of callsets
+static_assert(CALLSET_SLOTS == std::size_t(CALLSETS), "callset_t slots must match CALLSETS");
 
 /** @brief Alignment backtracking pointer. Values are non-contiguous, so no EnumArray keys on it. */
 enum class ptr_t : int8_t {

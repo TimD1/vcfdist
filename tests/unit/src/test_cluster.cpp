@@ -296,9 +296,9 @@ TEST(GetNextVariantInfo, BothExhausted) {
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants("chr1", {{20, 1, TYPE_SUB, "A", "C"}});
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, tvars);
 
-    // no callset has an unprocessed variant, so the sentinel callset index is returned
-    var_info info = get_next_variant_info(sc->callset_vars, {1, 1}, {1, 1});
-    EXPECT_EQ(-1, info.callset_idx);
+    // no callset has an unprocessed variant, so the result is flagged as not found
+    var_info info = get_next_variant_info(sc->callset_vars, {{1, 1}}, {{1, 1}});
+    EXPECT_FALSE(info.found);
     EXPECT_EQ(INT_MAXIMUM, info.start_pos);
     EXPECT_EQ(INT_MAXIMUM, info.end_pos);
 }
@@ -420,8 +420,8 @@ TEST(GetSuperclusterSplitLocation, SingleGap) {
     // the only positive gap is 12..50, which happens to split the range exactly in half
     std::vector<int> split = get_supercluster_split_location(sc->callset_vars, {0, 0}, {4, 0});
     ASSERT_EQ(size_t(CALLSETS), split.size());
-    EXPECT_EQ(2, split[QUERY]);
-    EXPECT_EQ(0, split[TRUTH]);
+    EXPECT_EQ(2, split[idx(QUERY)]);
+    EXPECT_EQ(0, split[idx(TRUTH)]);
 }
 
 TEST(GetSuperclusterSplitLocation, PrefersCentralGap) {
@@ -438,7 +438,7 @@ TEST(GetSuperclusterSplitLocation, PrefersCentralGap) {
     // is nearer the range centre 20.5 than the first gap's midpoint 10
     std::vector<int> split = get_supercluster_split_location(sc->callset_vars, {0, 0}, {4, 0});
     ASSERT_EQ(size_t(CALLSETS), split.size());
-    EXPECT_EQ(2, split[QUERY]);
+    EXPECT_EQ(2, split[idx(QUERY)]);
 }
 
 TEST(GetSuperclusterSplitLocation, EdgeGapLowScore) {
@@ -456,8 +456,8 @@ TEST(GetSuperclusterSplitLocation, EdgeGapLowScore) {
     // so the larger but off-centre gap loses
     std::vector<int> split = get_supercluster_split_location(sc->callset_vars, {0, 0}, {4, 0});
     ASSERT_EQ(size_t(CALLSETS), split.size());
-    EXPECT_EQ(3, split[QUERY]);
-    EXPECT_NE(1, split[QUERY]);
+    EXPECT_EQ(3, split[idx(QUERY)]);
+    EXPECT_NE(1, split[idx(QUERY)]);
 }
 
 TEST(GetSuperclusterSplitLocation, Log2DivZeroGuard) {
@@ -489,8 +489,8 @@ TEST(GetSuperclusterSplitLocation, IndexAfterCurr) {
     // first variant to the RIGHT of the split, because split_indices is incremented past curr
     std::vector<int> split = get_supercluster_split_location(sc->callset_vars, {0, 0}, {3, 0});
     ASSERT_EQ(size_t(CALLSETS), split.size());
-    EXPECT_EQ(2, split[QUERY]);
-    EXPECT_NE(1, split[QUERY]);
+    EXPECT_EQ(2, split[idx(QUERY)]);
+    EXPECT_NE(1, split[idx(QUERY)]);
 }
 
 TEST(GetSuperclusterSplitLocation, CrossCallsetGap) {
@@ -506,8 +506,8 @@ TEST(GetSuperclusterSplitLocation, CrossCallsetGap) {
     // split index has advanced on both callsets
     std::vector<int> split = get_supercluster_split_location(sc->callset_vars, {0, 0}, {2, 1});
     ASSERT_EQ(size_t(CALLSETS), split.size());
-    EXPECT_EQ(1, split[QUERY]);
-    EXPECT_EQ(1, split[TRUTH]);
+    EXPECT_EQ(1, split[idx(QUERY)]);
+    EXPECT_EQ(1, split[idx(TRUTH)]);
 }
 
 /* split_cluster **********************************************************************************/
@@ -534,12 +534,13 @@ TEST(SplitCluster, AtExistingBoundaryNoop) {
             {{100, 1, TYPE_SUB, "A", "C"}, {110, 1, TYPE_SUB, "A", "C"}});
     set_clusters(tvars, {0, 1, 2}, {95, 105}, {105, 115});
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, tvars);
-    std::vector< std::vector<int> > breakpoints = {{0, 0}, {3, 2}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {{0, 0}, {3, 2}};
 
     // query variant 2 and truth variant 1 are both already cluster boundaries
-    std::vector<int> split = split_cluster(sc->callset_vars, {2, 1}, breakpoints, 0);
+    EnumArray<callset_t, int, CALLSET_SLOTS> split = split_cluster(sc->callset_vars, {2, 1}, breakpoints, 0);
 
-    EXPECT_EQ(std::vector<int>({1, 1}), split);
+    EXPECT_EQ(1, split[QUERY]);
+    EXPECT_EQ(1, split[TRUTH]);
     EXPECT_EQ(3, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 2, 4, 6}), qvars->clusters);
     EXPECT_EQ(std::vector<int>({5, 25, 45}), qvars->left_reaches);
@@ -549,20 +550,23 @@ TEST(SplitCluster, AtExistingBoundaryNoop) {
     EXPECT_EQ(std::vector<int>({105, 115}), tvars->right_reaches);
 
     // nothing was inserted, so no later breakpoint moved
-    EXPECT_EQ(std::vector<int>({0, 0}), breakpoints[0]);
-    EXPECT_EQ(std::vector<int>({3, 2}), breakpoints[1]);
+    EXPECT_EQ(0, breakpoints[0][QUERY]);
+    EXPECT_EQ(0, breakpoints[0][TRUTH]);
+    EXPECT_EQ(3, breakpoints[1][QUERY]);
+    EXPECT_EQ(2, breakpoints[1][TRUTH]);
 }
 
 TEST(SplitCluster, MidclusterInserts) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> qvars = make_split_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector< std::vector<int> > breakpoints = {{0, 0}, {3, 0}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {{0, 0}, {3, 0}};
 
     // query variant 3 sits inside cluster 1 (variants 2..3), so that cluster is split in two
-    std::vector<int> split = split_cluster(sc->callset_vars, {3, 0}, breakpoints, 0);
+    EnumArray<callset_t, int, CALLSET_SLOTS> split = split_cluster(sc->callset_vars, {3, 0}, breakpoints, 0);
 
-    EXPECT_EQ(std::vector<int>({2, 0}), split);
+    EXPECT_EQ(2, split[QUERY]);
+    EXPECT_EQ(0, split[TRUTH]);
     EXPECT_EQ(4, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 2, 3, 4, 6}), qvars->clusters);
     EXPECT_EQ(size_t(4), qvars->left_reaches.size());
@@ -577,7 +581,7 @@ TEST(SplitCluster, ReachReassignment) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> qvars = make_split_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector< std::vector<int> > breakpoints = {{0, 0}, {3, 0}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {{0, 0}, {3, 0}};
 
     split_cluster(sc->callset_vars, {3, 0}, breakpoints, 0);
 
@@ -591,22 +595,27 @@ TEST(SplitCluster, LaterBreakpointsIncremented) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> qvars = make_split_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector< std::vector<int> > breakpoints = {{0, 0}, {2, 0}, {3, 0}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {{0, 0}, {2, 0}, {3, 0}};
 
     split_cluster(sc->callset_vars, {3, 0}, breakpoints, 0);
 
     // inserting a cluster shifts every later cluster index on the split callset by one
-    EXPECT_EQ(std::vector<int>({0, 0}), breakpoints[0]);
-    EXPECT_EQ(std::vector<int>({3, 0}), breakpoints[1]);
-    EXPECT_EQ(std::vector<int>({4, 0}), breakpoints[2]);
+    EXPECT_EQ(0, breakpoints[0][QUERY]);
+    EXPECT_EQ(0, breakpoints[0][TRUTH]);
+    EXPECT_EQ(3, breakpoints[1][QUERY]);
+    EXPECT_EQ(0, breakpoints[1][TRUTH]);
+    EXPECT_EQ(4, breakpoints[2][QUERY]);
+    EXPECT_EQ(0, breakpoints[2][TRUTH]);
 
     // only breakpoints strictly after breakpoint_idx move
     std::shared_ptr<ctgVariants> qvars2 = make_split_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc2 = make_ctgSuperclusters(qvars2, make_empty_callset());
-    std::vector< std::vector<int> > breakpoints2 = {{0, 0}, {2, 0}, {3, 0}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints2 = {{0, 0}, {2, 0}, {3, 0}};
     split_cluster(sc2->callset_vars, {3, 0}, breakpoints2, 1);
-    EXPECT_EQ(std::vector<int>({2, 0}), breakpoints2[1]);
-    EXPECT_EQ(std::vector<int>({4, 0}), breakpoints2[2]);
+    EXPECT_EQ(2, breakpoints2[1][QUERY]);
+    EXPECT_EQ(0, breakpoints2[1][TRUTH]);
+    EXPECT_EQ(4, breakpoints2[2][QUERY]);
+    EXPECT_EQ(0, breakpoints2[2][TRUTH]);
 }
 
 TEST(SplitCluster, BothCallsetsIndependent) {
@@ -616,12 +625,13 @@ TEST(SplitCluster, BothCallsetsIndependent) {
             {{100, 1, TYPE_SUB, "A", "C"}, {110, 1, TYPE_SUB, "A", "C"}});
     set_clusters(tvars, {0, 2}, {95}, {115});
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, tvars);
-    std::vector< std::vector<int> > breakpoints = {{0, 0}, {3, 1}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {{0, 0}, {3, 1}};
 
     // both callsets split mid-cluster, at different cluster indices
-    std::vector<int> split = split_cluster(sc->callset_vars, {3, 1}, breakpoints, 0);
+    EnumArray<callset_t, int, CALLSET_SLOTS> split = split_cluster(sc->callset_vars, {3, 1}, breakpoints, 0);
 
-    EXPECT_EQ(std::vector<int>({2, 1}), split);
+    EXPECT_EQ(2, split[QUERY]);
+    EXPECT_EQ(1, split[TRUTH]);
     EXPECT_EQ(4, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 2, 3, 4, 6}), qvars->clusters);
     EXPECT_EQ(std::vector<int>({5, 25, 40, 45}), qvars->left_reaches);
@@ -632,25 +642,28 @@ TEST(SplitCluster, BothCallsetsIndependent) {
     EXPECT_EQ(std::vector<int>({110, 115}), tvars->right_reaches);
 
     // each callset's later breakpoints are incremented independently
-    EXPECT_EQ(std::vector<int>({4, 2}), breakpoints[1]);
+    EXPECT_EQ(4, breakpoints[1][QUERY]);
+    EXPECT_EQ(2, breakpoints[1][TRUTH]);
 }
 
 TEST(SplitCluster, ClustIdxMinusOneSafety) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> qvars = make_split_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector< std::vector<int> > breakpoints = {{0, 0}, {3, 0}};
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints = {{0, 0}, {3, 0}};
 
     // variant 0 equals clusters[0], so the equality branch is taken and right_reaches[clust_idx-1]
     // is never indexed at -1; callers only pass indices at or after the first boundary
-    std::vector<int> split = split_cluster(sc->callset_vars, {0, 0}, breakpoints, 0);
+    EnumArray<callset_t, int, CALLSET_SLOTS> split = split_cluster(sc->callset_vars, {0, 0}, breakpoints, 0);
 
-    EXPECT_EQ(std::vector<int>({0, 0}), split);
+    EXPECT_EQ(0, split[QUERY]);
+    EXPECT_EQ(0, split[TRUTH]);
     EXPECT_EQ(3, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 2, 4, 6}), qvars->clusters);
     EXPECT_EQ(std::vector<int>({5, 25, 45}), qvars->left_reaches);
     EXPECT_EQ(std::vector<int>({25, 45, 65}), qvars->right_reaches);
-    EXPECT_EQ(std::vector<int>({3, 0}), breakpoints[1]);
+    EXPECT_EQ(3, breakpoints[1][QUERY]);
+    EXPECT_EQ(0, breakpoints[1][TRUTH]);
 }
 
 /* split_large_supercluster ***********************************************************************/
@@ -690,16 +703,19 @@ TEST(SplitLargeSupercluster, AlreadySmallNoop) {
     g.max_supercluster_size = 1000;
     std::shared_ptr<ctgVariants> qvars = make_spread_query(0);
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector<int> end_indices = {4, 0};
+    EnumArray<callset_t, int, CALLSET_SLOTS> end_indices = {{4, 0}};
 
     // the supercluster spans 302bp, well within the limit
-    std::vector< std::vector<int> > breakpoints =
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints =
             split_large_supercluster(sc->callset_vars, {0, 0}, end_indices);
 
     ASSERT_EQ(size_t(2), breakpoints.size());
-    EXPECT_EQ(std::vector<int>({0, 0}), breakpoints[0]);
-    EXPECT_EQ(std::vector<int>({4, 0}), breakpoints[1]);
-    EXPECT_EQ(std::vector<int>({4, 0}), end_indices);
+    EXPECT_EQ(0, breakpoints[0][QUERY]);
+    EXPECT_EQ(0, breakpoints[0][TRUTH]);
+    EXPECT_EQ(4, breakpoints[1][QUERY]);
+    EXPECT_EQ(0, breakpoints[1][TRUTH]);
+    EXPECT_EQ(4, end_indices[QUERY]);
+    EXPECT_EQ(0, end_indices[TRUTH]);
     EXPECT_EQ(4, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 1, 2, 3, 4}), qvars->clusters);
 }
@@ -709,21 +725,25 @@ TEST(SplitLargeSupercluster, OneSplit) {
     g.max_supercluster_size = 150;
     std::shared_ptr<ctgVariants> qvars = make_spread_query(0);
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector<int> end_indices = {4, 0};
+    EnumArray<callset_t, int, CALLSET_SLOTS> end_indices = {{4, 0}};
 
     // 302bp exceeds the limit, and the central gap splits it into two 102bp pieces
-    std::vector< std::vector<int> > breakpoints =
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints =
             split_large_supercluster(sc->callset_vars, {0, 0}, end_indices);
 
     ASSERT_EQ(size_t(3), breakpoints.size());
-    EXPECT_EQ(std::vector<int>({0, 0}), breakpoints[0]);
-    EXPECT_EQ(std::vector<int>({2, 0}), breakpoints[1]);
-    EXPECT_EQ(std::vector<int>({4, 0}), breakpoints[2]);
+    EXPECT_EQ(0, breakpoints[0][QUERY]);
+    EXPECT_EQ(0, breakpoints[0][TRUTH]);
+    EXPECT_EQ(2, breakpoints[1][QUERY]);
+    EXPECT_EQ(0, breakpoints[1][TRUTH]);
+    EXPECT_EQ(4, breakpoints[2][QUERY]);
+    EXPECT_EQ(0, breakpoints[2][TRUTH]);
 
     // the split fell on an existing cluster boundary, so no cluster was inserted
     EXPECT_EQ(4, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 1, 2, 3, 4}), qvars->clusters);
-    EXPECT_EQ(std::vector<int>({4, 0}), end_indices);
+    EXPECT_EQ(4, end_indices[QUERY]);
+    EXPECT_EQ(0, end_indices[TRUTH]);
 }
 
 TEST(SplitLargeSupercluster, MultipleSplits) {
@@ -731,15 +751,16 @@ TEST(SplitLargeSupercluster, MultipleSplits) {
     g.max_supercluster_size = 80;
     std::shared_ptr<ctgVariants> qvars = make_spread_query(0);
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector<int> end_indices = {4, 0};
+    EnumArray<callset_t, int, CALLSET_SLOTS> end_indices = {{4, 0}};
 
     // each 102bp half still exceeds 80bp, so a second round splits both of them
-    std::vector< std::vector<int> > breakpoints =
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints =
             split_large_supercluster(sc->callset_vars, {0, 0}, end_indices);
 
     ASSERT_EQ(size_t(5), breakpoints.size());
     for (size_t i = 0; i < breakpoints.size(); i++) {
-        EXPECT_EQ(std::vector<int>({int(i), 0}), breakpoints[i]) << "breakpoint " << i;
+        EXPECT_EQ(int(i), breakpoints[i][QUERY]) << "breakpoint " << i;
+        EXPECT_EQ(0, breakpoints[i][TRUTH]) << "breakpoint " << i;
     }
 
     // breakpoints are strictly increasing on the query callset
@@ -755,17 +776,19 @@ TEST(SplitLargeSupercluster, NoValidSplitBails) {
     // four 100bp deletions abutting end to end: 402bp wide, with no gap anywhere to split at
     std::shared_ptr<ctgVariants> qvars = make_spread_query(100);
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector<int> end_indices = {4, 0};
+    EnumArray<callset_t, int, CALLSET_SLOTS> end_indices = {{4, 0}};
 
     testing::internal::CaptureStderr();
-    std::vector< std::vector<int> > breakpoints =
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints =
             split_large_supercluster(sc->callset_vars, {0, 0}, end_indices);
     std::string err = testing::internal::GetCapturedStderr();
 
     // the oversized supercluster is retained unchanged
     ASSERT_EQ(size_t(2), breakpoints.size());
-    EXPECT_EQ(std::vector<int>({0, 0}), breakpoints[0]);
-    EXPECT_EQ(std::vector<int>({4, 0}), breakpoints[1]);
+    EXPECT_EQ(0, breakpoints[0][QUERY]);
+    EXPECT_EQ(0, breakpoints[0][TRUTH]);
+    EXPECT_EQ(4, breakpoints[1][QUERY]);
+    EXPECT_EQ(0, breakpoints[1][TRUTH]);
     EXPECT_EQ(4, qvars->nc);
     EXPECT_EQ(std::vector<int>({0, 1, 2, 3, 4}), qvars->clusters);
 
@@ -781,15 +804,17 @@ TEST(SplitLargeSupercluster, MutatesEndIndices) {
     g.max_supercluster_size = 150;
     std::shared_ptr<ctgVariants> qvars = make_one_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector<int> end_indices = {1, 0};
+    EnumArray<callset_t, int, CALLSET_SLOTS> end_indices = {{1, 0}};
 
-    std::vector< std::vector<int> > breakpoints =
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints =
             split_large_supercluster(sc->callset_vars, {0, 0}, end_indices);
 
     // the in/out end indices are overwritten with the final breakpoint, which the insertion moved
-    EXPECT_EQ(std::vector<int>({2, 0}), end_indices);
-    EXPECT_EQ(breakpoints[breakpoints.size()-1], end_indices);
-    EXPECT_NE(std::vector<int>({1, 0}), end_indices);
+    EXPECT_EQ(2, end_indices[QUERY]);
+    EXPECT_EQ(0, end_indices[TRUTH]);
+    const auto & last = breakpoints[breakpoints.size()-1];
+    EXPECT_EQ(last[QUERY], end_indices[QUERY]);
+    EXPECT_EQ(last[TRUTH], end_indices[TRUTH]);
 }
 
 TEST(SplitLargeSupercluster, BreakpointShiftAfterInsert) {
@@ -797,16 +822,19 @@ TEST(SplitLargeSupercluster, BreakpointShiftAfterInsert) {
     g.max_supercluster_size = 150;
     std::shared_ptr<ctgVariants> qvars = make_one_cluster_query();
     std::shared_ptr<ctgSuperclusters> sc = make_ctgSuperclusters(qvars, make_empty_callset());
-    std::vector<int> end_indices = {1, 0};
+    EnumArray<callset_t, int, CALLSET_SLOTS> end_indices = {{1, 0}};
 
-    std::vector< std::vector<int> > breakpoints =
+    std::vector< EnumArray<callset_t, int, CALLSET_SLOTS> > breakpoints =
             split_large_supercluster(sc->callset_vars, {0, 0}, end_indices);
 
     // splitting at variant 2 inserted a cluster, so the trailing breakpoint shifted 1 -> 2
     ASSERT_EQ(size_t(3), breakpoints.size());
-    EXPECT_EQ(std::vector<int>({0, 0}), breakpoints[0]);
-    EXPECT_EQ(std::vector<int>({1, 0}), breakpoints[1]);
-    EXPECT_EQ(std::vector<int>({2, 0}), breakpoints[2]);
+    EXPECT_EQ(0, breakpoints[0][QUERY]);
+    EXPECT_EQ(0, breakpoints[0][TRUTH]);
+    EXPECT_EQ(1, breakpoints[1][QUERY]);
+    EXPECT_EQ(0, breakpoints[1][TRUTH]);
+    EXPECT_EQ(2, breakpoints[2][QUERY]);
+    EXPECT_EQ(0, breakpoints[2][TRUTH]);
 
     // the full post-state of the mutated cluster lanes
     EXPECT_EQ(2, qvars->nc);

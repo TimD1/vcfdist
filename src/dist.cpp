@@ -1151,7 +1151,7 @@ void precision_recall_wrapper(
         if (print) {
             // print cluster info
             printf("\n\nSupercluster: %d\n", sc_idx);
-            for (int c = 0; c < CALLSETS; c++) {
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 std::shared_ptr<ctgVariants> vars = scs->callset_vars[c];
                 int var_beg = std::distance(vars->superclusters.begin(),
                         std::lower_bound(vars->superclusters.begin(), 

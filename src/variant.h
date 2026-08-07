@@ -158,7 +158,7 @@ public:
 
     // data
     std::shared_ptr<fastaData> ref;  ///< Pointer to reference FASTA data
-    int callset;                     ///< Callset type: QUERY (0) or TRUTH (1)
+    callset_t callset;               ///< Callset type: QUERY or TRUTH
     std::string filename;            ///< Source VCF filename
 
     std::string sample;               ///< Sample name from VCF header
@@ -175,6 +175,6 @@ public:
 /** @brief Parses variants from a VCF file into a variantData container, with filtering and validation. */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
-        std::shared_ptr<fastaData> reference, int callset);
+        std::shared_ptr<fastaData> reference, callset_t callset);
 
 #endif

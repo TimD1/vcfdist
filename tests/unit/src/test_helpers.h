@@ -124,7 +124,7 @@ std::string read_text(const std::string & fn);
  * malformed contig line, an extra FILTER, or a FORMAT declaration dropped assigns over the
  * corresponding vcf_opts field afterwards.
  */
-vcf_opts make_vcf_opts(int callset = QUERY,
+vcf_opts make_vcf_opts(callset_t callset = QUERY,
         const std::vector<std::string> & contigs = {"chr1"}, int length = 1000);
 
 /* Record lines ***********************************************************************************/
@@ -221,7 +221,7 @@ ParseResult parse_records(const TempDir & dir, const std::vector<std::string> & 
  * hide it; the parsed output is discarded, since a parse that errors never returns.
  */
 void parse_unredirected(const TempDir & dir, const std::vector<std::string> & records,
-        const vcf_opts & opts, int callset = QUERY);
+        const vcf_opts & opts, callset_t callset = QUERY);
 
 /** @brief Reports whether a captured log contains a substring. */
 bool logged(const std::string & log, const std::string & text);
@@ -289,7 +289,7 @@ bedData make_bed(const std::vector< std::pair<std::string,
  * Stands in for a parsed VCF in tests that care about the contig, length, and observed-ploidy
  * fields rather than about variants; `filename` and `sample` follow from the callset.
  */
-std::shared_ptr<variantData> make_variantData(int callset,
+std::shared_ptr<variantData> make_variantData(callset_t callset,
         const std::vector<std::string> & contigs, const std::vector<int> & lengths,
         const std::vector< std::set<int> > & observed_ploidies);
 

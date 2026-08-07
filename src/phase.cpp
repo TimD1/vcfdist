@@ -72,9 +72,9 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // write variants
     for (std::string ctg : this->contigs) {
-        std::vector<int> ptrs = std::vector<int>(CALLSETS, 0);
-        std::vector<int> poss = std::vector<int>(CALLSETS, 0);
-        std::vector<int> next = std::vector<int>(CALLSETS, 0);
+        EnumArray<callset_t, int, CALLSET_SLOTS> ptrs{};
+        EnumArray<callset_t, int, CALLSET_SLOTS> poss{};
+        EnumArray<callset_t, bool, CALLSET_SLOTS> next{};
         std::shared_ptr<ctgPhaseblocks> ctg_pbs = this->phase_blocks[ctg];
         std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
         auto & vars = ctg_pbs->ctg_superclusters->callset_vars;
@@ -89,7 +89,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
         while ( ptrs[QUERY] < qvars->n || ptrs[TRUTH] < tvars->n) {
 
             // get next positions
-            for (int c = 0; c < CALLSETS; c++) {
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 poss[c] = ptrs[c] < int(vars[c]->poss.size()) ? 
                         vars[c]->poss[ptrs[c]] : 
                         std::numeric_limits<int>::max();
@@ -100,7 +100,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
             // set flags for next haps
             int pos = std::min(poss[QUERY], poss[TRUTH]);
-            for (int c = 0; c < CALLSETS; c++) {
+            for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
                 next[c] = (poss[c] == pos);
             }
 
@@ -284,7 +284,7 @@ phaseblockData::phaseblockData(std::shared_ptr<superclusterData> clusterdata_ptr
  */
 void phaseblockData::fix_phase_set_tags() {
 
-    for (int ci = 0; ci < CALLSETS; ci++) {
+    for (callset_t ci : EnumRange<callset_t, CALLSET_SLOTS>{}) {
         // one span is recorded per phase set, so its count is the phase set count
         std::vector<int> phase_set_sizes;
 
