@@ -155,32 +155,18 @@ constexpr gtparse_t GT_PARSE_DIP_HALF_MISSING = gtparse_t::GT_PARSE_DIP_HALF_MIS
 constexpr gtparse_t GT_PARSE_DIP_MISSING      = gtparse_t::GT_PARSE_DIP_MISSING;
 constexpr std::size_t GTPARSE_SLOTS = 9; ///< Slots needed by a gtparse_t-keyed array
 
-/** @brief Simplified genotype of one variant. */
+/** @brief Simplified genotype used for all evaluation. */
 enum class gt_t : int8_t {
-    GT_REF          =  0, ///< Haploid reference genotype (0)
-    GT_ALT1         =  1, ///< Haploid alternate genotype (1)
-    GT_REF_REF =  2, ///< Diploid reference/reference genotype (0|0)
-    GT_REF_ALT =  3, ///< Diploid reference/alternate genotype (0|1)
-    GT_ALT_REF =  4, ///< Diploid alternate/reference genotype (1|0)
-    GT_ALT_ALT =  5, ///< Diploid homozygous alternate genotype (1|1)
-    GT_ALT1_ALT2    =  6, ///< Diploid compound heterozygous genotype (1|2)
-    GT_ALT2_ALT1    =  7, ///< Diploid compound heterozygous genotype (2|1)
-    GT_MISSING      =  8, ///< No-call genotype, every allele missing (.|. or .)
-    GT_HALF         =  9, ///< Half-call genotype, exactly one allele missing (1|. or .|1)
-    GT_OTHER        = 10, ///< Other/unknown genotype
+    GT_REF_REF = 0, ///< 0|0
+    GT_REF_ALT = 1, ///< 0|1
+    GT_ALT_REF = 2, ///< 1|0
+    GT_ALT_ALT = 3, ///< 1|1
 };
-constexpr gt_t GT_REF          = gt_t::GT_REF;
-constexpr gt_t GT_ALT1         = gt_t::GT_ALT1;
 constexpr gt_t GT_REF_REF = gt_t::GT_REF_REF;
 constexpr gt_t GT_REF_ALT = gt_t::GT_REF_ALT;
 constexpr gt_t GT_ALT_REF = gt_t::GT_ALT_REF;
 constexpr gt_t GT_ALT_ALT = gt_t::GT_ALT_ALT;
-constexpr gt_t GT_ALT1_ALT2    = gt_t::GT_ALT1_ALT2;
-constexpr gt_t GT_ALT2_ALT1    = gt_t::GT_ALT2_ALT1;
-constexpr gt_t GT_MISSING      = gt_t::GT_MISSING;
-constexpr gt_t GT_HALF         = gt_t::GT_HALF;
-constexpr gt_t GT_OTHER        = gt_t::GT_OTHER;
-constexpr std::size_t GT_SLOTS = 11; ///< Slots needed by a gt_t-keyed array
+constexpr std::size_t GT_SLOTS = 4; ///< Slots needed by a gt_t-keyed array
 
 /** @brief Benchmark error type. */
 enum class errtype_t : int8_t {

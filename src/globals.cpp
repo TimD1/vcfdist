@@ -24,8 +24,7 @@ EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs = {{"TP", "FP", "FN"
 EnumArray<gtparse_t, std::string, GTPARSE_SLOTS> gtparse_strs =
     {{"0", "A", ".", "0/0", "0/A", "A/A", "A/B", "./A", "./."}};
 /** @brief String representations of the four gt_t evaluation genotypes. */
-EnumArray<gt_t, std::string, GT_SLOTS> gt_strs =
-    {{"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y"}};
+EnumArray<gt_t, std::string, GT_SLOTS> gt_strs = {{"0|0", "0|1", "1|0", "1|1"}};
 /** @brief String representations of PHASE_* constants (keep, swap, missing). */
 EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs = {{"0", "1", "."}};
 /** @brief String representations of AC_ERR_* allele count error types. */

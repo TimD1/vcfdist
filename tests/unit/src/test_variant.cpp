@@ -717,28 +717,6 @@ TEST(SetAlleleErrtype, RefrefRefrefUnknown) {
     EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
 }
 
-TEST(SetAlleleErrtype, HaploidUnknown) {
-    GlobalsGuard guard;
-
-    // a haploid genotype is not a diploid allele count, so it falls through to AC_UNKNOWN
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_ALT1);
-    vars->ac_errtype[0] = AC_ERR_1_TO_1;
-
-    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, true));
-    EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
-}
-
-TEST(SetAlleleErrtype, UnparseableGenotypeIsUnknownNotZeroAlleles) {
-    GlobalsGuard guard;
-
-    // a genotype carrying no diploid allele count is unknown, never silently zero alleles
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_MISSING, GT_ALT_REF);
-    vars->ac_errtype[0] = AC_ERR_1_TO_1;
-
-    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, true));
-    EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
-}
-
 // On a truth record the two sides swap: the truth allele count is the record's own orig_gts and the
 // query allele count is matched_gts, recovered by alignment. The value keeps its absolute
 // truth-then-query direction, so a truth record can reach *_TO_0 but never 0_TO_*.
@@ -809,17 +787,6 @@ TEST(SetAlleleErrtype, FalseHeterozygousAgreesAcrossCallsets) {
     EXPECT_EQ(AC_ERR_2_TO_1, qvars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_1, tvars->set_allele_errtype(0, false));
     EXPECT_EQ("-", ac_strs[tvars->ac_errtype[0]]);
-}
-
-TEST(SetAlleleErrtype, TruthHaploidUnknown) {
-    GlobalsGuard guard;
-
-    // a haploid genotype is not a diploid allele count on either side
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_ALT1);
-    vars->ac_errtype[0] = AC_ERR_1_TO_1;
-
-    EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, false));
-    EXPECT_EQ(AC_UNKNOWN, vars->ac_errtype[0]);
 }
 
 /* matched_gt_is_swapped **************************************************************************/
@@ -900,25 +867,7 @@ TEST(CalcgtIsSwapped, CreditTieFalse) {
     EXPECT_FALSE(vars->matched_gt_is_swapped(0));
 }
 
-TEST(CalcgtIsSwapped, UnexpectedErrors) {
-    GlobalsGuard guard;
-
-    // a haploid orig_gt reaches no branch, so the final else reports an unexpected pair
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_REF_ALT);
-    EXPECT_EXIT(vars->matched_gt_is_swapped(0), testing::ExitedWithCode(1),
-            "Unexpected orig/matched genotypes for variant");
-}
-
 /* var_on_hap *************************************************************************************/
-
-TEST(VarOnHap, HaploidAltBoth) {
-    GlobalsGuard guard;
-
-    // a haploid alternate allele is reported on both haplotypes
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_REF_REF);
-    EXPECT_TRUE(vars->var_on_hap(0, HAP1));
-    EXPECT_TRUE(vars->var_on_hap(0, HAP2));
-}
 
 TEST(VarOnHap, Gt10) {
     GlobalsGuard guard;
@@ -944,13 +893,6 @@ TEST(VarOnHap, HomBoth) {
 TEST(VarOnHap, RefrefNone) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_REF);
-    EXPECT_FALSE(vars->var_on_hap(0, HAP1));
-    EXPECT_FALSE(vars->var_on_hap(0, HAP2));
-}
-
-TEST(VarOnHap, HaploidRefNone) {
-    GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF, GT_REF_REF);
     EXPECT_FALSE(vars->var_on_hap(0, HAP1));
     EXPECT_FALSE(vars->var_on_hap(0, HAP2));
 }
@@ -1081,26 +1023,10 @@ TEST(SetVarCalcgtOnHap, AltaltUnsetHap2) {
     EXPECT_EQ(GT_ALT_REF, vars->matched_gts[0]);
 }
 
-TEST(SetVarCalcgtOnHap, MissingErrors) {
-    GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_MISSING);
-    EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true), testing::ExitedWithCode(1),
-            "Unexpected matched_gts value");
-}
-
-TEST(SetVarCalcgtOnHap, HaploidErrors) {
-    GlobalsGuard guard;
-
-    // a haploid matched_gt matches none of the four diploid states, so the default branch errors
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT1);
-    EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true), testing::ExitedWithCode(1),
-            "Unexpected matched_gts value");
-}
-
 TEST(SetVarCalcgtOnHap, ErrorsSuppressedWithIgnore) {
     GlobalsGuard guard;
 
-    // every invalid (state, hap, set) triple from the four diploid states
+    // every invalid (state, hap, set) triple from the four evaluation genotypes
     struct transition { gt_t matched_gt; hap_t hap; bool set; };
     const std::vector<transition> invalid = {
         {GT_REF_REF,   HAP1, false}, {GT_REF_REF,   HAP2, false},
@@ -1116,15 +1042,6 @@ TEST(SetVarCalcgtOnHap, ErrorsSuppressedWithIgnore) {
                 << "matched_gt " << int(t.matched_gt) << " hap " << idx(t.hap)
                 << " set " << t.set;
     }
-}
-
-TEST(SetVarCalcgtOnHap, IgnoreDoesNotSuppressMissing) {
-    GlobalsGuard guard;
-
-    // ignore_errors guards only the four diploid states; the default branch always errors
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_MISSING);
-    EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true, true), testing::ExitedWithCode(1),
-            "Unexpected matched_gts value");
 }
 
 /* variantData constructor ************************************************************************/

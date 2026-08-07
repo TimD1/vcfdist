@@ -144,24 +144,25 @@ sizeclass_t ctgVariants::get_vartype(int vi) {
 /**
  * @brief Returns the alternate allele count of a diploid genotype.
  * @param[in] gt Genotype
- * @return 0, 1, or 2 alternate alleles, or -1 if gt carries no diploid allele count
+ * @return 0, 1, or 2 alternate alleles
+ * @throws ERROR A gt_t outside the four evaluation genotypes, which the type cannot represent
  */
 static int allele_count(gt_t gt) {
     switch (gt) {
-        case GT_REF_REF:   return 0;
+        case GT_REF_REF: return 0;
         case GT_REF_ALT:
-        case GT_ALT_REF:  return 1;
+        case GT_ALT_REF: return 1;
         case GT_ALT_ALT: return 2;
-        default:           return -1;
     }
+    ERROR("Unexpected genotype %d in allele_count()", int(gt));
 }
 
 
 /**
  * @brief Maps a site's truth and query alternate allele counts to an allele count error type.
- * @param[in] truth_ac Truth alternate allele count, or -1 if unknown
- * @param[in] query_ac Query alternate allele count, or -1 if unknown
- * @return AC_ERR_*_TO_*, or AC_UNKNOWN if either count is unknown or both are zero
+ * @param[in] truth_ac Truth alternate allele count (0, 1, or 2)
+ * @param[in] query_ac Query alternate allele count (0, 1, or 2)
+ * @return AC_ERR_*_TO_*, or AC_UNKNOWN if both counts are zero
  */
 static ac_errtype_t ac_errtype_from_counts(int truth_ac, int query_ac) {
     switch (truth_ac) {
@@ -234,6 +235,7 @@ bool ctgVariants::matched_gt_is_swapped(int vi /* variant index */) const {
     // orig_gt = 1|0, choose better matched_gt
     else if (this->orig_gts[vi] == GT_ALT_REF && this->matched_gts[vi] == GT_ALT_ALT) {
         return this->credit[HAP2][vi] > this->credit[HAP1][vi];
+    // the branches above are exhaustive over the four evaluation genotypes, so this is a guard
     } else {
         ERROR("Unexpected orig/matched genotypes for variant (%s -> %s) at pos %d: orig=%s matched=%s",
                 this->refs[vi].data(),
@@ -255,10 +257,8 @@ bool ctgVariants::matched_gt_is_swapped(int vi /* variant index */) const {
 bool ctgVariants::var_on_hap(int var_idx, hap_t hap, bool matched) const {
     // simple gt, always (0|1, 1|0, or 1|1)
     gt_t gt = matched ? this->matched_gts[var_idx] : this->orig_gts[var_idx];
-    if (hap == HAP1 && (gt == GT_ALT1 || gt == GT_ALT_REF || gt == GT_ALT_ALT))
-        return true;
-    if (hap == HAP2 && (gt == GT_ALT1 || gt == GT_REF_ALT || gt == GT_ALT_ALT))
-        return true;
+    if (hap == HAP1 && (gt == GT_ALT_REF || gt == GT_ALT_ALT)) return true;
+    if (hap == HAP2 && (gt == GT_REF_ALT || gt == GT_ALT_ALT)) return true;
     return false;
 }
 
@@ -323,8 +323,9 @@ void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
             this->matched_gts[var_idx] = hap == HAP1 ? GT_REF_ALT : GT_ALT_REF;
         }
 
+    // the branches above are exhaustive over the four evaluation genotypes, so this is a guard
     } else {
-        ERROR("Unexpected matched_gts value '%s' in set_var_matched_gt_on_hap() for variant %d at %s:%d", 
+        ERROR("Unexpected matched_gts value '%s' in set_var_matched_gt_on_hap() for variant %d at %s:%d",
             gt_strs[this->matched_gts[var_idx]].data(), var_idx, this->ctg.data(), this->poss[var_idx]);
     }
 }
