@@ -87,15 +87,15 @@ std::shared_ptr<ctgVariants> make_qvars(const std::vector<phase_t> & phases,
     std::vector<var_desc> descs;
     for (size_t i = 0; i < phases.size(); i++) {
         int phase_set = phase_sets.empty() ? 1 : phase_sets[i];
-        gt_t orig_gt = (phases[i] == PHASE_NONE) ? GT_ALT1_ALT1 : GT_ALT1_REF;
+        gt_t orig_gt = (phases[i] == PHASE_NONE) ? GT_ALT_ALT : GT_ALT_REF;
         descs.push_back({int(i) * SPACING, 1, TYPE_SUB, "A", "C", orig_gt, 60, phase_set});
     }
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
     for (size_t i = 0; i < phases.size(); i++) {
         switch (phases[i]) {
-            case PHASE_ORIG: qvars->matched_gts[i] = GT_ALT1_REF;  break;
-            case PHASE_SWAP: qvars->matched_gts[i] = GT_REF_ALT1;  break;
-            default:         qvars->matched_gts[i] = GT_ALT1_ALT1; break;
+            case PHASE_ORIG: qvars->matched_gts[i] = GT_ALT_REF;  break;
+            case PHASE_SWAP: qvars->matched_gts[i] = GT_REF_ALT;  break;
+            default:         qvars->matched_gts[i] = GT_ALT_ALT; break;
         }
     }
     return qvars;
@@ -605,9 +605,9 @@ TEST(FixPhaseSetTags, BothCallsets) {
 
     // truth tags are propagated on the same pass as query tags
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG,
-            {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 0},
-             {100, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 0},
-             {200, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 3}});
+            {{0, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 0},
+             {100, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 0},
+             {200, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 3}});
     pipeline_result result = run_pipeline(dir,
             make_qvars({PHASE_ORIG, PHASE_ORIG}, {0, 9}), tvars);
     EXPECT_EQ(std::vector<int>({9, 9}), qvars_of(result)->phase_sets);
@@ -693,9 +693,9 @@ TEST(FixAlleleCounts, OneToOneTallied) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_REF_ALT1, PHASE_ORIG));
+            make_ac_qvars(GT_REF_ALT, GT_REF_ALT, PHASE_ORIG));
     EXPECT_EQ(AC_ERR_1_TO_1, qvars_of(result)->ac_errtype[1]);
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
+    EXPECT_EQ(GT_REF_ALT, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, OneToTwoTallied) {
@@ -704,7 +704,7 @@ TEST(FixAlleleCounts, OneToTwoTallied) {
 
     // a heterozygous truth allele called homozygous: one allele is right, the other spurious
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_ALT1_ALT1, GT_REF_ALT1, PHASE_ORIG));
+            make_ac_qvars(GT_ALT_ALT, GT_REF_ALT, PHASE_ORIG));
     EXPECT_EQ(AC_ERR_1_TO_2, qvars_of(result)->ac_errtype[1]);
 }
 
@@ -712,7 +712,7 @@ TEST(FixAlleleCounts, ZeroToTwoTallied) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_ALT1_ALT1, GT_REF_REF, PHASE_ORIG));
+            make_ac_qvars(GT_ALT_ALT, GT_REF_REF, PHASE_ORIG));
     EXPECT_EQ(AC_ERR_0_TO_2, qvars_of(result)->ac_errtype[1]);
 }
 
@@ -725,7 +725,7 @@ TEST(FixAlleleCounts, TruthHeterozygousFalseNegativeTallied) {
 
     // one truth allele that no query allele matched, so its recovered genotype stayed 0|0
     pipeline_result result = run_pipeline(dir, nullptr,
-            make_tvars({{GT_REF_ALT1, GT_REF_REF}}));
+            make_tvars({{GT_REF_ALT, GT_REF_REF}}));
     EXPECT_EQ(AC_ERR_1_TO_0, tvars_of(result)->ac_errtype[0]);
 }
 
@@ -733,7 +733,7 @@ TEST(FixAlleleCounts, TruthHomozygousFalseNegativeTallied) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir, nullptr,
-            make_tvars({{GT_ALT1_ALT1, GT_REF_REF}}));
+            make_tvars({{GT_ALT_ALT, GT_REF_REF}}));
     EXPECT_EQ(AC_ERR_2_TO_0, tvars_of(result)->ac_errtype[0]);
 }
 
@@ -743,7 +743,7 @@ TEST(FixAlleleCounts, TruthGenotypeErrorTallied) {
 
     // one truth allele the query called on both haplotypes: the truth record reports it too
     pipeline_result result = run_pipeline(dir, nullptr,
-            make_tvars({{GT_REF_ALT1, GT_ALT1_ALT1}}));
+            make_tvars({{GT_REF_ALT, GT_ALT_ALT}}));
     EXPECT_EQ(AC_ERR_1_TO_2, tvars_of(result)->ac_errtype[0]);
 }
 
@@ -751,7 +751,7 @@ TEST(FixAlleleCounts, TruthHomozygousMatchTallied) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir, nullptr,
-            make_tvars({{GT_ALT1_ALT1, GT_ALT1_ALT1}}));
+            make_tvars({{GT_ALT_ALT, GT_ALT_ALT}}));
     EXPECT_EQ(AC_ERR_2_TO_2, tvars_of(result)->ac_errtype[0]);
 }
 
@@ -761,9 +761,9 @@ TEST(FixAlleleCounts, NoTruthVariantLeftUnknown) {
 
     // a pure false negative, a genotype error, and a homozygous match all reach a defined value
     pipeline_result result = run_pipeline(dir, nullptr,
-            make_tvars({{GT_REF_ALT1, GT_REF_REF},
-                        {GT_REF_ALT1, GT_ALT1_ALT1},
-                        {GT_ALT1_ALT1, GT_ALT1_ALT1}}));
+            make_tvars({{GT_REF_ALT, GT_REF_REF},
+                        {GT_REF_ALT, GT_ALT_ALT},
+                        {GT_ALT_ALT, GT_ALT_ALT}}));
     for (int vi = 0; vi < tvars_of(result)->n; vi++)
         EXPECT_NE(AC_UNKNOWN, tvars_of(result)->ac_errtype[vi]) << "truth variant " << vi;
 }
@@ -775,7 +775,7 @@ TEST(FixAlleleCounts, TruthValuesStayOutOfTheGenotypeErrorSummary) {
     // the summary tallies the query loop plus the hand-rolled truth false-negative branches, so a
     // truth record now reporting 0/1 -> 1/1 must not add a second count to that row
     pipeline_result result = run_pipeline(dir, nullptr,
-            make_tvars({{GT_REF_ALT1, GT_ALT1_ALT1}}));
+            make_tvars({{GT_REF_ALT, GT_ALT_ALT}}));
     EXPECT_TRUE(logged(result.log, "0/1 -> 1/1: 0")) << result.log;
 }
 
@@ -785,8 +785,8 @@ TEST(FixAlleleCounts, ForceOneOneKeepsGt) {
 
     // a 1|1 call is always evaluated as 1|1, whatever the alignment calculated
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_ALT1_ALT1, GT_ALT1_REF, PHASE_ORIG));
-    EXPECT_EQ(GT_ALT1_ALT1, qvars_of(result)->matched_gts[1]);
+            make_ac_qvars(GT_ALT_ALT, GT_ALT_REF, PHASE_ORIG));
+    EXPECT_EQ(GT_ALT_ALT, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ForceOneOneSwapsHapData) {
@@ -795,7 +795,7 @@ TEST(FixAlleleCounts, ForceOneOneSwapsHapData) {
 
     // a matched_gt of 1|1 carries no record of which haplotype its data came from, so inside a
     // swapped block the per-haplotype lanes are exchanged when the genotype is forced back
-    std::shared_ptr<ctgVariants> qvars = make_ac_qvars(GT_ALT1_ALT1, GT_ALT1_ALT1, PHASE_SWAP);
+    std::shared_ptr<ctgVariants> qvars = make_ac_qvars(GT_ALT_ALT, GT_ALT_ALT, PHASE_SWAP);
     set_hap_data(qvars, HAP1, 1, ERRTYPE_TP, 1, 10, 2, 3, 0.25);
     set_hap_data(qvars, HAP2, 1, ERRTYPE_FP, 2, 20, 4, 5, 0.75);
     pipeline_result result = run_pipeline(dir, qvars);
@@ -821,17 +821,17 @@ TEST(FixAlleleCounts, TwoToOneHap1Better) {
 
     // a heterozygous call evaluated as homozygous keeps the haplotype with better credit
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_ORIG, 0.9, 0.1));
+            make_ac_qvars(GT_REF_ALT, GT_ALT_ALT, PHASE_ORIG, 0.9, 0.1));
     EXPECT_EQ(AC_ERR_2_TO_1, qvars_of(result)->ac_errtype[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
+    EXPECT_EQ(GT_ALT_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TwoToOneHap2Better) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_ORIG, 0.1, 0.9));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
+            make_ac_qvars(GT_REF_ALT, GT_ALT_ALT, PHASE_ORIG, 0.1, 0.9));
+    EXPECT_EQ(GT_REF_ALT, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TwoToOneTieOrig) {
@@ -840,17 +840,17 @@ TEST(FixAlleleCounts, TwoToOneTieOrig) {
 
     // equal credit on both haplotypes falls back to the block's phasing, which keeps the call
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_ORIG, 0.5, 0.5));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
+            make_ac_qvars(GT_REF_ALT, GT_ALT_ALT, PHASE_ORIG, 0.5, 0.5));
+    EXPECT_EQ(GT_REF_ALT, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TwoToOneTieSwap) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_SWAP, 0.5, 0.5));
+            make_ac_qvars(GT_REF_ALT, GT_ALT_ALT, PHASE_SWAP, 0.5, 0.5));
     ASSERT_EQ(PHASE_SWAP, qvars_of(result)->pb_phases[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
+    EXPECT_EQ(GT_ALT_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneHap1Better) {
@@ -859,34 +859,34 @@ TEST(FixAlleleCounts, ZeroToOneHap1Better) {
 
     // a heterozygous call evaluated as reference is restored on the better-credit haplotype
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_ORIG, 0.9, 0.1));
+            make_ac_qvars(GT_REF_ALT, GT_REF_REF, PHASE_ORIG, 0.9, 0.1));
     EXPECT_EQ(AC_ERR_0_TO_1, qvars_of(result)->ac_errtype[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
+    EXPECT_EQ(GT_ALT_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneHap2Better) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_ORIG, 0.1, 0.9));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
+            make_ac_qvars(GT_REF_ALT, GT_REF_REF, PHASE_ORIG, 0.1, 0.9));
+    EXPECT_EQ(GT_REF_ALT, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneTieOrig) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_ORIG, 0.5, 0.5));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
+            make_ac_qvars(GT_REF_ALT, GT_REF_REF, PHASE_ORIG, 0.5, 0.5));
+    EXPECT_EQ(GT_REF_ALT, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneTieSwap) {
     GlobalsGuard guard;
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
-            make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_SWAP, 0.5, 0.5));
+            make_ac_qvars(GT_REF_ALT, GT_REF_REF, PHASE_SWAP, 0.5, 0.5));
     ASSERT_EQ(PHASE_SWAP, qvars_of(result)->pb_phases[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
+    EXPECT_EQ(GT_ALT_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TruthFn2To0) {
@@ -896,7 +896,7 @@ TEST(FixAlleleCounts, TruthFn2To0) {
     // a homozygous truth variant missed on both haplotypes loses two alleles, and only the truth
     // VCF can show it: there is no query variant to tally it against
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG,
-            {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_ALT1, 60, 1}});
+            {{0, 1, TYPE_SUB, "A", "C", GT_ALT_ALT, 60, 1}});
     set_hap_data(tvars, HAP1, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     set_hap_data(tvars, HAP2, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
@@ -909,7 +909,7 @@ TEST(FixAlleleCounts, TruthFn1To0Hap1) {
 
     // for a 1|0 truth variant only HAP1 carries the allele, so only HAP1 can be a false negative
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG,
-            {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1}});
+            {{0, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 1}});
     set_hap_data(tvars, HAP1, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
     EXPECT_TRUE(logged(result.log, "0/1 -> 0/0: 1 "));
@@ -919,7 +919,7 @@ TEST(FixAlleleCounts, TruthFn1To0Hap2) {
     GlobalsGuard guard;
     TempDir dir;
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG,
-            {{0, 1, TYPE_SUB, "A", "C", GT_REF_ALT1, 60, 1}});
+            {{0, 1, TYPE_SUB, "A", "C", GT_REF_ALT, 60, 1}});
     set_hap_data(tvars, HAP2, 0, ERRTYPE_FN, 0, 0, 1, 1, 0);
     pipeline_result result = run_pipeline(dir, nullptr, tvars);
     EXPECT_TRUE(logged(result.log, "0/1 -> 0/0: 1 "));
@@ -932,9 +932,9 @@ TEST(FixAlleleCounts, TruthLoopBound) {
     // the last truth variant is inside the loop bound (#67): it is the only false negative here,
     // so a bound one short would report none
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG,
-            {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1},
-             {100, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1},
-             {200, 1, TYPE_SUB, "A", "C", GT_ALT1_ALT1, 60, 1}});
+            {{0, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 1},
+             {100, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 1},
+             {200, 1, TYPE_SUB, "A", "C", GT_ALT_ALT, 60, 1}});
     set_hap_data(tvars, HAP1, 0, ERRTYPE_TP, 0, 60, 1, 0, 1);
     set_hap_data(tvars, HAP1, 1, ERRTYPE_TP, 0, 60, 1, 0, 1);
     set_hap_data(tvars, HAP1, 2, ERRTYPE_FN, 0, 0, 1, 1, 0);
@@ -1056,10 +1056,10 @@ TEST(PhaseblockNg50, MultiContigBlocksPooled) {
     ctg_input second;
     second.ctg = "chr2";
     second.qvars = make_ctgVariants("chr2",
-            {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1},
-             {100, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1}});
-    second.qvars->matched_gts[0] = GT_ALT1_REF;
-    second.qvars->matched_gts[1] = GT_ALT1_REF;
+            {{0, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 1},
+             {100, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 1}});
+    second.qvars->matched_gts[0] = GT_ALT_REF;
+    second.qvars->matched_gts[1] = GT_ALT_REF;
     second.length = 502;
     pipeline_result result = run_pipeline(dir, {first, second});
     EXPECT_EQ(101, result.data->calculate_ng50(false, false));
@@ -1164,7 +1164,7 @@ TEST(PhaseblockDataCtor, BoundariesIgnoreUnphasedMiddle) {
 /**
  * @brief Builds query variants SPACING bases apart carrying the given per-variant ploidies.
  *
- * A haploid record parses to GT_ALT1_REF on HAP1 alone, exactly as a heterozygous diploid call
+ * A haploid record parses to GT_ALT_REF on HAP1 alone, exactly as a heterozygous diploid call
  * does, so the ploidy is the only thing distinguishing the two by the time the writer sees them.
  * matched_gts match orig_gts so that every variant classifies as PHASE_ORIG.
  * @param[in] ploidies Ploidy of each variant, in position order
@@ -1180,13 +1180,13 @@ std::shared_ptr<ctgVariants> make_ploidy_qvars(const std::vector<uint8_t> & ploi
         desc.rlen = 1;
         desc.ref = "A";
         desc.alt = "C";
-        desc.gt = GT_ALT1_REF;
+        desc.gt = GT_ALT_REF;
         desc.phase_set = 1;
         desc.ploidy = ploidies[i];
         descs.push_back(desc);
     }
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
-    for (size_t i = 0; i < ploidies.size(); i++) qvars->matched_gts[i] = GT_ALT1_REF;
+    for (size_t i = 0; i < ploidies.size(); i++) qvars->matched_gts[i] = GT_ALT_REF;
     return qvars;
 }
 

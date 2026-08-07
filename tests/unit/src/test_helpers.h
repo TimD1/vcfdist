@@ -306,7 +306,7 @@ struct var_desc {
     edittype_t type = TYPE_SUB; ///< Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL, TYPE_CPX)
     std::string ref;           ///< Reference allele sequence
     std::string alt;           ///< Alternate allele sequence
-    gt_t gt = GT_REF_ALT1;     ///< Original genotype (GT_*)
+    gt_t gt = GT_REF_ALT;     ///< Original genotype (GT_*)
     float qual = 60;           ///< Sets both var_qual and gt_qual (each clamped to g.max_qual)
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)

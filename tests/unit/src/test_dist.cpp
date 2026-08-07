@@ -199,7 +199,7 @@ TEST(GenerateStr, MinQualFiltersSub) {
     g.max_qual = 60;
     g.min_qual = 20;
     auto ref = make_fasta("chr1", "ACGTACGT");
-    auto vars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "T", GT_REF_ALT1, 10}});
+    auto vars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "T", GT_REF_ALT, 10}});
 
     // the filtered substitution advances neither the sequence nor ref_pos, so its ref base is kept
     EXPECT_EQ("ACGTACGT", generate_str(ref, vars, "chr1", 0, 1, 0, 8, g.min_qual));
@@ -210,7 +210,7 @@ TEST(GenerateStr, MinQualFiltersDel) {
     g.max_qual = 60;
     g.min_qual = 20;
     auto ref = make_fasta("chr1", "ACGTACGT");
-    auto vars = make_ctgVariants("chr1", {{2, 2, TYPE_DEL, "GT", "", GT_REF_ALT1, 10}});
+    auto vars = make_ctgVariants("chr1", {{2, 2, TYPE_DEL, "GT", "", GT_REF_ALT, 10}});
 
     // a filtered deletion does not skip its reference bases, so "GT" is still emitted
     EXPECT_EQ("ACGTACGT", generate_str(ref, vars, "chr1", 0, 1, 0, 8, g.min_qual));
@@ -221,7 +221,7 @@ TEST(GenerateStr, MinQualKeepsAtThreshold) {
     g.max_qual = 60;
     g.min_qual = 20;
     auto ref = make_fasta("chr1", "ACGTACGT");
-    auto vars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "T", GT_REF_ALT1, 20}});
+    auto vars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "T", GT_REF_ALT, 20}});
 
     // the comparison is >=, so a variant exactly at the threshold is applied
     EXPECT_EQ("ACTTACGT", generate_str(ref, vars, "chr1", 0, 1, 0, 8, g.min_qual));
@@ -955,7 +955,7 @@ TEST(GraphCtor, QuerySnpNodeLayout) {
     // [pos-1, pos+rlen+1] = [1, 4], so nodes are cut at reference offsets 1, 2, 3 and 5 (the
     // trailing node runs one past ref_end), giving offsets 0, 1, 2 and 4 relative to ref_beg.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(std::vector<std::string>({"_C", "_T", "_G", "_TA"}), f.graph->qseqs);
@@ -975,7 +975,7 @@ TEST(GraphCtor, ContigStartRefSpanClamped) {
     // the constructor no longer slices the reference at a negative offset (#167). Node 0 is the
     // zero-width entry node standing in for the absent flank (ContigStartHasZeroWidthEntryNode).
     GraphFixture f = build_fixture("ACGTACGT",
-            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}}, {});
 
     EXPECT_EQ("ACG", f.graph->ref);
     EXPECT_EQ(std::vector<int>({0, 0, 0, 1}), f.graph->qbegs);
@@ -987,7 +987,7 @@ TEST(GraphCtor, ContigStartHasZeroWidthEntryNode) {
     // At position 0 that node cannot exist, so the constructor emits a synthetic zero-width
     // reference node instead, keeping node 0 reference and both alleles reachable from it (#177).
     GraphFixture f = build_fixture("ACGTACGT",
-            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->qseqs);
@@ -1005,8 +1005,8 @@ TEST(GraphCtor, MidContigHasNoEntryNode) {
     // The entry node exists only where no left flank can: away from position 0 the flank node
     // already makes node 0 reference, so no synthetic node is added and node indices are unchanged.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}});
 
     EXPECT_EQ("_C", f.graph->qseqs[0]) << "node 0 is the one-base left flank, not an entry node";
     EXPECT_EQ("_C", f.graph->tseqs[0]);
@@ -1019,7 +1019,7 @@ TEST(GraphCtor, ContigStartTruthEntryNodePrecedesBypass) {
     // origin lands on the truth alt node, and the parallel reference-allele bypass node, which is
     // how a missed truth variant is labeled FN, has no predecessor at all.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ(4, f.graph->tnodes);
     EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->tseqs);
@@ -1035,7 +1035,7 @@ TEST(GraphCtor, ContigEndRefSpanClamped) {
     // stops at 10, so the stored reference is the two bases that exist rather than the four the
     // unclamped ref_end + 1 would name (#189).
     GraphFixture f = build_fixture("ACGTACGTAC",
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 60, 0, 0}}, {});
 
     EXPECT_EQ("AC", f.graph->ref);
     EXPECT_EQ(std::vector<int>({0, 1, 1, 2}), f.graph->qbegs);
@@ -1047,7 +1047,7 @@ TEST(GraphCtor, ContigEndTrailingNodeIsZeroWidthSink) {
     // bases and its span is zero. It stays the sink both alleles converge on, which is what the
     // aligner's fixed endpoint cell requires -- the mirror of the contig-start entry node (#177).
     GraphFixture f = build_fixture("ACGTACGTAC",
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(std::vector<std::string>({"_A", "_G", "_C", "_"}), f.graph->qseqs);
@@ -1061,7 +1061,7 @@ TEST(GraphCtor, ContigEndTruthTrailingNodeIsZeroWidthSink) {
     // variant alt nor a bypass node, so it is also the case the narrowed insertion-leap rule must
     // not mistake for an insertion: it is exempted by tidxs and tskips, not by its width.
     GraphFixture f = build_fixture("ACGTACGTAC", {},
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ(4, f.graph->tnodes);
     EXPECT_EQ(std::vector<std::string>({"_A", "_G", "_C", "_"}), f.graph->tseqs);
@@ -1078,7 +1078,7 @@ TEST(GraphCtor, ContigEndPenultimateVariantTrailingNodeSpansOneBase) {
     // base leaves the trailing node exactly one base of right flank; without the clamp its span
     // would be 2 while holding that single base.
     GraphFixture f = build_fixture("ACGTACGTAC",
-            {{8, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{8, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ("_C", f.graph->qseqs[3]);
@@ -1093,8 +1093,8 @@ TEST(GraphCtor, ContigEndNodeSpansMatchSequenceLengths) {
     for (int pos : {8, 9}) {
         const std::string ref_allele = (pos == 9) ? "C" : "A";
         GraphFixture f = build_fixture("ACGTACGTAC",
-                {{pos, 1, TYPE_SUB, ref_allele, "G", GT_ALT1_REF, 60, 0, 0}},
-                {{pos, 1, TYPE_SUB, ref_allele, "G", GT_ALT1_REF, 60, 0, 0}});
+                {{pos, 1, TYPE_SUB, ref_allele, "G", GT_ALT_REF, 60, 0, 0}},
+                {{pos, 1, TYPE_SUB, ref_allele, "G", GT_ALT_REF, 60, 0, 0}});
 
         for (int n = 0; n < f.graph->qnodes; n++)
             EXPECT_EQ(int(f.graph->qseqs[n].size()) - 1, f.graph->qends[n] - f.graph->qbegs[n])
@@ -1115,7 +1115,7 @@ TEST(GraphCtor, QueryVariantHasParallelRefAllele) {
     // qnode_ends and popped later, so the reference allele reappears as node 2 spanning the same
     // [1, 2) the SNP does. The query graph therefore offers both alleles with no bypass machinery.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(f.graph->qbegs[1], f.graph->qbegs[2]);
@@ -1130,7 +1130,7 @@ TEST(GraphCtor, RefSpanFromVariantBounds) {
     // ref_end + 1 exclusive: one base of left flank and two bases past the variant's end. Well
     // inside the contig, where the window needs no clamping (ContigEndRefSpanClamped).
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}}, {});
 
     EXPECT_EQ("CGTA", f.graph->ref);
     EXPECT_EQ(std::string("ACGTACGT").substr(1, 4), f.graph->ref);
@@ -1140,7 +1140,7 @@ TEST(GraphCtor, QueryPointersWireParallelAlleles) {
     // node 0 [0,1) precedes both alleles at [1,2), and both lead into node 3 at [2,4).
     // Successor lists are built by an ascending scan, so they are in ascending node order.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(std::vector<int>({1, 2}), f.graph->qnexts[0]);
@@ -1158,7 +1158,7 @@ TEST(GraphCtor, TruthVariantPairedWithBypass) {
     // same reference span, carrying tskips == the bypassed variant index. calc_prec_recall relies
     // on that adjacency: excise_bypass() reads the variant node at bypass_tni - 1.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ(4, f.graph->tnodes);
     EXPECT_EQ(std::vector<std::string>({"_C", "_A", "_G", "_TA"}), f.graph->tseqs);
@@ -1173,17 +1173,17 @@ TEST(GraphCtor, TruthStringExcludesBypassAllele) {
     // this->truth is the selected truth haplotype: the alt is spliced in and the bypass node's
     // reference allele is absent, even though both nodes exist in the graph.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     EXPECT_EQ("CATA", f.graph->truth);
     EXPECT_EQ("CGTA", f.graph->ref) << "the reference keeps the bypassed allele";
 }
 
 TEST(GraphCtor, TruthHapFilterExcludesOtherHap) {
-    // GT_REF_ALT1 places the truth variant on haplotype 1 only, so a HAP1 (index 0) graph skips
+    // GT_REF_ALT places the truth variant on haplotype 1 only, so a HAP1 (index 0) graph skips
     // it entirely and collapses to one reference node, while a HAP2 graph builds alt and bypass.
-    const std::vector<var_desc> qv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}};
-    const std::vector<var_desc> tv = {{2, 1, TYPE_SUB, "G", "A", GT_REF_ALT1, 60, 0, 0}};
+    const std::vector<var_desc> qv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}};
+    const std::vector<var_desc> tv = {{2, 1, TYPE_SUB, "G", "A", GT_REF_ALT, 60, 0, 0}};
 
     GraphFixture hap1 = build_fixture("ACGTACGT", qv, tv, HAP1);
     EXPECT_EQ(1, hap1.graph->tnodes);
@@ -1198,7 +1198,7 @@ TEST(GraphCtor, SkipEvaluatedQueryVariantOmitted) {
     // A query variant already labeled on this haplotype (errtype != ERRTYPE_UN) contributes no
     // node, so only reference nodes remain. Its position still sets the graph's span.
     auto ref = make_fasta("chr1", "ACGTACGT");
-    auto qvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}});
+    auto qvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}});
     qvars->errtypes[HAP1][0] = ERRTYPE_TP;
     auto sc = make_ctgSuperclusters(qvars, make_ctgVariants("chr1", {}));
 
@@ -1210,7 +1210,7 @@ TEST(GraphCtor, SkipEvaluatedQueryVariantOmitted) {
 
 TEST(GraphCtor, SkipEvaluatedTruthVariantOmitted) {
     auto ref = make_fasta("chr1", "ACGTACGT");
-    auto tvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+    auto tvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
     tvars->errtypes[HAP1][0] = ERRTYPE_FN;
     auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tvars);
 
@@ -1224,8 +1224,8 @@ TEST(GraphCtor, TruthLinearChain) {
     // Two truth SNPs at pos 2 and 6 over "ACGTACGTACGT": the truth side is a linear chain of
     // (ref, alt, bypass) triples closed by a trailing reference node, spanning [1, 8].
     GraphFixture f = build_fixture("ACGTACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-             {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+             {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ(7, f.graph->tnodes);
     EXPECT_EQ(std::vector<std::string>({"_C", "_A", "_G", "_TAC", "_A", "_G", "_TA"}),
@@ -1249,7 +1249,7 @@ TEST(GraphCtor, InsertionNodeIsZeroWidth) {
     // An insertion consumes no reference, so its node has qbegs == qends and pushes nothing onto
     // qnode_ends -- there is no parallel reference-allele node, only a direct ref-to-ref edge.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{3, 0, TYPE_INS, "", "TT", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{3, 0, TYPE_INS, "", "TT", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(3, f.graph->qnodes);
     EXPECT_EQ("_TT", f.graph->qseqs[1]);
@@ -1263,7 +1263,7 @@ TEST(GraphCtor, DeletionNodeSpansRefAllele) {
     // A deletion emits an empty alt but still spans its two reference bases, and its end is
     // pushed onto qnode_ends, so the deleted reference reappears as a parallel node.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 2, TYPE_DEL, "GT", "", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 2, TYPE_DEL, "GT", "", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ("_", f.graph->qseqs[1]);
@@ -1278,8 +1278,8 @@ TEST(GraphCtor, OverlappingQueryVariantsShareRefSpan) {
     // A 3bp deletion at pos 2 spans the SNP at pos 3. qnode_ends orders the cuts, so the graph
     // holds both a deletion node leaping [1,4) and a SNP path through it.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 3, TYPE_DEL, "GTA", "", GT_ALT1_REF, 60, 0, 0},
-             {3, 1, TYPE_SUB, "T", "C", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 3, TYPE_DEL, "GTA", "", GT_ALT_REF, 60, 0, 0},
+             {3, 1, TYPE_SUB, "T", "C", GT_ALT_REF, 60, 0, 0}}, {});
 
     ASSERT_EQ(7, f.graph->qnodes);
     EXPECT_EQ(std::vector<std::string>({"_C", "_", "_G", "_C", "_T", "_A", "_CG"}), f.graph->qseqs);
@@ -1304,8 +1304,8 @@ TEST(GraphInsertionEdges, AdjacentVariantCannotLeapInsertion) {
 
     // truth SUB at pos 2 (G->T) immediately followed by truth INS at pos 3 (->TTT), both hap0
     auto tv = make_ctgVariants("chr1", {
-            {2, 1, TYPE_SUB, "G", "T",   GT_ALT1_REF, 60, 0, 0},
-            {3, 0, TYPE_INS, "",  "TTT", GT_ALT1_REF, 60, 0, 0}});
+            {2, 1, TYPE_SUB, "G", "T",   GT_ALT_REF, 60, 0, 0},
+            {3, 0, TYPE_INS, "",  "TTT", GT_ALT_REF, 60, 0, 0}});
     auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tv);
 
     auto graph = make_graph(sc, ref, "chr1", HAP1);
@@ -1344,7 +1344,7 @@ TEST(GraphInsertionEdges, AdjacentVariantCannotLeapInsertion) {
 TEST(GetTruthPos, FirstNodeIsIdentity) {
     // nothing precedes node 0, so the offset within the node is the answer
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     EXPECT_EQ(0, f.graph->get_truth_pos(0, 0));
     EXPECT_EQ(1, f.graph->get_truth_pos(0, 1));
@@ -1354,7 +1354,7 @@ TEST(GetTruthPos, SkipsBypassNodes) {
     // nodes are (ref "_C", alt "_A", bypass "_G", ref "_TA"). Reaching node 3 consumes "CA", so
     // the answer is 2. Counting the bypass node's single base as well would give 3.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ(4, f.graph->tnodes);
     ASSERT_EQ(0, f.graph->tskips[2]);
@@ -1368,8 +1368,8 @@ TEST(GetTruthPos, SubtractsUnderscorePerNode) {
     // "CATACATA": reaching node 6 consumes 1 + 1 + 3 + 1 = 6 characters, the two bypasses
     // contributing nothing.
     GraphFixture f = build_fixture("ACGTACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-             {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+             {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ(7, f.graph->tnodes);
     EXPECT_EQ(1, f.graph->get_truth_pos(1, 0));
@@ -1383,8 +1383,8 @@ TEST(GetTruthPos, CountsTruthCharactersConsumed) {
     // The invariant every caller depends on: for every non-bypass node and every offset past the
     // '_' placeholder, the cell's own character is the last one the returned prefix contains.
     GraphFixture f = build_fixture("ACGTACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-             {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+             {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     for (int tn = 0; tn < f.graph->tnodes; tn++) {
         if (f.graph->tskips[tn] >= 0) continue; // not part of this->truth
@@ -1409,7 +1409,7 @@ TEST(PrecRecallAln, IdenticalToReferenceScoresZero) {
 
     // the query SNP's parallel reference allele reproduces the truth exactly, at no cost
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}}, {});
 
     std::unordered_map<idx4, idx4> ptrs;
     EXPECT_EQ(0, calc_prec_recall_aln(f.graph, ptrs, false));
@@ -1420,8 +1420,8 @@ TEST(PrecRecallAln, MatchingVariantCostsZero) {
 
     // query "CATA" through its alt equals truth "CATA" through its alt: no edits, no toll
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_EQ("CATA", f.graph->truth);
     std::unordered_map<idx4, idx4> ptrs;
@@ -1435,7 +1435,7 @@ TEST(PrecRecallAln, MissedSnpCostsFractionalBypassToll) {
     // (1 - 0.98) * max(|"G"|, |"A"|) = 0.02, which ceil()s to 1. Reproducing the SNP instead
     // would cost a full substitution.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     ASSERT_DOUBLE_EQ(0.98, g.credit_threshold);
     std::unordered_map<idx4, idx4> ptrs;
@@ -1449,7 +1449,7 @@ TEST(PrecRecallAln, BypassTollScalesWithVariantLength) {
     // toll, or truncation instead of ceil(), would report 1.
     const std::string ref_seq = periodic_ref(70);
     GraphFixture f = build_fixture(ref_seq, {},
-            {{5, 60, TYPE_DEL, ref_seq.substr(5, 60), "", GT_ALT1_REF, 60, 0, 0}});
+            {{5, 60, TYPE_DEL, ref_seq.substr(5, 60), "", GT_ALT_REF, 60, 0, 0}});
 
     std::unordered_map<idx4, idx4> ptrs;
     EXPECT_EQ(2, calc_prec_recall_aln(f.graph, ptrs, false));
@@ -1460,8 +1460,8 @@ TEST(PrecRecallAln, BypassTollsAccumulate) {
 
     // two missed 1bp SNPs toll 0.02 each; 0.04 still ceil()s to 1
     GraphFixture f = build_fixture("ACGTACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-             {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+             {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     std::unordered_map<idx4, idx4> ptrs;
     EXPECT_EQ(1, calc_prec_recall_aln(f.graph, ptrs, false));
@@ -1477,14 +1477,14 @@ TEST(PrecRecallAln, EditsCostOnePerBase) {
     g.credit_threshold = 0;
 
     GraphFixture one = build_fixture("ACGTACGTACGT",
-            {{3, 3, TYPE_CPX, "TAC", "GG", GT_ALT1_REF, 60, 0, 0}},
-            {{3, 3, TYPE_CPX, "TAC", "GGG", GT_ALT1_REF, 60, 0, 0}});
+            {{3, 3, TYPE_CPX, "TAC", "GG", GT_ALT_REF, 60, 0, 0}},
+            {{3, 3, TYPE_CPX, "TAC", "GGG", GT_ALT_REF, 60, 0, 0}});
     std::unordered_map<idx4, idx4> one_ptrs;
     EXPECT_EQ(1, calc_prec_recall_aln(one.graph, one_ptrs, false));
 
     GraphFixture two = build_fixture("ACGTACGTACGT",
-            {{3, 3, TYPE_CPX, "TAC", "G", GT_ALT1_REF, 60, 0, 0}},
-            {{3, 3, TYPE_CPX, "TAC", "GGG", GT_ALT1_REF, 60, 0, 0}});
+            {{3, 3, TYPE_CPX, "TAC", "G", GT_ALT_REF, 60, 0, 0}},
+            {{3, 3, TYPE_CPX, "TAC", "GGG", GT_ALT_REF, 60, 0, 0}});
     std::unordered_map<idx4, idx4> two_ptrs;
     EXPECT_EQ(2, calc_prec_recall_aln(two.graph, two_ptrs, false));
 }
@@ -1495,8 +1495,8 @@ TEST(PrecRecallAln, PtrsTraceEndpointBackToStart) {
     // calc_prec_recall walks ptrs from the endpoint until it reaches the idx4(0,0,-1,-1) sentinel,
     // so every cell on that chain must be present and the walk must terminate.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     std::unordered_map<idx4, idx4> ptrs;
     calc_prec_recall_aln(f.graph, ptrs, false);
@@ -1523,7 +1523,7 @@ TEST(PrecRecallAln, UnreachableEndpointErrors) {
     // No make_graph() input leaves the endpoint unreachable, so the successor lists are cleared by
     // hand: with no way out of node 0 the queue drains before the endpoint and the guard fires.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 60, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 60, 0, 0}}, {});
     ASSERT_GT(f.graph->qnodes, 1) << "the endpoint must lie in a later node to be unreachable";
     for (std::vector<int> & nexts : f.graph->qnexts) nexts.clear();
     for (std::vector<int> & nexts : f.graph->tnexts) nexts.clear();
@@ -1542,7 +1542,7 @@ TEST(PrecRecall, UnmatchedQueryVariantDefaultsToFalsePositive) {
     // SNP never joins a sync group and keeps the default FP the labeling pass seeds it with. Its
     // callq is its own variant quality, not a group minimum.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 30, 0, 0}}, {});
+            {{2, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 30, 0, 0}}, {});
 
     align_and_label(f.graph, HAP1);
 
@@ -1556,8 +1556,8 @@ TEST(PrecRecall, ReproducedVariantIsTruePositive) {
     // Query and truth both carry the pos-2 SNP. The group spans reference "GTA" against truth
     // "ATA", one edit apart, and the query needed no edits: credit = 1 - 0/1 = 1 >= 0.98.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1579,7 +1579,7 @@ TEST(PrecRecall, MissedVariantIsFalseNegativeViaBypass) {
     // labeled at that transition, outside any sync group, so its credit and edit distances are
     // zeroed rather than measured.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1600,13 +1600,13 @@ TEST(PrecRecall, TruePositiveRecoversQueryGenotypeOntoTruthVariant) {
     // variant's matched_gt, so the truth record can report the query's allele count. The query calls
     // this SNP on both haplotypes, so both are recovered.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_ALT, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
-    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, TruePositiveRecoversOnlyTheHaplotypesTheQueryCalled) {
@@ -1615,13 +1615,13 @@ TEST(PrecRecall, TruePositiveRecoversOnlyTheHaplotypesTheQueryCalled) {
     // The recovered genotype comes from the query's own orig_gt, not from which truth haplotype the
     // alignment ran against, so a heterozygous query call recovers one allele and not two.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_ALT, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
-    EXPECT_EQ(GT_ALT1_REF, f.tvars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, HomozygousTruthVariantIsNotRecoveredTwiceAcrossPasses) {
@@ -1631,15 +1631,15 @@ TEST(PrecRecall, HomozygousTruthVariantIsNotRecoveredTwiceAcrossPasses) {
     // variant is emitted in both passes. set_var_matched_gt_on_hap errors on an already-set haplotype,
     // so the second pass must not re-set what the first recovered.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}}, HAP1);
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_ALT, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_ALT, 60, 0, 0}}, HAP1);
 
     align_and_label(f.graph, HAP1);
     align_and_label(make_graph(f.sc, f.ref, "chr1", HAP2), HAP2);
 
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP2][0]);
-    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, ContigStartSubstitutionIsTruePositive) {
@@ -1649,8 +1649,8 @@ TEST(PrecRecall, ContigStartSubstitutionIsTruePositive) {
     // landed on the alt node with the reference allele unreachable, so the call scored FP and its
     // truth counterpart was left ERRTYPE_UN and reported as "Unknown error type".
     GraphFixture f = build_fixture("ACGTACGT",
-            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}},
-            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}},
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1666,7 +1666,7 @@ TEST(PrecRecall, ContigStartMissedSubstitutionIsFalseNegative) {
     // The other half of the defect: with the truth bypass node unreachable from the origin, a
     // missed truth variant at position 0 could not be routed around and so was never labeled.
     GraphFixture f = build_fixture("ACGTACGT", {},
-            {{0, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{0, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1681,8 +1681,8 @@ TEST(PrecRecall, ContigStartDeletionIsTruePositive) {
     // matching prefix only, so "POS 1 AC -> C" keeps pos 0 and deletes the "A". Its alt node is
     // empty ("_"), making the entry node and the variant node both zero-width at coordinate 0.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{0, 1, TYPE_DEL, "A", "", GT_ALT1_REF, 60, 0, 0}},
-            {{0, 1, TYPE_DEL, "A", "", GT_ALT1_REF, 60, 0, 0}});
+            {{0, 1, TYPE_DEL, "A", "", GT_ALT_REF, 60, 0, 0}},
+            {{0, 1, TYPE_DEL, "A", "", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1697,8 +1697,8 @@ TEST(PrecRecall, ContigStartInsertionIsTruePositive) {
     // alt and bypass nodes are both zero-width at coordinate 0, so this is the case the narrowed
     // leap rule protects: the entry node must not exempt an edge past the insertion.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{0, 0, TYPE_INS, "", "G", GT_ALT1_REF, 60, 0, 0}},
-            {{0, 0, TYPE_INS, "", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{0, 0, TYPE_INS, "", "G", GT_ALT_REF, 60, 0, 0}},
+            {{0, 0, TYPE_INS, "", "G", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1712,8 +1712,8 @@ TEST(PrecRecall, ContigEndSubstitutionIsTruePositive) {
     // A matched SNP on a contig's final base, where the clamped window leaves the trailing node
     // zero-width and the aligner must still reach its endpoint cell through it (#189).
     GraphFixture f = build_fixture("ACGTACGTAC",
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}},
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 60, 0, 0}},
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1729,7 +1729,7 @@ TEST(PrecRecall, ContigEndMissedSubstitutionIsFalseNegative) {
     // A pure-reference query must still be able to route around the truth variant through its
     // bypass node when that bypass sits against the contig end.
     GraphFixture f = build_fixture("ACGTACGTAC", {},
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 60, 0, 0}});
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1743,7 +1743,7 @@ TEST(PrecRecall, ContigEndSpuriousSubstitutionIsFalsePositive) {
     // The third direction: with no truth variant the query SNP's parallel reference allele wins and
     // the call keeps its default FP, exactly as it does mid-contig.
     GraphFixture f = build_fixture("ACGTACGTAC",
-            {{9, 1, TYPE_SUB, "C", "G", GT_ALT1_REF, 30, 0, 0}}, {});
+            {{9, 1, TYPE_SUB, "C", "G", GT_ALT_REF, 30, 0, 0}}, {});
 
     align_and_label(f.graph, HAP1);
 
@@ -1759,8 +1759,8 @@ TEST(GraphInsertionEdges, AdjacentInsertionLabeledWithoutSweep) {
     auto ref = make_fasta("chr1", "ACGTACGTAC");
 
     auto tv = make_ctgVariants("chr1", {
-            {2, 1, TYPE_SUB, "G", "T",   GT_ALT1_REF, 60, 0, 0},
-            {3, 0, TYPE_INS, "",  "TTT", GT_ALT1_REF, 60, 0, 0}});
+            {2, 1, TYPE_SUB, "G", "T",   GT_ALT_REF, 60, 0, 0},
+            {3, 0, TYPE_INS, "",  "TTT", GT_ALT_REF, 60, 0, 0}});
     auto sc = make_ctgSuperclusters(make_ctgVariants("chr1", {}), tv);
 
     auto graph = make_graph(sc, ref, "chr1", HAP1);
@@ -1781,8 +1781,8 @@ TEST(GraphInsertionEdges, ContigStartInsertionNotLeapt) {
     GlobalsGuard guard;
 
     GraphFixture f = build_fixture("ACGTACGT",
-            {{0, 0, TYPE_INS, "", "GG", GT_ALT1_REF, 60, 0, 0}},
-            {{0, 0, TYPE_INS, "", "GG", GT_ALT1_REF, 60, 0, 0}});
+            {{0, 0, TYPE_INS, "", "GG", GT_ALT_REF, 60, 0, 0}},
+            {{0, 0, TYPE_INS, "", "GG", GT_ALT_REF, 60, 0, 0}});
 
     // no truth edge may join the entry node directly to a node past the insertion locus
     for (int tn : f.graph->tnexts[0])
@@ -1805,12 +1805,12 @@ TEST(GraphBypass, ConsecutiveBypassesBothExcised) {
 
     // truth: SNP pos2 (reproduced -> TP), then adjacent SNPs pos3 and pos4 (both missed -> FN)
     auto tv = make_ctgVariants("chr1", {
-            {2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-            {3, 1, TYPE_SUB, "T", "G", GT_ALT1_REF, 60, 0, 0},
-            {4, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 0, 0}});
+            {2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+            {3, 1, TYPE_SUB, "T", "G", GT_ALT_REF, 60, 0, 0},
+            {4, 1, TYPE_SUB, "A", "C", GT_ALT_REF, 60, 0, 0}});
 
     // query: reproduces only the pos2 SNP, so pos3 and pos4 are missed
-    auto qv = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+    auto qv = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     auto sc = make_ctgSuperclusters(qv, tv);
     auto graph = make_graph(sc, ref, "chr1", HAP1);
@@ -1834,8 +1834,8 @@ TEST(PrecRecall, ImperfectMatchLosesToBypassAtDefaultThreshold) {
     // a query that reproduces the variant imperfectly loses to the bypass. The truth variant is
     // labeled FN rather than earning partial credit, and the query call keeps its default FP.
     GraphFixture f = build_fixture("ACGTACGTACGT",
-            {{3, 1, TYPE_SUB, "T", "G", GT_ALT1_REF, 60, 0, 0}},
-            {{3, 2, TYPE_CPX, "TA", "GG", GT_ALT1_REF, 60, 0, 0}});
+            {{3, 1, TYPE_SUB, "T", "G", GT_ALT_REF, 60, 0, 0}},
+            {{3, 2, TYPE_CPX, "TA", "GG", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1855,8 +1855,8 @@ TEST(PrecRecall, ImperfectMatchLosesToBypassAtDefaultThreshold) {
 static GraphFixture half_credit_alignment(std::unordered_map<idx4, idx4> & ptrs) {
     g.credit_threshold = 0.4;
     GraphFixture f = build_fixture("ACGTACGTACGT",
-            {{3, 1, TYPE_SUB, "T", "G", GT_ALT1_REF, 60, 0, 0}},
-            {{3, 2, TYPE_CPX, "TA", "GG", GT_ALT1_REF, 60, 0, 0}});
+            {{3, 1, TYPE_SUB, "T", "G", GT_ALT_REF, 60, 0, 0}},
+            {{3, 2, TYPE_CPX, "TA", "GG", GT_ALT_REF, 60, 0, 0}});
     calc_prec_recall_aln(f.graph, ptrs, false);
     return f;
 }
@@ -1902,8 +1902,8 @@ TEST(PrecRecall, ZeroReferenceDistanceGivesZeroCredit) {
     // from the reference, which forces ref_dist >= 1 -- so graph->ref is overwritten with the
     // equal-length graph->truth after aligning, leaving the two spliced spans identical.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     std::unordered_map<idx4, idx4> ptrs;
     calc_prec_recall_aln(f.graph, ptrs, false);
@@ -1926,9 +1926,9 @@ TEST(PrecRecall, CallQualityIsGroupMinimum) {
     // move nor a change of both submatrices: no sync point separates them and both land in one
     // group, whose call quality is the minimum over its members (min(30, 50) = 30).
     GraphFixture f = build_fixture("ACGTACGTACGT",
-            {{3, 1, TYPE_SUB, "T", "G", GT_ALT1_REF, 30, 0, 0},
-             {4, 1, TYPE_SUB, "A", "G", GT_ALT1_REF, 50, 0, 0}},
-            {{3, 2, TYPE_CPX, "TA", "GG", GT_ALT1_REF, 60, 0, 0}});
+            {{3, 1, TYPE_SUB, "T", "G", GT_ALT_REF, 30, 0, 0},
+             {4, 1, TYPE_SUB, "A", "G", GT_ALT_REF, 50, 0, 0}},
+            {{3, 2, TYPE_CPX, "TA", "GG", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1950,10 +1950,10 @@ TEST(PrecRecall, SyncGroupIncrementsPerGroup) {
     // Two reproduced SNPs far enough apart to sync between them get their own groups. The
     // backtrack runs right to left, so the rightmost group is numbered 0.
     GraphFixture f = build_fixture("ACGTACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-             {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-             {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+             {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+             {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     align_and_label(f.graph, HAP1);
 
@@ -1975,10 +1975,10 @@ TEST(EvaluateVariants, MatchesManualAlignAndLabel) {
 
     // evaluate_variants is exactly graph construction followed by one alignment and one labeling
     // pass, so it must agree with that sequence run by hand on the same input.
-    const std::vector<var_desc> qv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-                                      {6, 1, TYPE_SUB, "G", "T", GT_ALT1_REF, 40, 0, 0}};
-    const std::vector<var_desc> tv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0},
-                                      {6, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}};
+    const std::vector<var_desc> qv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+                                      {6, 1, TYPE_SUB, "G", "T", GT_ALT_REF, 40, 0, 0}};
+    const std::vector<var_desc> tv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0},
+                                      {6, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}};
 
     GraphFixture manual = build_fixture("ACGTACGTACGT", qv, tv);
     align_and_label(manual.graph, HAP1);
@@ -2005,8 +2005,8 @@ TEST(EvaluateVariants, LabelsEachHaplotypeIndependently) {
     // call; evaluating haplotype 1 sees a pure-reference truth, so it never labels the truth
     // variant at all and the query call stays FP. Neither pass touches the other's lane.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
 
     evaluate_variants(f.sc, 0, f.ref, "chr1", HAP1, false);
     EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
@@ -2026,8 +2026,8 @@ TEST(EvaluateVariants, PreservesAlreadyEvaluatedVariants) {
     // A query variant labeled before the call is excluded from the graph, so neither the
     // default-FP seeding nor the backtrack can overwrite its label or its call quality.
     auto ref = make_fasta("chr1", "ACGTACGT");
-    auto qvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
-    auto tvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+    auto qvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
+    auto tvars = make_ctgVariants("chr1", {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
     qvars->superclusters[0] = 0;
     tvars->superclusters[0] = 0;
     qvars->errtypes[HAP1][0] = ERRTYPE_TP;
@@ -2047,8 +2047,8 @@ TEST(EvaluateVariants, PrintDoesNotChangeLabels) {
 
     // print=true adds Graph::print() and the backtrack trace to stdout without affecting any
     // label. Stdout is captured so the trace does not bury the test log.
-    const std::vector<var_desc> qv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}};
-    const std::vector<var_desc> tv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}};
+    const std::vector<var_desc> qv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}};
+    const std::vector<var_desc> tv = {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}};
 
     GraphFixture quiet = build_fixture("ACGTACGT", qv, tv);
     evaluate_variants(quiet.sc, 0, quiet.ref, "chr1", HAP1, false);
@@ -2073,8 +2073,8 @@ TEST(PrecisionRecallWrapper, EmptyRangeReturns) {
     // stop == start returns before sc_groups is ever indexed, so an empty grouping is safe and
     // no variant is touched.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
     const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups;
@@ -2091,8 +2091,8 @@ TEST(PrecisionRecallWrapper, EvaluatesBothHaplotypesForOneSupercluster) {
     // haplotype 0, so hap 0 makes it a TP and hap 1 leaves the query call an FP -- both lanes
     // written, which is what distinguishes this from a single evaluate_variants call.
     GraphFixture f = build_fixture("ACGTACGT",
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}},
-            {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}},
+            {{2, 1, TYPE_SUB, "G", "A", GT_ALT_REF, 60, 0, 0}});
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
     const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups = {{{{{0}, {0}}}}};

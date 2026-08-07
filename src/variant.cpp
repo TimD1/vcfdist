@@ -149,9 +149,9 @@ sizeclass_t ctgVariants::get_vartype(int vi) {
 static int allele_count(gt_t gt) {
     switch (gt) {
         case GT_REF_REF:   return 0;
-        case GT_REF_ALT1:
-        case GT_ALT1_REF:  return 1;
-        case GT_ALT1_ALT1: return 2;
+        case GT_REF_ALT:
+        case GT_ALT_REF:  return 1;
+        case GT_ALT_ALT: return 2;
         default:           return -1;
     }
 }
@@ -217,22 +217,22 @@ bool ctgVariants::matched_gt_is_swapped(int vi /* variant index */) const {
         return false;
     }
     // orig_gt == 1|1 or 0|0 or matched_gt == 0|0, all/no matched_gt data will be reported, order doesn't matter
-    else if (this->orig_gts[vi] == GT_ALT1_ALT1 || 
+    else if (this->orig_gts[vi] == GT_ALT_ALT || 
              this->orig_gts[vi] == GT_REF_REF || 
              this->matched_gts[vi] == GT_REF_REF) {
         return false;
     }
     // 0|1,1|0 and 1|0,0|1
-    else if ((this->orig_gts[vi] == GT_REF_ALT1 && this->matched_gts[vi] == GT_ALT1_REF) || 
-             (this->orig_gts[vi] == GT_ALT1_REF && this->matched_gts[vi] == GT_REF_ALT1)) {
+    else if ((this->orig_gts[vi] == GT_REF_ALT && this->matched_gts[vi] == GT_ALT_REF) || 
+             (this->orig_gts[vi] == GT_ALT_REF && this->matched_gts[vi] == GT_REF_ALT)) {
         return true;
     }
     // orig_gt = 0|1, choose better matched_gt
-    else if (this->orig_gts[vi] == GT_REF_ALT1 && this->matched_gts[vi] == GT_ALT1_ALT1) {
+    else if (this->orig_gts[vi] == GT_REF_ALT && this->matched_gts[vi] == GT_ALT_ALT) {
         return this->credit[HAP1][vi] > this->credit[HAP2][vi];
     }
     // orig_gt = 1|0, choose better matched_gt
-    else if (this->orig_gts[vi] == GT_ALT1_REF && this->matched_gts[vi] == GT_ALT1_ALT1) {
+    else if (this->orig_gts[vi] == GT_ALT_REF && this->matched_gts[vi] == GT_ALT_ALT) {
         return this->credit[HAP2][vi] > this->credit[HAP1][vi];
     } else {
         ERROR("Unexpected orig/matched genotypes for variant (%s -> %s) at pos %d: orig=%s matched=%s",
@@ -255,9 +255,9 @@ bool ctgVariants::matched_gt_is_swapped(int vi /* variant index */) const {
 bool ctgVariants::var_on_hap(int var_idx, hap_t hap, bool matched) const {
     // simple gt, always (0|1, 1|0, or 1|1)
     gt_t gt = matched ? this->matched_gts[var_idx] : this->orig_gts[var_idx];
-    if (hap == HAP1 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
+    if (hap == HAP1 && (gt == GT_ALT1 || gt == GT_ALT_REF || gt == GT_ALT_ALT))
         return true;
-    if (hap == HAP2 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
+    if (hap == HAP2 && (gt == GT_ALT1 || gt == GT_REF_ALT || gt == GT_ALT_ALT))
         return true;
     return false;
 }
@@ -275,19 +275,19 @@ void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
         bool ignore_errors) {
     if (this->matched_gts[var_idx] == GT_REF_REF) {
         if (set) {
-            this->matched_gts[var_idx] = hap == HAP1 ? GT_ALT1_REF : GT_REF_ALT1;
+            this->matched_gts[var_idx] = hap == HAP1 ? GT_ALT_REF : GT_REF_ALT;
         } else { // unset
             if (!ignore_errors) ERROR("Variant matched_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
         }
 
-    } else if (this->matched_gts[var_idx] == GT_REF_ALT1) {
+    } else if (this->matched_gts[var_idx] == GT_REF_ALT) {
         if (set) {
             if (hap == HAP2) {
                 if (!ignore_errors) ERROR("Variant matched_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
-                this->matched_gts[var_idx] = GT_ALT1_ALT1;
+                this->matched_gts[var_idx] = GT_ALT_ALT;
             }
         } else { // unset
             if (hap == HAP1) {
@@ -298,13 +298,13 @@ void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
             }
         }
 
-    } else if (this->matched_gts[var_idx] == GT_ALT1_REF) {
+    } else if (this->matched_gts[var_idx] == GT_ALT_REF) {
         if (set) {
             if (hap == HAP1) {
                 if (!ignore_errors) ERROR("Variant matched_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
-                this->matched_gts[var_idx] = GT_ALT1_ALT1;
+                this->matched_gts[var_idx] = GT_ALT_ALT;
             }
         } else { // unset
             if (hap == HAP2) {
@@ -315,12 +315,12 @@ void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
             }
         }
 
-    } else if (this->matched_gts[var_idx] == GT_ALT1_ALT1) {
+    } else if (this->matched_gts[var_idx] == GT_ALT_ALT) {
         if (set) {
             if (!ignore_errors) ERROR("Variant matched_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
         } else {
-            this->matched_gts[var_idx] = hap == HAP1 ? GT_REF_ALT1 : GT_ALT1_REF;
+            this->matched_gts[var_idx] = hap == HAP1 ? GT_REF_ALT : GT_ALT_REF;
         }
 
     } else {
@@ -723,13 +723,13 @@ void parse_variants(const std::string & vcf_fn,
                 if (bcf_gt_allele(gt[0]) == 0) { // REF
                     switch (bcf_gt_allele(gt[1])) {
                         case 0: orig_gt = GT_REF_REF; break;
-                        case 1: orig_gt = GT_REF_ALT1; break;
+                        case 1: orig_gt = GT_REF_ALT; break;
                         default: orig_gt = GT_OTHER; break;
                     }
                 } else if (bcf_gt_allele(gt[0]) == 1) { // ALT1
                     switch (bcf_gt_allele(gt[1])) {
-                        case 0: orig_gt = GT_ALT1_REF; break;
-                        case 1: orig_gt = GT_ALT1_ALT1; break;
+                        case 0: orig_gt = GT_ALT_REF; break;
+                        case 1: orig_gt = GT_ALT_ALT; break;
                         case 2: orig_gt = GT_ALT1_ALT2; break;
                         default: orig_gt = GT_OTHER; break;
                     }
@@ -796,8 +796,8 @@ void parse_variants(const std::string & vcf_fn,
             hap_t hap = static_cast<hap_t>(hi);
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 and .|. skipped later)
-            gt_t simple_gt = hap == HAP2 ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
-            if (same) simple_gt = GT_ALT1_ALT1; // overwrite 1|1 if both agree
+            gt_t simple_gt = hap == HAP2 ? GT_REF_ALT : GT_ALT_REF; // 0|1 or 1|0 default
+            if (same) simple_gt = GT_ALT_ALT; // overwrite 1|1 if both agree
 
             // get ref and allele, skipping ref query
             std::string ref = rec->d.allele[0];
@@ -918,10 +918,10 @@ void parse_variants(const std::string & vcf_fn,
                 continue;
             }
             // update simple_gt if corresponding variant on other hap is skipped
-            if (simple_gt == GT_ALT1_ALT1 && (rec_prev_end[other_hap(hap)] > pos ||
+            if (simple_gt == GT_ALT_ALT && (rec_prev_end[other_hap(hap)] > pos ||
                     (rec_prev_end[other_hap(hap)] == pos && rec_prev_type[other_hap(hap)] == TYPE_INS &&
                      type == TYPE_INS))) {
-                simple_gt = hap == HAP2 ? GT_REF_ALT1 : GT_ALT1_REF;
+                simple_gt = hap == HAP2 ? GT_REF_ALT : GT_ALT_REF;
             }
 
             // add to haplotype-specific query info
@@ -973,8 +973,8 @@ void parse_variants(const std::string & vcf_fn,
     for (gt_t gt : EnumRange<gt_t, GT_SLOTS>{}) {
         if (print && GT_counts[gt]) INFO("    %3s: %i", gt_strs[gt].data(), GT_counts[gt]);
     }
-    if (float(GT_counts[GT_REF_ALT1]) / (GT_counts[GT_ALT1_REF]+1) > 2 ||
-        float(GT_counts[GT_ALT1_REF]) / (GT_counts[GT_REF_ALT1]+1) > 2)
+    if (float(GT_counts[GT_REF_ALT]) / (GT_counts[GT_ALT_REF]+1) > 2 ||
+        float(GT_counts[GT_ALT_REF]) / (GT_counts[GT_REF_ALT]+1) > 2)
         WARN("Imbalance of heterozygous variant phasing, VCF may be improperly phased")
     if (print) INFO(" ");
 
@@ -982,7 +982,7 @@ void parse_variants(const std::string & vcf_fn,
         WARN("%d variants missing PS tags in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
-    multi_total = GT_counts[GT_ALT1_ALT1] + GT_counts[GT_ALT1_ALT2] +
+    multi_total = GT_counts[GT_ALT_ALT] + GT_counts[GT_ALT1_ALT2] +
         GT_counts[GT_ALT2_ALT1] + GT_counts[GT_OTHER];
     if (multi_total && print)
         INFO("%d homozygous and multi-allelic variants in %s VCF, split for evaluation",

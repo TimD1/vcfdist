@@ -98,8 +98,8 @@ TEST(AddVar, AllFields) {
     // every per-haplotype field differs between haplotypes, so a hap[HAP1]/hap[HAP2] mix-up in
     // add_var()'s body cannot pass
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
-            .alt = "GT", .orig_gt = GT_ALT1_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT1_REF,
+            .alt = "GT", .orig_gt = GT_ALT_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -112,7 +112,7 @@ TEST(AddVar, AllFields) {
     EXPECT_EQ(BED_OUTSIDE, vars.locs[0]);
     EXPECT_EQ("AC", vars.refs[0]);
     EXPECT_EQ("GT", vars.alts[0]);
-    EXPECT_EQ(GT_ALT1_ALT1, vars.orig_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, vars.orig_gts[0]);
     EXPECT_FLOAT_EQ(21, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(22, vars.var_quals[0]);
     EXPECT_EQ(33, vars.phase_sets[0]);
@@ -120,7 +120,7 @@ TEST(AddVar, AllFields) {
     EXPECT_EQ(3, vars.alt_idxs[0]);
     EXPECT_EQ(2, vars.ploidies[0]);
     EXPECT_EQ(7, vars.superclusters[0]);
-    EXPECT_EQ(GT_ALT1_REF, vars.matched_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, vars.matched_gts[0]);
     EXPECT_EQ(ERRTYPE_FN, vars.errtypes[HAP1][0]);
     EXPECT_EQ(ERRTYPE_TP, vars.errtypes[HAP2][0]);
     EXPECT_EQ(4, vars.sync_group[HAP1][0]);
@@ -142,7 +142,7 @@ TEST(AddVar, QualCapped) {
 
     // the two quals differ, so clamping the wrong field cannot pass
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 99, .var_qual = 80, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 99, .var_qual = 80, .phase_set = 0});
 
     EXPECT_FLOAT_EQ(60, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(60, vars.var_quals[0]);
@@ -155,7 +155,7 @@ TEST(AddVar, GtQualCappedIndependentlyOfVarQual) {
 
     // only gt_qual exceeds the cap, so its clamp cannot be riding on var_qual's
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 99, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 99, .var_qual = 30, .phase_set = 0});
 
     EXPECT_FLOAT_EQ(60, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(30, vars.var_quals[0]);
@@ -166,7 +166,7 @@ TEST(AddVar, QualBelowCap) {
     g.max_qual = 60;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
     EXPECT_FLOAT_EQ(30, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(30, vars.var_quals[0]);
 }
@@ -176,7 +176,7 @@ TEST(AddVar, QualNegative) {
     g.max_qual = 60;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = -5, .var_qual = -5, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = -5, .var_qual = -5, .phase_set = 0});
 
     // std::min() only caps from above, so a negative quality is stored unchanged
     EXPECT_FLOAT_EQ(-5, vars.gt_quals[0]);
@@ -187,7 +187,7 @@ TEST(AddVar, PushesPhaseDefaults) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(size_t(1), vars.phases.size());
     ASSERT_EQ(size_t(1), vars.pb_phases.size());
@@ -201,7 +201,7 @@ TEST(AddVar, HeaderDefaults) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     // the rec_idx/alt_idx/ploidy defaults are asserted by ProvenanceVectorDefaults.UnknownSentinels
     EXPECT_EQ(-1, vars.superclusters[0]);
@@ -224,17 +224,17 @@ TEST(AddVar, AppendsNotOverwrites) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 50, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
     vars.add_var(var_fields{.pos = 300, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "G",
-            .alt = "T", .orig_gt = GT_ALT1_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "T", .orig_gt = GT_ALT_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(2, vars.n);
     EXPECT_EQ(50, vars.poss[0]);
     EXPECT_EQ("A", vars.refs[0]);
-    EXPECT_EQ(GT_REF_ALT1, vars.orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, vars.orig_gts[0]);
     EXPECT_EQ(300, vars.poss[1]);
     EXPECT_EQ("G", vars.refs[1]);
-    EXPECT_EQ(GT_ALT1_ALT1, vars.orig_gts[1]);
+    EXPECT_EQ(GT_ALT_ALT, vars.orig_gts[1]);
 }
 
 TEST(AddVar, LaneLengthsTrackN) {
@@ -242,7 +242,7 @@ TEST(AddVar, LaneLengthsTrackN) {
     ctgVariants vars("chr20");
     for (int i = 0; i < 3; i++) {
         vars.add_var(var_fields{.pos = 100*i, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-                .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+                .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
     }
 
     ASSERT_EQ(3, vars.n);
@@ -279,7 +279,7 @@ TEST(AddVar, InsRlenZero) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 0, .type = TYPE_INS, .loc = BED_INSIDE, .ref = "",
-            .alt = "ACGT", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "ACGT", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(0, vars.rlens[0]);
@@ -292,7 +292,7 @@ TEST(AddVar, DelEmptyAlt) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 4, .type = TYPE_DEL, .loc = BED_INSIDE, .ref = "ACGT",
-            .alt = "", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(4, vars.rlens[0]);
@@ -307,7 +307,7 @@ TEST(AddVar, OptionalFieldDefaults) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(-1, vars.rec_idxs[0]);
@@ -335,8 +335,8 @@ TEST(GetVar, RoundTripsEveryField) {
     g.max_qual = 100;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
-            .alt = "GT", .orig_gt = GT_ALT1_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT1_REF,
+            .alt = "GT", .orig_gt = GT_ALT_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -349,7 +349,7 @@ TEST(GetVar, RoundTripsEveryField) {
     EXPECT_EQ(BED_OUTSIDE, var.loc);
     EXPECT_EQ("AC", var.ref);
     EXPECT_EQ("GT", var.alt);
-    EXPECT_EQ(GT_ALT1_ALT1, var.orig_gt);
+    EXPECT_EQ(GT_ALT_ALT, var.orig_gt);
     EXPECT_FLOAT_EQ(21, var.gt_qual);
     EXPECT_FLOAT_EQ(22, var.var_qual);
     EXPECT_EQ(33, var.phase_set);
@@ -357,7 +357,7 @@ TEST(GetVar, RoundTripsEveryField) {
     EXPECT_EQ(3, var.alt_idx);
     EXPECT_EQ(2, var.ploidy);
     EXPECT_EQ(7, var.supercluster);
-    EXPECT_EQ(GT_ALT1_REF, var.matched_gt);
+    EXPECT_EQ(GT_ALT_REF, var.matched_gt);
     EXPECT_EQ(ERRTYPE_FN, var.hap[HAP1].errtype);
     EXPECT_EQ(ERRTYPE_TP, var.hap[HAP2].errtype);
     EXPECT_EQ(4, var.hap[HAP1].sync_group);
@@ -379,8 +379,8 @@ TEST(GetVar, FeedsAddVarWithoutLoss) {
     g.max_qual = 100;
     ctgVariants src("chr20");
     src.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_DEL, .loc = BED_BORDER, .ref = "AC",
-            .alt = "", .orig_gt = GT_REF_ALT1, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT1_REF,
+            .alt = "", .orig_gt = GT_REF_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -419,7 +419,7 @@ TEST(GetVar, RejectsOutOfRangeIndex) {
     GlobalsGuard guard;
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "C", .orig_gt = GT_REF_ALT1, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
+            .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     EXPECT_EXIT(vars.get_var(-1), testing::ExitedWithCode(1), "out of range");
     EXPECT_EXIT(vars.get_var(1), testing::ExitedWithCode(1), "out of range");
@@ -562,7 +562,7 @@ TEST(ProvenanceVectorDefaults, UnknownSentinels) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars(new ctgVariants("ctg1"));
     vars->add_var(var_fields{.pos = 10, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
-            .alt = "G", .orig_gt = GT_ALT1_ALT1, .gt_qual = 60, .var_qual = 60, .phase_set = 0});
+            .alt = "G", .orig_gt = GT_ALT_ALT, .gt_qual = 60, .var_qual = 60, .phase_set = 0});
 
     ASSERT_EQ(1, vars->n);
     EXPECT_EQ(-1, vars->rec_idxs[0]);
@@ -650,21 +650,21 @@ TEST(GetVartype, CpxFallsToSv) {
 
 TEST(SetAlleleErrtype, QueryZeroToOne) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_REF);
     EXPECT_EQ(AC_ERR_0_TO_1, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_0_TO_1, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, QueryZeroToTwo) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     EXPECT_EQ(AC_ERR_0_TO_2, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_0_TO_2, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, QueryOneToZero) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_ALT);
     EXPECT_EQ(AC_ERR_1_TO_0, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_0, vars->ac_errtype[0]);
 }
@@ -673,35 +673,35 @@ TEST(SetAlleleErrtype, QueryOneToOne) {
     GlobalsGuard guard;
 
     // a heterozygous call on the opposite haplotype is still one allele called for one expected
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_REF, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_REF, GT_REF_ALT);
     EXPECT_EQ(AC_ERR_1_TO_1, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_1, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, QueryOneToTwo) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
     EXPECT_EQ(AC_ERR_1_TO_2, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_2, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, QueryTwoToZero) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_ALT_ALT);
     EXPECT_EQ(AC_ERR_2_TO_0, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_0, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, QueryTwoToOne) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_ALT);
     EXPECT_EQ(AC_ERR_2_TO_1, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_1, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, QueryTwoToTwo) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
     EXPECT_EQ(AC_ERR_2_TO_2, vars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_2, vars->ac_errtype[0]);
 }
@@ -732,7 +732,7 @@ TEST(SetAlleleErrtype, UnparseableGenotypeIsUnknownNotZeroAlleles) {
     GlobalsGuard guard;
 
     // a genotype carrying no diploid allele count is unknown, never silently zero alleles
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_MISSING, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_MISSING, GT_ALT_REF);
     vars->ac_errtype[0] = AC_ERR_1_TO_1;
 
     EXPECT_EQ(AC_UNKNOWN, vars->set_allele_errtype(0, true));
@@ -747,21 +747,21 @@ TEST(SetAlleleErrtype, TruthOneToZero) {
     GlobalsGuard guard;
 
     // one truth allele, matched by no query allele: a pure false negative
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_REF);
     EXPECT_EQ(AC_ERR_1_TO_0, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_ERR_1_TO_0, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, TruthOneToOne) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_REF);
     EXPECT_EQ(AC_ERR_1_TO_1, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_ERR_1_TO_1, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, TruthOneToTwo) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_ALT);
     EXPECT_EQ(AC_ERR_1_TO_2, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_ERR_1_TO_2, vars->ac_errtype[0]);
 }
@@ -770,21 +770,21 @@ TEST(SetAlleleErrtype, TruthTwoToZero) {
     GlobalsGuard guard;
 
     // two truth alleles, matched by no query allele: a pure false negative
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     EXPECT_EQ(AC_ERR_2_TO_0, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_ERR_2_TO_0, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, TruthTwoToOne) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_ALT);
     EXPECT_EQ(AC_ERR_2_TO_1, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_ERR_2_TO_1, vars->ac_errtype[0]);
 }
 
 TEST(SetAlleleErrtype, TruthTwoToTwo) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
     EXPECT_EQ(AC_ERR_2_TO_2, vars->set_allele_errtype(0, false));
     EXPECT_EQ(AC_ERR_2_TO_2, vars->ac_errtype[0]);
 }
@@ -793,8 +793,8 @@ TEST(SetAlleleErrtype, FalseHomozygousAgreesAcrossCallsets) {
     GlobalsGuard guard;
 
     // one truth allele called as two: both records report it, so GE reads '+' on both samples
-    std::shared_ptr<ctgVariants> qvars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
-    std::shared_ptr<ctgVariants> tvars = make_gt_var(GT_ALT1_REF, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> qvars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
+    std::shared_ptr<ctgVariants> tvars = make_gt_var(GT_ALT_REF, GT_ALT_ALT);
     EXPECT_EQ(AC_ERR_1_TO_2, qvars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_1_TO_2, tvars->set_allele_errtype(0, false));
     EXPECT_EQ("+", ac_strs[tvars->ac_errtype[0]]);
@@ -804,8 +804,8 @@ TEST(SetAlleleErrtype, FalseHeterozygousAgreesAcrossCallsets) {
     GlobalsGuard guard;
 
     // two truth alleles called as one: both records report it, so GE reads '-' on both samples
-    std::shared_ptr<ctgVariants> qvars = make_gt_var(GT_ALT1_REF, GT_ALT1_ALT1);
-    std::shared_ptr<ctgVariants> tvars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> qvars = make_gt_var(GT_ALT_REF, GT_ALT_ALT);
+    std::shared_ptr<ctgVariants> tvars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
     EXPECT_EQ(AC_ERR_2_TO_1, qvars->set_allele_errtype(0, true));
     EXPECT_EQ(AC_ERR_2_TO_1, tvars->set_allele_errtype(0, false));
     EXPECT_EQ("-", ac_strs[tvars->ac_errtype[0]]);
@@ -826,7 +826,7 @@ TEST(SetAlleleErrtype, TruthHaploidUnknown) {
 
 TEST(CalcgtIsSwapped, EqualFalse) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
     EXPECT_FALSE(vars->matched_gt_is_swapped(0));
 }
 
@@ -834,13 +834,13 @@ TEST(CalcgtIsSwapped, OrigHomFalse) {
     GlobalsGuard guard;
 
     // orig 1|1 reports data from both haplotypes, so haplotype order does not matter
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_ALT);
     EXPECT_FALSE(vars->matched_gt_is_swapped(0));
 }
 
 TEST(CalcgtIsSwapped, OrigRefFalse) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_ALT);
     EXPECT_FALSE(vars->matched_gt_is_swapped(0));
 }
 
@@ -848,25 +848,25 @@ TEST(CalcgtIsSwapped, CalcRefFalse) {
     GlobalsGuard guard;
 
     // matched 0|0 reports no data, so haplotype order does not matter
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_REF);
     EXPECT_FALSE(vars->matched_gt_is_swapped(0));
 }
 
 TEST(CalcgtIsSwapped, HetOpposite0110True) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_REF);
     EXPECT_TRUE(vars->matched_gt_is_swapped(0));
 }
 
 TEST(CalcgtIsSwapped, HetOpposite1001True) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_REF, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_REF, GT_REF_ALT);
     EXPECT_TRUE(vars->matched_gt_is_swapped(0));
 }
 
 TEST(CalcgtIsSwapped, Orig01CalcHomCreditHap1True) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_ALT);
     vars->credit[HAP1][0] = 0.9;
     vars->credit[HAP2][0] = 0.1;
 
@@ -876,7 +876,7 @@ TEST(CalcgtIsSwapped, Orig01CalcHomCreditHap1True) {
 
 TEST(CalcgtIsSwapped, Orig01CalcHomCreditHap2False) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_ALT);
     vars->credit[HAP1][0] = 0.1;
     vars->credit[HAP2][0] = 0.9;
     EXPECT_FALSE(vars->matched_gt_is_swapped(0));
@@ -884,7 +884,7 @@ TEST(CalcgtIsSwapped, Orig01CalcHomCreditHap2False) {
 
 TEST(CalcgtIsSwapped, Orig10CalcHomCreditHap2True) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_REF, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_REF, GT_ALT_ALT);
     vars->credit[HAP1][0] = 0.1;
     vars->credit[HAP2][0] = 0.9;
     EXPECT_TRUE(vars->matched_gt_is_swapped(0));
@@ -892,7 +892,7 @@ TEST(CalcgtIsSwapped, Orig10CalcHomCreditHap2True) {
 
 TEST(CalcgtIsSwapped, CreditTieFalse) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_ALT);
     vars->credit[HAP1][0] = 0.5;
     vars->credit[HAP2][0] = 0.5;
 
@@ -904,7 +904,7 @@ TEST(CalcgtIsSwapped, UnexpectedErrors) {
     GlobalsGuard guard;
 
     // a haploid orig_gt reaches no branch, so the final else reports an unexpected pair
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1, GT_REF_ALT);
     EXPECT_EXIT(vars->matched_gt_is_swapped(0), testing::ExitedWithCode(1),
             "Unexpected orig/matched genotypes for variant");
 }
@@ -922,21 +922,21 @@ TEST(VarOnHap, HaploidAltBoth) {
 
 TEST(VarOnHap, Gt10) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_REF, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_REF, GT_REF_REF);
     EXPECT_TRUE(vars->var_on_hap(0, HAP1));
     EXPECT_FALSE(vars->var_on_hap(0, HAP2));
 }
 
 TEST(VarOnHap, Gt01) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_REF);
     EXPECT_FALSE(vars->var_on_hap(0, HAP1));
     EXPECT_TRUE(vars->var_on_hap(0, HAP2));
 }
 
 TEST(VarOnHap, HomBoth) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     EXPECT_TRUE(vars->var_on_hap(0, HAP1));
     EXPECT_TRUE(vars->var_on_hap(0, HAP2));
 }
@@ -957,7 +957,7 @@ TEST(VarOnHap, HaploidRefNone) {
 
 TEST(VarOnHap, CalcFlagSelects) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_REF);
 
     EXPECT_FALSE(vars->var_on_hap(0, HAP1, false));
     EXPECT_TRUE(vars->var_on_hap(0, HAP2, false));
@@ -969,121 +969,121 @@ TEST(VarOnHap, CalcFlagSelects) {
 
 TEST(SetVarCalcgtOnHap, RefrefSetHap1) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     vars->set_var_matched_gt_on_hap(0, HAP1, true);
-    EXPECT_EQ(GT_ALT1_REF, vars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, RefrefSetHap2) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     vars->set_var_matched_gt_on_hap(0, HAP2, true);
-    EXPECT_EQ(GT_REF_ALT1, vars->matched_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, RefrefUnsetHap1Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, false), testing::ExitedWithCode(1),
             "Variant matched_gt already unset");
 }
 
 TEST(SetVarCalcgtOnHap, RefrefUnsetHap2Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_REF);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP2, false), testing::ExitedWithCode(1),
             "Variant matched_gt already unset");
 }
 
 TEST(SetVarCalcgtOnHap, RefaltSetHap1) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_ALT);
     vars->set_var_matched_gt_on_hap(0, HAP1, true);
-    EXPECT_EQ(GT_ALT1_ALT1, vars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, RefaltSetHap2Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_ALT);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP2, true), testing::ExitedWithCode(1),
             "Variant matched_gt already set");
 }
 
 TEST(SetVarCalcgtOnHap, RefaltUnsetHap1Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_ALT);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, false), testing::ExitedWithCode(1),
             "Variant matched_gt already unset");
 }
 
 TEST(SetVarCalcgtOnHap, RefaltUnsetHap2) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_REF_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_REF_ALT);
     vars->set_var_matched_gt_on_hap(0, HAP2, false);
     EXPECT_EQ(GT_REF_REF, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, AltrefSetHap1Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true), testing::ExitedWithCode(1),
             "Variant matched_gt already set");
 }
 
 TEST(SetVarCalcgtOnHap, AltrefSetHap2) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
     vars->set_var_matched_gt_on_hap(0, HAP2, true);
-    EXPECT_EQ(GT_ALT1_ALT1, vars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, AltrefUnsetHap1) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
     vars->set_var_matched_gt_on_hap(0, HAP1, false);
     EXPECT_EQ(GT_REF_REF, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, AltrefUnsetHap2Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_REF);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP2, false), testing::ExitedWithCode(1),
             "Variant matched_gt already unset");
 }
 
 TEST(SetVarCalcgtOnHap, AltaltSetHap1Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true), testing::ExitedWithCode(1),
             "Variant matched_gt already set");
 }
 
 TEST(SetVarCalcgtOnHap, AltaltSetHap2Errors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP2, true), testing::ExitedWithCode(1),
             "Variant matched_gt already set");
 }
 
 TEST(SetVarCalcgtOnHap, AltaltUnsetHap1) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
 
     // clearing HAP1 leaves the alternate allele on HAP2 only
     vars->set_var_matched_gt_on_hap(0, HAP1, false);
-    EXPECT_EQ(GT_REF_ALT1, vars->matched_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, AltaltUnsetHap2) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
     vars->set_var_matched_gt_on_hap(0, HAP2, false);
-    EXPECT_EQ(GT_ALT1_REF, vars->matched_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, vars->matched_gts[0]);
 }
 
 TEST(SetVarCalcgtOnHap, MissingErrors) {
     GlobalsGuard guard;
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_MISSING);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_MISSING);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true), testing::ExitedWithCode(1),
             "Unexpected matched_gts value");
 }
@@ -1092,7 +1092,7 @@ TEST(SetVarCalcgtOnHap, HaploidErrors) {
     GlobalsGuard guard;
 
     // a haploid matched_gt matches none of the four diploid states, so the default branch errors
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_ALT1);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT1);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true), testing::ExitedWithCode(1),
             "Unexpected matched_gts value");
 }
@@ -1104,13 +1104,13 @@ TEST(SetVarCalcgtOnHap, ErrorsSuppressedWithIgnore) {
     struct transition { gt_t matched_gt; hap_t hap; bool set; };
     const std::vector<transition> invalid = {
         {GT_REF_REF,   HAP1, false}, {GT_REF_REF,   HAP2, false},
-        {GT_REF_ALT1,  HAP2, true},  {GT_REF_ALT1,  HAP1, false},
-        {GT_ALT1_REF,  HAP1, true},  {GT_ALT1_REF,  HAP2, false},
-        {GT_ALT1_ALT1, HAP1, true},  {GT_ALT1_ALT1, HAP2, true},
+        {GT_REF_ALT,  HAP2, true},  {GT_REF_ALT,  HAP1, false},
+        {GT_ALT_REF,  HAP1, true},  {GT_ALT_REF,  HAP2, false},
+        {GT_ALT_ALT, HAP1, true},  {GT_ALT_ALT, HAP2, true},
     };
 
     for (const transition & t : invalid) {
-        std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, t.matched_gt);
+        std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, t.matched_gt);
         vars->set_var_matched_gt_on_hap(0, t.hap, t.set, true);
         EXPECT_EQ(t.matched_gt, vars->matched_gts[0])
                 << "matched_gt " << int(t.matched_gt) << " hap " << idx(t.hap)
@@ -1122,7 +1122,7 @@ TEST(SetVarCalcgtOnHap, IgnoreDoesNotSuppressMissing) {
     GlobalsGuard guard;
 
     // ignore_errors guards only the four diploid states; the default branch always errors
-    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT1_ALT1, GT_MISSING);
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_MISSING);
     EXPECT_EXIT(vars->set_var_matched_gt_on_hap(0, HAP1, true, true), testing::ExitedWithCode(1),
             "Unexpected matched_gts value");
 }
@@ -1338,7 +1338,7 @@ TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
     EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
     EXPECT_EQ(std::vector< std::set<int> >({{1}}), r.vars->observed_ploidies);
 }
@@ -1348,7 +1348,7 @@ TEST_F(ParseVariants, HaploidAltKeptOnHap1) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1")});
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1, 1)));
 }
@@ -1363,16 +1363,16 @@ TEST_F(ParseVariants, Gt01KeptOnHap2) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "0|1")});
     EXPECT_EQ(0, hap_vars(r, HAP1)->n);
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_REF_ALT1, 1)));
+    EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_REF_ALT, 1)));
 }
 
 TEST_F(ParseVariants, Gt10KeptOnHap1) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_REF, 1)));
+    EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT_REF, 1)));
 }
 
 // A homozygous record yields the same allele on both haplotypes.
@@ -1384,7 +1384,7 @@ TEST_F(ParseVariants, Gt11SplitAcrossBothHaps) {
     EXPECT_EQ("G", hap_vars(r, HAP2)->alts[0]);
     EXPECT_EQ(99, hap_vars(r, HAP1)->poss[0]);
     EXPECT_EQ(99, hap_vars(r, HAP2)->poss[0]);
-    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_ALT1, 1)));
+    EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT_ALT, 1)));
     EXPECT_TRUE(logged(r, "1 homozygous and multi-allelic variants in QUERY VCF, split"));
 }
 
@@ -1400,8 +1400,8 @@ TEST_F(ParseVariants, HomozygousKeepsBothAllelesWhenNothingSkipped) {
         ParseResult r = parse_records(dir, {record(100, ref, alt, "1|1")});
         ASSERT_EQ(1, hap_vars(r, HAP1)->n) << ref << " -> " << alt;
         ASSERT_EQ(1, hap_vars(r, HAP2)->n) << ref << " -> " << alt;
-        EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP1)->orig_gts[0]) << ref << " -> " << alt;
-        EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP2)->orig_gts[0]) << ref << " -> " << alt;
+        EXPECT_EQ(GT_ALT_ALT, hap_vars(r, HAP1)->orig_gts[0]) << ref << " -> " << alt;
+        EXPECT_EQ(GT_ALT_ALT, hap_vars(r, HAP2)->orig_gts[0]) << ref << " -> " << alt;
         EXPECT_FALSE(logged(r, "overlapping variants")) << ref << " -> " << alt;
     }
 }
@@ -1413,8 +1413,8 @@ TEST_F(ParseVariants, Gt12SplitByAllele) {
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
     EXPECT_EQ("G", hap_vars(r, HAP1)->alts[0]);
     EXPECT_EQ("T", hap_vars(r, HAP2)->alts[0]);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
-    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_ALT1_ALT2, 1)));
 }
 
@@ -1521,7 +1521,7 @@ TEST_F(ParseVariants, HalfCallHap1AlleleKept) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1|.")});
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
 }
 
@@ -1529,7 +1529,7 @@ TEST_F(ParseVariants, HalfCallHap2AlleleKept) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", ".|1")});
     EXPECT_EQ(0, hap_vars(r, HAP1)->n);
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_HALF, 1)));
 }
 
@@ -1648,7 +1648,7 @@ TEST_F(ParseVariants, UnphasedHomAllowed) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1/1")});
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     ASSERT_EQ(1, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(GT_ALT1_ALT1, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_FALSE(logged(r, "unphased genotypes"));
 }
 
@@ -1905,7 +1905,7 @@ TEST_F(ParseVariants, HomozygousDowngradedWhenOneHapOverlaps) {
     ASSERT_EQ(1, kept_on_hap(r, HAP1)); // the deletion only; its SNP half overlapped
     ASSERT_EQ(1, kept_on_hap(r, HAP2));
     EXPECT_EQ(101, hap_vars(r, HAP2)->poss[0]);
-    EXPECT_EQ(GT_REF_ALT1, hap_vars(r, HAP2)->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, hap_vars(r, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
@@ -1917,7 +1917,7 @@ TEST_F(ParseVariants, HomozygousDowngradedWhenHap2Overlaps) {
     ASSERT_EQ(1, kept_on_hap(r, HAP1)); // the SNP only; the deletion is on the other haplotype
     ASSERT_EQ(1, kept_on_hap(r, HAP2)); // the deletion only; its SNP half overlapped
     EXPECT_EQ(101, hap_vars(r, HAP1)->poss[0]);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(r, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_TRUE(logged(r, "1 overlapping variants in QUERY VCF, skipped"));
 }
 
@@ -1928,14 +1928,14 @@ TEST_F(ParseVariants, HomozygousInsertionDowngradedWhenColocatedWithInsertion) {
                                                 record(100, "A", "ATT", "1|1")});
     ASSERT_EQ(1, kept_on_hap(hap1_kept, HAP1));
     EXPECT_EQ("TT", hap_vars(hap1_kept, HAP1)->alts[0]);
-    EXPECT_EQ(GT_ALT1_REF, hap_vars(hap1_kept, HAP1)->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_REF, hap_vars(hap1_kept, HAP1)->orig_gts[0]);
     EXPECT_TRUE(logged(hap1_kept, "1 overlapping variants in QUERY VCF, skipped"));
 
     ParseResult hap2_kept = parse_records(dir, {record(100, "A", "AGG", "1|0"),
                                                 record(100, "A", "ATT", "1|1")});
     ASSERT_EQ(1, kept_on_hap(hap2_kept, HAP2));
     EXPECT_EQ("TT", hap_vars(hap2_kept, HAP2)->alts[0]);
-    EXPECT_EQ(GT_REF_ALT1, hap_vars(hap2_kept, HAP2)->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, hap_vars(hap2_kept, HAP2)->orig_gts[0]);
     EXPECT_TRUE(logged(hap2_kept, "1 overlapping variants in QUERY VCF, skipped"));
 }
 

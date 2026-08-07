@@ -205,7 +205,7 @@ TEST(StringTables, SizesWithSentinel) {
 
 TEST(StringTables, IndexMapping) {
     EXPECT_EQ("TP", error_strs[ERRTYPE_TP]);
-    EXPECT_EQ("1|1", gt_strs[GT_ALT1_ALT1]);
+    EXPECT_EQ("1|1", gt_strs[GT_ALT_ALT]);
     EXPECT_EQ(".|.", gt_strs[GT_MISSING]);
     EXPECT_EQ("X|.", gt_strs[GT_HALF]);
     EXPECT_EQ("SNP", type_strs[TYPE_SUB]);
