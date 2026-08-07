@@ -156,18 +156,26 @@ constexpr std::size_t BEDLOC_SLOTS = 4; ///< Subscript slots needed by a bedloc_
 #define AC_ERRTYPES    8 ///< Total number of allele count error types
 /** @} */
 
-/** @defgroup switchtype_constants Phase switch/flip error type constants (SWITCHTYPE_*)
- *  @{
- */
-#define SWITCHTYPE_FLIP            0 ///< A phase flip error
-#define SWITCHTYPE_SWITCH          1 ///< A phase switch error
-#define SWITCHTYPE_SWITCH_AND_FLIP 2 ///< Combined switch and flip error
-#define SWITCHTYPE_SWITCH_ERR      3 ///< Switch error (alternate classification)
-#define SWITCHTYPE_FLIP_BEG        4 ///< Beginning boundary of a flip error region
-#define SWITCHTYPE_FLIP_END        5 ///< Ending boundary of a flip error region
-#define SWITCHTYPE_NONE            6 ///< No error
-#define SWITCHTYPES                7 ///< Total number of switch/flip error types
-/** @} */
+/** @brief Phase switch or flip error type. */
+enum class switchtype_t : int8_t {
+    SWITCHTYPE_FLIP            = 0, ///< A phase flip error
+    SWITCHTYPE_SWITCH          = 1, ///< A phase switch error
+    SWITCHTYPE_SWITCH_AND_FLIP = 2, ///< Combined switch and flip error
+    SWITCHTYPE_SWITCH_ERR      = 3, ///< Switch error (alternate classification)
+    SWITCHTYPE_FLIP_BEG        = 4, ///< Beginning boundary of a flip error region
+    SWITCHTYPE_FLIP_END        = 5, ///< Ending boundary of a flip error region
+    SWITCHTYPE_NONE            = 6, ///< No error
+};
+constexpr switchtype_t SWITCHTYPE_FLIP            = switchtype_t::SWITCHTYPE_FLIP;
+constexpr switchtype_t SWITCHTYPE_SWITCH          = switchtype_t::SWITCHTYPE_SWITCH;
+constexpr switchtype_t SWITCHTYPE_SWITCH_AND_FLIP = switchtype_t::SWITCHTYPE_SWITCH_AND_FLIP;
+constexpr switchtype_t SWITCHTYPE_SWITCH_ERR      = switchtype_t::SWITCHTYPE_SWITCH_ERR;
+constexpr switchtype_t SWITCHTYPE_FLIP_BEG        = switchtype_t::SWITCHTYPE_FLIP_BEG;
+constexpr switchtype_t SWITCHTYPE_FLIP_END        = switchtype_t::SWITCHTYPE_FLIP_END;
+constexpr switchtype_t SWITCHTYPE_NONE            = switchtype_t::SWITCHTYPE_NONE;
+constexpr std::size_t SWITCHTYPE_SLOTS = 7; ///< Subscript slots needed by a switchtype_t-keyed array
+constexpr int8_t SWITCHTYPES = 7;           ///< Total number of switch/flip error types
+static_assert(SWITCHTYPE_SLOTS == std::size_t(SWITCHTYPES), "switchtype_t slots must match SWITCHTYPES");
 
 /** @brief Pipeline stage identifying one timer. */
 enum class timer_t : int8_t {

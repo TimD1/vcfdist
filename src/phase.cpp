@@ -707,7 +707,7 @@ void phaseblockData::write_switchflips() {
         int vi = 0;
         int next_vi = qvars->n; // default to last
         int beg = 0; int end = 0;
-        int type = SWITCHTYPE_NONE;
+        switchtype_t type = SWITCHTYPE_NONE;
 
         while (true) {
 
@@ -861,7 +861,7 @@ std::vector<int> correct_block_sizes(const std::shared_ptr<ctgPhaseblocks> & ctg
     int next_vi = qvars->n; // default to last
     int beg = qvars->poss[0];
     int end = 0;
-    int type = SWITCHTYPE_NONE;
+    switchtype_t type = SWITCHTYPE_NONE;
 
     while (true) {
 

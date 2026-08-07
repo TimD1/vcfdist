@@ -31,8 +31,8 @@ std::vector<std::string> ac_strs = {".", ".", ".", ".", "+", ".", "-", ".", "."}
 EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs =
     {{"OUTSIDE", "INSIDE", "BORDER", "OFF_CTG"}};
 /** @brief String representations of SWITCHTYPE_* switch/flip error type constants. */
-std::vector<std::string> switch_strs =
-    {"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"};
+EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs =
+    {{"FLIP", "SWITCH", "SWITCH+FLIP", "SWITCH_ERR", "FLIP_BEG", "FLIP_END", "NONE"}};
 /** @brief String names for pipeline stage timers in TIME_* index order. */
 std::vector<std::string> timer_strs =
     {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};

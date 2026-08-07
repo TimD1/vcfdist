@@ -106,7 +106,7 @@ extern std::vector<std::string> gt_strs;      ///< String representations of GT_
 extern std::vector<std::string> ac_strs;      ///< String representations of AC_ERR_* allele count error types
 extern std::vector<std::string> phase_strs;   ///< String representations of PHASE_* constants
 extern EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs;  ///< String representations of BED_* location constants
-extern std::vector<std::string> switch_strs;  ///< String representations of SWITCHTYPE_* constants
+extern EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs;  ///< String representations of SWITCHTYPE_* constants
 extern std::vector<std::string> timer_strs;   ///< String names for pipeline stage timers (TIME_* order)
 extern std::vector<std::string> type_strs;    ///< String representations of TYPE_* variant type constants
 extern std::vector<std::string> vartype_strs; ///< String representations of VARTYPE_* size-class constants
