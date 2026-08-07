@@ -78,15 +78,20 @@ constexpr std::size_t idx(K k) { return static_cast<std::size_t>(k); }
 #define TYPES      5 ///< Total number of variant types
 /** @} */
 
-/** @defgroup vartype_constants Variant size-class constants (VARTYPE_*)
- *  @{
- */
-#define VARTYPE_SNP   0 ///< Single nucleotide polymorphism
-#define VARTYPE_INDEL 1 ///< Small insertion or deletion
-#define VARTYPE_SV    2 ///< Structural variant (size >= sv_threshold)
-#define VARTYPE_ALL   3 ///< All variant size classes
-#define VARTYPES      4 ///< Total number of variant size classes
-/** @} */
+/** @brief Variant size class. */
+enum class sizeclass_t : int8_t {
+    VARTYPE_SNP   = 0, ///< Single nucleotide polymorphism
+    VARTYPE_INDEL = 1, ///< Small insertion or deletion
+    VARTYPE_SV    = 2, ///< Structural variant (size >= sv_threshold)
+    VARTYPE_ALL   = 3, ///< All variant size classes
+};
+constexpr sizeclass_t VARTYPE_SNP   = sizeclass_t::VARTYPE_SNP;
+constexpr sizeclass_t VARTYPE_INDEL = sizeclass_t::VARTYPE_INDEL;
+constexpr sizeclass_t VARTYPE_SV    = sizeclass_t::VARTYPE_SV;
+constexpr sizeclass_t VARTYPE_ALL   = sizeclass_t::VARTYPE_ALL;
+constexpr std::size_t SIZECLASS_SLOTS = 4; ///< Slots needed by a sizeclass_t-keyed array
+constexpr int8_t VARTYPES = 4;             ///< Total number of variant size classes
+static_assert(SIZECLASS_SLOTS == std::size_t(VARTYPES), "sizeclass_t slots must match VARTYPES");
 
 /** @defgroup hap_constants Haplotype index constants
  *  @{

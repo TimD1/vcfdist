@@ -78,7 +78,8 @@ public:
 
     /** @brief Writes allele count error cross-tabulation table to TSV file. */
     void write_genotype_error_summary(
-            const EnumArray<ac_errtype_t, std::vector<int>, AC_ERRTYPE_SLOTS> &
+            const EnumArray<ac_errtype_t, EnumArray<sizeclass_t, int, SIZECLASS_SLOTS>,
+            AC_ERRTYPE_SLOTS> &
                     allele_error_counts);
 
     /**

@@ -40,7 +40,8 @@ std::vector<std::string> timer_strs =
 /** @brief String representations of TYPE_* variant type constants. */
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
 /** @brief String representations of VARTYPE_* size-class constants. */
-std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
+EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs =
+    {{"SNP", "INDEL", "SV", "ALL"}};
 
 /**
  * @brief Parses command-line arguments and initializes global configuration.

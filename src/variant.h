@@ -95,7 +95,7 @@ public:
     void set_var_calcgt_on_hap(int var_idx, int hap, bool set = true, bool ignore_errors = false);
 
     /** @brief Classifies variant as SNP, INDEL, or SV based on reference length and g.sv_threshold. */
-    int get_vartype(int vi);
+    sizeclass_t get_vartype(int vi);
 
     /** @brief Records a variant's allele count error type from its original and calculated genotypes. */
     ac_errtype_t set_allele_errtype(int vi, bool query);

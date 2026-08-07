@@ -276,10 +276,14 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
             std::vector<float>(max_qual-min_qual+1, 0.0),
             std::vector<float>(max_qual-min_qual+1, 0.0),
             std::vector<float>(max_qual-min_qual+1, 0.0)}};
-    std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> >
-            query_counts(VARTYPES, per_errtype);
-    std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> >
-            truth_counts(VARTYPES, per_errtype);
+    EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> query_counts{};
+    EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> truth_counts{};
+    for (sizeclass_t sc : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
+        query_counts[sc] = per_errtype;
+        truth_counts[sc] = per_errtype;
+    }
 
     // calculate summary statistics
     for (const std::string & ctg : phasedata_ptr->contigs) {
@@ -291,7 +295,7 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
         // add query
         for (int vi = 0; vi < qvars->n; vi++) {
 
-            int vartype = qvars->get_vartype(vi);
+            sizeclass_t vartype = qvars->get_vartype(vi);
             for (int hi = 0; hi < HAPS; hi++) {
                 int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
                 float q = qvars->callq[calc_hi][vi];
@@ -325,7 +329,7 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
             for (int hi = 0; hi < HAPS; hi++) {
                 if (!tvars->var_on_hap(vi, hi)) continue;
                 float q = tvars->callq[hi][vi];
-                int vartype = tvars->get_vartype(vi);
+                sizeclass_t vartype = tvars->get_vartype(vi);
                 if (tvars->errtypes[hi][vi] == ERRTYPE_UN) {
                     WARN("Unknown error type at TRUTH %s:%d", ctg.data(), tvars->poss[vi]);
                     continue;
@@ -387,10 +391,10 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 
     // tally variant counts above each quality threshold
     pr_counts counts = tally_counts_by_qual(phasedata_ptr, g.min_qual, g.max_qual);
-    const std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> > &
-            query_counts = counts.query;
-    const std::vector< EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS> > &
-            truth_counts = counts.truth;
+    const EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> & query_counts = counts.query;
+    const EnumArray<sizeclass_t, EnumArray<errtype_t, std::vector<float>, ERRTYPE_SLOTS>,
+            SIZECLASS_SLOTS> & truth_counts = counts.truth;
 
     // write results
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
@@ -405,9 +409,9 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
         fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
                 "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     }
-    std::vector<float> max_f1_score(VARTYPES, 0);
-    std::vector<int> max_f1_qual(VARTYPES, 0);
-    for (int type = 0; type < VARTYPES; type++) {
+    EnumArray<sizeclass_t, float, SIZECLASS_SLOTS> max_f1_score{};
+    EnumArray<sizeclass_t, int, SIZECLASS_SLOTS> max_f1_qual{};
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
 
         // only sweeping query qualities; always consider all truth variants
         for (int qual = g.min_qual; qual <= g.max_qual; qual++) {
@@ -467,7 +471,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
     INFO(" ");
     INFO("%sTYPE\tTHRESHOLD\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\t\tRECALL\t\tF1_SCORE\tF1_QSCORE%s",
             COLOR_BLUE, COLOR_WHITE);
-    for (int type = 0; type < VARTYPES; type++) {
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
         std::vector<int> quals = {g.min_qual, max_f1_qual[type]};
         std::vector<std::string> thresholds = {"NONE", "BEST"};
 

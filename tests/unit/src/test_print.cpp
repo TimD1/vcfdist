@@ -243,7 +243,8 @@ std::shared_ptr<ctgVariants> hap1_var(uint8_t type, const std::string & ref,
  * @param[in] errtype Error type (ERRTYPE_*)
  * @return One count per quality threshold, in ascending threshold order
  */
-std::vector<float> sweep(const pr_counts & counts, int callset, int vartype, errtype_t errtype) {
+std::vector<float> sweep(const pr_counts & counts, int callset, sizeclass_t vartype,
+        errtype_t errtype) {
     return callset == QUERY ? counts.query[vartype][errtype] : counts.truth[vartype][errtype];
 }
 
@@ -384,12 +385,12 @@ TEST(TallyCountsByQual, ErrtypeUnknownWarnsAndSkips) {
 
     // an unevaluated variant contributes nothing at all, not even the truth-side FN tail
     std::vector<float> zeros(6, 0);
-    for (int type = 0; type < VARTYPES; type++) {
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
         for (errtype_t err : EnumRange<errtype_t, ERRTYPE_SLOTS>{}) {
             EXPECT_EQ(zeros, sweep(counts, QUERY, type, err))
-                    << "query " << type << " " << idx(err);
+                    << "query " << idx(type) << " " << idx(err);
             EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err))
-                    << "truth " << type << " " << idx(err);
+                    << "truth " << idx(type) << " " << idx(err);
         }
     }
 }
@@ -401,12 +402,12 @@ TEST(TallyCountsByQual, EmptyContig) {
             one_ctg(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {})), 0, 2);
 
     std::vector<float> zeros(3, 0);
-    for (int type = 0; type < VARTYPES; type++) {
+    for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
         for (errtype_t err : EnumRange<errtype_t, ERRTYPE_SLOTS>{}) {
             EXPECT_EQ(zeros, sweep(counts, QUERY, type, err))
-                    << "query " << type << " " << idx(err);
+                    << "query " << idx(type) << " " << idx(err);
             EXPECT_EQ(zeros, sweep(counts, TRUTH, type, err))
-                    << "truth " << type << " " << idx(err);
+                    << "truth " << idx(type) << " " << idx(err);
         }
     }
 }

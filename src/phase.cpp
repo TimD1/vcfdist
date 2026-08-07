@@ -366,8 +366,8 @@ void phaseblockData::fix_phase_set_tags() {
  * @throws ERROR if the output genotype error TSV file cannot be opened for writing
  */
 void phaseblockData::fix_allele_counts() {
-    EnumArray<ac_errtype_t, std::vector<int>, AC_ERRTYPE_SLOTS> allele_error_counts{};
-    for (std::vector<int> & row : allele_error_counts) row = std::vector<int>(VARTYPES, 0);
+    EnumArray<ac_errtype_t, EnumArray<sizeclass_t, int, SIZECLASS_SLOTS>,
+            AC_ERRTYPE_SLOTS> allele_error_counts{};
     for (const std::string & ctg : this->contigs) {
         std::shared_ptr<ctgVariants> qvars = 
             this->phase_blocks[ctg]->ctg_superclusters->callset_vars[QUERY];
@@ -378,7 +378,7 @@ void phaseblockData::fix_allele_counts() {
                 ERROR("Unknown variant allele count at %s:%d, %s -> %s", ctg.data(), qvars->poss[vi],
                         gt_strs[qvars->calc_gts[vi]].data(), gt_strs[qvars->orig_gts[vi]].data());
             }
-            int vartype = qvars->get_vartype(vi);
+            sizeclass_t vartype = qvars->get_vartype(vi);
             allele_error_counts[allele_count_errtype][vartype]++;
             allele_error_counts[allele_count_errtype][VARTYPE_ALL]++;
 
@@ -446,7 +446,7 @@ void phaseblockData::fix_allele_counts() {
                         gt_strs[tvars->orig_gts[vi]].data(), gt_strs[tvars->calc_gts[vi]].data());
             }
 
-            int vartype = tvars->get_vartype(vi);
+            sizeclass_t vartype = tvars->get_vartype(vi);
             if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
                         tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
@@ -500,7 +500,8 @@ void phaseblockData::fix_allele_counts() {
  * @throws ERROR if the output genotype error TSV file cannot be opened for writing
  */
 void phaseblockData::write_genotype_error_summary(
-        const EnumArray<ac_errtype_t, std::vector<int>, AC_ERRTYPE_SLOTS> & allele_error_counts) {
+        const EnumArray<ac_errtype_t, EnumArray<sizeclass_t, int, SIZECLASS_SLOTS>,
+            AC_ERRTYPE_SLOTS> & allele_error_counts) {
     std::string out_genotype_errors_fn = g.out_prefix + "genotype-errors.tsv";
     FILE* out_genotype_errors = 0;
     if (g.verbosity >= 1) INFO("  Writing genotype error results to '%s'", out_genotype_errors_fn.data());
@@ -509,7 +510,7 @@ void phaseblockData::write_genotype_error_summary(
         ERROR("Failed to open genotype error TSV file '%s'", out_genotype_errors_fn.data());
     }
     fprintf(out_genotype_errors, "VAR_TYPE\tALLELE_COUNT_0_TO_1\tALLELE_COUNT_0_TO_2\tALLELE_COUNT_1_TO_0\tALLELE_COUNT_1_TO_1\tALLELE_COUNT_1_TO_2\tALLELE_COUNT_2_TO_0\tALLELE_COUNT_2_TO_1\tALLELE_COUNT_2_TO_2\n");
-    for (int vartype = 0; vartype < VARTYPES; vartype++) {
+    for (sizeclass_t vartype : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
         fprintf(out_genotype_errors, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
                 vartype_strs[vartype].data(),
                 allele_error_counts[AC_ERR_0_TO_1][vartype],

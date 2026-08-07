@@ -132,7 +132,7 @@ var_fields ctgVariants::get_var(int idx) const {
  * @param[in] vi Variant index
  * @return VARTYPE_SNP, VARTYPE_INDEL, or VARTYPE_SV
  */
-int ctgVariants::get_vartype(int vi) {
+sizeclass_t ctgVariants::get_vartype(int vi) {
     if (this->types[vi] == TYPE_SUB) { // SNP
         return VARTYPE_SNP;
     } else if ((this->types[vi] == TYPE_INS && // small INDEL
