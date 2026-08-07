@@ -271,7 +271,7 @@ int calc_prec_recall_aln(
  * @param[in] print Whether to enable debug printing.
  */
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
-			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi, bool print) {
+			std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hi, bool print) {
     std::shared_ptr<Graph> graph(new Graph(scs, sc_idx, ref, ctg, truth_hi));
     if (print) graph->print();
 
@@ -306,7 +306,7 @@ void evaluate_variants(std::shared_ptr<ctgSuperclusters> scs, int sc_idx,
 void calc_prec_recall(
         const std::shared_ptr<Graph> graph,
         const std::unordered_map<idx4, idx4> & ptrs,
-        int truth_hap, bool print
+        hap_t truth_hap, bool print
         ) {
     idx4 end(graph->qnodes-1, graph->tnodes-1,
             graph->qseqs[graph->qnodes-1].length()-1,
@@ -715,7 +715,7 @@ void wf_swg_align(
  */
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
-        std::vector< std::vector< std::vector<int> > > sc_groups) {
+        std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups) {
 
     if (g.verbosity >= 1 ) 
     for (int i = 0; i < g.thread_nsteps; i++) {
@@ -863,7 +863,7 @@ int Graph::get_truth_pos(int truth_node_idx, int truth_idx) {
  */
 Graph::Graph(
 		std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-        std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hap) {
+        std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hap) {
 
     ////////////////////////////////
     // STEP 1: CREATE QUERY NODES //
@@ -1137,7 +1137,7 @@ Graph::Graph(
  */
 void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
-        const std::vector< std::vector< std::vector<int> > > & sc_groups,
+        const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print) {
 
 	// parse sc_idx from grouped superclusters
@@ -1175,8 +1175,8 @@ void precision_recall_wrapper(
         
         // calculate two forward-pass alignments, saving path
         // query1/query2 graph to truth1, query1/query2 graph to truth2
-        for (int hi = 0; hi < HAPS; hi++) {
-            if (print) printf("HAP %d\n", hi);
+        for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
+            if (print) printf("HAP %d\n", int(idx(hi)));
             evaluate_variants(scs, sc_idx, clusterdata_ptr->ref, ctg, hi, print);
         }
     }

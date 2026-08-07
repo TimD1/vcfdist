@@ -867,10 +867,10 @@ std::shared_ptr<superclusterData> make_merge_target(const std::string & ctg = "c
  * @param[in] ctg Contig name
  * @return Per-haplotype maps from contig name to variants
  */
-std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > make_hap_vars(
+EnumArray<hap_t, std::unordered_map< std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> make_hap_vars(
         std::shared_ptr<ctgVariants> hap1, std::shared_ptr<ctgVariants> hap2,
         const std::string & ctg = "chr1") {
-    std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > vars(HAPS);
+    EnumArray<hap_t, std::unordered_map< std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> vars;
     vars[HAP1][ctg] = hap1;
     vars[HAP2][ctg] = hap2;
     return vars;
@@ -1407,7 +1407,7 @@ var_desc sub_in_sc(int pos, int supercluster, gt_t gt = GT_ALT1_ALT1) {
  * @param[in] groups Bucketed superclusters as returned by sort_superclusters()
  * @return Total number of superclusters placed into any bucket
  */
-int total_sorted(const std::vector< std::vector< std::vector<int> > > & groups) {
+int total_sorted(const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > & groups) {
     int total = 0;
     for (const auto & bucket : groups) total += int(bucket[SC_IDX].size());
     return total;
@@ -1432,7 +1432,7 @@ TEST(SortSuperclusters, EmptyQueryStillScheduled) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {1000}, {make_ctgSuperclusters(make_empty_callset(), tvars)});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     // one bucket per scheduling step, with the truth's lone supercluster placed in the first
     ASSERT_EQ(size_t(g.thread_nsteps), groups.size());
@@ -1449,7 +1449,7 @@ TEST(SortSuperclusters, EmptyTruthStillScheduled) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, make_empty_callset())});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     EXPECT_EQ(1, total_sorted(groups));
     EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
@@ -1463,7 +1463,7 @@ TEST(SortSuperclusters, BothCallsetsEmptySkipped) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {1000}, {make_ctgSuperclusters(make_empty_callset(), make_empty_callset())});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     ASSERT_EQ(size_t(g.thread_nsteps), groups.size());
     EXPECT_EQ(0, total_sorted(groups));
@@ -1480,7 +1480,7 @@ TEST(SortSuperclusters, NscsCount) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     // supercluster 1 holds no truth variants and supercluster 2 no query variants, yet all three
     // indices are emitted
@@ -1495,7 +1495,7 @@ TEST(SortSuperclusters, SmallLowBucket) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     // ~32kB is far below the first bucket's 1GB ceiling, so nothing spills past it
     EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
@@ -1515,7 +1515,7 @@ TEST(SortSuperclusters, LargeLastBucketWarn) {
             {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
     testing::internal::CaptureStderr();
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
     std::string err = testing::internal::GetCapturedStderr();
 
     // the supercluster is run anyway, in the last bucket, where the fewest threads are active
@@ -1534,7 +1534,7 @@ TEST(SortSuperclusters, CtgSuperclusterPaired) {
              make_ctgSuperclusters(make_sorted_callset({sub_in_sc(10, 0), sub_in_sc(20, 1)}, "chr2"),
                                    make_sorted_callset({sub_in_sc(12, 0), sub_in_sc(22, 1)}, "chr2"))});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     // the two index lanes stay parallel, so entry i names supercluster sc_idx[i] on contig
     // ctg_idx[i]; chr1 contributes one supercluster and chr2 two
@@ -1554,7 +1554,7 @@ TEST(SortSuperclusters, LenLowerUpperBound) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {200000}, {make_ctgSuperclusters(qvars, tvars)});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     // the bounds select each supercluster's own variants, so the wide supercluster 0 is estimated
     // at ~1.6GB and crosses the first bucket's 1GB ceiling, while the narrow supercluster 1 stays
@@ -1576,7 +1576,7 @@ TEST(SortSuperclusters, EmptyCallsetNcZeroGuard) {
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {"chr1"}, {1000}, {make_ctgSuperclusters(qvars, tvars)});
 
-    std::vector< std::vector< std::vector<int> > > groups = sort_superclusters(sc_data);
+    std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > groups = sort_superclusters(sc_data);
 
     // the nc == 0 guard skips that callset's length entirely, so only the query contributes
     EXPECT_EQ(std::vector<int>({0}), groups[0][SC_IDX]);
@@ -1744,7 +1744,7 @@ var_desc sub_vs_ref(const std::string & seq, int pos) {
  * @return Callset whose reference, contig length and variants are all consistent
  */
 std::shared_ptr<variantData> make_cluster_input(const std::vector<int> & poss, int length = 400,
-        int hap = HAP1) {
+        hap_t hap = HAP1) {
     std::string seq = pseudo_ref(length);
     std::shared_ptr<variantData> vcf = make_variantData(QUERY, {"chr1"}, {length}, {{2}});
     vcf->ref = make_fasta("chr1", seq);

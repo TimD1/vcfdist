@@ -52,8 +52,14 @@ constexpr std::size_t idx(K k) { return static_cast<std::size_t>(k); }
 // misc
 #define EPSILON 1e-9 ///< Arbitrary small float value
 
-#define CTG_IDX 0 ///< Index dimension for contig
-#define SC_IDX  1 ///< Index dimension for supercluster
+/** @brief Which dimension of a (contig, supercluster) index pair. */
+enum class idxdim_t : int8_t {
+    CTG_IDX = 0, ///< Contig dimension
+    SC_IDX  = 1, ///< Supercluster dimension
+};
+constexpr idxdim_t CTG_IDX = idxdim_t::CTG_IDX;
+constexpr idxdim_t SC_IDX  = idxdim_t::SC_IDX;
+constexpr std::size_t IDXDIM_SLOTS = 2; ///< Slots needed by an idxdim_t-keyed array
 
 /** @defgroup colors ANSI terminal color macros
  *  Conditionally emit ANSI escape codes when stderr is a TTY.
@@ -99,13 +105,19 @@ constexpr std::size_t SIZECLASS_SLOTS = 4; ///< Slots needed by a sizeclass_t-ke
 constexpr int8_t VARTYPES = 4;             ///< Total number of variant size classes
 static_assert(SIZECLASS_SLOTS == std::size_t(VARTYPES), "sizeclass_t slots must match VARTYPES");
 
-/** @defgroup hap_constants Haplotype index constants
- *  @{
- */
-#define HAP1 0 ///< First haplotype index
-#define HAP2 1 ///< Second haplotype index
-#define HAPS 2 ///< Number of haplotypes
-/** @} */
+/** @brief Which haplotype of a diploid sample. */
+enum class hap_t : int8_t {
+    HAP1 = 0, ///< First haplotype
+    HAP2 = 1, ///< Second haplotype
+};
+constexpr hap_t HAP1 = hap_t::HAP1;
+constexpr hap_t HAP2 = hap_t::HAP2;
+constexpr std::size_t HAP_SLOTS = 2; ///< Slots needed by a hap_t-keyed array
+constexpr int8_t HAPS = 2;           ///< Number of haplotypes
+static_assert(HAP_SLOTS == std::size_t(HAPS), "hap_t slots must match HAPS");
+
+/** @brief Returns the other haplotype of the pair. */
+constexpr hap_t other_hap(hap_t h) { return h == HAP1 ? HAP2 : HAP1; }
 
 /** @brief Location of a variant relative to the BED regions. */
 enum class bedloc_t : int8_t {

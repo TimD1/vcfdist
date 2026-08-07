@@ -14,11 +14,11 @@
 /**
  * @brief Renders one haplotype's GT, bare for a haploid record and phased for a diploid one.
  * @param[in] ploidy Ploidy of the record being written (0 = unknown, treated as diploid)
- * @param[in] alt_on_hap2 True if the alternate allele sits on the second haplotype
+ * @param[in] hap Haplotype the alternate allele sits on
  * @return "1" when haploid, otherwise "0|1" or "1|0"
  */
-static std::string hap_gt(uint8_t ploidy, bool alt_on_hap2) {
-    return ploidy == 1 ? "1" : (alt_on_hap2 ? "0|1" : "1|0");
+static std::string hap_gt(uint8_t ploidy, hap_t hap) {
+    return ploidy == 1 ? "1" : (hap == HAP2 ? "0|1" : "1|0");
 }
 
 
@@ -154,9 +154,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                     if (vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
                         // print data for each haplotype
-                        for (int qhi = 0; qhi < HAPS; qhi++) {
+                        for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
                             bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
-                            int thi = qhi ^ swap ^ (block_state == PHASE_SWAP) ^ flip_error;
+                            bool to_other = swap ^ (block_state == PHASE_SWAP) ^ flip_error;
+                            hap_t thi = to_other ? other_hap(qhi) : qhi;
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true) || 
                                     vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
@@ -169,7 +170,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                                 }
                                 if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) { // print query
                                     vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
+                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
                                         sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
                                 } else {
                                     vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
@@ -178,34 +179,35 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                         }
                         ptrs[QUERY]++; ptrs[TRUTH]++;
                     } else { // positional tie, diff vars, just print query
-                        for (int qhi = 0; qhi < HAPS; qhi++) {
+                        for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
                             bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
                             if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
                                 vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                                 vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                                 vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
+                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
                                         sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
                             }
                         }
                         ptrs[QUERY]++;
                     }
                 } else { // query is next
-                    for (int qhi = 0; qhi < HAPS; qhi++) {
+                    for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
                         bool swap = vars[QUERY]->calcgt_is_swapped(ptrs[QUERY]);
                         if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
                             vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
                             vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                             vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                    hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], qhi ^ swap),
+                                    hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
                                     sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
                         }
                     }
                     ptrs[QUERY]++;
                 }
             } else if (next[TRUTH]) {
-                for (int qhi = 0; qhi < HAPS; qhi++) {
-                    int thi = qhi ^ (block_state == PHASE_SWAP) ^ flip_error;
+                for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
+                    bool to_other = (block_state == PHASE_SWAP) ^ flip_error;
+                    hap_t thi = to_other ? other_hap(qhi) : qhi;
                     if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
                         vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
                         vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,

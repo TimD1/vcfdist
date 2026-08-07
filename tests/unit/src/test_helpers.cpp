@@ -354,7 +354,7 @@ bool logged(const ParseResult & r, const std::string & text) {
  * @param[in] ctg Contig name
  * @return Variant container for that haplotype, or nullptr if the contig is absent
  */
-std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap, const std::string & ctg) {
+std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, hap_t hap, const std::string & ctg) {
     const auto & ctg_vars = r.vars->variants[hap];
     const auto found = ctg_vars.find(ctg);
     return (found == ctg_vars.end()) ? nullptr : found->second;
@@ -367,7 +367,7 @@ std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap, const std:
  * @param[in] ctg Contig name
  * @return Number of surviving variants, or 0 if the contig is absent
  */
-int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg) {
+int kept_on_hap(const ParseResult & r, hap_t hap, const std::string & ctg) {
     std::shared_ptr<ctgVariants> vars = hap_vars(r, hap, ctg);
     return (vars == nullptr) ? 0 : vars->n;
 }
@@ -402,7 +402,7 @@ bool kept_pos(const ParseResult & r, int pos, const std::string & ctg) {
  */
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
     size_t count = 0;
-    for (int hap = 0; hap < HAPS; hap++) {
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
         std::shared_ptr<ctgVariants> vars = hap_vars(r, hap, ctg);
         if (vars == nullptr) continue;
         for (int i = 0; i < vars->n; i++) {
@@ -603,7 +603,7 @@ std::shared_ptr<ctgVariants> make_typed_var(edittype_t type, const std::string &
  * @param[in] query_ed Query edit distance
  * @param[in] credit Partial credit
  */
-void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, errtype_t errtype,
+void set_hap_data(std::shared_ptr<ctgVariants> vars, hap_t hap, int idx, errtype_t errtype,
         int sync_group, float callq, int ref_ed, int query_ed, float credit) {
     vars->errtypes[hap][idx] = errtype;
     vars->sync_group[hap][idx] = sync_group;
@@ -723,7 +723,7 @@ std::unique_ptr<phaseblockData> make_phaseblockData(
  * @return Graph ready for calc_prec_recall_aln()
  */
 std::shared_ptr<Graph> make_graph(std::shared_ptr<ctgSuperclusters> sc,
-        std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hap, int sc_idx) {
+        std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hap, int sc_idx) {
     return std::shared_ptr<Graph>(new Graph(sc, sc_idx, ref, ctg, truth_hap));
 }
 

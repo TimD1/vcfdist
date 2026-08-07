@@ -917,7 +917,7 @@ struct GraphFixture {
  * silently leave the fixture with no variants at all.
  */
 static GraphFixture build_fixture(const std::string & ref_seq, std::vector<var_desc> qv,
-        std::vector<var_desc> tv, int truth_hap = HAP1) {
+        std::vector<var_desc> tv, hap_t truth_hap = HAP1) {
     for (var_desc & v : qv) v.supercluster = 0;
     for (var_desc & v : tv) v.supercluster = 0;
     GraphFixture f;
@@ -930,7 +930,7 @@ static GraphFixture build_fixture(const std::string & ref_seq, std::vector<var_d
 }
 
 /** @brief Aligns and labels one graph exactly as evaluate_variants does, returning the score. */
-static int align_and_label(std::shared_ptr<Graph> graph, int truth_hap) {
+static int align_and_label(std::shared_ptr<Graph> graph, hap_t truth_hap) {
     std::unordered_map<idx4, idx4> ptrs;
     int score = calc_prec_recall_aln(graph, ptrs, false);
     calc_prec_recall(graph, ptrs, truth_hap, false);
@@ -2077,7 +2077,7 @@ TEST(PrecisionRecallWrapper, EmptyRangeReturns) {
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
-    const std::vector< std::vector< std::vector<int> > > sc_groups;
+    const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups;
     precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 0, false, false);
 
     EXPECT_EQ(ERRTYPE_UN, f.qvars->errtypes[HAP1][0]);
@@ -2095,7 +2095,7 @@ TEST(PrecisionRecallWrapper, EvaluatesBothHaplotypesForOneSupercluster) {
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_REF, 60, 0, 0}});
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
-    const std::vector< std::vector< std::vector<int> > > sc_groups = {{{0}, {0}}};
+    const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups = {{{{{0}, {0}}}}};
     precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 1, false, false);
 
     EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);

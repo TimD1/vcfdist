@@ -24,14 +24,6 @@
 ctgVariants::ctgVariants(const std::string & ctg) {
     this->ctg = ctg;
     this->n = 0; 
-    for (int i = 0; i < PHASES; i++) {
-        this->errtypes.push_back(std::vector<errtype_t>());
-        this->sync_group.push_back(std::vector<int>());
-        this->callq.push_back(std::vector<float>());
-        this->credit.push_back(std::vector<float>());
-        this->ref_ed.push_back(std::vector<int>());
-        this->query_ed.push_back(std::vector<int>());
-    }
 }
 
 
@@ -63,7 +55,7 @@ void ctgVariants::add_var(const var_fields & var) {
 
     // added during precision/recall analysis
     this->calc_gts.push_back(var.calc_gt);
-    for (int hap = 0; hap < HAPS; hap++) {
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
         this->errtypes[hap].push_back(var.hap[hap].errtype);
         this->sync_group[hap].push_back(var.hap[hap].sync_group);
         this->callq[hap].push_back(var.hap[hap].callq);
@@ -110,7 +102,7 @@ var_fields ctgVariants::get_var(int idx) const {
         .supercluster = this->superclusters[idx],
         .calc_gt = this->calc_gts[idx],
     };
-    for (int hap = 0; hap < HAPS; hap++) {
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
         var.hap[hap] = {
             .errtype = this->errtypes[hap][idx],
             .sync_group = this->sync_group[hap][idx],
@@ -260,18 +252,13 @@ bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
  * @param[in] calc If true, check calc_gts; if false, check orig_gts
  * @return True if variant is on the specified haplotype
  */
-bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
+bool ctgVariants::var_on_hap(int var_idx, hap_t hap, bool calc) const {
     // simple gt, always (0|1, 1|0, or 1|1)
     gt_t gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx];
-    if (hap == 0 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
+    if (hap == HAP1 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
         return true;
-    if (hap == 1 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
+    if (hap == HAP2 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
         return true;
-    if (hap > 1)
-        ERROR("Unexpected haplotype %d for variant (%s -> %s) at pos %d", int(hap), 
-                this->refs[var_idx].data(),
-                this->alts[var_idx].data(),
-                this->poss[var_idx]);
     return false;
 }
 
@@ -284,29 +271,28 @@ bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
  * @param[in] set If true, set alternate; if false, unset it
  * @param[in] ignore_errors If true, suppress error messages for invalid transitions
  */
-void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ignore_errors) {
-    if (hap > 1) ERROR("Unexpected hap idx %d in set_var_calcgt_on_hap()", hap);
-
+void ctgVariants::set_var_calcgt_on_hap(int var_idx, hap_t hap, bool set,
+        bool ignore_errors) {
     if (this->calc_gts[var_idx] == GT_REF_REF) {
         if (set) {
-            this->calc_gts[var_idx] = hap == 0 ? GT_ALT1_REF : GT_REF_ALT1;
+            this->calc_gts[var_idx] = hap == HAP1 ? GT_ALT1_REF : GT_REF_ALT1;
         } else { // unset
             if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
-                    var_idx, this->ctg.data(), this->poss[var_idx], hap);
+                    var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
         }
 
     } else if (this->calc_gts[var_idx] == GT_REF_ALT1) {
         if (set) {
-            if (hap == 1) {
+            if (hap == HAP2) {
                 if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
-                    var_idx, this->ctg.data(), this->poss[var_idx], hap);
+                    var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
                 this->calc_gts[var_idx] = GT_ALT1_ALT1;
             }
         } else { // unset
-            if (hap == 0) {
+            if (hap == HAP1) {
                 if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
-                    var_idx, this->ctg.data(), this->poss[var_idx], hap);
+                    var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
                 this->calc_gts[var_idx] = GT_REF_REF;
             }
@@ -314,16 +300,16 @@ void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ign
 
     } else if (this->calc_gts[var_idx] == GT_ALT1_REF) {
         if (set) {
-            if (hap == 0) {
+            if (hap == HAP1) {
                 if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
-                    var_idx, this->ctg.data(), this->poss[var_idx], hap);
+                    var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
                 this->calc_gts[var_idx] = GT_ALT1_ALT1;
             }
         } else { // unset
-            if (hap == 1) {
+            if (hap == HAP2) {
                 if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
-                    var_idx, this->ctg.data(), this->poss[var_idx], hap);
+                    var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
                 this->calc_gts[var_idx] = GT_REF_REF;
             }
@@ -332,9 +318,9 @@ void ctgVariants::set_var_calcgt_on_hap(int var_idx, int hap, bool set, bool ign
     } else if (this->calc_gts[var_idx] == GT_ALT1_ALT1) {
         if (set) {
             if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
-                    var_idx, this->ctg.data(), this->poss[var_idx], hap);
+                    var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
         } else {
-            this->calc_gts[var_idx] = hap == 0 ? GT_REF_ALT1 : GT_ALT1_REF;
+            this->calc_gts[var_idx] = hap == HAP1 ? GT_REF_ALT1 : GT_ALT1_REF;
         }
 
     } else {
@@ -406,7 +392,7 @@ void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
  * @param[in] phase_flip True if phase flipped (error) at this position
  * @param[in] query If true, format as query sample; if false, as truth sample
  */
-void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::string & gt,
+void ctgVariants::print_var_sample(FILE* out_fp, int vi, hap_t hi, const std::string & gt,
         int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query /* = false */) {
 
     // get categorization
@@ -455,7 +441,7 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
  */
 void variantData::add_variants(
         const std::vector<ptr_t> & cigar,
-        int hap, int ref_pos,
+        hap_t hap, int ref_pos,
         const std::string & ctg,
         const std::string & query,
         const std::string & ref,
@@ -527,7 +513,7 @@ void variantData::add_variants(
 /**
  * @brief Constructs an empty variant data container defaulting to QUERY callset.
  */
-variantData::variantData() : callset(QUERY), variants(HAPS) { ; }
+variantData::variantData() : callset(QUERY) { ; }
 
 /**
  * @brief Parses variants from a VCF file into a variantData container, with filtering and validation.
@@ -561,15 +547,15 @@ void parse_variants(const std::string & vcf_fn,
 
     // counters
     int nctg   = 0;                     // number of ctgs
-    std::vector< EnumArray<edittype_t, int, EDITTYPE_SLOTS> >
-        ntypes(2, EnumArray<edittype_t, int, EDITTYPE_SLOTS>{});
+    EnumArray<hap_t, EnumArray<edittype_t, int, EDITTYPE_SLOTS>, HAP_SLOTS> ntypes{};
     int n      = 0;                     // total number of records in file
-    std::vector<int> npass  = {0, 0};   // records PASSing all filters
+    EnumArray<hap_t, int, HAP_SLOTS> npass{}; // records PASSing all filters
 
     // data
     bool print = g.verbosity >= 1;
-    std::vector<int> prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
-    std::vector<edittype_t> prev_type = {TYPE_SUB, TYPE_SUB};
+    EnumArray<hap_t, int, HAP_SLOTS> prev_end =
+            {{-g.cluster_min_gap*2, -g.cluster_min_gap*2}};
+    EnumArray<hap_t, edittype_t, HAP_SLOTS> prev_type = {{TYPE_SUB, TYPE_SUB}};
     std::unordered_set<int> prev_rids; // contigs already parsed, to reject an unsorted VCF
     int prev_rid = -1;
     std::unordered_map<int, int> ctglens;
@@ -715,8 +701,8 @@ void parse_variants(const std::string & vcf_fn,
                 variant_data->contigs.push_back(ctg);
                 variant_data->observed_ploidies.push_back({});
                 variant_data->lengths.push_back(ctglens[rec->rid]);
-                prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
-                prev_type = {TYPE_SUB, TYPE_SUB};
+                prev_end = {{-g.cluster_min_gap*2, -g.cluster_min_gap*2}};
+                prev_type = {{TYPE_SUB, TYPE_SUB}};
             }
         }
 
@@ -806,8 +792,8 @@ void parse_variants(const std::string & vcf_fn,
         } else if (ngt == 2) { // diploid
 
             // distinguish a no-call (both alleles missing) from a half call (exactly one missing)
-            bool hap1_missing = bcf_gt_is_missing(gt[HAP1]);
-            bool hap2_missing = bcf_gt_is_missing(gt[HAP2]);
+            bool hap1_missing = bcf_gt_is_missing(gt[idx(HAP1)]);
+            bool hap2_missing = bcf_gt_is_missing(gt[idx(HAP2)]);
             if (hap1_missing && hap2_missing) { // no call (.|.), record is dropped
                 orig_gt = GT_MISSING;
 
@@ -887,19 +873,20 @@ void parse_variants(const std::string & vcf_fn,
 
 
         // snapshot each hap's previous variant, before this record's own copies overwrite it below
-        std::vector<int> rec_prev_end = prev_end;
-        std::vector<edittype_t> rec_prev_type = prev_type;
+        EnumArray<hap_t, int, HAP_SLOTS> rec_prev_end = prev_end;
+        EnumArray<hap_t, edittype_t, HAP_SLOTS> rec_prev_type = prev_type;
 
         // parse variant type
-        for (int hap = 0; hap < std::abs(ngt); hap++) { // allow single-allele chrX, chrY
+        for (int hi = 0; hi < std::abs(ngt); hi++) { // allow single-allele chrX, chrY
+            hap_t hap = static_cast<hap_t>(hi);
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 and .|. skipped later)
-            gt_t simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
+            gt_t simple_gt = hap == HAP2 ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
             if (same) simple_gt = GT_ALT1_ALT1; // overwrite 1|1 if both agree
 
             // get ref and allele, skipping ref query
             std::string ref = rec->d.allele[0];
-            int alt_idx = ngt < 0 ? 1 : bcf_gt_allele(gt[hap]); // if no GT, assume 1
+            int alt_idx = ngt < 0 ? 1 : bcf_gt_allele(gt[idx(hap)]); // if no GT, assume 1
             if (alt_idx < 0) continue; // missing allele (.), counted once per record above
             if (alt_idx == 0) continue; // nothing to do if reference
             std::string alt = rec->d.allele[alt_idx];
@@ -910,7 +897,7 @@ void parse_variants(const std::string & vcf_fn,
             std::transform(alt.begin(), alt.end(), alt.begin(), ::toupper);
 
             // skip unphased heterozygous variants (1/1 is allowed, 0/1 is not)
-            if (ngt == 2 && !same && !bcf_gt_is_phased(gt[HAP2])) { // only HAP2 is set, not sure why...
+            if (ngt == 2 && !same && !bcf_gt_is_phased(gt[idx(HAP2)])) { // only HAP2 is set, not sure why...
                 if (g.verbosity > 1) {
                     WARN("Variant with unphased genotype in %s VCF at %s:%lld %s %s, skipping",
                         callset_strs[callset].data(), ctg.data(), (long long)rec->pos, ref.data(), alt.data());
@@ -1016,10 +1003,10 @@ void parse_variants(const std::string & vcf_fn,
                 continue;
             }
             // update simple_gt if corresponding variant on other hap is skipped
-            if (simple_gt == GT_ALT1_ALT1 && (rec_prev_end[hap^1] > pos ||
-                    (rec_prev_end[hap^1] == pos && rec_prev_type[hap^1] == TYPE_INS &&
+            if (simple_gt == GT_ALT1_ALT1 && (rec_prev_end[other_hap(hap)] > pos ||
+                    (rec_prev_end[other_hap(hap)] == pos && rec_prev_type[other_hap(hap)] == TYPE_INS &&
                      type == TYPE_INS))) {
-                simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF;
+                simple_gt = hap == HAP2 ? GT_REF_ALT1 : GT_ALT1_REF;
             }
 
             // add to haplotype-specific query info
@@ -1130,8 +1117,8 @@ void parse_variants(const std::string & vcf_fn,
     if (print) INFO(" ");
     if (print) INFO("  Variant types:");
     if (g.verbosity >= 2) { // show each hap separately
-        for (int h = 0; h < HAPS; h++) {
-            if (print) INFO("    Haplotype %i", h+1);
+        for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) {
+            if (print) INFO("    Haplotype %i", int(idx(h))+1);
             for (edittype_t t : EnumRange<edittype_t, EDITTYPE_SLOTS>{}) {
                 if (print) INFO("      %s: %i", type_strs[t].data(), ntypes[h][t]);
             }

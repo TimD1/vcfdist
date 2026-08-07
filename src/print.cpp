@@ -300,8 +300,8 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
         for (int vi = 0; vi < qvars->n; vi++) {
 
             sizeclass_t vartype = qvars->get_vartype(vi);
-            for (int hi = 0; hi < HAPS; hi++) {
-                int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
+            for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
+                hap_t calc_hi = qvars->calcgt_is_swapped(vi) ? other_hap(hi) : hi;
                 float q = qvars->callq[calc_hi][vi];
                 if (qvars->var_on_hap(vi, hi)) {
                     if (qvars->errtypes[calc_hi][vi] == ERRTYPE_UN) {
@@ -330,7 +330,7 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
 
         // add truth
         for (int vi = 0; vi < tvars->n; vi++) {
-            for (int hi = 0; hi < HAPS; hi++) {
+            for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                 if (!tvars->var_on_hap(vi, hi)) continue;
                 float q = tvars->callq[hi][vi];
                 sizeclass_t vartype = tvars->get_vartype(vi);
@@ -606,13 +606,13 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
 
             for (int vi = 0; vi < qvars->n; vi++) {
-                for (int hi = 0; hi < HAPS; hi++) {
+                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                     if (!qvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
-                    int calc_hi = hi ^ qvars->calcgt_is_swapped(vi);
+                    hap_t calc_hi = qvars->calcgt_is_swapped(vi) ? other_hap(hi) : hi;
                     fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             qvars->poss[vi],
-                            calc_hi,
+                            int(idx(calc_hi)),
                             qvars->refs[vi].data(),
                             qvars->alts[vi].data(),
                             qvars->var_quals[vi],
@@ -647,13 +647,13 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
             std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
 
             for (int vi = 0; vi < tvars->n; vi++) {
-                for (int hi = 0; hi < HAPS; hi++) {
+                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
                     if (!tvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
 
                     fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             tvars->poss[vi],
-                            hi,
+                            int(idx(hi)),
                             tvars->refs[vi].data(),
                             tvars->alts[vi].data(),
                             tvars->var_quals[vi],

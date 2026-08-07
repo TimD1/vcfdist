@@ -53,7 +53,7 @@ public:
 
     /** @brief Constructs alignment graph from supercluster variants and reference sequence. */
     Graph(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-            std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi);
+            std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hi);
 
     /** @brief Prints graph node sequences and connectivity to console for debugging. */
     void print();
@@ -174,7 +174,7 @@ int calc_ng50(std::vector<int> phase_blocks, size_t total_bases);
 
 /** @brief Evaluates query variants against truth for one supercluster and haplotype combination. */
 void evaluate_variants(std::shared_ptr<ctgSuperclusters> sc, int sc_idx,
-			std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hi,
+			std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hi,
             bool print = false);
 
 /** @brief Runs graph-based alignment and returns the optimal alignment score. */
@@ -188,18 +188,18 @@ int calc_prec_recall_aln(
 void calc_prec_recall(
         const std::shared_ptr<Graph> query_graph,
         const std::unordered_map<idx4, idx4> & ptrs,
-        int truth_hap,
+        hap_t truth_hap,
         bool print = false
         );
 
 /** @brief Launches threaded precision/recall evaluation across all superclusters. */
 void precision_recall_threads_wrapper(
         std::shared_ptr<superclusterData> clusterdata_ptr,
-        std::vector< std::vector< std::vector<int> > > sc_groups);
+        std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups);
 
 /** @brief Evaluates a subset of superclusters within a single thread. */
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
-        const std::vector< std::vector< std::vector<int> > > & sc_groups,
+        const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > & sc_groups,
         int thread_step, int start, int stop, bool thread2, bool print = false);
 
 /**************************************************************************************************/

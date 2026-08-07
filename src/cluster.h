@@ -49,7 +49,7 @@ public:
 
     /** @brief Merges per-haplotype variant data for one callset into single per-contig containers. */
     void load_and_merge_callset_vars_across_haps(callset_t callset,
-            std::vector< std::unordered_map< std::string, std::shared_ptr<ctgVariants> > > & vars);
+            EnumArray<hap_t, std::unordered_map< std::string, std::shared_ptr<ctgVariants> >, HAP_SLOTS> & vars);
 
     /** @brief Groups variants into superclusters where truth and query variants may interact. */
     void supercluster(bool print = false);
@@ -89,11 +89,11 @@ struct var_info {
 /**************************************************************************************************/
 
 /** @brief Clusters variants using wavefront Smith-Waterman alignment. */
-void wf_swg_cluster(variantData * vcf, int ctg_idx, int hap,
+void wf_swg_cluster(variantData * vcf, int ctg_idx, hap_t hap,
         int sub, int open, int extend);
 
 /** @brief Returns superclusters sorted by size for multi-threaded scheduling. */
-std::vector< std::vector< std::vector<int> > >
+std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> >
         sort_superclusters(std::shared_ptr<superclusterData>);
 
 /**************************************************************************************************/

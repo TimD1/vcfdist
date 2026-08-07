@@ -235,11 +235,11 @@ bool logged(const ParseResult & r, const std::string & text);
  * Yields nullptr for a contig the parse never reached, rather than inserting an empty entry the
  * way operator[] would; a caller that dereferences the result should assert on it first.
  */
-std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, int hap,
+std::shared_ptr<ctgVariants> hap_vars(const ParseResult & r, hap_t hap,
         const std::string & ctg = "chr1");
 
 /** @brief Counts variants that survived parsing on one haplotype of a contig. */
-int kept_on_hap(const ParseResult & r, int hap, const std::string & ctg = "chr1");
+int kept_on_hap(const ParseResult & r, hap_t hap, const std::string & ctg = "chr1");
 
 /** @brief Counts variants that survived parsing across both haplotypes of a contig. */
 int total_kept(const ParseResult & r, const std::string & ctg = "chr1");
@@ -334,7 +334,7 @@ std::shared_ptr<ctgVariants> make_typed_var(edittype_t type, const std::string &
         const std::string & alt, const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Sets all six per-haplotype evaluation lanes for one variant. */
-void set_hap_data(std::shared_ptr<ctgVariants> vars, int hap, int idx, errtype_t errtype,
+void set_hap_data(std::shared_ptr<ctgVariants> vars, hap_t hap, int idx, errtype_t errtype,
         int sync_group, float callq, int ref_ed, int query_ed, float credit);
 
 /** @brief Sets cluster boundaries and reaches; nc defaults to clusters.size()-1. */
@@ -367,7 +367,7 @@ std::unique_ptr<phaseblockData> make_phaseblockData(
 
 /** @brief Builds an alignment graph for one supercluster and truth haplotype. */
 std::shared_ptr<Graph> make_graph(std::shared_ptr<ctgSuperclusters> sc,
-        std::shared_ptr<fastaData> ref, const std::string & ctg, int truth_hap, int sc_idx = 0);
+        std::shared_ptr<fastaData> ref, const std::string & ctg, hap_t truth_hap, int sc_idx = 0);
 
 /** @brief Allocates the offsets buffer that wf_swg_max_reach requires from its caller. */
 std::vector<int> alloc_reach_offs(int qlen, int tlen, int x, int o, int e);
