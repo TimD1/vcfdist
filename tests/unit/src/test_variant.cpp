@@ -1276,6 +1276,52 @@ TEST_F(ParseVariants, HeaderWithoutContigsParsesNoContigs) {
     EXPECT_FALSE(logged(r, "Failed to read QUERY VCF"));
 }
 
+/* parse errors ***********************************************************************************/
+
+// A record htslib cannot parse ends bcf_read() with a return below -1, which the loop must not
+// read as end of file: scoring a malformed callset as an empty one reports a plausible recall of
+// zero instead of failing.
+TEST_F(ParseVariants, CriticalReadErrorIsFatal) {
+    vcf_opts opts = make_vcf_opts();
+    opts.formats = {"##FORMAT=<ID=GT,Number=1,Type=Float,Description=\"Genotype\">"};
+    EXPECT_EXIT(parse_unredirected(dir, {fmt_record(100, "A", "G", "GT", "1|0")}, opts),
+            testing::ExitedWithCode(1), "Failed to parse record 1 of QUERY VCF");
+}
+
+// The decoded errcode names the cause, so a user need not read htslib's own stderr line.
+TEST_F(ParseVariants, CriticalReadErrorNamesCauseAndPosition) {
+    vcf_opts opts = make_vcf_opts();
+    opts.formats = {"##FORMAT=<ID=GT,Number=1,Type=Float,Description=\"Genotype\">"};
+    EXPECT_EXIT(parse_unredirected(dir, {fmt_record(100, "A", "G", "GT", "1|0")}, opts),
+            testing::ExitedWithCode(1), "chr1:99.*Invalid character");
+}
+
+// htslib appends an undeclared contig to the header as it parses, so rec->rid runs one past the
+// ctgnames array captured before the loop. Indexing it would read out of bounds.
+TEST_F(ParseVariants, UndeclaredContigIsFatal) {
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0", "chrZ")}, make_vcf_opts()),
+            testing::ExitedWithCode(1), "Contig 'chrZ' in record 1 of QUERY VCF");
+}
+
+// Any other non-critical errcode is recoverable: htslib assumes Type=String for the undeclared
+// tag and parses the rest of the record, so the variant is still evaluated and merely counted.
+TEST_F(ParseVariants, UndeclaredFormatTagWarnsAndKeepsVariant) {
+    ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GT:XX", "1|0:5")});
+    EXPECT_EQ(1, total_kept(r));
+    EXPECT_TRUE(logged(r, "1 records with parse errors in QUERY VCF, kept"));
+}
+
+// Genuine end of file is untouched: every record of a well-formed VCF is parsed and no parse
+// error is reported.
+TEST_F(ParseVariants, WellFormedFileReachesEofWithoutError) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
+                                        record(200, "A", "T", "0|1"),
+                                        record(300, "A", "C", "1|1")});
+    EXPECT_EQ(4, total_kept(r)); // 1 + 1 + 2 for the homozygote
+    EXPECT_FALSE(logged(r, "records with parse errors"));
+    EXPECT_FALSE(logged(r, "Failed to parse record"));
+}
+
 /* filter and quality *****************************************************************************/
 
 // A record whose only filter is one the user did not select is dropped, and one that PASSes is not.

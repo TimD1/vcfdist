@@ -473,11 +473,13 @@ gtparse_t classify_gt(const int32_t * gt, int ngt) {
  * @param[out] variant_data Container to populate with parsed variants
  * @param[in] reference Reference FASTA data for coordinate validation
  * @param[in] callset QUERY or TRUTH callset identifier
- * @throws Various errors for malformed VCF or invalid reference coordinates
+ * @throws ERROR A record htslib cannot parse, a record on a contig the header does not declare,
+ *         a header declaring other than one sample or a contig line without 'IDX' and 'length',
+ *         an unsorted VCF, a variant of ploidy above 2, or a variant outside the reference contig
  * @throws WARNING Per-reason summary totals for records dropped or altered at parse time: no-call
  *         and half-call genotypes, unphased heterozygous genotypes, spanning deletions, reference
- *         calls, missing PS tags, oversized variants, overlapping variants, and complex variants
- *         split into INS + DEL
+ *         calls, missing PS tags, records htslib parsed despite a non-critical error, oversized
+ *         variants, overlapping variants, and complex variants split into INS + DEL
  */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
@@ -536,6 +538,7 @@ void parse_variants(const std::string & vcf_fn,
     bool PS_warn  = false;
 
     /* int gq_missing_total = 0; */
+    int bcf_errcode_total = 0; // records htslib parsed despite a non-critical error
     int PS_missing_total = 0;
     int overlapping_var_total = 0;
     int spanning_del_total = 0;
@@ -549,6 +552,8 @@ void parse_variants(const std::string & vcf_fn,
     int failed_filter_total = 0;
     
     // read header
+    int read_ret = 0;      // bcf_read() return: 0 success, -1 end of file, < -1 critical error
+    char errbuf[256] = ""; // bcf_strerror() decoding of rec->errcode
     bcf1_t * rec  = NULL;
     bcf_hdr_t *hdr = bcf_hdr_read(vcf);
     bool pass = false;
@@ -638,7 +643,35 @@ void parse_variants(const std::string & vcf_fn,
         goto error2;
     }
     
-    while (bcf_read(vcf, hdr, rec) == 0) {
+    while ((read_ret = bcf_read(vcf, hdr, rec)) != -1) { // -1 alone is end of file
+
+        // a record htslib refuses to parse must not read as end of file, or a malformed callset is
+        // scored as an empty one: a plausible recall of zero instead of a failure
+        if (read_ret < -1) {
+            bcf_strerror(rec->errcode, errbuf, sizeof(errbuf));
+            ERROR("Failed to parse record %d of %s VCF '%s' at %s:%lld: %s", n+1,
+                    callset_strs[callset].data(), vcf_fn.data(), bcf_seqname_safe(hdr, rec),
+                    (long long)rec->pos, errbuf);
+        }
+
+        // htslib appends an undeclared contig to the header, so rid runs past ctgnames, which was
+        // captured before the loop; indexing it would read out of bounds
+        if (rec->rid < 0 || rec->rid >= nctg)
+            ERROR("Contig '%s' in record %d of %s VCF '%s' is not declared in its header",
+                    bcf_seqname_safe(hdr, rec), n+1, callset_strs[callset].data(),
+                    vcf_fn.data());
+
+        // every other errcode is recoverable, and htslib parsed the rest of the record; aborting
+        // would reject the many real VCFs that carry an undeclared INFO or FORMAT tag
+        if (rec->errcode) {
+            if (g.verbosity > 1) {
+                bcf_strerror(rec->errcode, errbuf, sizeof(errbuf));
+                WARN("Record %d of %s VCF parsed with an error at %s:%lld: %s", n+1,
+                        callset_strs[callset].data(), bcf_seqname_safe(hdr, rec),
+                        (long long)rec->pos, errbuf);
+            }
+            bcf_errcode_total++;
+        }
 
         ctg = ctgnames[rec->rid];
         if (rec->rid != prev_rid) {
@@ -969,7 +1002,11 @@ void parse_variants(const std::string & vcf_fn,
     }
     if (print) INFO(" ");
 
-    if (PS_missing_total) 
+    if (bcf_errcode_total)
+        WARN("%d records with parse errors in %s VCF, kept",
+            bcf_errcode_total, callset_strs[callset].data());
+
+    if (PS_missing_total)
         WARN("%d variants missing PS tags in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
