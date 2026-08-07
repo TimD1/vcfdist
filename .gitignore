@@ -20,6 +20,7 @@
 *.aux
 src/test
 __pycache__
+.venv/
 **/.DS_Store
 **/*.dSYM/
 

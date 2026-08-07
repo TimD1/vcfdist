@@ -246,8 +246,8 @@ Commands, baseline caching, and the escalation tier for accuracy-critical change
 `reference.md`. **Identical output** → count impact is one sentence; a zero-delta table is
 noise. **Different** → table plus root causes.
 
-**Never quote runtime or RAM.** `src/Makefile` defaults to `CXXFLAGS = -g -pg -O1` with `-O3`
-commented out; accuracy is unaffected, timings are meaningless.
+**Never quote runtime or RAM.** `src/Makefile` defaults to `CXXFLAGS = -g -O3`, so a build is
+optimized, but a single un-interleaved run on a laptop still measures noise, not the change.
 
 ## Independent review
 
@@ -330,7 +330,7 @@ PR with no assignee at all: that silence is the failure signal, and it cannot re
 - Continuing after the build or the test suite could not run at all
 - Running the A/B after editing `src/` without rebuilding
 - Running the `analysis-v3` harness for a change the chr20 fixtures already cover
-- Quoting runtime or RAM from the `-g -pg -O1` build
+- Quoting runtime or RAM from a single un-interleaved local run
 - A root-cause claim with no variant coordinate behind it
 - A zero-delta table instead of one sentence saying nothing moved
 - Ending a run without assigning `TimD1` back — including when it failed

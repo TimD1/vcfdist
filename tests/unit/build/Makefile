@@ -1,9 +1,17 @@
 ######################
 # GOOGLE TEST CONFIG #
 ######################
-# Portable across Linux CI (libgtest-dev sources at /usr/src/gtest) and macOS
-# (Homebrew prebuilt Google Test, not on the default compiler search path).
+# Both platforms link a prebuilt Google Test: Ubuntu's libgtest-dev ships libgtest{,_main}.a on the
+# default search path, Homebrew's googletest is prebuilt but needs its prefix passed explicitly.
 UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    GTEST_PREFIX := $(shell brew --prefix googletest)
+    GTEST_INC := -isystem $(GTEST_PREFIX)/include
+    GTEST_LINK := -L$(GTEST_PREFIX)/lib -lgtest_main -lgtest
+else
+    GTEST_INC :=
+    GTEST_LINK := -lgtest_main -lgtest
+endif
 
 ###################
 # MY TESTS CONFIG #
@@ -11,9 +19,13 @@ UNAME_S := $(shell uname -s)
 SRC = ../../../src
 TEST_SRC = ../src
 TESTS = test_vcfdist
-CXXFLAGS += -g -Wall -Wextra -std=c++17
+# Must stay identical to src/Makefile: the $(SRC) objects are shared between the two builds.
+CXXFLAGS = -g -O3
+CXXFLAGS += -Wall -Wextra -std=c++17
 # var_fields members with no default are required; omitting one must not compile (GCC only)
 CXXFLAGS += -Werror=missing-field-initializers
+# Test objects are not shared and the suite runs in ~0.1s, so they skip optimization to build faster.
+TEST_CXXFLAGS = $(filter-out -O%,$(CXXFLAGS))
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 SRC_HEADERS = $(wildcard $(SRC)/*.h)
 TEST_HEADERS = $(wildcard $(TEST_SRC)/*.h)
@@ -22,46 +34,15 @@ OBJS = $(SRC)/globals.o $(SRC)/print.o $(SRC)/variant.o $(SRC)/dist.o $(SRC)/bed
        test_helpers.o test_bed.o test_cluster.o test_defs.o test_dist.o test_globals.o \
        test_harness.o test_phase.o test_print.o test_timer.o test_variant.o
 
-ifeq ($(UNAME_S),Darwin)
-    # macOS: link Homebrew's prebuilt Google Test; no gtest sources to compile.
-    GTEST_PREFIX := $(shell brew --prefix googletest)
-    GTEST_INC := -isystem $(GTEST_PREFIX)/include
-    GTEST_LINK := -L$(GTEST_PREFIX)/lib -lgtest -lgtest_main
-    GTEST_LIB :=
-    GTEST_HEADERS :=
-else
-    # Linux (CI): build Google Test from source at /usr/src/gtest.
-    GTEST_DIR = /usr/src/gtest
-    GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
-                    $(GTEST_DIR)/include/gtest/internal/*.h
-    GTEST_INC := -isystem $(GTEST_DIR)/include
-    GTEST_SRCS = $(GTEST_DIR)/src/*.cc $(GTEST_DIR)/src/*.h $(GTEST_HEADERS)
-    GTEST_LINK := gtest_main.a
-    GTEST_LIB := gtest_main.a
-endif
-
 ############
 # MY TESTS #
 ############
-$(TESTS): $(OBJS) $(GTEST_LIB)
+$(TESTS): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TESTS) $(LDFLAGS) $(GTEST_LINK)
 
+# $(SRC)/*.o belongs to src/Makefile; removing it here would recompile vcfdist on every test build.
 clean:
-	rm -f $(TESTS) gtest.a gtest_main.a *.o $(SRC)/*.o *.a
-
-#####################
-# BUILD GOOGLE TEST #
-#####################
-# Linux only; on macOS GTEST_LIB is empty so these rules are never invoked.
-gtest-all.o: $(GTEST_SRCS)
-	$(CXX) $(GTEST_INC) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest-all.cc
-
-gtest_main.o: $(GTEST_SRCS)
-	$(CXX) $(GTEST_INC) -I$(GTEST_DIR) $(CXXFLAGS) -c \
-            $(GTEST_DIR)/src/gtest_main.cc
-
-gtest_main.a: gtest-all.o gtest_main.o
-	$(AR) $(ARFLAGS) $@ $^
+	rm -f $(TESTS) *.o
 
 ##################
 # BUILD MY TESTS #
@@ -69,8 +50,8 @@ gtest_main.a: gtest-all.o gtest_main.o
 # One pattern rule covers every test file; adding a test file only requires adding it to OBJS.
 # Every test object depends on all vcfdist and test headers, since each test may include any of
 # them and the set is small enough that over-rebuilding costs less than a stale object.
-%.o: $(TEST_SRC)/%.cpp $(SRC_HEADERS) $(TEST_HEADERS) $(GTEST_HEADERS)
-	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c $< -o $@
+%.o: $(TEST_SRC)/%.cpp $(SRC_HEADERS) $(TEST_HEADERS)
+	$(CXX) $(TEST_CXXFLAGS) $(GTEST_INC) -c $< -o $@
 
 #################
 # BUILD VCFDIST #

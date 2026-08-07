@@ -23,7 +23,7 @@ def build_cpp_project(directory: str) -> None:
         f"""
             cd {directory} &&
             make clean &&
-            make &&
+            make -j{os.cpu_count() or 1} &&
             cd {VCFDIST_REPO_PATH}/tests
         """,
         capture_output=True,
@@ -33,6 +33,10 @@ def build_cpp_project(directory: str) -> None:
 
 
 def pytest_sessionstart(session):
-    """Automatically rebuild vcfdist and Google Test framework before running tests."""
+    """Rebuild vcfdist and the unit tests, unless VCFDIST_SKIP_BUILD is set (as in CI, where
+    both projects are already built by earlier workflow steps)."""
+    if os.environ.get("VCFDIST_SKIP_BUILD"):
+        print("VCFDIST_SKIP_BUILD is set, skipping the C++ rebuild")
+        return
     build_cpp_project(f"{VCFDIST_REPO_PATH}/src")
     build_cpp_project(f"{VCFDIST_REPO_PATH}/tests/unit/build")
