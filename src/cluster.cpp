@@ -146,7 +146,7 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
                         vars[HAP1][ctg]->alts[var_idx[HAP1]] ==
                         vars[HAP2][ctg]->alts[var_idx[HAP2]]) {
                     var_fields var = vars[HAP1][ctg]->get_var(var_idx[HAP1]);
-                    var.orig_gt = GT_ALT1_ALT1; // present on both haps
+                    var.orig_gt = GT_ALT_ALT; // present on both haps
                     merged_vars->add_var(var);
                     if (print) printf("adding 1|1 var= %s:%d\t%s\t%s\t%s\n",
                             ctg.data(), 

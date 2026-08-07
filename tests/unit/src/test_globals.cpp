@@ -180,12 +180,14 @@ TEST(InitTimers, WritesThisNotGlobal) {
 /* String lookup tables ***************************************************************************/
 
 TEST(StringTables, SizesMatchCount) {
-    // these five tables are sized exactly to their governing count constant
+    // these seven tables are sized exactly to their governing count constant
     EXPECT_EQ(size_t(TYPES), type_strs.size());
     EXPECT_EQ(size_t(VARTYPES), vartype_strs.size());
     EXPECT_EQ(size_t(ERRTYPES), error_strs.size());
     EXPECT_EQ(size_t(SWITCHTYPES), switch_strs.size());
     EXPECT_EQ(size_t(CALLSETS), callset_strs.size());
+    EXPECT_EQ(GT_SLOTS, gt_strs.size());
+    EXPECT_EQ(GTPARSE_SLOTS, gtparse_strs.size());
 }
 
 TEST(StringTables, SizesWithSentinel) {
@@ -196,18 +198,28 @@ TEST(StringTables, SizesWithSentinel) {
     EXPECT_EQ(".", ac_strs[AC_UNKNOWN]);
     EXPECT_EQ(".", phase_strs[PHASE_NONE]);
 
-    // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
-    EXPECT_EQ(GT_SLOTS, gt_strs.size());
+    // timer_strs has no count constant, so the highest valid index bounds it
     EXPECT_EQ(STAGE_SLOTS, timer_strs.size());
-    EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
     EXPECT_EQ("total", timer_strs[TIME_TOTAL]);
 }
 
+// gt_strs holds only the four genotypes a variant can store; the parse-time shapes live in
+// gtparse_strs, whose A and B stand for any alternate allele
 TEST(StringTables, IndexMapping) {
     EXPECT_EQ("TP", error_strs[ERRTYPE_TP]);
-    EXPECT_EQ("1|1", gt_strs[GT_ALT1_ALT1]);
-    EXPECT_EQ(".|.", gt_strs[GT_MISSING]);
-    EXPECT_EQ("X|.", gt_strs[GT_HALF]);
+    EXPECT_EQ("0|0", gt_strs[GT_REF_REF]);
+    EXPECT_EQ("0|1", gt_strs[GT_REF_ALT]);
+    EXPECT_EQ("1|0", gt_strs[GT_ALT_REF]);
+    EXPECT_EQ("1|1", gt_strs[GT_ALT_ALT]);
+    EXPECT_EQ("0", gtparse_strs[GT_PARSE_HAP_REF]);
+    EXPECT_EQ("A", gtparse_strs[GT_PARSE_HAP_ALT]);
+    EXPECT_EQ(".", gtparse_strs[GT_PARSE_HAP_MISSING]);
+    EXPECT_EQ("0/0", gtparse_strs[GT_PARSE_DIP_HOM_REF]);
+    EXPECT_EQ("0/A", gtparse_strs[GT_PARSE_DIP_HET_ALT]);
+    EXPECT_EQ("A/A", gtparse_strs[GT_PARSE_DIP_HOM_ALT]);
+    EXPECT_EQ("A/B", gtparse_strs[GT_PARSE_DIP_CPD_HET_ALT]);
+    EXPECT_EQ("./A", gtparse_strs[GT_PARSE_DIP_HALF_MISSING]);
+    EXPECT_EQ("./.", gtparse_strs[GT_PARSE_DIP_MISSING]);
     EXPECT_EQ("SNP", type_strs[TYPE_SUB]);
     EXPECT_EQ("QUERY", callset_strs[QUERY]);
     EXPECT_EQ("TRUTH", callset_strs[TRUTH]);

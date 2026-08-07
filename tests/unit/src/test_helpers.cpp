@@ -417,12 +417,12 @@ size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
 
 /**
  * @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count.
- * @param[in] gt Genotype code (GT_*)
- * @param[in] count Number of records tallied under that genotype
- * @return Substring of the INFO line, derived from gt_strs so it tracks renames
+ * @param[in] gt Parse-time genotype shape (GT_PARSE_*)
+ * @param[in] count Number of records tallied under that shape
+ * @return Substring of the INFO line, derived from gtparse_strs so it tracks renames
  */
-std::string gt_hist_line(gt_t gt, int count) {
-    std::string name = gt_strs[gt];
+std::string gt_hist_line(gtparse_t gt, int count) {
+    std::string name = gtparse_strs[gt];
     while (name.size() < 3) name = " " + name; // the "%3s" in the INFO format right-justifies
     return "    " + name + ": " + std::to_string(count);
 }

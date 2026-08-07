@@ -929,10 +929,10 @@ TEST(LoadAndMerge, HomVariant) {
 
     // identical position, REF and ALT on both haplotypes, but opposite single-hap genotypes
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {5}, {15});
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT1}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT}});
     set_clusters(hap2, {0, 1}, {5}, {15});
     auto vars = make_hap_vars(hap1, hap2);
 
@@ -942,17 +942,17 @@ TEST(LoadAndMerge, HomVariant) {
     std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
     ASSERT_EQ(1, merged->n);
     EXPECT_EQ(10, merged->poss[0]);
-    EXPECT_EQ(GT_ALT1_ALT1, merged->orig_gts[0]);
+    EXPECT_EQ(GT_ALT_ALT, merged->orig_gts[0]);
 }
 
 TEST(LoadAndMerge, HetHap1First) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {5}, {12});
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{20, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+            {{20, 1, TYPE_SUB, "A", "G", GT_REF_ALT}});
     set_clusters(hap2, {0, 1}, {15}, {25});
     auto vars = make_hap_vars(hap1, hap2);
 
@@ -962,8 +962,8 @@ TEST(LoadAndMerge, HetHap1First) {
     std::shared_ptr<ctgVariants> merged = merged_query(sc_data);
     ASSERT_EQ(2, merged->n);
     EXPECT_EQ(std::vector<int>({10, 20}), merged->poss);
-    EXPECT_EQ(GT_ALT1_REF, merged->orig_gts[0]);
-    EXPECT_EQ(GT_REF_ALT1, merged->orig_gts[1]);
+    EXPECT_EQ(GT_ALT_REF, merged->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, merged->orig_gts[1]);
 
     // the reaches do not touch, so the two clusters stay separate ahead of the sentinel
     EXPECT_EQ(std::vector<int>({0, 1, 2}), merged->clusters);
@@ -977,10 +977,10 @@ TEST(LoadAndMerge, HetTiePrefersIns) {
 
     // both haplotypes carry a variant at position 20, and HAP2's is the insertion
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{20, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{20, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {15}, {25});
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{20, 0, TYPE_INS, "", "GG", GT_REF_ALT1}});
+            {{20, 0, TYPE_INS, "", "GG", GT_REF_ALT}});
     set_clusters(hap2, {0, 1}, {15}, {25});
     auto vars = make_hap_vars(hap1, hap2);
 
@@ -1000,10 +1000,10 @@ TEST(LoadAndMerge, HetTieDefaultHap1) {
 
     // co-located but differing ALTs, and neither is an insertion
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{20, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{20, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {15}, {25});
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{20, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+            {{20, 1, TYPE_SUB, "A", "G", GT_REF_ALT}});
     set_clusters(hap2, {0, 1}, {15}, {25});
     auto vars = make_hap_vars(hap1, hap2);
 
@@ -1020,7 +1020,8 @@ TEST(LoadAndMerge, Hap1Only) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}, {12, 1, TYPE_SUB, "A", "G", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF},
+             {12, 1, TYPE_SUB, "A", "G", GT_ALT_REF}});
     set_clusters(hap1, {0, 2}, {5}, {17});
     auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
 
@@ -1039,7 +1040,8 @@ TEST(LoadAndMerge, Hap2Only) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT1}, {12, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT},
+             {12, 1, TYPE_SUB, "A", "G", GT_REF_ALT}});
     set_clusters(hap2, {0, 2}, {5}, {17});
     auto vars = make_hap_vars(make_ctgVariants("chr1", {}), hap2);
 
@@ -1058,7 +1060,8 @@ TEST(LoadAndMerge, TwoClustersSeparate) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}, {110, 1, TYPE_SUB, "A", "G", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF},
+             {110, 1, TYPE_SUB, "A", "G", GT_ALT_REF}});
     set_clusters(hap1, {0, 1, 2}, {5, 105}, {15, 115});
     auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
 
@@ -1077,10 +1080,10 @@ TEST(LoadAndMerge, TwoClustersOverlap) {
 
     // HAP2's cluster reaches left to 12, inside HAP1's cluster reaching right to 20
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {5}, {20});
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{14, 1, TYPE_SUB, "A", "G", GT_REF_ALT1}});
+            {{14, 1, TYPE_SUB, "A", "G", GT_REF_ALT}});
     set_clusters(hap2, {0, 1}, {12}, {25});
     auto vars = make_hap_vars(hap1, hap2);
 
@@ -1098,7 +1101,7 @@ TEST(LoadAndMerge, SentinelAppended) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {5}, {15});
     auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
 
@@ -1128,10 +1131,10 @@ TEST(LoadAndMerge, SingleVariantContigHomBothHaps) {
     // as HomVariant, but asserting the cluster lanes: both haplotypes exhaust on the same
     // iteration here, rather than one running out ahead of the other
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {5}, {15});
     std::shared_ptr<ctgVariants> hap2 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT1}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_REF_ALT}});
     set_clusters(hap2, {0, 1}, {5}, {15});
     auto vars = make_hap_vars(hap1, hap2);
 
@@ -1152,7 +1155,7 @@ TEST(LoadAndMerge, SingleVariantContigSuperclustersCorrectly) {
     GlobalsGuard guard;
     std::shared_ptr<superclusterData> sc_data = make_merge_target();
     std::shared_ptr<ctgVariants> hap1 = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF}});
     set_clusters(hap1, {0, 1}, {5}, {15});
     auto vars = make_hap_vars(hap1, make_ctgVariants("chr1", {}));
 
@@ -1332,7 +1335,7 @@ TEST(Supercluster, MergedEmptyCallsetSurvives) {
             {"chr1"}, {1000},
             {make_ctgSuperclusters(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}))});
     std::shared_ptr<ctgVariants> qhap = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_ALT1}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_ALT}});
     set_clusters(qhap, {0, 1}, {5}, {15});
     auto qvars = make_hap_vars(qhap, make_ctgVariants("chr1", {}));
     auto tvars = make_hap_vars(make_ctgVariants("chr1", {}), make_ctgVariants("chr1", {}));
@@ -1390,7 +1393,7 @@ std::shared_ptr<ctgVariants> make_sorted_callset(const std::vector<var_desc> & v
  * @param[in] gt Genotype, which decides the haplotypes the ALT length is counted on
  * @return Variant descriptor ready for make_sorted_callset()
  */
-var_desc sub_in_sc(int pos, int supercluster, gt_t gt = GT_ALT1_ALT1) {
+var_desc sub_in_sc(int pos, int supercluster, gt_t gt = GT_ALT_ALT) {
     var_desc var;
     var.pos = pos;
     var.rlen = 1;
@@ -1674,10 +1677,11 @@ TEST(SuperclusterDataCtor, EndToEndSmoke) {
     // one query variant and one nearby truth variant, whose reaches overlap, plus a distant
     // query variant that must not join them
     qvd->variants[HAP1]["chr1"] = make_ctgVariants("chr1",
-            {{10, 1, TYPE_SUB, "A", "C", GT_ALT1_REF}, {500, 1, TYPE_SUB, "A", "G", GT_ALT1_REF}});
+            {{10, 1, TYPE_SUB, "A", "C", GT_ALT_REF},
+             {500, 1, TYPE_SUB, "A", "G", GT_ALT_REF}});
     set_clusters(qvd->variants[HAP1]["chr1"], {0, 1, 2}, {5, 495}, {20, 505});
     tvd->variants[HAP2]["chr1"] = make_ctgVariants("chr1",
-            {{14, 1, TYPE_SUB, "A", "T", GT_REF_ALT1}});
+            {{14, 1, TYPE_SUB, "A", "T", GT_REF_ALT}});
     set_clusters(tvd->variants[HAP2]["chr1"], {0, 1}, {12}, {25});
 
     superclusterData sc_data(qvd, tvd, nullptr);

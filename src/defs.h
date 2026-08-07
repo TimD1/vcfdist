@@ -132,32 +132,41 @@ constexpr bedloc_t BED_BORDER  = bedloc_t::BED_BORDER;
 constexpr bedloc_t BED_OFFCTG  = bedloc_t::BED_OFFCTG;
 constexpr std::size_t BEDLOC_SLOTS = 4; ///< Subscript slots needed by a bedloc_t-keyed array
 
-/** @brief Simplified genotype of one variant. */
-enum class gt_t : int8_t {
-    GT_REF       =  0, ///< Haploid reference genotype (0)
-    GT_ALT1      =  1, ///< Haploid alternate genotype (1)
-    GT_REF_REF   =  2, ///< Diploid reference/reference genotype (0|0)
-    GT_REF_ALT1  =  3, ///< Diploid reference/alternate genotype (0|1)
-    GT_ALT1_REF  =  4, ///< Diploid alternate/reference genotype (1|0)
-    GT_ALT1_ALT1 =  5, ///< Diploid homozygous alternate genotype (1|1)
-    GT_ALT1_ALT2 =  6, ///< Diploid compound heterozygous genotype (1|2)
-    GT_ALT2_ALT1 =  7, ///< Diploid compound heterozygous genotype (2|1)
-    GT_MISSING   =  8, ///< No-call genotype, every allele missing (.|. or .)
-    GT_HALF      =  9, ///< Half-call genotype, exactly one allele missing (1|. or .|1)
-    GT_OTHER     = 10, ///< Other/unknown genotype
+/** @brief Genotype shape of a VCF record, for parse-time summary counting only. */
+enum class gtparse_t : int8_t {
+    GT_PARSE_HAP_REF          = 0, ///< Haploid reference (0)
+    GT_PARSE_HAP_ALT          = 1, ///< Haploid alternate (A)
+    GT_PARSE_HAP_MISSING      = 2, ///< Haploid no-call (.)
+    GT_PARSE_DIP_HOM_REF      = 3, ///< Diploid homozygous reference (0/0)
+    GT_PARSE_DIP_HET_ALT      = 4, ///< Diploid heterozygous alternate (0/A)
+    GT_PARSE_DIP_HOM_ALT      = 5, ///< Diploid homozygous alternate (A/A)
+    GT_PARSE_DIP_CPD_HET_ALT  = 6, ///< Diploid compound heterozygous (A/B)
+    GT_PARSE_DIP_HALF_MISSING = 7, ///< Diploid half call (./A)
+    GT_PARSE_DIP_MISSING      = 8, ///< Diploid no-call (./.)
 };
-constexpr gt_t GT_REF       = gt_t::GT_REF;
-constexpr gt_t GT_ALT1      = gt_t::GT_ALT1;
-constexpr gt_t GT_REF_REF   = gt_t::GT_REF_REF;
-constexpr gt_t GT_REF_ALT1  = gt_t::GT_REF_ALT1;
-constexpr gt_t GT_ALT1_REF  = gt_t::GT_ALT1_REF;
-constexpr gt_t GT_ALT1_ALT1 = gt_t::GT_ALT1_ALT1;
-constexpr gt_t GT_ALT1_ALT2 = gt_t::GT_ALT1_ALT2;
-constexpr gt_t GT_ALT2_ALT1 = gt_t::GT_ALT2_ALT1;
-constexpr gt_t GT_MISSING   = gt_t::GT_MISSING;
-constexpr gt_t GT_HALF      = gt_t::GT_HALF;
-constexpr gt_t GT_OTHER     = gt_t::GT_OTHER;
-constexpr std::size_t GT_SLOTS = 11; ///< Slots needed by a gt_t-keyed array
+constexpr gtparse_t GT_PARSE_HAP_REF          = gtparse_t::GT_PARSE_HAP_REF;
+constexpr gtparse_t GT_PARSE_HAP_ALT          = gtparse_t::GT_PARSE_HAP_ALT;
+constexpr gtparse_t GT_PARSE_HAP_MISSING      = gtparse_t::GT_PARSE_HAP_MISSING;
+constexpr gtparse_t GT_PARSE_DIP_HOM_REF      = gtparse_t::GT_PARSE_DIP_HOM_REF;
+constexpr gtparse_t GT_PARSE_DIP_HET_ALT      = gtparse_t::GT_PARSE_DIP_HET_ALT;
+constexpr gtparse_t GT_PARSE_DIP_HOM_ALT      = gtparse_t::GT_PARSE_DIP_HOM_ALT;
+constexpr gtparse_t GT_PARSE_DIP_CPD_HET_ALT  = gtparse_t::GT_PARSE_DIP_CPD_HET_ALT;
+constexpr gtparse_t GT_PARSE_DIP_HALF_MISSING = gtparse_t::GT_PARSE_DIP_HALF_MISSING;
+constexpr gtparse_t GT_PARSE_DIP_MISSING      = gtparse_t::GT_PARSE_DIP_MISSING;
+constexpr std::size_t GTPARSE_SLOTS = 9; ///< Slots needed by a gtparse_t-keyed array
+
+/** @brief Simplified genotype used for all evaluation. */
+enum class gt_t : int8_t {
+    GT_REF_REF = 0, ///< 0|0
+    GT_REF_ALT = 1, ///< 0|1
+    GT_ALT_REF = 2, ///< 1|0
+    GT_ALT_ALT = 3, ///< 1|1
+};
+constexpr gt_t GT_REF_REF = gt_t::GT_REF_REF;
+constexpr gt_t GT_REF_ALT = gt_t::GT_REF_ALT;
+constexpr gt_t GT_ALT_REF = gt_t::GT_ALT_REF;
+constexpr gt_t GT_ALT_ALT = gt_t::GT_ALT_ALT;
+constexpr std::size_t GT_SLOTS = 4; ///< Slots needed by a gt_t-keyed array
 
 /** @brief Benchmark error type. */
 enum class errtype_t : int8_t {

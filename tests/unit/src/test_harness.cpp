@@ -161,8 +161,8 @@ TEST(MakeFasta, SequenceReadable) {
 TEST(MakeCtgVariants, Roundtrip) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {
-            {4, 1, TYPE_SUB, "A", "G", GT_REF_ALT1, 40, 7, -1, BED_INSIDE},
-            {8, 0, TYPE_INS, "", "CC", GT_ALT1_ALT1, 60, 7, 2, BED_OUTSIDE}});
+            {4, 1, TYPE_SUB, "A", "G", GT_REF_ALT, 40, 7, -1, BED_INSIDE},
+            {8, 0, TYPE_INS, "", "CC", GT_ALT_ALT, 60, 7, 2, BED_OUTSIDE}});
 
     EXPECT_EQ("chr1", vars->ctg);
     ASSERT_EQ(2, vars->n);
@@ -173,7 +173,7 @@ TEST(MakeCtgVariants, Roundtrip) {
     EXPECT_EQ(BED_INSIDE, vars->locs[0]);
     EXPECT_EQ("A", vars->refs[0]);
     EXPECT_EQ("G", vars->alts[0]);
-    EXPECT_EQ(GT_REF_ALT1, vars->orig_gts[0]);
+    EXPECT_EQ(GT_REF_ALT, vars->orig_gts[0]);
     EXPECT_FLOAT_EQ(40, vars->var_quals[0]);
     EXPECT_FLOAT_EQ(40, vars->gt_quals[0]);
     EXPECT_EQ(7, vars->phase_sets[0]);

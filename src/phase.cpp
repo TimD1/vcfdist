@@ -385,7 +385,7 @@ void phaseblockData::fix_allele_counts() {
             allele_error_counts[allele_count_errtype][VARTYPE_ALL]++;
 
             // force 1|1 query variants to be evaluated as such
-            if (qvars->orig_gts[vi] == GT_ALT1_ALT1) {
+            if (qvars->orig_gts[vi] == GT_ALT_ALT) {
                 qvars->matched_gts[vi] = qvars->orig_gts[vi];
 
                 // if we're in a PHASE_SWAP phase block, we should swap data here since otherwise
@@ -413,8 +413,8 @@ void phaseblockData::fix_allele_counts() {
                     if (qvars->pb_phases[vi] == PHASE_ORIG) {
                         qvars->matched_gts[vi] = qvars->orig_gts[vi];
                     } else { // PHASE_SWAP
-                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
-                            GT_ALT1_REF : GT_REF_ALT1;
+                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT) ?
+                            GT_ALT_REF : GT_REF_ALT;
                     }
                 }
             // (matched_gt has allele count 0, orig_gt has allele count 1)
@@ -428,8 +428,8 @@ void phaseblockData::fix_allele_counts() {
                     if (qvars->pb_phases[vi] == PHASE_ORIG) {
                         qvars->matched_gts[vi] = qvars->orig_gts[vi];
                     } else { // PHASE_SWAP
-                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT1) ? 
-                            GT_ALT1_REF : GT_REF_ALT1;
+                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT) ?
+                            GT_ALT_REF : GT_REF_ALT;
                     }
                 }
             }
@@ -449,18 +449,18 @@ void phaseblockData::fix_allele_counts() {
             }
 
             sizeclass_t vartype = tvars->get_vartype(vi);
-            if (tvars->orig_gts[vi] == GT_ALT1_ALT1) {
+            if (tvars->orig_gts[vi] == GT_ALT_ALT) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN && 
                         tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
                     allele_error_counts[AC_ERR_2_TO_0][vartype]++;
                     allele_error_counts[AC_ERR_2_TO_0][VARTYPE_ALL]++;
                 }
-            } else if (tvars->orig_gts[vi] == GT_REF_ALT1) {
+            } else if (tvars->orig_gts[vi] == GT_REF_ALT) {
                 if (tvars->errtypes[HAP2][vi] == ERRTYPE_FN) {
                     allele_error_counts[AC_ERR_1_TO_0][vartype]++;
                     allele_error_counts[AC_ERR_1_TO_0][VARTYPE_ALL]++;
                 }
-            } else if (tvars->orig_gts[vi] == GT_ALT1_REF) {
+            } else if (tvars->orig_gts[vi] == GT_ALT_REF) {
                 if (tvars->errtypes[HAP1][vi] == ERRTYPE_FN) {
                     allele_error_counts[AC_ERR_1_TO_0][vartype]++;
                     allele_error_counts[AC_ERR_1_TO_0][VARTYPE_ALL]++;
@@ -548,11 +548,11 @@ void phaseblockData::phase()
 
         // calculate phasings for each variant
         for (int i = 0; i < qvars->n; i++) {
-            if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->matched_gts[i] == GT_ALT1_REF) || // same
-                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->matched_gts[i] == GT_REF_ALT1)) {
+            if ((qvars->orig_gts[i] == GT_ALT_REF && qvars->matched_gts[i] == GT_ALT_REF) || // same
+                    (qvars->orig_gts[i] == GT_REF_ALT && qvars->matched_gts[i] == GT_REF_ALT)) {
                 qvars->phases[i] = PHASE_ORIG;
-            } else if ((qvars->orig_gts[i] == GT_ALT1_REF && qvars->matched_gts[i] == GT_REF_ALT1) || // diff
-                    (qvars->orig_gts[i] == GT_REF_ALT1 && qvars->matched_gts[i] == GT_ALT1_REF)) {
+            } else if ((qvars->orig_gts[i] == GT_ALT_REF && qvars->matched_gts[i] == GT_REF_ALT) || // diff
+                    (qvars->orig_gts[i] == GT_REF_ALT && qvars->matched_gts[i] == GT_ALT_REF)) {
                 qvars->phases[i] = PHASE_SWAP;
             } else {
                 qvars->phases[i] = PHASE_NONE;
