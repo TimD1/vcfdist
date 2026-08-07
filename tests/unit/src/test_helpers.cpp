@@ -550,14 +550,14 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
 }
 
 /**
- * @brief Builds a one-variant container with the given original and calculated genotypes.
+ * @brief Builds a one-variant container with the given original and matched genotypes.
  * @param[in] orig_gt Original genotype (GT_*) stored in orig_gts[0]
- * @param[in] calc_gt Calculated genotype (GT_*) stored in calc_gts[0]
+ * @param[in] matched_gt Matched genotype (GT_*) stored in matched_gts[0]
  * @param[in] ctg Contig name
  * @param[in] pos 0-based reference start position
  * @return Container holding a single A>C substitution with the requested genotypes
  */
-std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt, const std::string & ctg,
+std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t matched_gt, const std::string & ctg,
         int pos) {
     var_desc var;
     var.pos = pos;
@@ -567,7 +567,7 @@ std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt, const std::
     var.alt = "C";
     var.gt = orig_gt;
     std::shared_ptr<ctgVariants> vars = make_ctgVariants(ctg, {var});
-    vars->calc_gts[0] = calc_gt;
+    vars->matched_gts[0] = matched_gt;
     return vars;
 }
 

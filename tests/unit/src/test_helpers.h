@@ -321,12 +321,12 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
         const std::vector<var_desc> & vars);
 
 /**
- * @brief Builds a one-variant container with the given original and calculated genotypes.
+ * @brief Builds a one-variant container with the given original and matched genotypes.
  *
  * The variant is an A>C substitution, since the genotype rather than the allele is what a caller
  * of this builder is varying.
  */
-std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt,
+std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t matched_gt,
         const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Builds a one-variant container of the given type with the given allele sequences. */
@@ -356,7 +356,7 @@ std::shared_ptr<superclusterData> make_superclusterData(
  * @brief Builds a phaseblockData over the given contigs, bypassing the phasing pipeline.
  *
  * The real constructor runs fix_phase_set_tags(), phase(), and fix_allele_counts(), each of which
- * would overwrite the calculated genotypes, error types, and allele count error types a test set
+ * would overwrite the matched genotypes, error types, and allele count error types a test set
  * by hand. It is therefore invoked over empty per-contig containers, and the caller's populated
  * ones are substituted afterwards.
  */

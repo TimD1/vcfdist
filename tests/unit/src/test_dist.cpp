@@ -1568,8 +1568,8 @@ TEST(PrecRecall, ReproducedVariantIsTruePositive) {
     EXPECT_EQ(0, f.qvars->query_ed[HAP1][0]);
     EXPECT_EQ(0, f.qvars->sync_group[HAP1][0]);
     EXPECT_FLOAT_EQ(60.0f, f.qvars->callq[HAP1][0]);
-    // a TP sets the query variant's calculated genotype on the matched haplotype
-    EXPECT_TRUE(f.qvars->var_on_hap(0, HAP1, true /* calc */));
+    // a TP sets the query variant's matched genotype on the matched haplotype
+    EXPECT_TRUE(f.qvars->var_on_hap(0, HAP1, true /* matched */));
 }
 
 TEST(PrecRecall, MissedVariantIsFalseNegativeViaBypass) {
@@ -1590,14 +1590,14 @@ TEST(PrecRecall, MissedVariantIsFalseNegativeViaBypass) {
     EXPECT_EQ(0, f.tvars->sync_group[HAP1][0]);
 
     // no query allele reached it, so no query genotype is recovered onto it
-    EXPECT_EQ(GT_REF_REF, f.tvars->calc_gts[0]);
+    EXPECT_EQ(GT_REF_REF, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, TruePositiveRecoversQueryGenotypeOntoTruthVariant) {
     GlobalsGuard guard;
 
     // Mirror of the query side: a TP records the matched query variant's own call on the truth
-    // variant's calc_gt, so the truth record can report the query's allele count. The query calls
+    // variant's matched_gt, so the truth record can report the query's allele count. The query calls
     // this SNP on both haplotypes, so both are recovered.
     GraphFixture f = build_fixture("ACGTACGT",
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}},
@@ -1606,7 +1606,7 @@ TEST(PrecRecall, TruePositiveRecoversQueryGenotypeOntoTruthVariant) {
     align_and_label(f.graph, HAP1);
 
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
-    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->calc_gts[0]);
+    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, TruePositiveRecoversOnlyTheHaplotypesTheQueryCalled) {
@@ -1621,14 +1621,14 @@ TEST(PrecRecall, TruePositiveRecoversOnlyTheHaplotypesTheQueryCalled) {
     align_and_label(f.graph, HAP1);
 
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
-    EXPECT_EQ(GT_ALT1_REF, f.tvars->calc_gts[0]);
+    EXPECT_EQ(GT_ALT1_REF, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, HomozygousTruthVariantIsNotRecoveredTwiceAcrossPasses) {
     GlobalsGuard guard;
 
     // evaluate_variants runs one graph per truth haplotype over the same containers, so a 1|1 truth
-    // variant is emitted in both passes. set_var_calcgt_on_hap errors on an already-set haplotype,
+    // variant is emitted in both passes. set_var_matched_gt_on_hap errors on an already-set haplotype,
     // so the second pass must not re-set what the first recovered.
     GraphFixture f = build_fixture("ACGTACGT",
             {{2, 1, TYPE_SUB, "G", "A", GT_ALT1_ALT1, 60, 0, 0}},
@@ -1639,7 +1639,7 @@ TEST(PrecRecall, HomozygousTruthVariantIsNotRecoveredTwiceAcrossPasses) {
 
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);
     ASSERT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP2][0]);
-    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->calc_gts[0]);
+    EXPECT_EQ(GT_ALT1_ALT1, f.tvars->matched_gts[0]);
 }
 
 TEST(PrecRecall, ContigStartSubstitutionIsTruePositive) {

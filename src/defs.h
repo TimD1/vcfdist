@@ -179,7 +179,7 @@ static_assert(ERRTYPE_SLOTS == std::size_t(ERRTYPES), "errtype_t slots must matc
  *
  * The direction is absolute, so the query and truth records of a matched site carry the same value;
  * what differs is which genotype supplies which count, since a record's orig_gt is its own
- * callset's call and its calc_gt is the other callset's genotype recovered by alignment. A
+ * callset's call and its matched_gt is the other callset's genotype recovered by alignment. A
  * callset's own allele count is never zero, so a query record never reaches AC_ERR_1_TO_0 or
  * AC_ERR_2_TO_0 and a truth record never reaches AC_ERR_0_TO_1 or AC_ERR_0_TO_2.
  */

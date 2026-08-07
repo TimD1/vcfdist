@@ -324,10 +324,10 @@ TEST(TallyCountsByQual, TruthFnAboveQscore) {
 
 TEST(TallyCountsByQual, AcErr2To1DecrementsTruthTp) {
     GlobalsGuard guard;
-    // the calculated genotype was 1|1 and was forced back to the original allele count, so the
+    // the matched genotype was 1|1 and was forced back to the original allele count, so the
     // extra alternate allele already participated in a truth match and is compensated for here
     std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
-    qvars->calc_gts[0] = GT_REF_ALT1;
+    qvars->matched_gts[0] = GT_REF_ALT1;
     qvars->ac_errtype[0] = AC_ERR_2_TO_1;
     set_hap_data(qvars, HAP1, 0, ERRTYPE_UN, 0, 2, 0, 0, 0);
     set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 0, 2, 0, 0, 0);
@@ -349,10 +349,10 @@ TEST(TallyCountsByQual, AcErr2To1DecrementsTruthTp) {
 
 TEST(TallyCountsByQual, CalcgtSwappedHaplotype) {
     GlobalsGuard guard;
-    // original 0|1 against calculated 1|0 is a swap, so haplotype 1 reads the haplotype 0 lane
+    // original 0|1 against matched 1|0 is a swap, so haplotype 1 reads the haplotype 0 lane
     std::shared_ptr<ctgVariants> qvars = hap1_var(TYPE_SUB, "A", "G");
     qvars->orig_gts[0] = GT_REF_ALT1;
-    qvars->calc_gts[0] = GT_ALT1_REF;
+    qvars->matched_gts[0] = GT_ALT1_REF;
     set_hap_data(qvars, HAP1, 0, ERRTYPE_FP, 0, 1, 0, 0, 0);
     set_hap_data(qvars, HAP2, 0, ERRTYPE_TP, 0, 4, 0, 0, 0);
 

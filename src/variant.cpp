@@ -54,7 +54,7 @@ void ctgVariants::add_var(const var_fields & var) {
     this->n++;
 
     // added during precision/recall analysis
-    this->calc_gts.push_back(var.calc_gt);
+    this->matched_gts.push_back(var.matched_gt);
     for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
         this->errtypes[hap].push_back(var.hap[hap].errtype);
         this->sync_group[hap].push_back(var.hap[hap].sync_group);
@@ -100,7 +100,7 @@ var_fields ctgVariants::get_var(int idx) const {
         .alt_idx = this->alt_idxs[idx],
         .ploidy = this->ploidies[idx],
         .supercluster = this->superclusters[idx],
-        .calc_gt = this->calc_gts[idx],
+        .matched_gt = this->matched_gts[idx],
     };
     for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
         var.hap[hap] = {
@@ -185,11 +185,11 @@ static ac_errtype_t ac_errtype_from_counts(int truth_ac, int query_ac) {
 
 
 /**
- * @brief Records a variant's allele count error type from its original and calculated genotypes.
+ * @brief Records a variant's allele count error type from its original and matched genotypes.
  *
  * The value keeps one absolute truth-allele-count-then-query-allele-count direction on both
  * callsets, so the two records of a matched site report it identically. Which genotype supplies
- * which count is what differs: a record's orig_gt is its own callset's call and its calc_gt is the
+ * which count is what differs: a record's orig_gt is its own callset's call and its matched_gt is the
  * other callset's genotype as recovered by alignment.
  *
  * @param[in] vi Variant index
@@ -197,8 +197,8 @@ static ac_errtype_t ac_errtype_from_counts(int truth_ac, int query_ac) {
  * @return Allele count error type (AC_ERR_*_TO_* or AC_UNKNOWN); also stored in ac_errtype[vi]
  */
 ac_errtype_t ctgVariants::set_allele_errtype(int vi, bool query) {
-    int truth_ac = allele_count(query ? this->calc_gts[vi] : this->orig_gts[vi]);
-    int query_ac = allele_count(query ? this->orig_gts[vi] : this->calc_gts[vi]);
+    int truth_ac = allele_count(query ? this->matched_gts[vi] : this->orig_gts[vi]);
+    int query_ac = allele_count(query ? this->orig_gts[vi] : this->matched_gts[vi]);
     return this->ac_errtype[vi] = ac_errtype_from_counts(truth_ac, query_ac);
 }
 
@@ -207,40 +207,40 @@ ac_errtype_t ctgVariants::set_allele_errtype(int vi, bool query) {
 
 
 /**
- * @brief Returns true if haplotypes should be swapped when reporting calc_gt data relative to orig_gt.
+ * @brief Returns true if haplotypes should be swapped when reporting matched_gt data relative to orig_gt.
  * @param[in] vi Variant index
- * @return False for matching genotypes, homozygous calls, or when calc_gt is 0/0
+ * @return False for matching genotypes, homozygous calls, or when matched_gt is 0/0
  */
-bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
+bool ctgVariants::matched_gt_is_swapped(int vi /* variant index */) const {
     // 0|0,0|0 and 0|1,0|1 and 1|0,1|0 and 1|1,1|1
-    if (this->orig_gts[vi] == this->calc_gts[vi]) {
+    if (this->orig_gts[vi] == this->matched_gts[vi]) {
         return false;
     }
-    // orig_gt == 1|1 or 0|0 or calc_gt == 0|0, all/no calc_gt data will be reported, order doesn't matter
+    // orig_gt == 1|1 or 0|0 or matched_gt == 0|0, all/no matched_gt data will be reported, order doesn't matter
     else if (this->orig_gts[vi] == GT_ALT1_ALT1 || 
              this->orig_gts[vi] == GT_REF_REF || 
-             this->calc_gts[vi] == GT_REF_REF) {
+             this->matched_gts[vi] == GT_REF_REF) {
         return false;
     }
     // 0|1,1|0 and 1|0,0|1
-    else if ((this->orig_gts[vi] == GT_REF_ALT1 && this->calc_gts[vi] == GT_ALT1_REF) || 
-             (this->orig_gts[vi] == GT_ALT1_REF && this->calc_gts[vi] == GT_REF_ALT1)) {
+    else if ((this->orig_gts[vi] == GT_REF_ALT1 && this->matched_gts[vi] == GT_ALT1_REF) || 
+             (this->orig_gts[vi] == GT_ALT1_REF && this->matched_gts[vi] == GT_REF_ALT1)) {
         return true;
     }
-    // orig_gt = 0|1, choose better calc_gt
-    else if (this->orig_gts[vi] == GT_REF_ALT1 && this->calc_gts[vi] == GT_ALT1_ALT1) {
+    // orig_gt = 0|1, choose better matched_gt
+    else if (this->orig_gts[vi] == GT_REF_ALT1 && this->matched_gts[vi] == GT_ALT1_ALT1) {
         return this->credit[HAP1][vi] > this->credit[HAP2][vi];
     }
-    // orig_gt = 1|0, choose better calc_gt
-    else if (this->orig_gts[vi] == GT_ALT1_REF && this->calc_gts[vi] == GT_ALT1_ALT1) {
+    // orig_gt = 1|0, choose better matched_gt
+    else if (this->orig_gts[vi] == GT_ALT1_REF && this->matched_gts[vi] == GT_ALT1_ALT1) {
         return this->credit[HAP2][vi] > this->credit[HAP1][vi];
     } else {
-        ERROR("Unexpected orig/calc genotypes for variant (%s -> %s) at pos %d: orig=%s calc=%s",
+        ERROR("Unexpected orig/matched genotypes for variant (%s -> %s) at pos %d: orig=%s matched=%s",
                 this->refs[vi].data(),
                 this->alts[vi].data(),
                 this->poss[vi],
                 gt_strs[this->orig_gts[vi]].data(),
-                gt_strs[this->calc_gts[vi]].data()
+                gt_strs[this->matched_gts[vi]].data()
         );
     }
 }
@@ -249,12 +249,12 @@ bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
  * @brief Returns true if a variant is present on the specified haplotype.
  * @param[in] var_idx Variant index
  * @param[in] hap Haplotype index (0 or 1)
- * @param[in] calc If true, check calc_gts; if false, check orig_gts
+ * @param[in] matched If true, check matched_gts; if false, check orig_gts
  * @return True if variant is on the specified haplotype
  */
-bool ctgVariants::var_on_hap(int var_idx, hap_t hap, bool calc) const {
+bool ctgVariants::var_on_hap(int var_idx, hap_t hap, bool matched) const {
     // simple gt, always (0|1, 1|0, or 1|1)
-    gt_t gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx];
+    gt_t gt = matched ? this->matched_gts[var_idx] : this->orig_gts[var_idx];
     if (hap == HAP1 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
         return true;
     if (hap == HAP2 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
@@ -265,67 +265,67 @@ bool ctgVariants::var_on_hap(int var_idx, hap_t hap, bool calc) const {
 /**************************************************************************************************/
 
 /**
- * @brief Sets or unsets the alternate allele on one haplotype for a calculated genotype.
+ * @brief Sets or unsets the alternate allele on one haplotype for a matched genotype.
  * @param[in] var_idx Variant index
  * @param[in] hap Haplotype index (0 or 1)
  * @param[in] set If true, set alternate; if false, unset it
  * @param[in] ignore_errors If true, suppress error messages for invalid transitions
  */
-void ctgVariants::set_var_calcgt_on_hap(int var_idx, hap_t hap, bool set,
+void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
         bool ignore_errors) {
-    if (this->calc_gts[var_idx] == GT_REF_REF) {
+    if (this->matched_gts[var_idx] == GT_REF_REF) {
         if (set) {
-            this->calc_gts[var_idx] = hap == HAP1 ? GT_ALT1_REF : GT_REF_ALT1;
+            this->matched_gts[var_idx] = hap == HAP1 ? GT_ALT1_REF : GT_REF_ALT1;
         } else { // unset
-            if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+            if (!ignore_errors) ERROR("Variant matched_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
         }
 
-    } else if (this->calc_gts[var_idx] == GT_REF_ALT1) {
+    } else if (this->matched_gts[var_idx] == GT_REF_ALT1) {
         if (set) {
             if (hap == HAP2) {
-                if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+                if (!ignore_errors) ERROR("Variant matched_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
-                this->calc_gts[var_idx] = GT_ALT1_ALT1;
+                this->matched_gts[var_idx] = GT_ALT1_ALT1;
             }
         } else { // unset
             if (hap == HAP1) {
-                if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+                if (!ignore_errors) ERROR("Variant matched_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
-                this->calc_gts[var_idx] = GT_REF_REF;
+                this->matched_gts[var_idx] = GT_REF_REF;
             }
         }
 
-    } else if (this->calc_gts[var_idx] == GT_ALT1_REF) {
+    } else if (this->matched_gts[var_idx] == GT_ALT1_REF) {
         if (set) {
             if (hap == HAP1) {
-                if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+                if (!ignore_errors) ERROR("Variant matched_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
-                this->calc_gts[var_idx] = GT_ALT1_ALT1;
+                this->matched_gts[var_idx] = GT_ALT1_ALT1;
             }
         } else { // unset
             if (hap == HAP2) {
-                if (!ignore_errors) ERROR("Variant calc_gt already unset for variant %d at %s:%d hap %d",
+                if (!ignore_errors) ERROR("Variant matched_gt already unset for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
             } else {
-                this->calc_gts[var_idx] = GT_REF_REF;
+                this->matched_gts[var_idx] = GT_REF_REF;
             }
         }
 
-    } else if (this->calc_gts[var_idx] == GT_ALT1_ALT1) {
+    } else if (this->matched_gts[var_idx] == GT_ALT1_ALT1) {
         if (set) {
-            if (!ignore_errors) ERROR("Variant calc_gt already set for variant %d at %s:%d hap %d",
+            if (!ignore_errors) ERROR("Variant matched_gt already set for variant %d at %s:%d hap %d",
                     var_idx, this->ctg.data(), this->poss[var_idx], int(idx(hap)));
         } else {
-            this->calc_gts[var_idx] = hap == HAP1 ? GT_REF_ALT1 : GT_ALT1_REF;
+            this->matched_gts[var_idx] = hap == HAP1 ? GT_REF_ALT1 : GT_ALT1_REF;
         }
 
     } else {
-        ERROR("Unexpected calc_gts value '%s' in set_var_calcgt_on_hap() for variant %d at %s:%d", 
-            gt_strs[this->calc_gts[var_idx]].data(), var_idx, this->ctg.data(), this->poss[var_idx]);
+        ERROR("Unexpected matched_gts value '%s' in set_var_matched_gt_on_hap() for variant %d at %s:%d", 
+            gt_strs[this->matched_gts[var_idx]].data(), var_idx, this->ctg.data(), this->poss[var_idx]);
     }
 }
 

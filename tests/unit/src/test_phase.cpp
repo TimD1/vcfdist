@@ -74,13 +74,13 @@ struct pipeline_result {
 /**
  * @brief Builds query variants SPACING bases apart whose genotypes yield the requested phasings.
  *
- * phase() derives phases[i] from the orig/calc genotype pair rather than reading it, so a test
+ * phase() derives phases[i] from the orig/matched genotype pair rather than reading it, so a test
  * asks for a phasing pattern and gets the genotypes that produce it: 1|0 against 1|0 for
  * PHASE_ORIG, 1|0 against 0|1 for PHASE_SWAP, and 1|1 against 1|1 for PHASE_NONE.
  * @param[in] phases Desired phasing (PHASE_ORIG, PHASE_SWAP, or PHASE_NONE) of each variant
  * @param[in] phase_sets Phase set of each variant, or empty to place them all in phase set 1
  * @param[in] ctg Contig the variants sit on
- * @return Query variants with orig_gts, calc_gts, and phase_sets set
+ * @return Query variants with orig_gts, matched_gts, and phase_sets set
  */
 std::shared_ptr<ctgVariants> make_qvars(const std::vector<phase_t> & phases,
         const std::vector<int> & phase_sets = {}, const std::string & ctg = CTG) {
@@ -93,9 +93,9 @@ std::shared_ptr<ctgVariants> make_qvars(const std::vector<phase_t> & phases,
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
     for (size_t i = 0; i < phases.size(); i++) {
         switch (phases[i]) {
-            case PHASE_ORIG: qvars->calc_gts[i] = GT_ALT1_REF;  break;
-            case PHASE_SWAP: qvars->calc_gts[i] = GT_REF_ALT1;  break;
-            default:         qvars->calc_gts[i] = GT_ALT1_ALT1; break;
+            case PHASE_ORIG: qvars->matched_gts[i] = GT_ALT1_REF;  break;
+            case PHASE_SWAP: qvars->matched_gts[i] = GT_REF_ALT1;  break;
+            default:         qvars->matched_gts[i] = GT_ALT1_ALT1; break;
         }
     }
     return qvars;
@@ -156,18 +156,18 @@ pipeline_result run_pipeline(const TempDir & dir, std::shared_ptr<ctgVariants> q
  * classifies as PHASE_NONE, leaving the flanks in sole control of the DP, except a heterozygous
  * call that agrees with itself: that pair is PHASE_ORIG, and is only used in an unswapped block.
  * @param[in] orig_gt Original genotype of the middle variant
- * @param[in] calc_gt Calculated genotype of the middle variant
+ * @param[in] matched_gt Matched genotype of the middle variant
  * @param[in] block_phase Phasing (PHASE_ORIG or PHASE_SWAP) to force on the enclosing block
  * @param[in] hap1_credit Credit of the middle variant on HAP1
  * @param[in] hap2_credit Credit of the middle variant on HAP2
  * @return Query variants whose middle variant is at index 1
  */
-std::shared_ptr<ctgVariants> make_ac_qvars(gt_t orig_gt, gt_t calc_gt, phase_t block_phase,
+std::shared_ptr<ctgVariants> make_ac_qvars(gt_t orig_gt, gt_t matched_gt, phase_t block_phase,
         float hap1_credit = 0, float hap2_credit = 0) {
     std::shared_ptr<ctgVariants> qvars =
             make_qvars({block_phase, PHASE_NONE, block_phase});
     qvars->orig_gts[1] = orig_gt;
-    qvars->calc_gts[1] = calc_gt;
+    qvars->matched_gts[1] = matched_gt;
     set_hap_data(qvars, HAP1, 1, ERRTYPE_TP, 0, 60, 4, 0, hap1_credit);
     set_hap_data(qvars, HAP2, 1, ERRTYPE_TP, 0, 60, 4, 0, hap2_credit);
     return qvars;
@@ -191,17 +191,17 @@ std::shared_ptr<ctgVariants> tvars_of(const pipeline_result & result) {
 /**
  * @brief Builds truth variants SPACING bases apart with the given genotypes.
  *
- * A truth variant's calc_gt is the query genotype recovered for it by alignment, which calc_gts
+ * A truth variant's matched_gt is the query genotype recovered for it by alignment, which matched_gts
  * carries in place of the reference call it is initialized to.
  * @param[in] gts Original genotype and recovered query genotype of each variant, in order
- * @return Truth variants with orig_gts and calc_gts set
+ * @return Truth variants with orig_gts and matched_gts set
  */
 std::shared_ptr<ctgVariants> make_tvars(const std::vector< std::pair<gt_t, gt_t> > & gts) {
     std::vector<var_desc> descs;
     for (size_t i = 0; i < gts.size(); i++)
         descs.push_back({int(i) * SPACING, 1, TYPE_SUB, "A", "C", gts[i].first, 60, 1});
     std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG, descs);
-    for (size_t i = 0; i < gts.size(); i++) tvars->calc_gts[i] = gts[i].second;
+    for (size_t i = 0; i < gts.size(); i++) tvars->matched_gts[i] = gts[i].second;
     return tvars;
 }
 
@@ -682,7 +682,7 @@ TEST(FixAlleleCounts, UnknownErrors) {
     // a reference call that stayed a reference call has no allele count error type
     std::shared_ptr<ctgVariants> qvars = make_qvars({PHASE_NONE});
     qvars->orig_gts[0] = GT_REF_REF;
-    qvars->calc_gts[0] = GT_REF_REF;
+    qvars->matched_gts[0] = GT_REF_REF;
     std::shared_ptr<superclusterData> sc_data = make_superclusterData(
             {CTG}, {CTG_LENGTH}, {make_ctgSuperclusters(qvars, make_ctgVariants(CTG, {}))});
     EXPECT_EXIT(phaseblockData data(sc_data), testing::ExitedWithCode(1),
@@ -695,7 +695,7 @@ TEST(FixAlleleCounts, OneToOneTallied) {
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_REF_ALT1, PHASE_ORIG));
     EXPECT_EQ(AC_ERR_1_TO_1, qvars_of(result)->ac_errtype[1]);
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, OneToTwoTallied) {
@@ -717,7 +717,7 @@ TEST(FixAlleleCounts, ZeroToTwoTallied) {
 }
 
 // The truth callset gets the same value the query callset does, read from the other side: a truth
-// record's own orig_gt supplies the truth allele count and its recovered calc_gt the query's.
+// record's own orig_gt supplies the truth allele count and its recovered matched_gt the query's.
 
 TEST(FixAlleleCounts, TruthHeterozygousFalseNegativeTallied) {
     GlobalsGuard guard;
@@ -786,14 +786,14 @@ TEST(FixAlleleCounts, ForceOneOneKeepsGt) {
     // a 1|1 call is always evaluated as 1|1, whatever the alignment calculated
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_ALT1_ALT1, GT_ALT1_REF, PHASE_ORIG));
-    EXPECT_EQ(GT_ALT1_ALT1, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_ALT1_ALT1, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ForceOneOneSwapsHapData) {
     GlobalsGuard guard;
     TempDir dir;
 
-    // a calc_gt of 1|1 carries no record of which haplotype its data came from, so inside a
+    // a matched_gt of 1|1 carries no record of which haplotype its data came from, so inside a
     // swapped block the per-haplotype lanes are exchanged when the genotype is forced back
     std::shared_ptr<ctgVariants> qvars = make_ac_qvars(GT_ALT1_ALT1, GT_ALT1_ALT1, PHASE_SWAP);
     set_hap_data(qvars, HAP1, 1, ERRTYPE_TP, 1, 10, 2, 3, 0.25);
@@ -823,7 +823,7 @@ TEST(FixAlleleCounts, TwoToOneHap1Better) {
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_ORIG, 0.9, 0.1));
     EXPECT_EQ(AC_ERR_2_TO_1, qvars_of(result)->ac_errtype[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TwoToOneHap2Better) {
@@ -831,7 +831,7 @@ TEST(FixAlleleCounts, TwoToOneHap2Better) {
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_ORIG, 0.1, 0.9));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TwoToOneTieOrig) {
@@ -841,7 +841,7 @@ TEST(FixAlleleCounts, TwoToOneTieOrig) {
     // equal credit on both haplotypes falls back to the block's phasing, which keeps the call
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_ORIG, 0.5, 0.5));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TwoToOneTieSwap) {
@@ -850,7 +850,7 @@ TEST(FixAlleleCounts, TwoToOneTieSwap) {
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_ALT1_ALT1, PHASE_SWAP, 0.5, 0.5));
     ASSERT_EQ(PHASE_SWAP, qvars_of(result)->pb_phases[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneHap1Better) {
@@ -861,7 +861,7 @@ TEST(FixAlleleCounts, ZeroToOneHap1Better) {
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_ORIG, 0.9, 0.1));
     EXPECT_EQ(AC_ERR_0_TO_1, qvars_of(result)->ac_errtype[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneHap2Better) {
@@ -869,7 +869,7 @@ TEST(FixAlleleCounts, ZeroToOneHap2Better) {
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_ORIG, 0.1, 0.9));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneTieOrig) {
@@ -877,7 +877,7 @@ TEST(FixAlleleCounts, ZeroToOneTieOrig) {
     TempDir dir;
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_ORIG, 0.5, 0.5));
-    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_REF_ALT1, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, ZeroToOneTieSwap) {
@@ -886,7 +886,7 @@ TEST(FixAlleleCounts, ZeroToOneTieSwap) {
     pipeline_result result = run_pipeline(dir,
             make_ac_qvars(GT_REF_ALT1, GT_REF_REF, PHASE_SWAP, 0.5, 0.5));
     ASSERT_EQ(PHASE_SWAP, qvars_of(result)->pb_phases[1]);
-    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->calc_gts[1]);
+    EXPECT_EQ(GT_ALT1_REF, qvars_of(result)->matched_gts[1]);
 }
 
 TEST(FixAlleleCounts, TruthFn2To0) {
@@ -1058,8 +1058,8 @@ TEST(PhaseblockNg50, MultiContigBlocksPooled) {
     second.qvars = make_ctgVariants("chr2",
             {{0, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1},
              {100, 1, TYPE_SUB, "A", "C", GT_ALT1_REF, 60, 1}});
-    second.qvars->calc_gts[0] = GT_ALT1_REF;
-    second.qvars->calc_gts[1] = GT_ALT1_REF;
+    second.qvars->matched_gts[0] = GT_ALT1_REF;
+    second.qvars->matched_gts[1] = GT_ALT1_REF;
     second.length = 502;
     pipeline_result result = run_pipeline(dir, {first, second});
     EXPECT_EQ(101, result.data->calculate_ng50(false, false));
@@ -1166,10 +1166,10 @@ TEST(PhaseblockDataCtor, BoundariesIgnoreUnphasedMiddle) {
  *
  * A haploid record parses to GT_ALT1_REF on HAP1 alone, exactly as a heterozygous diploid call
  * does, so the ploidy is the only thing distinguishing the two by the time the writer sees them.
- * calc_gts match orig_gts so that every variant classifies as PHASE_ORIG.
+ * matched_gts match orig_gts so that every variant classifies as PHASE_ORIG.
  * @param[in] ploidies Ploidy of each variant, in position order
  * @param[in] ctg Contig the variants sit on
- * @return Query variants with orig_gts, calc_gts, phase_sets, and ploidies set
+ * @return Query variants with orig_gts, matched_gts, phase_sets, and ploidies set
  */
 std::shared_ptr<ctgVariants> make_ploidy_qvars(const std::vector<uint8_t> & ploidies,
         const std::string & ctg = CTG) {
@@ -1186,7 +1186,7 @@ std::shared_ptr<ctgVariants> make_ploidy_qvars(const std::vector<uint8_t> & ploi
         descs.push_back(desc);
     }
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
-    for (size_t i = 0; i < ploidies.size(); i++) qvars->calc_gts[i] = GT_ALT1_REF;
+    for (size_t i = 0; i < ploidies.size(); i++) qvars->matched_gts[i] = GT_ALT1_REF;
     return qvars;
 }
 

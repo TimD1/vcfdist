@@ -301,20 +301,20 @@ pr_counts tally_counts_by_qual(const std::unique_ptr<phaseblockData> & phasedata
 
             sizeclass_t vartype = qvars->get_vartype(vi);
             for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                hap_t calc_hi = qvars->calcgt_is_swapped(vi) ? other_hap(hi) : hi;
-                float q = qvars->callq[calc_hi][vi];
+                hap_t matched_hi = qvars->matched_gt_is_swapped(vi) ? other_hap(hi) : hi;
+                float q = qvars->callq[matched_hi][vi];
                 if (qvars->var_on_hap(vi, hi)) {
-                    if (qvars->errtypes[calc_hi][vi] == ERRTYPE_UN) {
+                    if (qvars->errtypes[matched_hi][vi] == ERRTYPE_UN) {
                         WARN("Unknown error type at QUERY %s:%d", ctg.data(), qvars->poss[vi]);
                         continue;
                     }
                     for (int qual = min_qual; qual <= q; qual++) {
-                        query_counts[vartype][ qvars->errtypes[calc_hi][vi] ][qual-min_qual]++;
-                        query_counts[VARTYPE_ALL][ qvars->errtypes[calc_hi][vi] ][qual-min_qual]++;
+                        query_counts[vartype][ qvars->errtypes[matched_hi][vi] ][qual-min_qual]++;
+                        query_counts[VARTYPE_ALL][ qvars->errtypes[matched_hi][vi] ][qual-min_qual]++;
                     }
                 } else { // variant not present on this haplotype
                     // NOTE: custom logic for incorrect original allele count
-                    // orig_gt is 1|0 (query), calc_gt (~truth) was 1|1, forced back to 0|1
+                    // orig_gt is 1|0 (query), matched_gt (~truth) was 1|1, forced back to 0|1
                     // the extra 1 allele probably participated in a truth match, so decrement truth
                     if (qvars->ac_errtype[vi] == AC_ERR_2_TO_1) {
                         for (int qual = min_qual; qual <= q; qual++) {
@@ -607,22 +607,22 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
             for (int vi = 0; vi < qvars->n; vi++) {
                 for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                    if (!qvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
-                    hap_t calc_hi = qvars->calcgt_is_swapped(vi) ? other_hap(hi) : hi;
+                    if (!qvars->var_on_hap(vi, hi, /*matched=*/ false)) continue;
+                    hap_t matched_hi = qvars->matched_gt_is_swapped(vi) ? other_hap(hi) : hi;
                     fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
                             qvars->poss[vi],
-                            int(idx(calc_hi)),
+                            int(idx(matched_hi)),
                             qvars->refs[vi].data(),
                             qvars->alts[vi].data(),
                             qvars->var_quals[vi],
                             type_strs[qvars->types[vi]].data(),
-                            error_strs[qvars->errtypes[calc_hi][vi]].data(),
-                            qvars->credit[calc_hi][vi],
+                            error_strs[qvars->errtypes[matched_hi][vi]].data(),
+                            qvars->credit[matched_hi][vi],
                             qvars->superclusters[vi],
-                            qvars->sync_group[calc_hi][vi],
-                            qvars->ref_ed[calc_hi][vi],
-                            qvars->query_ed[calc_hi][vi],
+                            qvars->sync_group[matched_hi][vi],
+                            qvars->ref_ed[matched_hi][vi],
+                            qvars->query_ed[matched_hi][vi],
                             region_strs[qvars->locs[vi]].data()
                            );
                 }
@@ -648,7 +648,7 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
 
             for (int vi = 0; vi < tvars->n; vi++) {
                 for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                    if (!tvars->var_on_hap(vi, hi, /*calc=*/ false)) continue;
+                    if (!tvars->var_on_hap(vi, hi, /*matched=*/ false)) continue;
 
                     fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
                             ctg.data(),
