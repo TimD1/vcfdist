@@ -48,17 +48,21 @@ EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs =
  * @brief Parses command-line arguments and initializes global configuration.
  * @param[in] argc Argument count
  * @param[in] argv Argument vector
- * @note Required args: query.vcf, truth.vcf, ref.fasta (must be first 3). Optional flag groups:
- *       input/output (-b, -v, -p, -n), variant filtering (-f, -l, -sv, -q, -mq),
- *       clustering (-s), precision-recall (-ct), resources (-t, -r), misc (-h, -ci).
- * @throws Errors on invalid file paths, out-of-range parameters, or format errors.
+ * @note Two disjoint invocation modes, decided by argc before any flag is read. Informational
+ *       (fewer than the three mandatory arguments) accepts only -h/--help, -v/--version and
+ *       -ci/--citation, none of which takes a value; each prints and exits 0. Evaluation
+ *       (query.vcf, truth.vcf, ref.fasta first) accepts every other flag, each taking exactly
+ *       one following value: input/output (-b, -v, -p), variant filtering (-f, -l, -sv, -q,
+ *       -mq), clustering (-s), precision-recall (-ct), resources (-t, -r).
+ * @throws Errors on invalid file paths, out-of-range parameters, format errors, or an
+ *         informational flag used alongside the mandatory arguments.
  */
 void Globals::parse_args(int argc, char ** argv) {
 
-    /* if required arguments are not provided, you can only print help and exit */
-    bool print_cite = false;
-    bool print_help = false;
+    /* if required arguments are not provided, you can only print info and exit */
     if (argc < 4) {
+        bool print_cite = false;
+        bool print_help = false;
         int i = 1;
         while (i < argc) {
             if (std::string(argv[i]) == "-h" || 
@@ -86,7 +90,7 @@ void Globals::parse_args(int argc, char ** argv) {
     }
 
     // parse verbosity first
-    for (int i = 0; i+1 < argc; i++) {
+    for (int i = 4; i < argc; i++) {
         if (std::string(argv[i]) == "-v" || 
                 std::string(argv[i]) == "--verbosity") {
             i++;
@@ -255,19 +259,13 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Invalid maximum variant quality provided");
             }
 /**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-n" || 
-                std::string(argv[i]) == "--no-output-files") {
-            i++;
-            this->write = false;
-/**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-h" || 
-                std::string(argv[i]) == "--help") {
-            i++;
-            print_help = true;
-/**************************************************************************************************/
-        } else if (std::string(argv[i]) == "--version") {
-            i++;
-            this->print_version();
+        } else if (std::string(argv[i]) == "-h" ||
+                std::string(argv[i]) == "--help" ||
+                std::string(argv[i]) == "--version" ||
+                std::string(argv[i]) == "-ci" ||
+                std::string(argv[i]) == "--citation") {
+            ERROR("Option '%s' is informational only; use it without the mandatory arguments",
+                    argv[i]);
 /**************************************************************************************************/
         } else if (std::string(argv[i]) == "-x" || 
                 std::string(argv[i]) == "--mismatch-penalty") {
@@ -387,11 +385,6 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max RAM must be positive");
             }
 /**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-ci" || 
-                std::string(argv[i]) == "--citation") {
-            i++;
-            print_cite = true;
-/**************************************************************************************************/
         } else if (std::string(argv[i]) == "-v" ||
                 std::string(argv[i]) == "--verbosity") {
             i += 2; // already handled
@@ -420,11 +413,6 @@ void Globals::parse_args(int argc, char ** argv) {
 
     // recalculate thread/RAM steps, now that --max-threads and --max-ram are known
     this->set_thread_ram_steps();
-
-    if (print_help)
-        this->print_usage();
-    else if (print_cite)
-        this->print_citation();
 }
 
 /* --------------------------------------------------------------------------- */
@@ -463,7 +451,8 @@ void Globals::print_version() const
 /** @brief Prints usage information and all command-line options to stdout. */
 void Globals::print_usage() const
 {
-    printf("Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]\n"); 
+    printf("Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]\n");
+    printf("       vcfdist <-h|-v|-ci>\n");
 
     printf("\nRequired:\n");
     printf("  <STRING>\tquery.vcf\tphased VCF file containing variant calls to evaluate \n");
@@ -478,8 +467,6 @@ void Globals::print_usage() const
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
     printf("  -p, --prefix <STRING> [./]\n");
     printf("      prefix for output files (directories need a trailing slash)\n");
-    printf("  -n, --no-output-files\n");
-    printf("      skip writing output files, only print summary to console\n");
 
     printf("\n  Variant Filtering/Selection:\n");
     printf("  -f, --filter <STRING1,STRING2...> [ALL]\n");
@@ -515,7 +502,7 @@ void Globals::print_usage() const
     printf("  -r, --max-ram <FLOAT> [%.2fGB]\n", this->max_ram);
     printf("      (approximate) maximum RAM to use for precision/recall alignment\n");
 
-    printf("\n  Miscellaneous:\n");
+    printf("\n  Informational (use without arguments):\n");
     printf("  -h, --help\n");
     printf("      show this help message\n");
     printf("  -ci, --citation\n");

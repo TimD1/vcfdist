@@ -28,7 +28,6 @@ public:
     std::string bed_fn;       ///< BED file filename (empty if not provided)
     bedData bed;              ///< Parsed BED region data
     bool bed_exists = false;  ///< True if a BED file was provided
-    bool write = true;        ///< If false, skip writing output files
 
     // variant filtering
     std::vector<std::string> filters; ///< FILTER tag values to include (empty = all)

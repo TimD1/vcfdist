@@ -114,9 +114,9 @@ int main(int argc, char **argv) {
 
     // write phasing results
     g.stage(TIME_WRITE).start();
-    if (g.write) phasedata_ptr->write_switchflips();
+    phasedata_ptr->write_switchflips();
     write_results(phasedata_ptr);
-    if (g.write) phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
+    phasedata_ptr->write_summary_vcf(g.out_prefix + "summary.vcf");
     g.stage(TIME_WRITE).stop();
 
     // report timing results

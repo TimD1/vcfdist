@@ -364,17 +364,6 @@ std::string parse_capturing_stderr(const std::vector<std::string> & args, const 
     return read_text(fn);
 }
 
-/**
- * @brief Parses the given arguments with stdout captured, and returns what was captured.
- * @param[in] args Full argument vector, including argv[0]
- * @return Everything the print_* helpers wrote during the parse
- */
-std::string parse_capturing_stdout(const std::vector<std::string> & args) {
-    testing::internal::CaptureStdout();
-    parse(args);
-    return testing::internal::GetCapturedStdout();
-}
-
 /* parse_args: argc < 4 short-circuit *************************************************************/
 
 TEST(ParseArgs, Argc1Usage) {
@@ -427,6 +416,38 @@ TEST(ParseArgs, UnknownShortArgc) {
             "Invalid usage.");
 }
 
+TEST(ParseArgs, VerbosityLongRejected) {
+    GlobalsGuard guard;
+
+    // '--verbosity' belongs to evaluation mode only, so here it is just an unrecognized token
+    EXPECT_EXIT(parse_showing_stdout({"vcfdist", "--verbosity", "2"}), testing::ExitedWithCode(0),
+            "Invalid usage.");
+}
+
+TEST(ParseArgs, NoOutputRejected) {
+    GlobalsGuard guard;
+
+    // '-n' was removed, so it is unrecognized in both modes: 'Invalid usage.' here, and
+    // 'Unexpected option' past the mandatory three
+    EXPECT_EXIT(parse_showing_stdout({"vcfdist", "-n"}), testing::ExitedWithCode(0),
+            "Invalid usage.");
+}
+
+TEST(ParseArgs, DashVMeansVersionOrVerbosityByMode) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    // one spelling, two meanings, kept unambiguous by the modes being disjoint: '-v' is a version
+    // request without the mandatory arguments and a valued verbosity flag with them
+    EXPECT_EXIT(parse_showing_stdout({"vcfdist", "-v"}), testing::ExitedWithCode(0),
+            "vcfdist v" + Globals::VERSION);
+
+    StderrToFile redirect(f.path("log.txt"));
+    parse(f.argv({"-v", "2"}));
+
+    EXPECT_EQ(2, g.verbosity);
+}
+
 /* parse_args: mandatory positional arguments *****************************************************/
 
 TEST(ParseArgs, AllMandatoryOk) {
@@ -449,7 +470,7 @@ TEST(ParseArgs, OptionalBeforeMandatoryWarns) {
 
     // the warning and usage message do not stop the parse: the flag is still taken as the query
     // filename, which then fails to open
-    EXPECT_EXIT(parse_showing_stdout({"vcfdist", "-n", f.path("truth.vcf"), f.ref()}),
+    EXPECT_EXIT(parse_showing_stdout({"vcfdist", "-b", f.path("truth.vcf"), f.ref()}),
             testing::ExitedWithCode(1),
             "Optional arguments should be provided AFTER mandatory arguments");
 }
@@ -493,17 +514,14 @@ TEST(ParseArgs, VerbosityValid) {
     }
 }
 
-TEST(ParseArgs, VerbosityMissingNotReached) {
+TEST(ParseArgs, VerbosityMissingErrors) {
     GlobalsGuard guard;
     ArgsFixture f;
 
-    // DOCUMENTS CURRENT BEHAVIOR, does not enforce it: the pre-pass loop stops at argc-2, so a
-    // trailing '-v' is never examined and the ERROR at globals.cpp:92 cannot fire. The main loop
-    // then consumes '-v' plus a value that is not there, and the parse succeeds with verbosity
-    // unchanged rather than reporting the missing value.
-    parse(f.argv({"-v"}));
-
-    EXPECT_EQ(0, g.verbosity);
+    // the pre-pass scans every token past the mandatory three, so a trailing '-v' reaches the
+    // missing-value guard rather than running off the end of the loop
+    EXPECT_EXIT(parse(f.argv({"-v"})), testing::ExitedWithCode(1),
+            "Option '--verbosity' used without providing printing verbosity");
 }
 
 TEST(ParseArgs, VerbosityNonNumericErrors) {
@@ -873,19 +891,6 @@ TEST(ParseArgs, MaxQualNonNumericErrors) {
             "Invalid maximum variant quality provided");
 }
 
-/* parse_args: -n/--no-output-files ***************************************************************/
-
-TEST(ParseArgs, NoOutput) {
-    GlobalsGuard guard;
-    ArgsFixture f;
-    ASSERT_TRUE(g.write);
-
-    // the flag takes no value, so the loop advances by one rather than two
-    parse(f.argv({"-n"}));
-
-    EXPECT_FALSE(g.write);
-}
-
 /* parse_args: -x/--mismatch-penalty **************************************************************/
 
 TEST(ParseArgs, MismatchOk) {
@@ -1163,31 +1168,50 @@ TEST(ParseArgs, HelpMainLoop) {
     GlobalsGuard guard;
     ArgsFixture f;
 
-    // past the mandatory arguments the usage message is deferred to the end of the parse, and the
-    // parse returns instead of exiting
-    const std::string out = parse_capturing_stdout(f.argv({"-h"}));
+    // '-h' is a real option, so the rejection names it as typed rather than calling it unexpected
+    EXPECT_EXIT(parse(f.argv({"-h"})), testing::ExitedWithCode(1),
+            "Option '-h' is informational only; use it without the mandatory arguments");
+}
 
-    EXPECT_NE(std::string::npos, out.find("Usage: vcfdist"));
+TEST(ParseArgs, HelpLongMainLoop) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    EXPECT_EXIT(parse(f.argv({"--help"})), testing::ExitedWithCode(1),
+            "Option '--help' is informational only");
 }
 
 TEST(ParseArgs, VersionMainLoop) {
     GlobalsGuard guard;
     ArgsFixture f;
 
-    // only the long form is a version request here; bare '-v' is verbosity
-    const std::string out = parse_capturing_stdout(f.argv({"--version"}));
-
-    EXPECT_NE(std::string::npos, out.find("vcfdist v" + Globals::VERSION));
+    // only the long form is a version request at all; bare '-v' is verbosity here
+    EXPECT_EXIT(parse(f.argv({"--version"})), testing::ExitedWithCode(1),
+            "Option '--version' is informational only");
 }
 
 TEST(ParseArgs, CitationMainLoop) {
     GlobalsGuard guard;
     ArgsFixture f;
 
-    const std::string out = parse_capturing_stdout(f.argv({"-ci"}));
+    EXPECT_EXIT(parse(f.argv({"-ci"})), testing::ExitedWithCode(1),
+            "Option '-ci' is informational only");
+}
 
-    EXPECT_NE(std::string::npos, out.find("MLA Format:"));
-    EXPECT_NE(std::string::npos, out.find("BibTeX Format:"));
+TEST(ParseArgs, CitationLongMainLoop) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    EXPECT_EXIT(parse(f.argv({"--citation"})), testing::ExitedWithCode(1),
+            "Option '--citation' is informational only");
+}
+
+TEST(ParseArgs, NoOutputMainLoopErrors) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    // '-n' is gone rather than informational, so it draws the generic unknown-option message
+    EXPECT_EXIT(parse(f.argv({"-n"})), testing::ExitedWithCode(1), "Unexpected option '-n'");
 }
 
 TEST(ParseArgs, UnknownOptionErrors) {
@@ -1203,10 +1227,11 @@ TEST(ParseArgs, VerbositySkippedInMainLoop) {
 
     // the pre-pass already applied the value, so the main loop consumes both tokens without effect
     // and keeps parsing what follows
-    const std::string log = parse_capturing_stderr(f.argv({"-v", "2", "-n"}), f.path("log.txt"));
+    const std::string log = parse_capturing_stderr(f.argv({"-v", "2", "-q", "5"}),
+            f.path("log.txt"));
 
     EXPECT_EQ(2, g.verbosity);
-    EXPECT_FALSE(g.write);
+    EXPECT_EQ(5, g.min_qual);
     EXPECT_TRUE(logged(log, "Command:")) << log;
 }
 
@@ -1363,6 +1388,9 @@ TEST(PrintUsage, RequiredSection) {
 
     EXPECT_NE(std::string::npos,
             usage.find("Usage: vcfdist <query.vcf> <truth.vcf> <ref.fasta> [options]"));
+
+    // the informational flags are their own invocation, so they get their own usage line
+    EXPECT_NE(std::string::npos, usage.find("vcfdist <-h|-v|-ci>"));
     EXPECT_NE(std::string::npos, usage.find("Required:"));
     EXPECT_NE(std::string::npos, usage.find("query.vcf"));
     EXPECT_NE(std::string::npos, usage.find("truth.vcf"));
@@ -1375,10 +1403,10 @@ TEST(PrintUsage, ListsDocumentedFlags) {
     const std::string usage = usage_text();
 
     for (const std::string & flag : {"-b, --bed", "-v, --verbosity", "-p, --prefix",
-            "-n, --no-output-files", "-f, --filter", "-l, --largest-variant",
-            "-sv, --sv-threshold", "-q, --min-qual", "-mq, --max-qual",
-            "-s, --max-supercluster-size", "-ct, --credit-threshold", "-t, --max-threads",
-            "-r, --max-ram", "-h, --help", "-ci, --citation", "-v, --version"}) {
+            "-f, --filter", "-l, --largest-variant", "-sv, --sv-threshold", "-q, --min-qual",
+            "-mq, --max-qual", "-s, --max-supercluster-size", "-ct, --credit-threshold",
+            "-t, --max-threads", "-r, --max-ram", "-h, --help", "-ci, --citation",
+            "-v, --version"}) {
         EXPECT_NE(std::string::npos, usage.find(flag)) << "undocumented flag '" << flag << "'";
     }
 }

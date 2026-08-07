@@ -113,8 +113,6 @@ float qscore(double p_error) {
     return std::min(100.0, std::max(0.0, -10 * std::log10(p_error)));
 }
 
-inline std::string b2s(bool b) { return b ? "true" : "false"; }
-
 /**
  * @brief Writes all pipeline configuration parameters to TSV file.
  * @throws ERROR if the output parameters TSV file cannot be opened for writing
@@ -134,13 +132,13 @@ void write_params() {
     }
     fprintf(out_params,
         "program\t%s\nversion\t%s\nout_prefix\t%s\ncommand\t%s\nreference_fasta\t%s\n"
-        "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nwrite_outputs\t%s\nfilters\t%s\n"
+        "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nfilters\t%s\n"
         "min_var_qual\t%d\nmax_var_qual\t%d\nmax_var_size\t%d\nsv_threshold\t%d\n"
         "credit_threshold\t%f\ncluster_min_gap\t%d\n"
         "reach_min_gap\t%d\nmax_cluster_itrs\t%d\nmax_threads\t%d\nmax_ram\t%f\n"
         "sub\t%d\nopen\t%d\nextend\t%d\n",
-        g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(), 
-        g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(), b2s(g.write).data(), 
+        g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(),
+        g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(),
         filters_str.data(), g.min_qual, g.max_qual, g.max_size, g.sv_threshold,
         g.credit_threshold, g.cluster_min_gap, g.reach_min_gap, g.max_cluster_itrs,
         g.max_threads, g.max_ram, g.sub, g.open, g.extend);
@@ -402,17 +400,14 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
 
     // write results
     std::string out_pr_fn = g.out_prefix + "precision-recall.tsv";
-    FILE* out_pr = 0;
-    if (g.write) {
-        if (g.verbosity >= 1) INFO(" ");
-        if (g.verbosity >= 1) INFO("  Writing precision-recall results to '%s'", out_pr_fn.data());
-        out_pr = fopen(out_pr_fn.data(), "w");
-        if (out_pr == NULL) {
-            ERROR("Failed to open precision-recall TSV file '%s'", out_pr_fn.data());
-        }
-        fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
-                "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
+    if (g.verbosity >= 1) INFO(" ");
+    if (g.verbosity >= 1) INFO("  Writing precision-recall results to '%s'", out_pr_fn.data());
+    FILE* out_pr = fopen(out_pr_fn.data(), "w");
+    if (out_pr == NULL) {
+        ERROR("Failed to open precision-recall TSV file '%s'", out_pr_fn.data());
     }
+    fprintf(out_pr, "VAR_TYPE\tMIN_QUAL\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\t"
+            "TRUTH_TOTAL\tTRUTH_TP\tTRUTH_FN\tQUERY_TOTAL\tQUERY_TP\tQUERY_FP\n");
     EnumArray<sizeclass_t, float, SIZECLASS_SLOTS> max_f1_score{};
     EnumArray<sizeclass_t, int, SIZECLASS_SLOTS> max_f1_qual{};
     for (sizeclass_t type : EnumRange<sizeclass_t, SIZECLASS_SLOTS>{}) {
@@ -439,7 +434,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                 max_f1_qual[type] = qual;
             }
 
-            if (g.write) fprintf(out_pr, 
+            fprintf(out_pr,
                     "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%d\n",
                     vartype_strs[type].data(),
                     qual,
@@ -456,20 +451,17 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
            );
         }
     }
-    if (g.write) fclose(out_pr);
+    fclose(out_pr);
 
     // print summary output
     std::string out_pr_summ_fn = g.out_prefix + "precision-recall-summary.tsv";
-    FILE* out_pr_summ = 0;
-    if (g.write) {
-        if (g.verbosity >= 1) 
-            INFO("  Writing precision-recall summary to '%s'", out_pr_summ_fn.data());
-        out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
-        if (out_pr_summ == NULL) {
-            ERROR("Failed to open precision-recall summary TSV file '%s'", out_pr_summ_fn.data());
-        }
-        fprintf(out_pr_summ, "VAR_TYPE\tTHRESHOLD\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\n");
+    if (g.verbosity >= 1)
+        INFO("  Writing precision-recall summary to '%s'", out_pr_summ_fn.data());
+    FILE* out_pr_summ = fopen(out_pr_summ_fn.data(), "w");
+    if (out_pr_summ == NULL) {
+        ERROR("Failed to open precision-recall summary TSV file '%s'", out_pr_summ_fn.data());
     }
+    fprintf(out_pr_summ, "VAR_TYPE\tTHRESHOLD\tMIN_QUAL\tTRUTH_TP\tQUERY_TP\tTRUTH_FN\tQUERY_FP\tPREC\tRECALL\tF1_SCORE\tF1_QSCORE\n");
     INFO(" ");
     INFO("%sPRECISION-RECALL SUMMARY%s", COLOR_BLUE, COLOR_WHITE);
     INFO(" ");
@@ -519,7 +511,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
                 qscore(1-f1_score),
                 COLOR_WHITE
             );
-            if (g.write) fprintf(out_pr_summ,
+            fprintf(out_pr_summ,
                "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
                 vartype_strs[type].data(),
                 thresh.data(),
@@ -536,7 +528,7 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
         }
         INFO(" ");
     }
-    if (g.write) fclose(out_pr_summ);
+    fclose(out_pr_summ);
 }
 
 
@@ -556,121 +548,118 @@ void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);
 
-    if (g.write) {
-
-        // print phasing information
-        std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";
-        FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
-        if (out_phaseblocks == NULL) {
-            ERROR("Failed to open phase-blocks TSV file '%s'", out_phaseblocks_fn.data());
-        }
-        if (g.verbosity >= 1) INFO("  Writing phasing results to '%s'", out_phaseblocks_fn.data());
-        fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tVARIANTS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
-        for (const std::string & ctg : phasedata_ptr->contigs) {
-            std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
-            std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-            for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
-                int beg_idx = ctg_pbs->phase_blocks[pbi]; // QUERY variant indices
-                int end_idx = ctg_pbs->phase_blocks[pbi+1];
-                int beg = ctg_scs->callset_vars[QUERY]->poss[beg_idx] - 1;
-                int end = ctg_scs->callset_vars[QUERY]->poss[end_idx-1] +
-                          ctg_scs->callset_vars[QUERY]->rlens[end_idx-1] + 1;
-                int nswitches = 0;
-                for (int si = 0; si < ctg_pbs->nswitches; si++) {
-                    if (ctg_pbs->switches[si] > beg_idx && ctg_pbs->switches[si] < end_idx) nswitches++;
-                }
-                int nflips = 0;
-                for (int fi = 0; fi < ctg_pbs->nflips; fi++) {
-                    if (ctg_pbs->flips[fi] > beg_idx && ctg_pbs->flips[fi] < end_idx) nflips++;
-                }
-                fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
-                        ctg.data(), pbi, beg, end, end-beg, end_idx-beg_idx, nflips, nswitches);
-            }
-        }
-        fclose(out_phaseblocks);
-
-        // print query variant information
-        std::string out_query_fn = g.out_prefix + "query.tsv";
-        if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
-        FILE* out_query = fopen(out_query_fn.data(), "w");
-        if (out_query == NULL) {
-            ERROR("Failed to open query variant TSV file '%s'", out_query_fn.data());
-        }
-        fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
-                "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
-        for (const std::string & ctg : phasedata_ptr->contigs) {
-
-            // set pointers to variants and superclusters
-            std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
-            std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-            std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
-
-            for (int vi = 0; vi < qvars->n; vi++) {
-                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                    if (!qvars->var_on_hap(vi, hi, /*matched=*/ false)) continue;
-                    hap_t matched_hi = qvars->matched_gt_is_swapped(vi) ? other_hap(hi) : hi;
-                    fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
-                            ctg.data(),
-                            qvars->poss[vi],
-                            int(idx(matched_hi)),
-                            qvars->refs[vi].data(),
-                            qvars->alts[vi].data(),
-                            qvars->var_quals[vi],
-                            type_strs[qvars->types[vi]].data(),
-                            error_strs[qvars->errtypes[matched_hi][vi]].data(),
-                            qvars->credit[matched_hi][vi],
-                            qvars->superclusters[vi],
-                            qvars->sync_group[matched_hi][vi],
-                            qvars->ref_ed[matched_hi][vi],
-                            qvars->query_ed[matched_hi][vi],
-                            region_strs[qvars->locs[vi]].data()
-                           );
-                }
-            }
-        }
-        fclose(out_query);
-        
-        // print truth variant information
-        std::string out_truth_fn = g.out_prefix + "truth.tsv";
-        if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
-        FILE* out_truth = fopen(out_truth_fn.data(), "w");
-        if (out_truth == NULL) {
-            ERROR("Failed to open truth variant TSV file '%s'", out_truth_fn.data());
-        }
-        fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
-                "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
-        for (const std::string & ctg : phasedata_ptr->contigs) {
-
-            // set pointers to variants and superclusters
-            std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
-            std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
-            std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
-
-            for (int vi = 0; vi < tvars->n; vi++) {
-                for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                    if (!tvars->var_on_hap(vi, hi, /*matched=*/ false)) continue;
-
-                    fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
-                            ctg.data(),
-                            tvars->poss[vi],
-                            int(idx(hi)),
-                            tvars->refs[vi].data(),
-                            tvars->alts[vi].data(),
-                            tvars->var_quals[vi],
-                            type_strs[tvars->types[vi]].data(),
-                            error_strs[tvars->errtypes[hi][vi]].data(),
-                            tvars->credit[hi][vi],
-                            tvars->superclusters[vi],
-                            tvars->sync_group[hi][vi],
-                            tvars->ref_ed[hi][vi],
-                            tvars->query_ed[hi][vi],
-                            region_strs[tvars->locs[vi]].data()
-                           );
-                }
-            }
-        }
-        fclose(out_truth);
+    // print phasing information
+    std::string out_phaseblocks_fn = g.out_prefix + "phase-blocks.tsv";
+    FILE* out_phaseblocks = fopen(out_phaseblocks_fn.data(), "w");
+    if (out_phaseblocks == NULL) {
+        ERROR("Failed to open phase-blocks TSV file '%s'", out_phaseblocks_fn.data());
     }
+    if (g.verbosity >= 1) INFO("  Writing phasing results to '%s'", out_phaseblocks_fn.data());
+    fprintf(out_phaseblocks, "CONTIG\tPHASE_BLOCK\tSTART\tSTOP\tSIZE\tVARIANTS\tFLIP_ERRORS\tSWITCH_ERRORS\n");
+    for (const std::string & ctg : phasedata_ptr->contigs) {
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        for (int pbi = 0; pbi < ctg_pbs->n; pbi++) {
+            int beg_idx = ctg_pbs->phase_blocks[pbi]; // QUERY variant indices
+            int end_idx = ctg_pbs->phase_blocks[pbi+1];
+            int beg = ctg_scs->callset_vars[QUERY]->poss[beg_idx] - 1;
+            int end = ctg_scs->callset_vars[QUERY]->poss[end_idx-1] +
+                      ctg_scs->callset_vars[QUERY]->rlens[end_idx-1] + 1;
+            int nswitches = 0;
+            for (int si = 0; si < ctg_pbs->nswitches; si++) {
+                if (ctg_pbs->switches[si] > beg_idx && ctg_pbs->switches[si] < end_idx) nswitches++;
+            }
+            int nflips = 0;
+            for (int fi = 0; fi < ctg_pbs->nflips; fi++) {
+                if (ctg_pbs->flips[fi] > beg_idx && ctg_pbs->flips[fi] < end_idx) nflips++;
+            }
+            fprintf(out_phaseblocks, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
+                    ctg.data(), pbi, beg, end, end-beg, end_idx-beg_idx, nflips, nswitches);
+        }
+    }
+    fclose(out_phaseblocks);
+
+    // print query variant information
+    std::string out_query_fn = g.out_prefix + "query.tsv";
+    if (g.verbosity >= 1) INFO("  Writing query variant results to '%s'", out_query_fn.data());
+    FILE* out_query = fopen(out_query_fn.data(), "w");
+    if (out_query == NULL) {
+        ERROR("Failed to open query variant TSV file '%s'", out_query_fn.data());
+    }
+    fprintf(out_query, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
+            "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
+    for (const std::string & ctg : phasedata_ptr->contigs) {
+
+        // set pointers to variants and superclusters
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> qvars = ctg_scs->callset_vars[QUERY];
+
+        for (int vi = 0; vi < qvars->n; vi++) {
+            for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
+                if (!qvars->var_on_hap(vi, hi, /*matched=*/ false)) continue;
+                hap_t matched_hi = qvars->matched_gt_is_swapped(vi) ? other_hap(hi) : hi;
+                fprintf(out_query, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
+                        ctg.data(),
+                        qvars->poss[vi],
+                        int(idx(matched_hi)),
+                        qvars->refs[vi].data(),
+                        qvars->alts[vi].data(),
+                        qvars->var_quals[vi],
+                        type_strs[qvars->types[vi]].data(),
+                        error_strs[qvars->errtypes[matched_hi][vi]].data(),
+                        qvars->credit[matched_hi][vi],
+                        qvars->superclusters[vi],
+                        qvars->sync_group[matched_hi][vi],
+                        qvars->ref_ed[matched_hi][vi],
+                        qvars->query_ed[matched_hi][vi],
+                        region_strs[qvars->locs[vi]].data()
+                       );
+            }
+        }
+    }
+    fclose(out_query);
+    
+    // print truth variant information
+    std::string out_truth_fn = g.out_prefix + "truth.tsv";
+    if (g.verbosity >= 1) INFO("  Writing truth variant results to '%s'", out_truth_fn.data());
+    FILE* out_truth = fopen(out_truth_fn.data(), "w");
+    if (out_truth == NULL) {
+        ERROR("Failed to open truth variant TSV file '%s'", out_truth_fn.data());
+    }
+    fprintf(out_truth, "CONTIG\tPOS\tHAP\tREF\tALT\tQUAL\tTYPE\tERRTYPE"
+            "\tCREDIT\tSUPERCLUSTER\tSYNC_GROUP\tREF_DIST\tQUERY_DIST\tLOCATION\n");
+    for (const std::string & ctg : phasedata_ptr->contigs) {
+
+        // set pointers to variants and superclusters
+        std::shared_ptr<ctgPhaseblocks> ctg_pbs = phasedata_ptr->phase_blocks[ctg];
+        std::shared_ptr<ctgSuperclusters> ctg_scs = ctg_pbs->ctg_superclusters;
+        std::shared_ptr<ctgVariants> tvars = ctg_scs->callset_vars[TRUTH];
+
+        for (int vi = 0; vi < tvars->n; vi++) {
+            for (hap_t hi : EnumRange<hap_t, HAP_SLOTS>{}) {
+                if (!tvars->var_on_hap(vi, hi, /*matched=*/ false)) continue;
+
+                fprintf(out_truth, "%s\t%d\t%d\t%s\t%s\t%.2f\t%s\t%s\t%f\t%d\t%d\t%d\t%d\t%s\n",
+                        ctg.data(),
+                        tvars->poss[vi],
+                        int(idx(hi)),
+                        tvars->refs[vi].data(),
+                        tvars->alts[vi].data(),
+                        tvars->var_quals[vi],
+                        type_strs[tvars->types[vi]].data(),
+                        error_strs[tvars->errtypes[hi][vi]].data(),
+                        tvars->credit[hi][vi],
+                        tvars->superclusters[vi],
+                        tvars->sync_group[hi][vi],
+                        tvars->ref_ed[hi][vi],
+                        tvars->query_ed[hi][vi],
+                        region_strs[tvars->locs[vi]].data()
+                       );
+            }
+        }
+    }
+    fclose(out_truth);
 }
 
 
