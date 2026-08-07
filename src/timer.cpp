@@ -71,8 +71,8 @@ void write_runtime() {
     if (out_runtimes == NULL) {
         ERROR("Failed to open runtime TSV file '%s'", runtimes_fn.data());
     }
-    for (int i = 0; i <= TIME_TOTAL; i++) {
-        fprintf(out_runtimes, "%s\t%lf\n", g.timers[i].get_name().data(), g.timers[i].total());
+    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+        fprintf(out_runtimes, "%s\t%lf\n", g.stage(t).get_name().data(), g.stage(t).total());
     }
     fclose(out_runtimes);
 }

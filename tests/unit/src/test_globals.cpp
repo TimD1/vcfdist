@@ -149,10 +149,10 @@ TEST(InitTimers, Populates) {
 
     g.init_timers(timer_strs);
 
-    ASSERT_EQ(size_t(TIME_TOTAL+1), g.timers.size());
+    ASSERT_EQ(idx(TIME_TOTAL)+1, g.timers.size());
     EXPECT_EQ(timer_strs, timer_names(g.timers));
-    EXPECT_EQ("reading", g.timers[TIME_READ].get_name());
-    EXPECT_EQ("total", g.timers[TIME_TOTAL].get_name());
+    EXPECT_EQ("reading", g.stage(TIME_READ).get_name());
+    EXPECT_EQ("total", g.stage(TIME_TOTAL).get_name());
 }
 
 TEST(InitTimers, EmptyInput) {
@@ -210,9 +210,9 @@ TEST(StringTables, SizesWithSentinel) {
 
     // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
     EXPECT_EQ(size_t(GT_OTHER+1), gt_strs.size());
-    EXPECT_EQ(size_t(TIME_TOTAL+1), timer_strs.size());
+    EXPECT_EQ(idx(TIME_TOTAL)+1, timer_strs.size());
     EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
-    EXPECT_EQ("total", timer_strs[TIME_TOTAL]);
+    EXPECT_EQ("total", timer_strs[idx(TIME_TOTAL)]);
 }
 
 TEST(StringTables, IndexMapping) {

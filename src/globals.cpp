@@ -134,7 +134,7 @@ void Globals::parse_args(int argc, char ** argv) {
     if (this->verbosity >= 1) {
         INFO(" ");
         INFO("%s[%d/%d] Loading reference FASTA%s '%s'", COLOR_PURPLE,
-                TIME_READ, TIME_TOTAL-1, COLOR_WHITE, ref_fasta_fn.data());
+                int(idx(TIME_READ)), int(idx(TIME_TOTAL))-1, COLOR_WHITE, ref_fasta_fn.data());
     }
     this->ref_fasta_fp = fopen(ref_fasta_fn.data(), "r");
     if (ref_fasta_fp == NULL) {
@@ -530,6 +530,16 @@ void Globals::init_timers(const std::vector<std::string> & timer_strs) {
     for (const std::string & timer_name : timer_strs) {
         this->timers.push_back( timer(timer_name) );
     }
+}
+
+
+/**
+ * @brief Returns the timer for one pipeline stage.
+ * @param[in] t Pipeline stage
+ * @return Reference to that stage's timer
+ */
+timer & Globals::stage(timer_t t) {
+    return this->timers[idx(t)];
 }
 
 

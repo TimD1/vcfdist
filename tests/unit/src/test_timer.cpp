@@ -93,10 +93,10 @@ TEST(Timer, Print) {
     t.stop();
 
     testing::internal::CaptureStderr();
-    t.print(TIME_CLUSTER);
+    t.print(idx(TIME_CLUSTER));
     std::string out = testing::internal::GetCapturedStderr();
 
-    EXPECT_NE(std::string::npos, out.find("[" + std::to_string(TIME_CLUSTER) + "]"));
+    EXPECT_NE(std::string::npos, out.find("[" + std::to_string(idx(TIME_CLUSTER)) + "]"));
     EXPECT_NE(std::string::npos, out.find("clustering"));
 
     // the elapsed time is printed as "%8.3fs", so the line ends with a seconds suffix
@@ -123,10 +123,10 @@ TEST(WriteRuntime, OneRowPerStage) {
     std::string line;
     while (getline(in, line)) lines.push_back(line);
 
-    ASSERT_EQ(size_t(TIME_TOTAL+1), lines.size());
-    for (int i = 0; i <= TIME_TOTAL; i++) {
-        EXPECT_EQ(size_t(0), lines[i].rfind(timer_strs[i] + "\t", 0))
-                << "row " << i << ": " << lines[i];
+    ASSERT_EQ(idx(TIME_TOTAL)+1, lines.size());
+    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+        EXPECT_EQ(size_t(0), lines[idx(t)].rfind(timer_strs[idx(t)] + "\t", 0))
+                << "row " << idx(t) << ": " << lines[idx(t)];
     }
 }
 

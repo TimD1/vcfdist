@@ -165,16 +165,22 @@ constexpr std::size_t idx(K k) { return static_cast<std::size_t>(k); }
 #define SWITCHTYPES                7 ///< Total number of switch/flip error types
 /** @} */
 
-/** @defgroup time_constants Pipeline stage timer index constants (TIME_*)
- *  @{
- */
-#define TIME_READ       0 ///< Timer index for input reading stage
-#define TIME_CLUSTER    1 ///< Timer index for variant clustering stage
-#define TIME_ALIGN_EVAL 2 ///< Timer index for alignment and evaluation stage
-#define TIME_PHASE      3 ///< Timer index for phasing stage
-#define TIME_WRITE      4 ///< Timer index for output writing stage
-#define TIME_TOTAL      5 ///< Timer index for total pipeline runtime
-/** @} */
+/** @brief Pipeline stage identifying one timer. */
+enum class timer_t : int8_t {
+    TIME_READ       = 0, ///< Input reading stage
+    TIME_CLUSTER    = 1, ///< Variant clustering stage
+    TIME_ALIGN_EVAL = 2, ///< Alignment and evaluation stage
+    TIME_PHASE      = 3, ///< Phasing stage
+    TIME_WRITE      = 4, ///< Output writing stage
+    TIME_TOTAL      = 5, ///< Total pipeline runtime
+};
+constexpr timer_t TIME_READ       = timer_t::TIME_READ;
+constexpr timer_t TIME_CLUSTER    = timer_t::TIME_CLUSTER;
+constexpr timer_t TIME_ALIGN_EVAL = timer_t::TIME_ALIGN_EVAL;
+constexpr timer_t TIME_PHASE      = timer_t::TIME_PHASE;
+constexpr timer_t TIME_WRITE      = timer_t::TIME_WRITE;
+constexpr timer_t TIME_TOTAL      = timer_t::TIME_TOTAL;
+constexpr std::size_t TIMER_SLOTS = 6; ///< Number of pipeline stage timers
 
 /** @defgroup callset_constants Callset index constants
  *  @{

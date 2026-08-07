@@ -81,6 +81,9 @@ public:
     /** @brief Initializes one named timer object per pipeline stage. */
     void init_timers(const std::vector<std::string> & timer_strs);
 
+    /** @brief Returns the timer for one pipeline stage. */
+    timer & stage(timer_t t);
+
     // program data
     // static so that they are not per-object state, which keeps Globals copy-assignable
     static const std::string VERSION; ///< Program version string

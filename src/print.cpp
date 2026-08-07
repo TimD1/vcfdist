@@ -537,8 +537,8 @@ void write_precision_recall(const std::unique_ptr<phaseblockData> & phasedata_pt
  */
 void write_results(std::unique_ptr<phaseblockData> & phasedata_ptr) {
     if (g.verbosity >= 1) INFO(" ");
-    if (g.verbosity >= 1) INFO("%s[%d/%d] Writing results%s", COLOR_PURPLE, 
-            TIME_WRITE, TIME_TOTAL-1, COLOR_WHITE);
+    if (g.verbosity >= 1) INFO("%s[%d/%d] Writing results%s", COLOR_PURPLE,
+            int(idx(TIME_WRITE)), int(idx(TIME_TOTAL))-1, COLOR_WHITE);
 
     // print summary (precision/recall) information
     write_precision_recall(phasedata_ptr);

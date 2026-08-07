@@ -554,7 +554,8 @@ void parse_variants(const std::string & vcf_fn,
 
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("%s[%s %d/%d] Parsing %s VCF%s '%s'", COLOR_PURPLE,
-            callset == QUERY ? "Q" : "T", TIME_READ, TIME_TOTAL-1, callset_strs[callset].data(), 
+            callset == QUERY ? "Q" : "T", int(idx(TIME_READ)), int(idx(TIME_TOTAL))-1,
+            callset_strs[callset].data(), 
             COLOR_WHITE, vcf_fn.data());
     htsFile* vcf = bcf_open(vcf_fn.data(), "r");
 
