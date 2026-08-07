@@ -196,7 +196,7 @@ std::shared_ptr<ctgVariants> tvars_of(const pipeline_result & result) {
  * @param[in] gts Original genotype and recovered query genotype of each variant, in order
  * @return Truth variants with orig_gts and calc_gts set
  */
-std::shared_ptr<ctgVariants> make_tvars(const std::vector< std::pair<uint8_t, uint8_t> > & gts) {
+std::shared_ptr<ctgVariants> make_tvars(const std::vector< std::pair<gt_t, gt_t> > & gts) {
     std::vector<var_desc> descs;
     for (size_t i = 0; i < gts.size(); i++)
         descs.push_back({int(i) * SPACING, 1, TYPE_SUB, "A", "C", gts[i].first, 60, 1});

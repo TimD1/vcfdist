@@ -412,7 +412,7 @@ void calc_prec_recall(
             // first pass recovered is skipped rather than re-set, which would be an error.
             if (errtype == ERRTYPE_TP) {
                 for (int qvar_idx : sync_qvars) {
-                    for (int hap = 0; hap < HAPS; hap++) {
+                    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
                         if (qvars->var_on_hap(qvar_idx, hap) &&
                                 !tvars->var_on_hap(tvar_idx, hap, /*calc=*/ true))
                             tvars->set_var_calcgt_on_hap(tvar_idx, hap, true);

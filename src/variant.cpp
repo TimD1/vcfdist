@@ -143,10 +143,10 @@ sizeclass_t ctgVariants::get_vartype(int vi) {
 
 /**
  * @brief Returns the alternate allele count of a diploid genotype.
- * @param[in] gt Genotype (GT_*)
+ * @param[in] gt Genotype
  * @return 0, 1, or 2 alternate alleles, or -1 if gt carries no diploid allele count
  */
-static int allele_count(uint8_t gt) {
+static int allele_count(gt_t gt) {
     switch (gt) {
         case GT_REF_REF:   return 0;
         case GT_REF_ALT1:
