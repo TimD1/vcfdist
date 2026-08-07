@@ -199,14 +199,18 @@ constexpr std::size_t TIMER_SLOTS = 6; ///< Number of pipeline stage timers
 #define PTR_SUB  8  ///< Substitution backtracking pointer
 /** @} */
 
-/** @defgroup mat_constants Smith-Waterman matrix index constants (MAT_*)
- *  @{
- */
-#define MAT_SUB 0 ///< Substitution matrix index
-#define MAT_INS 1 ///< Insertion matrix index
-#define MAT_DEL 2 ///< Deletion matrix index
-#define MATS    3 ///< Total number of Smith-Waterman matrices
-/** @} */
+/** @brief Smith-Waterman alignment matrix. */
+enum class mat_t : int8_t {
+    MAT_SUB = 0, ///< Substitution matrix
+    MAT_INS = 1, ///< Insertion matrix
+    MAT_DEL = 2, ///< Deletion matrix
+};
+constexpr mat_t MAT_SUB = mat_t::MAT_SUB;
+constexpr mat_t MAT_INS = mat_t::MAT_INS;
+constexpr mat_t MAT_DEL = mat_t::MAT_DEL;
+constexpr std::size_t MAT_SLOTS = 3; ///< Subscript slots needed by a mat_t-keyed array
+constexpr int8_t MATS = 3;           ///< Total number of Smith-Waterman matrices
+static_assert(MAT_SLOTS == std::size_t(MATS), "mat_t slots must match MATS");
 
 /** @defgroup phase_constants Phasing state constants (PHASE_*)
  *  @{

@@ -163,10 +163,10 @@ void print_wfa_ptrs(
         const std::string & query,
         const std::string & truth,
         int s,
-        const std::vector< std::vector< std::vector<uint8_t> > > & ptrs,
-        const std::vector< std::vector< std::vector<int> > > & offs) {
+        const EnumArray<mat_t, std::vector< std::vector<uint8_t> >, MAT_SLOTS> & ptrs,
+        const EnumArray<mat_t, std::vector< std::vector<int> >, MAT_SLOTS> & offs) {
 
-    for (int m = 0; m < MATS; m++) {
+    for (mat_t m : EnumRange<mat_t, MAT_SLOTS>{}) {
         int query_len = query.size();
         int truth_len = truth.size();
 
@@ -235,7 +235,7 @@ void print_wfa_ptrs(
         }
   
         // print array
-        printf("\n%s matrix:\n", type_strs[m+1].data());
+        printf("\n%s matrix:\n", type_strs[idx(m)+1].data());
         for (int i = -1; i < query_len; i++) {
             for (int j = -1; j < truth_len; j++) {
                 if (i < 0 && j < 0) {

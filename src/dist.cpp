@@ -576,8 +576,8 @@ void wf_swg_align(
 
     int mat_len = query_len + truth_len - 1;
     bool done = false;
-    std::vector< std::vector< std::vector<int> > > offs(MATS);
-    for (int m = 0; m < MATS; m++) {
+    EnumArray<mat_t, std::vector< std::vector<int> >, MAT_SLOTS> offs{};
+    for (mat_t m : EnumRange<mat_t, MAT_SLOTS>{}) {
         offs[m].push_back(std::vector<int>(mat_len, -2));
     }
     s = 0;
@@ -586,7 +586,7 @@ void wf_swg_align(
     while (true) {
 
         // EXTEND WAVEFRONT (leave INS, DEL)
-        for (int m = MAT_INS; m < MATS; m++) {
+        for (mat_t m : {MAT_INS, MAT_DEL}) {
             for (int d = 0; d < mat_len; d++) {
                 int off = offs[m][s][d];
                 int diag = d + 1 - query_len;
@@ -624,8 +624,8 @@ void wf_swg_align(
         if (done) break;
 
         // debug print
-        for (int mi = 0; mi < MATS; mi++) {
-            if(print) printf("\n%s matrix\n", type_strs[mi+1].data());
+        for (mat_t mi : EnumRange<mat_t, MAT_SLOTS>{}) {
+            if(print) printf("\n%s matrix\n", type_strs[idx(mi)+1].data());
             if(print) printf("offs %d:", s);
             for (int di = 0; di < int(query.size() + truth.size()-1); di++) {
                 if(print) printf("\t%d", offs[mi][s][di]);
@@ -636,7 +636,7 @@ void wf_swg_align(
         // NEXT WAVEFRONT
         s++;
         if(print) printf("\nscore = %d\n", s);
-        for (int m = 0; m < MATS; m++) {
+        for (mat_t m : EnumRange<mat_t, MAT_SLOTS>{}) {
             offs[m].push_back(std::vector<int>(mat_len, -2));
         }
 
@@ -1226,20 +1226,20 @@ int wf_swg_max_reach(
     int y = mat_len;
     int z = y * scores;
     int max_reach = 0;
-    offs[MAT_SUB*z + s2*y + query_len-1] = -1;
+    offs[idx(MAT_SUB)*z + s2*y + query_len-1] = -1;
 
     while (true) {
 
         // EXTEND WAVEFRONT (leave INS, DEL forwards)
-        if (!reverse) for (int m = MAT_INS; m < MATS; m++) {
+        if (!reverse) for (mat_t m : {MAT_INS, MAT_DEL}) {
             for (int d = 0; d < mat_len; d++) {
-                int off = offs[m*z + s2*y + d];
+                int off = offs[idx(m)*z + s2*y + d];
                 int diag = d + 1 - query_len;
 
                 if (off >= 0 && off < query_len &&
                         diag+off >= 0 && diag+off < truth_len &&
-                        off >= offs[MAT_SUB*z + s2*y + d]) {
-                    offs[MAT_SUB*z + s2*y + d] = off;
+                        off >= offs[idx(MAT_SUB)*z + s2*y + d]) {
+                    offs[idx(MAT_SUB)*z + s2*y + d] = off;
                     if(print) printf("(S, %d, %d) swap fwd\n", off, off+diag);
 
                 }
@@ -1248,7 +1248,7 @@ int wf_swg_max_reach(
 
         // EXTEND WAVEFRONT (diag, SUB only)
         for (int d = 0; d < mat_len; d++) {
-            int off = offs[MAT_SUB*z + s2*y + d];
+            int off = offs[idx(MAT_SUB)*z + s2*y + d];
             int diag = d + 1 - query_len;
 
             // extend
@@ -1259,9 +1259,9 @@ int wf_swg_max_reach(
                 if (query[off+1] == truth[diag+off+1]) off++;
                 else break;
             }
-            if (off > offs[MAT_SUB*z + s2*y + d])
+            if (off > offs[idx(MAT_SUB)*z + s2*y + d])
                 if(print) printf("(S, %d, %d) extend\n", off, off+diag);
-            offs[MAT_SUB*z + s2*y + d] = off;
+            offs[idx(MAT_SUB)*z + s2*y + d] = off;
 
             // finish if we've reached the last column, the largest reach possible
             if (off + diag == truth_len - 1) {
@@ -1273,7 +1273,7 @@ int wf_swg_max_reach(
         // fold this wavefront into the running maximum before its buffer row is recycled
         for (int m = 0; m < MATS; m++) {
             for (int d = 0; d < mat_len; d++) {
-                int off = offs[m*z + s2*y + d];
+                int off = offs[idx(m)*z + s2*y + d];
                 int diag = d + 1 - query_len;
                 if (off >= 0 && off < query_len &&
                         diag+off >= 0 && diag+off < truth_len)
@@ -1282,8 +1282,8 @@ int wf_swg_max_reach(
         }
         if (s == max_score) break;
 
-        /* if (print) for (int mi = 0; mi < MATS; mi++) { */
-        /*     printf("\n%s matrix\n", type_strs[mi+1].data()); */
+        /* if (print) for (mat_t mi : EnumRange<mat_t, MAT_SLOTS>{}) { */
+        /*     printf("\n%s matrix\n", type_strs[idx(mi)+1].data()); */
         /*     printf("offs %d:", s); */
         /*     for (int di = 0; di < int(query.size() + truth.size()-1); di++) { */
         /*         printf("\t%d", offs[mi*z + s2*y + di]); */
@@ -1295,9 +1295,9 @@ int wf_swg_max_reach(
         s++; s2++;
         if (s2 == scores) s2 = 0;
         // init new row to all invalid
-        for (int m = MAT_INS; m < MATS; m++) {
+        for (mat_t m : {MAT_INS, MAT_DEL}) {
             for (int d = 0; d < mat_len; d++) {
-                offs[m*z + s2*y + d] = -2;
+                offs[idx(m)*z + s2*y + d] = -2;
             }
         }
         if (print) printf("\nscore = %d\n", s);
@@ -1309,13 +1309,13 @@ int wf_swg_max_reach(
             int p = s - x;
             int p2 = s2 - x;
             if (p2 < 0) p2 += scores;
-            if (p >= 0 && offs[MAT_SUB*z + p2*y + d] != -2 && 
-                            offs[MAT_SUB*z + p2*y + d]+1 < query_len &&
-                     diag + offs[MAT_SUB*z + p2*y + d]+1 < truth_len &&
-                            offs[MAT_SUB*z + p2*y + d]+1 >= offs[MAT_SUB*z + s2*y + d]) {
-                offs[MAT_SUB*z + s2*y + d] = offs[MAT_SUB*z + p2*y + d] + 1;
-                if(print) printf("(S, %d, %d) sub\n", offs[MAT_SUB*z + s2*y + d], 
-                        offs[MAT_SUB*z + s2*y + d]+diag);
+            if (p >= 0 && offs[idx(MAT_SUB)*z + p2*y + d] != -2 && 
+                            offs[idx(MAT_SUB)*z + p2*y + d]+1 < query_len &&
+                     diag + offs[idx(MAT_SUB)*z + p2*y + d]+1 < truth_len &&
+                            offs[idx(MAT_SUB)*z + p2*y + d]+1 >= offs[idx(MAT_SUB)*z + s2*y + d]) {
+                offs[idx(MAT_SUB)*z + s2*y + d] = offs[idx(MAT_SUB)*z + p2*y + d] + 1;
+                if(print) printf("(S, %d, %d) sub\n", offs[idx(MAT_SUB)*z + s2*y + d], 
+                        offs[idx(MAT_SUB)*z + s2*y + d]+diag);
             }
 
             // open gap (enter DEL, open fwd only)
@@ -1323,23 +1323,23 @@ int wf_swg_max_reach(
             p2 = reverse ? s2 - e : s2 - (o+e);
             if (p2 < 0) p2 += scores;
             if (p >= 0 && d > 0 && 
-                           offs[MAT_SUB*z + p2*y + d-1] != -2 &&
-                    diag + offs[MAT_SUB*z + p2*y + d-1] < truth_len &&
-                           offs[MAT_SUB*z + p2*y + d-1] >= offs[MAT_DEL*z + s2*y + d]) {
-                offs[MAT_DEL*z + s2*y + d] = offs[MAT_SUB*z + p2*y + d-1];
-                if(print) printf("(D, %d, %d) open\n", offs[MAT_DEL*z + s2*y + d], 
-                        offs[MAT_DEL*z + s2*y + d]+diag);
+                           offs[idx(MAT_SUB)*z + p2*y + d-1] != -2 &&
+                    diag + offs[idx(MAT_SUB)*z + p2*y + d-1] < truth_len &&
+                           offs[idx(MAT_SUB)*z + p2*y + d-1] >= offs[idx(MAT_DEL)*z + s2*y + d]) {
+                offs[idx(MAT_DEL)*z + s2*y + d] = offs[idx(MAT_SUB)*z + p2*y + d-1];
+                if(print) printf("(D, %d, %d) open\n", offs[idx(MAT_DEL)*z + s2*y + d], 
+                        offs[idx(MAT_DEL)*z + s2*y + d]+diag);
             }
             // open gap (enter INS, open fwd only)
             if (p >= 0 && d < mat_len-1 && 
-                           offs[MAT_SUB*z + p2*y + d+1] != -2 &&
-                           offs[MAT_SUB*z + p2*y + d+1]+1 < query_len &&
-                    diag + offs[MAT_SUB*z + p2*y + d+1]+1 < truth_len &&
-                    diag + offs[MAT_SUB*z + p2*y + d+1]+1 >= 0 &&
-                           offs[MAT_SUB*z + p2*y + d+1]+1 >= offs[MAT_INS*z + s2*y + d]) {
-                offs[MAT_INS*z + s2*y + d] = offs[MAT_SUB*z + p2*y + d+1]+1;
-                if(print) printf("(I, %d, %d) open\n", offs[MAT_INS*z + s2*y + d], 
-                        offs[MAT_INS*z + s2*y + d]+diag);
+                           offs[idx(MAT_SUB)*z + p2*y + d+1] != -2 &&
+                           offs[idx(MAT_SUB)*z + p2*y + d+1]+1 < query_len &&
+                    diag + offs[idx(MAT_SUB)*z + p2*y + d+1]+1 < truth_len &&
+                    diag + offs[idx(MAT_SUB)*z + p2*y + d+1]+1 >= 0 &&
+                           offs[idx(MAT_SUB)*z + p2*y + d+1]+1 >= offs[idx(MAT_INS)*z + s2*y + d]) {
+                offs[idx(MAT_INS)*z + s2*y + d] = offs[idx(MAT_SUB)*z + p2*y + d+1]+1;
+                if(print) printf("(I, %d, %d) open\n", offs[idx(MAT_INS)*z + s2*y + d], 
+                        offs[idx(MAT_INS)*z + s2*y + d]+diag);
             }
 
             // leave INDEL (open rev only)
@@ -1347,15 +1347,15 @@ int wf_swg_max_reach(
             p2 = s2 - o;
             if (p2 < 0) p2 += scores;
             if (reverse && p >= 0) {
-                for (int m = MAT_INS; m < MATS; m++) {
-                    if (        offs[m*z + p2*y + d] >= 0 && 
-                                offs[m*z + p2*y + d] < query_len &&
-                         diag + offs[m*z + p2*y + d] >= 0 && 
-                         diag + offs[m*z + p2*y + d] < truth_len &&
-                                offs[m*z + p2*y + d] > offs[MAT_SUB*z + s2*y + d]) {
-                        offs[MAT_SUB*z + s2*y + d] = offs[m*z + p2*y + d];
+                for (mat_t m : {MAT_INS, MAT_DEL}) {
+                    if (        offs[idx(m)*z + p2*y + d] >= 0 && 
+                                offs[idx(m)*z + p2*y + d] < query_len &&
+                         diag + offs[idx(m)*z + p2*y + d] >= 0 && 
+                         diag + offs[idx(m)*z + p2*y + d] < truth_len &&
+                                offs[idx(m)*z + p2*y + d] > offs[idx(MAT_SUB)*z + s2*y + d]) {
+                        offs[idx(MAT_SUB)*z + s2*y + d] = offs[idx(m)*z + p2*y + d];
                         if(print) printf("(S, %d, %d) swap rev\n", 
-                                offs[m*z + p2*y + d], diag+offs[m*z + p2*y + d]);
+                                offs[idx(m)*z + p2*y + d], diag+offs[idx(m)*z + p2*y + d]);
                     }
                 }
             }
@@ -1365,23 +1365,23 @@ int wf_swg_max_reach(
             p2 = s2 - e;
             if (p2 < 0) p2 += scores;
             if (p >= 0 && d > 0 && 
-                           offs[MAT_DEL*z + p2*y + d-1] != -2 &&
-                    diag + offs[MAT_DEL*z + p2*y + d-1] < truth_len &&
-                           offs[MAT_DEL*z + p2*y + d-1] >= offs[MAT_DEL*z + s2*y + d]) {
-                offs[MAT_DEL*z + s2*y + d] = offs[MAT_DEL*z + p2*y + d-1];
-                if(print) printf("(D, %d, %d) extend\n", offs[MAT_DEL*z + s2*y + d], 
-                        offs[MAT_DEL*z + s2*y + d]+diag);
+                           offs[idx(MAT_DEL)*z + p2*y + d-1] != -2 &&
+                    diag + offs[idx(MAT_DEL)*z + p2*y + d-1] < truth_len &&
+                           offs[idx(MAT_DEL)*z + p2*y + d-1] >= offs[idx(MAT_DEL)*z + s2*y + d]) {
+                offs[idx(MAT_DEL)*z + s2*y + d] = offs[idx(MAT_DEL)*z + p2*y + d-1];
+                if(print) printf("(D, %d, %d) extend\n", offs[idx(MAT_DEL)*z + s2*y + d], 
+                        offs[idx(MAT_DEL)*z + s2*y + d]+diag);
             }
             // extend gap (stay INS)
             if (p >= 0 && d < mat_len-1 && 
-                           offs[MAT_INS*z + p2*y + d+1] != -2 &&
-                           offs[MAT_INS*z + p2*y + d+1]+1 < query_len &&
-                    diag + offs[MAT_INS*z + p2*y + d+1]+1 < truth_len &&
-                    diag + offs[MAT_INS*z + p2*y + d+1]+1 >= 0 &&
-                           offs[MAT_INS*z + p2*y + d+1]+1 >= offs[MAT_INS*z + s2*y + d]) {
-                offs[MAT_INS*z + s2*y + d] = offs[MAT_INS*z + p2*y + d+1]+1;
-                if(print) printf("(I, %d, %d) extend\n", offs[MAT_INS*z + s2*y + d], 
-                        offs[MAT_INS*z + s2*y + d]+diag);
+                           offs[idx(MAT_INS)*z + p2*y + d+1] != -2 &&
+                           offs[idx(MAT_INS)*z + p2*y + d+1]+1 < query_len &&
+                    diag + offs[idx(MAT_INS)*z + p2*y + d+1]+1 < truth_len &&
+                    diag + offs[idx(MAT_INS)*z + p2*y + d+1]+1 >= 0 &&
+                           offs[idx(MAT_INS)*z + p2*y + d+1]+1 >= offs[idx(MAT_INS)*z + s2*y + d]) {
+                offs[idx(MAT_INS)*z + s2*y + d] = offs[idx(MAT_INS)*z + p2*y + d+1]+1;
+                if(print) printf("(I, %d, %d) extend\n", offs[idx(MAT_INS)*z + s2*y + d], 
+                        offs[idx(MAT_INS)*z + s2*y + d]+diag);
             }
         }
     } // end reach
