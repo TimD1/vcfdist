@@ -218,13 +218,13 @@ bool ctgVariants::matched_gt_is_swapped(int vi /* variant index */) const {
         return false;
     }
     // orig_gt == 1|1 or 0|0 or matched_gt == 0|0, all/no matched_gt data will be reported, order doesn't matter
-    else if (this->orig_gts[vi] == GT_ALT_ALT || 
-             this->orig_gts[vi] == GT_REF_REF || 
+    else if (this->orig_gts[vi] == GT_ALT_ALT ||
+             this->orig_gts[vi] == GT_REF_REF ||
              this->matched_gts[vi] == GT_REF_REF) {
         return false;
     }
     // 0|1,1|0 and 1|0,0|1
-    else if ((this->orig_gts[vi] == GT_REF_ALT && this->matched_gts[vi] == GT_ALT_REF) || 
+    else if ((this->orig_gts[vi] == GT_REF_ALT && this->matched_gts[vi] == GT_ALT_REF) ||
              (this->orig_gts[vi] == GT_ALT_REF && this->matched_gts[vi] == GT_REF_ALT)) {
         return true;
     }

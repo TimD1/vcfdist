@@ -413,7 +413,7 @@ void phaseblockData::fix_allele_counts() {
                     if (qvars->pb_phases[vi] == PHASE_ORIG) {
                         qvars->matched_gts[vi] = qvars->orig_gts[vi];
                     } else { // PHASE_SWAP
-                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT) ? 
+                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT) ?
                             GT_ALT_REF : GT_REF_ALT;
                     }
                 }
@@ -428,7 +428,7 @@ void phaseblockData::fix_allele_counts() {
                     if (qvars->pb_phases[vi] == PHASE_ORIG) {
                         qvars->matched_gts[vi] = qvars->orig_gts[vi];
                     } else { // PHASE_SWAP
-                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT) ? 
+                        qvars->matched_gts[vi] = (qvars->orig_gts[vi] == GT_REF_ALT) ?
                             GT_ALT_REF : GT_REF_ALT;
                     }
                 }
