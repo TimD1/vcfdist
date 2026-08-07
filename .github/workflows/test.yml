@@ -57,6 +57,6 @@ jobs:
       env:
         VCFDIST_SKIP_BUILD: "1"
       run: |
-       uv pip install --system pytest pytest-workflow
+       uv pip install --system --break-system-packages pytest pytest-workflow
        cd tests
        pytest -vv
