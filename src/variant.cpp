@@ -442,7 +442,7 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
 
 /**
  * @brief Parses a CIGAR string and adds resulting variants to the container.
- * @param[in] cigar CIGAR operation vector (alternating operation codes and lengths)
+ * @param[in] cigar Backtracking pointer vector (alternating pointer codes and lengths)
  * @param[in] hap Haplotype index (0 or 1)
  * @param[in] ref_pos Starting reference position
  * @param[in] ctg Contig name
@@ -453,7 +453,7 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int hi, const std::stri
  * @throws ERROR Unexpected CIGAR/pointer operation not in {PTR_MAT, PTR_SUB, PTR_DEL, PTR_INS}
  */
 void variantData::add_variants(
-        const std::vector<int> & cigar,
+        const std::vector<ptr_t> & cigar,
         int hap, int ref_pos,
         const std::string & ctg,
         const std::string & query,

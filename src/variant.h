@@ -152,7 +152,7 @@ public:
     variantData();
 
     /** @brief Parses a CIGAR string and adds resulting variants to the container. */
-    void add_variants(const std::vector<int> & cigar, int hap,
+    void add_variants(const std::vector<ptr_t> & cigar, int hap,
             int ref_pos, const std::string & ctg, const std::string & query,
             const std::string & ref, int qual, int phase_set);
 

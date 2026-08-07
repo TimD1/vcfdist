@@ -74,7 +74,7 @@ void print_wfa_ptrs(
         const std::string & query,
         const std::string & truth,
         int s,
-        const EnumArray<mat_t, std::vector< std::vector<uint8_t> >, MAT_SLOTS> & ptrs,
+        const EnumArray<mat_t, std::vector< std::vector<ptr_t> >, MAT_SLOTS> & ptrs,
         const EnumArray<mat_t, std::vector< std::vector<int> >, MAT_SLOTS> & offs);
 
 /**

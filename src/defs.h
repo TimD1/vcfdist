@@ -202,14 +202,17 @@ constexpr std::size_t TIMER_SLOTS = 6; ///< Number of pipeline stage timers
 #define CALLSETS 2 ///< Number of callsets
 /** @} */
 
-/** @defgroup ptr_constants Alignment backtracking pointer constants (PTR_*)
- *  @{
- */
-#define PTR_INS  1  ///< Insertion backtracking pointer
-#define PTR_DEL  2  ///< Deletion backtracking pointer
-#define PTR_MAT  4  ///< Match backtracking pointer
-#define PTR_SUB  8  ///< Substitution backtracking pointer
-/** @} */
+/** @brief Alignment backtracking pointer. Values are non-contiguous, so no EnumArray keys on it. */
+enum class ptr_t : int8_t {
+    PTR_INS = 1, ///< Insertion backtracking pointer
+    PTR_DEL = 2, ///< Deletion backtracking pointer
+    PTR_MAT = 4, ///< Match backtracking pointer
+    PTR_SUB = 8, ///< Substitution backtracking pointer
+};
+constexpr ptr_t PTR_INS = ptr_t::PTR_INS;
+constexpr ptr_t PTR_DEL = ptr_t::PTR_DEL;
+constexpr ptr_t PTR_MAT = ptr_t::PTR_MAT;
+constexpr ptr_t PTR_SUB = ptr_t::PTR_SUB;
 
 /** @brief Smith-Waterman alignment matrix. */
 enum class mat_t : int8_t {
