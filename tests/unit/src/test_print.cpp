@@ -228,7 +228,7 @@ std::unique_ptr<phaseblockData> one_ctg(std::shared_ptr<ctgVariants> qvars,
  * @param[in] ctg Contig name
  * @return Container whose single variant carries genotype 1|0 and error type ERRTYPE_UN
  */
-std::shared_ptr<ctgVariants> hap1_var(uint8_t type, const std::string & ref,
+std::shared_ptr<ctgVariants> hap1_var(edittype_t type, const std::string & ref,
         const std::string & alt, const std::string & ctg = "chr1") {
     std::shared_ptr<ctgVariants> vars = make_typed_var(type, ref, alt, ctg);
     vars->orig_gts[0] = GT_ALT1_REF;

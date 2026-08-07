@@ -235,7 +235,7 @@ void print_wfa_ptrs(
         }
   
         // print array
-        printf("\n%s matrix:\n", type_strs[idx(m)+1].data());
+        printf("\n%s matrix:\n", type_strs[mat_to_edittype(m)].data());
         for (int i = -1; i < query_len; i++) {
             for (int j = -1; j < truth_len; j++) {
                 if (i < 0 && j < 0) {

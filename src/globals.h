@@ -108,7 +108,7 @@ extern EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs;   ///< String re
 extern EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs;  ///< String representations of BED_* location constants
 extern EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs;  ///< String representations of SWITCHTYPE_* constants
 extern std::vector<std::string> timer_strs;   ///< String names for pipeline stage timers (TIME_* order)
-extern std::vector<std::string> type_strs;    ///< String representations of TYPE_* variant type constants
+extern EnumArray<edittype_t, std::string, EDITTYPE_SLOTS> type_strs;    ///< String representations of TYPE_* variant type constants
 extern EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs; ///< String representations of VARTYPE_* size-class constants
 
 #endif

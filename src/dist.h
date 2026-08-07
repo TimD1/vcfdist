@@ -34,14 +34,14 @@ public:
     std::vector<std::string> qseqs; ///< seq data for each query node (e.g. "ACCCGT")
     std::vector<int> qbegs;         ///< reference start position
     std::vector<int> qends;         ///< reference end position
-    std::vector<int> qtypes;        ///< query node TYPE_(REF, INS, SUB, DEL)
+    std::vector<edittype_t> qtypes;        ///< query node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> qidxs;         ///< store query variant indices (-1 for TYPE_REF)
 
     int tnodes;                     ///< each tvector is of size tnodes
     std::vector<std::string> tseqs; ///< seq data for each truth node (e.g. "ACCCGT")
     std::vector<int> tbegs;         ///< reference start position
     std::vector<int> tends;         ///< reference end position
-    std::vector<int> ttypes;        ///< truth node TYPE_(REF, INS, SUB, DEL)
+    std::vector<edittype_t> ttypes;        ///< truth node TYPE_(REF, INS, SUB, DEL)
     std::vector<int> tidxs;         ///< store truth variant indices (-1 for TYPE_REF)
     std::vector<int> tskips;        ///< truth variant idx this bypass node skips (-1 if not a bypass)
 

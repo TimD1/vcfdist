@@ -562,15 +562,15 @@ void parse_variants(const std::string & vcf_fn,
 
     // counters
     int nctg   = 0;                     // number of ctgs
-    std::vector< std::vector<int> > 
-        ntypes(2, std::vector<int>(type_strs.size(), 0));
+    std::vector< EnumArray<edittype_t, int, EDITTYPE_SLOTS> >
+        ntypes(2, EnumArray<edittype_t, int, EDITTYPE_SLOTS>{});
     int n      = 0;                     // total number of records in file
     std::vector<int> npass  = {0, 0};   // records PASSing all filters
 
     // data
     bool print = g.verbosity >= 1;
     std::vector<int> prev_end = {-g.cluster_min_gap*2, -g.cluster_min_gap*2};
-    std::vector<int> prev_type = {TYPE_SUB, TYPE_SUB};
+    std::vector<edittype_t> prev_type = {TYPE_SUB, TYPE_SUB};
     std::unordered_set<int> prev_rids; // contigs already parsed, to reject an unsorted VCF
     int prev_rid = -1;
     std::unordered_map<int, int> ctglens;
@@ -889,7 +889,7 @@ void parse_variants(const std::string & vcf_fn,
 
         // snapshot each hap's previous variant, before this record's own copies overwrite it below
         std::vector<int> rec_prev_end = prev_end;
-        std::vector<int> rec_prev_type = prev_type;
+        std::vector<edittype_t> rec_prev_type = prev_type;
 
         // parse variant type
         for (int hap = 0; hap < std::abs(ngt); hap++) { // allow single-allele chrX, chrY
@@ -929,7 +929,7 @@ void parse_variants(const std::string & vcf_fn,
 
             // determine variant type
             int pos = rec->pos;
-            int type = -1;
+            edittype_t type = TYPE_REF;
             int lm = 0; // match from left->right (trim prefix)
             int rm = -1;// match from right->left (simplify complex variants CPX->INDEL)
             int reflen = int(ref.size());
@@ -981,9 +981,6 @@ void parse_variants(const std::string & vcf_fn,
                 case TYPE_DEL:
                 case TYPE_CPX:
                     rlen = ref.size(); break;
-                default:
-                    ERROR("Unexpected variant type: %d", type);
-                    break;
             }
 
             // check that variant (original representation) is in region of interest
@@ -1044,7 +1041,7 @@ void parse_variants(const std::string & vcf_fn,
                 complex_total++;
             } else {
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen,
-                        .type = uint8_t(type), .loc = loc, .ref = ref, .alt = alt,
+                        .type = type, .loc = loc, .ref = ref, .alt = alt,
                         .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                         .var_qual = vq, .phase_set = phase_set,
                         .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
@@ -1136,15 +1133,15 @@ void parse_variants(const std::string & vcf_fn,
     if (g.verbosity >= 2) { // show each hap separately
         for (int h = 0; h < HAPS; h++) {
             if (print) INFO("    Haplotype %i", h+1);
-            for (size_t i = 0; i < type_strs.size(); i++) {
-                if (print) INFO("      %s: %i", type_strs[i].data(), ntypes[h][i]);
+            for (edittype_t t : EnumRange<edittype_t, EDITTYPE_SLOTS>{}) {
+                if (print) INFO("      %s: %i", type_strs[t].data(), ntypes[h][t]);
             }
         }
         if (print) INFO(" ");
     } else { // summarize
-        for (size_t i = 0; i < type_strs.size(); i++) {
-            if (print && ntypes[HAP1][i] + ntypes[HAP2][i]) 
-                INFO("    %s: %i", type_strs[i].data(), ntypes[HAP1][i] + ntypes[HAP2][i]);
+        for (edittype_t t : EnumRange<edittype_t, EDITTYPE_SLOTS>{}) {
+            if (print && ntypes[HAP1][t] + ntypes[HAP2][t])
+                INFO("    %s: %i", type_strs[t].data(), ntypes[HAP1][t] + ntypes[HAP2][t]);
         }
     }
     if (print) INFO(" ");

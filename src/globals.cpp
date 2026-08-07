@@ -38,7 +38,8 @@ EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs =
 std::vector<std::string> timer_strs =
     {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};
 /** @brief String representations of TYPE_* variant type constants. */
-std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
+EnumArray<edittype_t, std::string, EDITTYPE_SLOTS> type_strs =
+    {{"REF", "SNP", "INS", "DEL", "CPX"}};
 /** @brief String representations of VARTYPE_* size-class constants. */
 EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs =
     {{"SNP", "INDEL", "SV", "ALL"}};

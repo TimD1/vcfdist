@@ -433,7 +433,7 @@ std::string gt_hist_line(gt_t gt, int count) {
  * @param[in] count Number of alleles tallied under that type across both haplotypes
  * @return Substring of the INFO line, derived from type_strs so it tracks renames
  */
-std::string type_hist_line(uint8_t type, int count) {
+std::string type_hist_line(edittype_t type, int count) {
     return "    " + type_strs[type] + ": " + std::to_string(count);
 }
 
@@ -580,7 +580,7 @@ std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt, const std::
  * @param[in] pos 0-based reference start position
  * @return Container holding a single variant
  */
-std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
+std::shared_ptr<ctgVariants> make_typed_var(edittype_t type, const std::string & ref,
         const std::string & alt, const std::string & ctg, int pos) {
     var_desc var;
     var.pos = pos;

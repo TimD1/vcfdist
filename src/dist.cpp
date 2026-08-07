@@ -625,7 +625,7 @@ void wf_swg_align(
 
         // debug print
         for (mat_t mi : EnumRange<mat_t, MAT_SLOTS>{}) {
-            if(print) printf("\n%s matrix\n", type_strs[idx(mi)+1].data());
+            if(print) printf("\n%s matrix\n", type_strs[mat_to_edittype(mi)].data());
             if(print) printf("offs %d:", s);
             for (int di = 0; di < int(query.size() + truth.size()-1); di++) {
                 if(print) printf("\t%d", offs[mi][s][di]);
@@ -1283,7 +1283,7 @@ int wf_swg_max_reach(
         if (s == max_score) break;
 
         /* if (print) for (mat_t mi : EnumRange<mat_t, MAT_SLOTS>{}) { */
-        /*     printf("\n%s matrix\n", type_strs[idx(mi)+1].data()); */
+        /*     printf("\n%s matrix\n", type_strs[mat_to_edittype(mi)].data()); */
         /*     printf("offs %d:", s); */
         /*     for (int di = 0; di < int(query.size() + truth.size()-1); di++) { */
         /*         printf("\t%d", offs[mi*z + s2*y + di]); */

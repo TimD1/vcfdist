@@ -67,16 +67,22 @@ constexpr std::size_t idx(K k) { return static_cast<std::size_t>(k); }
 #define COLOR_WHITE  isatty(STDERR_FILENO) ? "\033[0m"  : "" ///< ANSI reset/white color code
 /** @} */
 
-/** @defgroup type_constants Variant type constants (TYPE_*)
- *  @{
- */
-#define TYPE_REF   0 ///< Reference (no variant)
-#define TYPE_SUB   1 ///< Substitution (SNP)
-#define TYPE_INS   2 ///< Insertion
-#define TYPE_DEL   3 ///< Deletion
-#define TYPE_CPX   4 ///< Complex variant
-#define TYPES      5 ///< Total number of variant types
-/** @} */
+/** @brief Edit type of a variant relative to the reference. */
+enum class edittype_t : int8_t {
+    TYPE_REF = 0, ///< Reference (no variant)
+    TYPE_SUB = 1, ///< Substitution (SNP)
+    TYPE_INS = 2, ///< Insertion
+    TYPE_DEL = 3, ///< Deletion
+    TYPE_CPX = 4, ///< Complex variant
+};
+constexpr edittype_t TYPE_REF = edittype_t::TYPE_REF;
+constexpr edittype_t TYPE_SUB = edittype_t::TYPE_SUB;
+constexpr edittype_t TYPE_INS = edittype_t::TYPE_INS;
+constexpr edittype_t TYPE_DEL = edittype_t::TYPE_DEL;
+constexpr edittype_t TYPE_CPX = edittype_t::TYPE_CPX;
+constexpr std::size_t EDITTYPE_SLOTS = 5; ///< Slots needed by an edittype_t-keyed array
+constexpr int8_t TYPES = 5;               ///< Total number of variant types
+static_assert(EDITTYPE_SLOTS == std::size_t(TYPES), "edittype_t slots must match TYPES");
 
 /** @brief Variant size class. */
 enum class sizeclass_t : int8_t {
@@ -260,6 +266,16 @@ constexpr mat_t MAT_DEL = mat_t::MAT_DEL;
 constexpr std::size_t MAT_SLOTS = 3; ///< Subscript slots needed by a mat_t-keyed array
 constexpr int8_t MATS = 3;           ///< Total number of Smith-Waterman matrices
 static_assert(MAT_SLOTS == std::size_t(MATS), "mat_t slots must match MATS");
+
+// each alignment matrix sits exactly one below the edit type it aligns, which mat_to_edittype uses
+static_assert(idx(MAT_SUB) + 1 == idx(TYPE_SUB), "mat_t must sit one below edittype_t");
+static_assert(idx(MAT_INS) + 1 == idx(TYPE_INS), "mat_t must sit one below edittype_t");
+static_assert(idx(MAT_DEL) + 1 == idx(TYPE_DEL), "mat_t must sit one below edittype_t");
+
+/** @brief Returns the variant edit type whose alignment matrix is the given matrix. */
+constexpr edittype_t mat_to_edittype(mat_t m) {
+    return static_cast<edittype_t>(static_cast<int8_t>(m) + 1);
+}
 
 /** @brief Phasing state of a variant or phase block. */
 enum class phase_t : int8_t {

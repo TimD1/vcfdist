@@ -260,7 +260,7 @@ size_t count_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1
 std::string gt_hist_line(gt_t gt, int count);
 
 /** @brief Returns the variant-type line parse_variants() prints for a type and count. */
-std::string type_hist_line(uint8_t type, int count);
+std::string type_hist_line(edittype_t type, int count);
 
 /* In-memory builders *****************************************************************************/
 
@@ -303,7 +303,7 @@ std::shared_ptr<variantData> make_variantData(int callset,
 struct var_desc {
     int pos = 0;               ///< 0-based reference start position
     int rlen = 0;              ///< Reference allele length
-    uint8_t type = TYPE_SUB;   ///< Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL, TYPE_CPX)
+    edittype_t type = TYPE_SUB; ///< Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL, TYPE_CPX)
     std::string ref;           ///< Reference allele sequence
     std::string alt;           ///< Alternate allele sequence
     gt_t gt = GT_REF_ALT1;     ///< Original genotype (GT_*)
@@ -330,7 +330,7 @@ std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt,
         const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Builds a one-variant container of the given type with the given allele sequences. */
-std::shared_ptr<ctgVariants> make_typed_var(uint8_t type, const std::string & ref,
+std::shared_ptr<ctgVariants> make_typed_var(edittype_t type, const std::string & ref,
         const std::string & alt, const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Sets all six per-haplotype evaluation lanes for one variant. */

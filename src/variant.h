@@ -45,7 +45,7 @@ struct hap_fields {
 struct var_fields {
     int pos;                      ///< variant start position (0-based)
     int rlen;                     ///< reference length
-    uint8_t type;                 ///< variant type: NONE, SUB, INS, DEL, CPX
+    edittype_t type;              ///< variant type: NONE, SUB, INS, DEL, CPX
     bedloc_t loc;                 ///< BED location: INSIDE, OUTSIDE, BORDER
     std::string ref;              ///< variant reference allele
     std::string alt;              ///< variant alternate allele
@@ -107,7 +107,7 @@ public:
     std::string ctg;                ///< Contig name (chromosome identifier)
     std::vector<int> poss;          ///< variant start positions (0-based)
     std::vector<int> rlens;         ///< reference lengths
-    std::vector<uint8_t> types;     ///< variant type: NONE, SUB, INS, DEL, CPX
+    std::vector<edittype_t> types;     ///< variant type: NONE, SUB, INS, DEL, CPX
     std::vector<bedloc_t> locs;      ///< BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  ///< variant reference allele
     std::vector<std::string> alts;  ///< variant alternate allele (always one)

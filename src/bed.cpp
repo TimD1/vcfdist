@@ -147,7 +147,7 @@ void bedData::check() {
  * @throws ERROR if the variant stop precedes the variant start.
  */
 bedloc_t bedData::contains(std::string contig, const int & start, const int & stop,
-        const int & type) {
+        const edittype_t & type) {
 
     if (!g.bed_exists) return BED_INSIDE;
 

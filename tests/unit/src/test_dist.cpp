@@ -961,7 +961,7 @@ TEST(GraphCtor, QuerySnpNodeLayout) {
     EXPECT_EQ(std::vector<std::string>({"_C", "_T", "_G", "_TA"}), f.graph->qseqs);
     EXPECT_EQ(std::vector<int>({0, 1, 1, 2}), f.graph->qbegs);
     EXPECT_EQ(std::vector<int>({1, 2, 2, 4}), f.graph->qends);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
     EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->qidxs);
 
     // no truth variants, so the truth side is a single reference node spanning the whole window
@@ -991,7 +991,7 @@ TEST(GraphCtor, ContigStartHasZeroWidthEntryNode) {
 
     ASSERT_EQ(4, f.graph->qnodes);
     EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->qseqs);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->qtypes);
     EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->qidxs);
 
     // the entry node is the unique origin: no predecessor, and both alleles hang off it
@@ -1023,7 +1023,7 @@ TEST(GraphCtor, ContigStartTruthEntryNodePrecedesBypass) {
 
     ASSERT_EQ(4, f.graph->tnodes);
     EXPECT_EQ(std::vector<std::string>({"_", "_G", "_A", "_CG"}), f.graph->tseqs);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
     EXPECT_EQ(std::vector<int>({-1, -1, 0, -1}), f.graph->tskips) << "node 2 bypasses variant 0";
     EXPECT_TRUE(f.graph->tprevs[0].empty());
     EXPECT_EQ(std::vector<int>({0}), f.graph->tprevs[2]) << "the bypass node must be reachable";
@@ -1164,7 +1164,7 @@ TEST(GraphCtor, TruthVariantPairedWithBypass) {
     EXPECT_EQ(std::vector<std::string>({"_C", "_A", "_G", "_TA"}), f.graph->tseqs);
     EXPECT_EQ(std::vector<int>({0, 1, 1, 2}), f.graph->tbegs);
     EXPECT_EQ(std::vector<int>({1, 2, 2, 4}), f.graph->tends);
-    EXPECT_EQ(std::vector<int>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
+    EXPECT_EQ(std::vector<edittype_t>({TYPE_REF, TYPE_SUB, TYPE_REF, TYPE_REF}), f.graph->ttypes);
     EXPECT_EQ(std::vector<int>({-1, 0, -1, -1}), f.graph->tidxs);
     EXPECT_EQ(std::vector<int>({-1, -1, 0, -1}), f.graph->tskips);
 }

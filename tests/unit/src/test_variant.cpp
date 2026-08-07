@@ -1846,7 +1846,7 @@ TEST_F(ParseVariants, EveryAlleleShapeReachesAKnownType) {
         ParseResult r = parse_records(dir, {record(100, ref, alt, "1|0")});
         ASSERT_LE(1, hap_vars(r, HAP1)->n) << ref << " -> " << alt;
         for (int vi = 0; vi < hap_vars(r, HAP1)->n; vi++) {
-            const uint8_t type = hap_vars(r, HAP1)->types[vi];
+            const edittype_t type = hap_vars(r, HAP1)->types[vi];
             EXPECT_TRUE(type == TYPE_SUB || type == TYPE_INS || type == TYPE_DEL)
                     << ref << " -> " << alt << " variant " << vi << " type " << int(type);
         }
