@@ -2078,7 +2078,7 @@ TEST(PrecisionRecallWrapper, EmptyRangeReturns) {
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
     const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups;
-    precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 0, false, false);
+    precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 0, /* print = */ false);
 
     EXPECT_EQ(ERRTYPE_UN, f.qvars->errtypes[HAP1][0]);
     EXPECT_EQ(ERRTYPE_UN, f.tvars->errtypes[HAP1][0]);
@@ -2096,7 +2096,7 @@ TEST(PrecisionRecallWrapper, EvaluatesBothHaplotypesForOneSupercluster) {
     auto sc_data = make_superclusterData({"chr1"}, {8}, {f.sc}, f.ref);
 
     const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > sc_groups = {{{{{0}, {0}}}}};
-    precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 1, false, false);
+    precision_recall_wrapper(sc_data.get(), sc_groups, 0, 0, 1, /* print = */ false);
 
     EXPECT_EQ(ERRTYPE_TP, f.qvars->errtypes[HAP1][0]);
     EXPECT_EQ(ERRTYPE_TP, f.tvars->errtypes[HAP1][0]);

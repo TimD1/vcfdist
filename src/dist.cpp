@@ -737,12 +737,11 @@ void precision_recall_threads_wrapper(
         if (nscs >= nthreads) {
 
             // distribute many subproblems evenly among threads
-            bool thread2 = thread_step != 0; // max_threads/2+
             for (int t = 0; t < nthreads; t++) {
                 int size = nscs / nthreads;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+size, thread2, /* print = */ false));
+                            thread_step, start, start+size, /* print = */ false));
                 start += size;
             }
             for (std::thread & t : threads)
@@ -764,11 +763,10 @@ void precision_recall_threads_wrapper(
                     thread_step--;
                     if (thread_step < 0) break;
                 }
-                bool thread2 = thread_step != 0; // max_threads/2+
                 if (thread_step < 0) break;
                 threads.push_back(std::thread(precision_recall_wrapper,
                             clusterdata_ptr.get(), std::cref(sc_groups),
-                            thread_step, start, start+1, thread2, /* print = */ false));
+                            thread_step, start, start+1, /* print = */ false));
                 start++;
                 total_ram += g.ram_steps[thread_step];
                 if (start >= int(sc_groups[thread_step][SC_IDX].size())) {
@@ -1132,13 +1130,12 @@ Graph::Graph(
  * @param[in] thread_step Index into the thread RAM step buckets.
  * @param[in] start Inclusive start index within the sc_groups[thread_step] list.
  * @param[in] stop Exclusive stop index within the sc_groups[thread_step] list.
- * @param[in] thread2 True when running at max_threads/2 or more.
  * @param[in] print Whether to enable debug printing.
  */
 void precision_recall_wrapper(
         superclusterData* clusterdata_ptr,
         const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > & sc_groups,
-        int thread_step, int start, int stop, bool thread2, bool print) {
+        int thread_step, int start, int stop, bool print) {
 
 	// parse sc_idx from grouped superclusters
     if (stop == start) return;
