@@ -152,11 +152,6 @@ public:
     /** @brief Constructs an empty variant data container defaulting to QUERY callset. */
     variantData();
 
-    /** @brief Parses a CIGAR string and adds resulting variants to the container. */
-    void add_variants(const std::vector<ptr_t> & cigar, hap_t hap,
-            int ref_pos, const std::string & ctg, const std::string & query,
-            const std::string & ref, int qual, int phase_set);
-
     // data
     std::shared_ptr<fastaData> ref;  ///< Pointer to reference FASTA data
     callset_t callset;               ///< Callset type: QUERY or TRUTH
