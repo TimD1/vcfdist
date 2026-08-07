@@ -82,7 +82,7 @@ struct pipeline_result {
  * @param[in] ctg Contig the variants sit on
  * @return Query variants with orig_gts, calc_gts, and phase_sets set
  */
-std::shared_ptr<ctgVariants> make_qvars(const std::vector<int> & phases,
+std::shared_ptr<ctgVariants> make_qvars(const std::vector<phase_t> & phases,
         const std::vector<int> & phase_sets = {}, const std::string & ctg = CTG) {
     std::vector<var_desc> descs;
     for (size_t i = 0; i < phases.size(); i++) {
@@ -162,7 +162,7 @@ pipeline_result run_pipeline(const TempDir & dir, std::shared_ptr<ctgVariants> q
  * @param[in] hap2_credit Credit of the middle variant on HAP2
  * @return Query variants whose middle variant is at index 1
  */
-std::shared_ptr<ctgVariants> make_ac_qvars(uint8_t orig_gt, uint8_t calc_gt, int block_phase,
+std::shared_ptr<ctgVariants> make_ac_qvars(uint8_t orig_gt, uint8_t calc_gt, phase_t block_phase,
         float hap1_credit = 0, float hap2_credit = 0) {
     std::shared_ptr<ctgVariants> qvars =
             make_qvars({block_phase, PHASE_NONE, block_phase});
@@ -360,7 +360,7 @@ TEST(Phase, PerfectBlock) {
             make_qvars({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}));
     EXPECT_EQ(0, pbs_of(result)->nswitches);
     EXPECT_EQ(0, pbs_of(result)->nflips);
-    EXPECT_EQ(std::vector<int>({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}), qvars_of(result)->pb_phases);
+    EXPECT_EQ(std::vector<phase_t>({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG}), qvars_of(result)->pb_phases);
 }
 
 TEST(Phase, AllSwapBlock) {
@@ -373,7 +373,7 @@ TEST(Phase, AllSwapBlock) {
     // PHASE_SWAP and stays there, so no variant is reported as an error
     EXPECT_EQ(0, pbs_of(result)->nswitches);
     EXPECT_EQ(0, pbs_of(result)->nflips);
-    EXPECT_EQ(std::vector<int>({PHASE_SWAP, PHASE_SWAP, PHASE_SWAP}), qvars_of(result)->pb_phases);
+    EXPECT_EQ(std::vector<phase_t>({PHASE_SWAP, PHASE_SWAP, PHASE_SWAP}), qvars_of(result)->pb_phases);
 }
 
 TEST(Phase, SingleFlip) {
@@ -423,7 +423,7 @@ TEST(Phase, BoundaryFree) {
     EXPECT_EQ(0, pbs_of(result)->nswitches);
     EXPECT_EQ(0, pbs_of(result)->nflips);
     EXPECT_EQ(2, pbs_of(result)->n);
-    EXPECT_EQ(std::vector<int>({PHASE_ORIG, PHASE_ORIG, PHASE_SWAP, PHASE_SWAP}),
+    EXPECT_EQ(std::vector<phase_t>({PHASE_ORIG, PHASE_ORIG, PHASE_SWAP, PHASE_SWAP}),
             qvars_of(result)->pb_phases);
 }
 
@@ -438,7 +438,7 @@ TEST(Phase, MultipleBlocks) {
     EXPECT_EQ(0, pbs_of(result)->nswitches);
     EXPECT_EQ(2, pbs_of(result)->nflips);
     EXPECT_EQ(std::vector<int>({1, 4}), pbs_of(result)->flips);
-    EXPECT_EQ(std::vector<int>({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG,
+    EXPECT_EQ(std::vector<phase_t>({PHASE_ORIG, PHASE_ORIG, PHASE_ORIG,
             PHASE_SWAP, PHASE_SWAP, PHASE_SWAP}), qvars_of(result)->pb_phases);
 }
 
@@ -494,7 +494,7 @@ TEST(Phase, PbPhasesAssignment) {
     // the backtrace writes pb_phases[i-1] after following the pointer at i, so the switch recorded
     // at index 2 is the first index carrying the swapped block phasing
     EXPECT_EQ(size_t(4), qvars_of(result)->pb_phases.size());
-    EXPECT_EQ(std::vector<int>({PHASE_ORIG, PHASE_ORIG, PHASE_SWAP, PHASE_SWAP}),
+    EXPECT_EQ(std::vector<phase_t>({PHASE_ORIG, PHASE_ORIG, PHASE_SWAP, PHASE_SWAP}),
             qvars_of(result)->pb_phases);
 }
 
@@ -950,7 +950,7 @@ TEST(PhaseblockNg50, NoBreaks) {
     TempDir dir;
 
     // six variants 100 bases apart in one phase set: one block spanning 0-501
-    pipeline_result result = run_pipeline(dir, make_qvars(std::vector<int>(6, PHASE_ORIG)));
+    pipeline_result result = run_pipeline(dir, make_qvars(std::vector<phase_t>(6, PHASE_ORIG)));
     EXPECT_EQ(501, result.data->calculate_ng50(false, false));
 }
 
@@ -1022,7 +1022,7 @@ TEST(PhaseblockNg50, EmptyReturnsZero) {
 TEST(PhaseblockNg50, ThresholdSelection) {
     GlobalsGuard guard;
     TempDir dir;
-    pipeline_result result = run_pipeline(dir, make_qvars(std::vector<int>(6, PHASE_ORIG)));
+    pipeline_result result = run_pipeline(dir, make_qvars(std::vector<phase_t>(6, PHASE_ORIG)));
 
     // blocks of 201, 101, and 1 bases against 604 total: the running sum first reaches half the
     // genome at the second block, so the second block's length is the answer
@@ -1036,7 +1036,7 @@ TEST(PhaseblockNg50, NeverReachesHalfZero) {
     TempDir dir;
 
     // 501 phased bases out of 10000 never reach half the genome
-    pipeline_result result = run_pipeline(dir, make_qvars(std::vector<int>(6, PHASE_ORIG)),
+    pipeline_result result = run_pipeline(dir, make_qvars(std::vector<phase_t>(6, PHASE_ORIG)),
             nullptr, 10000);
     EXPECT_EQ(0, result.data->calculate_ng50(false, false));
 }
@@ -1051,7 +1051,7 @@ TEST(PhaseblockNg50, MultiContigBlocksPooled) {
     // only reach if both contigs' blocks are in one list. With chr1's alone the answer would be 0.
     ctg_input first;
     first.ctg = "chr1";
-    first.qvars = make_qvars(std::vector<int>(6, PHASE_ORIG));
+    first.qvars = make_qvars(std::vector<phase_t>(6, PHASE_ORIG));
     first.length = 502;
     ctg_input second;
     second.ctg = "chr2";

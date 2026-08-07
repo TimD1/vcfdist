@@ -104,7 +104,7 @@ extern std::vector<std::string> callset_strs; ///< String representations of QUE
 extern EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs;   ///< String representations of ERRTYPE_* constants
 extern std::vector<std::string> gt_strs;      ///< String representations of GT_* genotype constants
 extern EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs;      ///< String representations of AC_ERR_* allele count error types
-extern std::vector<std::string> phase_strs;   ///< String representations of PHASE_* constants
+extern EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs;   ///< String representations of PHASE_* constants
 extern EnumArray<bedloc_t, std::string, BEDLOC_SLOTS> region_strs;  ///< String representations of BED_* location constants
 extern EnumArray<switchtype_t, std::string, SWITCHTYPE_SLOTS> switch_strs;  ///< String representations of SWITCHTYPE_* constants
 extern std::vector<std::string> timer_strs;   ///< String names for pipeline stage timers (TIME_* order)

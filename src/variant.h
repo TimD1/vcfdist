@@ -137,8 +137,8 @@ public:
     std::vector< std::vector<float> > credit;     ///< percentage reduction in edit dist (ref->query)
 
     // set during phase() (size n)
-    std::vector<int> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
-    std::vector<int> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
+    std::vector<phase_t> phases;     ///< variant keep/swap/unknown, from alignment (calc_gt relative to orig_gt)
+    std::vector<phase_t> pb_phases;  ///< phaseblock keep/swap, from phasing algorithm
     std::vector<ac_errtype_t> ac_errtype; ///< allele count error type, truth count then query count on both callsets (e.g. 0|1 -> 1|1)
 };
 

@@ -245,17 +245,31 @@ constexpr std::size_t MAT_SLOTS = 3; ///< Subscript slots needed by a mat_t-keye
 constexpr int8_t MATS = 3;           ///< Total number of Smith-Waterman matrices
 static_assert(MAT_SLOTS == std::size_t(MATS), "mat_t slots must match MATS");
 
-/** @defgroup phase_constants Phasing state constants (PHASE_*)
- *  @{
- */
-#define PHASE_ORIG 0 ///< Keep original haplotype assignment
-#define PHASE_SWAP 1 ///< Swap haplotype assignment
-#define PHASE_NONE 2 ///< No phasing information available
-#define PHASES     2 ///< Number of phasing states (ORIG and SWAP)
+/** @brief Phasing state of a variant or phase block. */
+enum class phase_t : int8_t {
+    PHASE_ORIG = 0, ///< Keep original haplotype assignment
+    PHASE_SWAP = 1, ///< Swap haplotype assignment
+    PHASE_NONE = 2, ///< No phasing information available
+};
+constexpr phase_t PHASE_ORIG = phase_t::PHASE_ORIG;
+constexpr phase_t PHASE_SWAP = phase_t::PHASE_SWAP;
+constexpr phase_t PHASE_NONE = phase_t::PHASE_NONE;
+constexpr std::size_t PHASE_SLOTS = 3; ///< Slots needed by a phase_t-keyed array
+constexpr int8_t PHASES = 2;           ///< Number of phasing states (ORIG and SWAP)
+// PHASE_NONE is a storable sentinel rather than a phasing state, so it needs a slot of its own
+static_assert(PHASE_SLOTS == std::size_t(PHASES) + 1, "PHASE_NONE needs its own slot");
 
-#define PHASE_PTR_KEEP 0 ///< DP pointer: keep current phase
-#define PHASE_PTR_SWAP 1 ///< DP pointer: swap phase at this variant
-/** @} */
+/** @brief Phasing dynamic-programming backtrack pointer. */
+enum class phaseptr_t : int8_t {
+    PHASE_PTR_KEEP = 0, ///< Keep current phase
+    PHASE_PTR_SWAP = 1, ///< Swap phase at this variant
+};
+constexpr phaseptr_t PHASE_PTR_KEEP = phaseptr_t::PHASE_PTR_KEEP;
+constexpr phaseptr_t PHASE_PTR_SWAP = phaseptr_t::PHASE_PTR_SWAP;
+constexpr std::size_t PHASEPTR_SLOTS = 2; ///< Slots needed by a phaseptr_t-keyed array
+
+/** @brief Returns the opposite phasing state. */
+constexpr phase_t other_phase(phase_t p) { return p == PHASE_ORIG ? PHASE_SWAP : PHASE_ORIG; }
 
 /** @defgroup logging_macros Timestamped logging macros
  *  Print colored, timestamped messages to stderr. Exit on ERROR.

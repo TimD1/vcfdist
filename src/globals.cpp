@@ -24,7 +24,7 @@ EnumArray<errtype_t, std::string, ERRTYPE_SLOTS> error_strs = {{"TP", "FP", "FN"
 std::vector<std::string> gt_strs =
     {"0", "1", "0|0", "0|1", "1|0", "1|1", "1|2", "2|1", ".|.", "X|.", "X|Y" };
 /** @brief String representations of PHASE_* constants (keep, swap, missing). */
-std::vector<std::string> phase_strs = {"0", "1", "."};
+EnumArray<phase_t, std::string, PHASE_SLOTS> phase_strs = {{"0", "1", "."}};
 /** @brief String representations of AC_ERR_* allele count error types. */
 EnumArray<ac_errtype_t, std::string, AC_ERRTYPE_SLOTS> ac_strs =
     {{".", ".", ".", ".", "+", ".", "-", ".", "."}};
