@@ -474,12 +474,14 @@ gtparse_t classify_gt(const int32_t * gt, int ngt) {
  * @param[in] reference Reference FASTA data for coordinate validation
  * @param[in] callset QUERY or TRUTH callset identifier
  * @throws ERROR A record htslib cannot parse, a record on a contig the header does not declare,
- *         a header declaring other than one sample or a contig line without 'IDX' and 'length',
- *         an unsorted VCF, a variant of ploidy above 2, or a variant outside the reference contig
+ *         a header declaring 'GT' with a type other than String, a header declaring other than one
+ *         sample or a contig line without 'IDX' and 'length', an unsorted VCF, a variant of ploidy
+ *         above 2, or a variant outside the reference contig
  * @throws WARNING Per-reason summary totals for records dropped or altered at parse time: no-call
- *         and half-call genotypes, unphased heterozygous genotypes, spanning deletions, reference
- *         calls, missing PS tags, records htslib parsed despite a non-critical error, oversized
- *         variants, overlapping variants, and complex variants split into INS + DEL
+ *         and half-call genotypes, records whose FORMAT column omits GT, unphased heterozygous
+ *         genotypes, spanning deletions, reference calls, missing PS tags, records htslib parsed
+ *         despite a non-critical error, oversized variants, overlapping variants, and complex
+ *         variants split into INS + DEL
  */
 void parse_variants(const std::string & vcf_fn,
         std::shared_ptr<variantData> variant_data,
@@ -542,6 +544,7 @@ void parse_variants(const std::string & vcf_fn,
     int PS_missing_total = 0;
     int overlapping_var_total = 0;
     int spanning_del_total = 0;
+    int no_gt_total = 0;          // records whose FORMAT omits a header-declared GT, dropped
     int unknown_allele_total = 0; // no-call records (.|. or .), dropped entirely
     int half_call_total = 0;      // half-call records (1|. or .|1), known allele kept
     int unphased_gt_total = 0;
@@ -752,9 +755,23 @@ void parse_variants(const std::string & vcf_fn,
                 WARN("'GT' tag not defined in %s VCF header, assuming monoploid", 
                         callset_strs[callset].data());
             }
-        } else if (ngt <= 0) { // other error
-            ERROR("Failed to read %s GT at %s:%lld", 
+        // the spec fixes GT's type as String, so no retry is possible the way GQ retries as float
+        } else if (ngt == -2) { // header declares GT with a type the spec forbids
+            ERROR("%s VCF header declares 'GT' with a type other than String, at %s:%lld",
                     callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+
+        // legal VCF: FORMAT is per-record and GT is not mandatory. No genotype can be assumed
+        // without fabricating an allele that would then be scored as a TP or FN
+        } else if (ngt == -3) { // GT declared in the header but absent from this record's FORMAT
+            if (g.verbosity > 1)
+                WARN("No GT tag in %s VCF at %s:%lld, skipping",
+                        callset_strs[callset].data(), ctg.data(), (long long)rec->pos);
+            no_gt_total++;
+            continue;
+
+        } else if (ngt <= 0) { // -4 and 0, neither reachable: bcf_read() rejects the record first
+            ERROR("Failed to read %s GT at %s:%lld (htslib returned %d)",
+                    callset_strs[callset].data(), ctg.data(), (long long)rec->pos, ngt);
         }
 
         // record this record's ploidy; mixed ploidy within a contig is legitimate, as on a chrX
@@ -1014,6 +1031,10 @@ void parse_variants(const std::string & vcf_fn,
     if (multi_total && print)
         INFO("%d homozygous and multi-allelic variants in %s VCF, split for evaluation",
             multi_total, callset_strs[callset].data());
+
+    if (no_gt_total)
+        WARN("%d variants with no GT field in %s VCF, skipped",
+            no_gt_total, callset_strs[callset].data());
 
     if (unknown_allele_total)
         WARN("%d variants with no known alleles (.|.) in %s VCF, skipped",

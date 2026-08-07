@@ -1425,6 +1425,37 @@ TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
     EXPECT_EQ(std::vector< std::set<int> >({{1}}), r.vars->observed_ploidies);
 }
 
+// The VCF spec fixes GT's type as String, so a header declaring anything else is a broken header
+// rather than a corrupt file, and the message should say which. Integer is the one wrong type a
+// record can still survive: a single unphased allele parses, and only the accessor rejects it.
+TEST_F(ParseVariants, GtDeclaredWithWrongTypeIsFatal) {
+    vcf_opts opts = make_vcf_opts();
+    opts.formats = {"##FORMAT=<ID=GT,Number=1,Type=Integer,Description=\"Genotype\">"};
+    EXPECT_EXIT(parse_unredirected(dir, {fmt_record(100, "A", "G", "GT", "1")}, opts),
+            testing::ExitedWithCode(1), "QUERY VCF header declares 'GT' with a type other than");
+}
+
+// The FORMAT column is per-record and GT is not mandatory, so a record omitting it is legal VCF.
+// There is no honest default genotype, so the record is dropped rather than assigned one, the way
+// a stated .|. no-call already is.
+TEST_F(ParseVariants, RecordWithoutGtIsSkippedAndCounted) {
+    ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GQ", "44"),
+                                        record(200, "A", "T", "1|0")});
+    EXPECT_EQ(1, total_kept(r));
+    EXPECT_FALSE(kept_pos(r, 100));
+    EXPECT_TRUE(kept_pos(r, 200));
+    EXPECT_TRUE(logged(r, "1 variants with no GT field in QUERY VCF, skipped"));
+}
+
+// A dropped record reaches neither the genotype histogram nor the observed ploidies, so it cannot
+// be mistaken for a haploid call the way an assumed genotype would be.
+TEST_F(ParseVariants, RecordWithoutGtIsNotCountedAsAGenotype) {
+    ParseResult r = parse_records(dir, {fmt_record(100, "A", "G", "GQ", "44")});
+    EXPECT_EQ(0, total_kept(r));
+    EXPECT_FALSE(logged(r, gt_hist_line(GT_PARSE_HAP_ALT, 1)));
+    EXPECT_EQ(std::vector< std::set<int> >({{}}), r.vars->observed_ploidies);
+}
+
 // A haploid alternate call is reported on haplotype 1 alone, with ploidy 1 recorded.
 TEST_F(ParseVariants, HaploidAltKeptOnHap1) {
     ParseResult r = parse_records(dir, {record(100, "A", "G", "1")});
