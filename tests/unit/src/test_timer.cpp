@@ -123,7 +123,7 @@ TEST(WriteRuntime, OneRowPerStage) {
     while (getline(in, line)) lines.push_back(line);
 
     ASSERT_EQ(idx(TIME_TOTAL)+1, lines.size());
-    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+    for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) {
         EXPECT_EQ(size_t(0), lines[idx(t)].rfind(timer_strs[t] + "\t", 0))
                 << "row " << idx(t) << ": " << lines[idx(t)];
     }

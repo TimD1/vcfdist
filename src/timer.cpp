@@ -71,7 +71,7 @@ void write_runtime() {
     if (out_runtimes == NULL) {
         ERROR("Failed to open runtime TSV file '%s'", runtimes_fn.data());
     }
-    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+    for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) {
         fprintf(out_runtimes, "%s\t%lf\n", g.stage(t).get_name().data(), g.stage(t).total());
     }
     fclose(out_runtimes);

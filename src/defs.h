@@ -230,7 +230,7 @@ constexpr int8_t SWITCHTYPES = 7;           ///< Total number of switch/flip err
 static_assert(SWITCHTYPE_SLOTS == std::size_t(SWITCHTYPES), "switchtype_t slots must match SWITCHTYPES");
 
 /** @brief Pipeline stage identifying one timer. */
-enum class timer_t : int8_t {
+enum class stage_t : int8_t {
     TIME_READ       = 0, ///< Input reading stage
     TIME_CLUSTER    = 1, ///< Variant clustering stage
     TIME_ALIGN_EVAL = 2, ///< Alignment and evaluation stage
@@ -238,13 +238,13 @@ enum class timer_t : int8_t {
     TIME_WRITE      = 4, ///< Output writing stage
     TIME_TOTAL      = 5, ///< Total pipeline runtime
 };
-constexpr timer_t TIME_READ       = timer_t::TIME_READ;
-constexpr timer_t TIME_CLUSTER    = timer_t::TIME_CLUSTER;
-constexpr timer_t TIME_ALIGN_EVAL = timer_t::TIME_ALIGN_EVAL;
-constexpr timer_t TIME_PHASE      = timer_t::TIME_PHASE;
-constexpr timer_t TIME_WRITE      = timer_t::TIME_WRITE;
-constexpr timer_t TIME_TOTAL      = timer_t::TIME_TOTAL;
-constexpr std::size_t TIMER_SLOTS = 6; ///< Number of pipeline stage timers
+constexpr stage_t TIME_READ       = stage_t::TIME_READ;
+constexpr stage_t TIME_CLUSTER    = stage_t::TIME_CLUSTER;
+constexpr stage_t TIME_ALIGN_EVAL = stage_t::TIME_ALIGN_EVAL;
+constexpr stage_t TIME_PHASE      = stage_t::TIME_PHASE;
+constexpr stage_t TIME_WRITE      = stage_t::TIME_WRITE;
+constexpr stage_t TIME_TOTAL      = stage_t::TIME_TOTAL;
+constexpr std::size_t STAGE_SLOTS = 6; ///< Number of pipeline stage timers
 
 /** @brief Which of the two callsets a variant or container belongs to. */
 enum class callset_t : int8_t {

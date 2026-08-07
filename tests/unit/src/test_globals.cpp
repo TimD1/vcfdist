@@ -21,7 +21,7 @@
 namespace {
 
 /** @brief Returns the names of the given timers, in order. */
-std::vector<std::string> timer_names(EnumArray<timer_t, timer, TIMER_SLOTS> & timers) {
+std::vector<std::string> timer_names(EnumArray<stage_t, timer, STAGE_SLOTS> & timers) {
     std::vector<std::string> names;
     for (timer & t : timers) names.push_back(t.get_name());
     return names;
@@ -148,8 +148,8 @@ TEST(InitTimers, Populates) {
 
     g.init_timers();
 
-    ASSERT_EQ(TIMER_SLOTS, g.timers.size());
-    for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) {
+    ASSERT_EQ(STAGE_SLOTS, g.timers.size());
+    for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) {
         EXPECT_EQ(timer_strs[t], g.stage(t).get_name()) << "stage " << idx(t);
     }
 }
@@ -161,7 +161,7 @@ TEST(InitTimers, Idempotent) {
     g.init_timers();
     g.init_timers();
 
-    ASSERT_EQ(TIMER_SLOTS, g.timers.size());
+    ASSERT_EQ(STAGE_SLOTS, g.timers.size());
     EXPECT_EQ(std::vector<std::string>(timer_strs.begin(), timer_strs.end()),
             timer_names(g.timers));
 }
@@ -198,7 +198,7 @@ TEST(StringTables, SizesWithSentinel) {
 
     // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
     EXPECT_EQ(GT_SLOTS, gt_strs.size());
-    EXPECT_EQ(TIMER_SLOTS, timer_strs.size());
+    EXPECT_EQ(STAGE_SLOTS, timer_strs.size());
     EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
     EXPECT_EQ("total", timer_strs[TIME_TOTAL]);
 }

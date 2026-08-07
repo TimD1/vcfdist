@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
     if (g.verbosity >= 1) {
         INFO(" ")
         INFO("Timers:")
-        for (timer_t t : EnumRange<timer_t, TIMER_SLOTS>{}) { g.stage(t).print(idx(t)); }
+        for (stage_t t : EnumRange<stage_t, STAGE_SLOTS>{}) { g.stage(t).print(idx(t)); }
     }
     return EXIT_SUCCESS;
 }
