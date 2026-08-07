@@ -24,6 +24,8 @@ CXXFLAGS = -g -O3
 CXXFLAGS += -Wall -Wextra -std=c++17
 # var_fields members with no default are required; omitting one must not compile (GCC only)
 CXXFLAGS += -Werror=missing-field-initializers
+# Test objects are not shared and the suite runs in ~0.1s, so they skip optimization to build faster.
+TEST_CXXFLAGS = $(filter-out -O%,$(CXXFLAGS))
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 SRC_HEADERS = $(wildcard $(SRC)/*.h)
 TEST_HEADERS = $(wildcard $(TEST_SRC)/*.h)
@@ -49,7 +51,7 @@ clean:
 # Every test object depends on all vcfdist and test headers, since each test may include any of
 # them and the set is small enough that over-rebuilding costs less than a stale object.
 %.o: $(TEST_SRC)/%.cpp $(SRC_HEADERS) $(TEST_HEADERS)
-	$(CXX) $(CXXFLAGS) $(GTEST_INC) -c $< -o $@
+	$(CXX) $(TEST_CXXFLAGS) $(GTEST_INC) -c $< -o $@
 
 #################
 # BUILD VCFDIST #
