@@ -224,7 +224,7 @@ void precision_recall_threads_wrapper(
 /** @brief Evaluates a subset of superclusters within a single thread. */
 void precision_recall_wrapper(superclusterData * clusterdata_ptr,
         const std::vector< EnumArray<idxdim_t, std::vector<int>, IDXDIM_SLOTS> > & sc_groups,
-        int thread_step, int start, int stop, bool thread2, bool print = false);
+        int thread_step, int start, int stop, bool print = false);
 
 /**************************************************************************************************/
 
