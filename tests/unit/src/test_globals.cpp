@@ -226,29 +226,8 @@ TEST(StringTables, IndexMapping) {
     EXPECT_EQ("SV", vartype_strs[VARTYPE_SV]);
     EXPECT_EQ("SWITCH", switch_strs[SWITCHTYPE_SWITCH]);
     EXPECT_EQ("INSIDE", region_strs[BED_INSIDE]);
-}
-
-TEST(StringTables, AliasedIndices) {
-    // several constant pairs deliberately share a subscript
-    EXPECT_EQ(TYPE_REF, TYPE_ALL);
-    EXPECT_EQ(TYPE_CPX, TYPE_INDEL);
-    EXPECT_EQ(ERRTYPE_UN, ERRTYPE_NE);
-    EXPECT_EQ(REF, TRUTH);
-
-    // type_strs and type_strs2 are parallel but not interchangeable: they disagree at the
-    // aliased subscripts, since type_strs2 names the aggregation class instead of the variant type
-    ASSERT_EQ(type_strs.size(), type_strs2.size());
     EXPECT_EQ("REF", type_strs[TYPE_REF]);
-    EXPECT_EQ("ALL", type_strs2[TYPE_ALL]);
     EXPECT_EQ("CPX", type_strs[TYPE_CPX]);
-    EXPECT_EQ("INDEL", type_strs2[TYPE_INDEL]);
-
-    // the aliases agree elsewhere, so only indices 0 and 4 differ
-    EXPECT_EQ(type_strs[TYPE_SUB], type_strs2[TYPE_SUB]);
-    EXPECT_EQ(type_strs[TYPE_INS], type_strs2[TYPE_INS]);
-    EXPECT_EQ(type_strs[TYPE_DEL], type_strs2[TYPE_DEL]);
-
-    // a single string serves both unknown and not-evaluated error types
     EXPECT_EQ("??", error_strs[ERRTYPE_UN]);
 }
 

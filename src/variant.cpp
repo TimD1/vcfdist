@@ -574,7 +574,7 @@ void parse_variants(const std::string & vcf_fn,
     std::unordered_map<int, int> ctglens;
     std::string ctg;
     std::vector<int> nregions(region_strs.size(), 0);
-    std::vector<int> pass_min_qual = {FALSE, FALSE};
+    std::vector<int> pass_min_qual(2, 0);
 
     // quality data for each call
     int GQ_memsize = 0;
@@ -1068,9 +1068,9 @@ void parse_variants(const std::string & vcf_fn,
         INFO("%d variants failed FILTER in %s VCF, skipped",
             failed_filter_total, callset_strs[callset].data());
 
-    if (pass_min_qual[FALSE] && print)
-        INFO("%d variants of low quality (<%d) in %s VCF, skipped", 
-            pass_min_qual[FALSE], g.min_qual, callset_strs[callset].data());
+    if (pass_min_qual[false] && print)
+        INFO("%d variants of low quality (<%d) in %s VCF, skipped",
+            pass_min_qual[false], g.min_qual, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");
     for (size_t i = 0; i < gt_strs.size(); i++) {

@@ -37,8 +37,6 @@ std::vector<std::string> timer_strs =
     {"reading", "clustering", "alignment eval", "phasing", "writing", "total"};
 /** @brief String representations of TYPE_* variant type constants. */
 std::vector<std::string> type_strs = {"REF", "SNP", "INS", "DEL", "CPX"};
-/** @brief Alternate string representations of TYPE_* constants (ALL/SNP/INS/DEL/INDEL). */
-std::vector<std::string> type_strs2 = {"ALL", "SNP", "INS", "DEL", "INDEL"};
 /** @brief String representations of VARTYPE_* size-class constants. */
 std::vector<std::string> vartype_strs = {"SNP", "INDEL", "SV", "ALL"};
 

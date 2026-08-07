@@ -14,9 +14,6 @@ class timer;
 class idx4;
 
 // misc
-#define FALSE 0 ///< Boolean false
-#define TRUE  1 ///< Boolean true
-
 #define EPSILON 1e-9 ///< Arbitrary small float value
 
 #define CTG_IDX 0 ///< Index dimension for contig
@@ -38,12 +35,10 @@ class idx4;
  *  @{
  */
 #define TYPE_REF   0 ///< Reference (no variant)
-#define TYPE_ALL   0 ///< All variant types (alias for TYPE_REF in aggregation)
 #define TYPE_SUB   1 ///< Substitution (SNP)
 #define TYPE_INS   2 ///< Insertion
 #define TYPE_DEL   3 ///< Deletion
 #define TYPE_CPX   4 ///< Complex variant
-#define TYPE_INDEL 4 ///< Indel (alias for TYPE_CPX in aggregation)
 #define TYPES      5 ///< Total number of variant types
 /** @} */
 
@@ -97,7 +92,6 @@ class idx4;
 #define ERRTYPE_FP 1 ///< False positive
 #define ERRTYPE_FN 2 ///< False negative
 #define ERRTYPE_UN 3 ///< Unknown (not yet evaluated)
-#define ERRTYPE_NE 3 ///< Not evaluated (and will not be); alias for ERRTYPE_UN
 #define ERRTYPES   4 ///< Total number of error types
 /** @} */
 
@@ -150,7 +144,6 @@ class idx4;
  *  @{
  */
 #define QUERY    0 ///< Query callset index
-#define REF      1 ///< Reference callset index (alias for TRUTH)
 #define TRUTH    1 ///< Truth callset index
 #define CALLSETS 2 ///< Number of callsets
 /** @} */
@@ -158,17 +151,10 @@ class idx4;
 /** @defgroup ptr_constants Alignment backtracking pointer constants (PTR_*)
  *  @{
  */
-#define PTR_NONE 0  ///< No backtracking pointer
 #define PTR_INS  1  ///< Insertion backtracking pointer
 #define PTR_DEL  2  ///< Deletion backtracking pointer
 #define PTR_MAT  4  ///< Match backtracking pointer
 #define PTR_SUB  8  ///< Substitution backtracking pointer
-// [30 QUERY NODE BITS] [30 TRUTH NODE BITS] [4 POINTER BITS]
-#define PTR_BITS   4  ///< Number of bits for pointer type (INS, DEL, MAT, SUB)
-#define NODE_BITS  30 ///< Number of bits for previous node index in packed pointer
-#define PTR_MASK   0x000000000000000F ///< Bitmask for pointer type field
-#define TNODE_MASK 0x00000003FFFFFFF0 ///< Bitmask for truth node field
-#define QNODE_MASK 0xFFFFFFFC00000000 ///< Bitmask for query node field
 /** @} */
 
 /** @defgroup mat_constants Smith-Waterman matrix index constants (MAT_*)

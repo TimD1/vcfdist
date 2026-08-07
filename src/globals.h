@@ -106,7 +106,6 @@ extern std::vector<std::string> region_strs;  ///< String representations of BED
 extern std::vector<std::string> switch_strs;  ///< String representations of SWITCHTYPE_* constants
 extern std::vector<std::string> timer_strs;   ///< String names for pipeline stage timers (TIME_* order)
 extern std::vector<std::string> type_strs;    ///< String representations of TYPE_* variant type constants
-extern std::vector<std::string> type_strs2;   ///< Alternate string representations of TYPE_* constants (ALL/SNP/INS/DEL/INDEL)
 extern std::vector<std::string> vartype_strs; ///< String representations of VARTYPE_* size-class constants
 
 #endif
