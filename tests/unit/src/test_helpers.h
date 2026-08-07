@@ -257,7 +257,7 @@ bool kept_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 size_t count_pos(const ParseResult & r, int pos, const std::string & ctg = "chr1");
 
 /** @brief Returns the genotype-histogram line parse_variants() prints for a genotype and count. */
-std::string gt_hist_line(uint8_t gt, int count);
+std::string gt_hist_line(gt_t gt, int count);
 
 /** @brief Returns the variant-type line parse_variants() prints for a type and count. */
 std::string type_hist_line(uint8_t type, int count);
@@ -306,7 +306,7 @@ struct var_desc {
     uint8_t type = TYPE_SUB;   ///< Variant type (TYPE_SUB, TYPE_INS, TYPE_DEL, TYPE_CPX)
     std::string ref;           ///< Reference allele sequence
     std::string alt;           ///< Alternate allele sequence
-    uint8_t gt = GT_REF_ALT1;  ///< Original genotype (GT_*)
+    gt_t gt = GT_REF_ALT1;     ///< Original genotype (GT_*)
     float qual = 60;           ///< Sets both var_qual and gt_qual (each clamped to g.max_qual)
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)
@@ -326,7 +326,7 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
  * The variant is an A>C substitution, since the genotype rather than the allele is what a caller
  * of this builder is varying.
  */
-std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt,
+std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt,
         const std::string & ctg = "chr1", int pos = 100);
 
 /** @brief Builds a one-variant container of the given type with the given allele sequences. */

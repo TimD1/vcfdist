@@ -209,7 +209,7 @@ TEST(StringTables, SizesWithSentinel) {
     EXPECT_EQ(".", phase_strs[PHASE_NONE]);
 
     // gt_strs and timer_strs have no count constant, so the highest valid index bounds them
-    EXPECT_EQ(size_t(GT_OTHER+1), gt_strs.size());
+    EXPECT_EQ(GT_SLOTS, gt_strs.size());
     EXPECT_EQ(idx(TIME_TOTAL)+1, timer_strs.size());
     EXPECT_EQ("X|Y", gt_strs[GT_OTHER]);
     EXPECT_EQ("total", timer_strs[idx(TIME_TOTAL)]);

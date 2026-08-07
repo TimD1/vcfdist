@@ -87,7 +87,7 @@ std::shared_ptr<ctgVariants> make_qvars(const std::vector<phase_t> & phases,
     std::vector<var_desc> descs;
     for (size_t i = 0; i < phases.size(); i++) {
         int phase_set = phase_sets.empty() ? 1 : phase_sets[i];
-        uint8_t orig_gt = (phases[i] == PHASE_NONE) ? GT_ALT1_ALT1 : GT_ALT1_REF;
+        gt_t orig_gt = (phases[i] == PHASE_NONE) ? GT_ALT1_ALT1 : GT_ALT1_REF;
         descs.push_back({int(i) * SPACING, 1, TYPE_SUB, "A", "C", orig_gt, 60, phase_set});
     }
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants(ctg, descs);
@@ -162,7 +162,7 @@ pipeline_result run_pipeline(const TempDir & dir, std::shared_ptr<ctgVariants> q
  * @param[in] hap2_credit Credit of the middle variant on HAP2
  * @return Query variants whose middle variant is at index 1
  */
-std::shared_ptr<ctgVariants> make_ac_qvars(uint8_t orig_gt, uint8_t calc_gt, phase_t block_phase,
+std::shared_ptr<ctgVariants> make_ac_qvars(gt_t orig_gt, gt_t calc_gt, phase_t block_phase,
         float hap1_credit = 0, float hap2_credit = 0) {
     std::shared_ptr<ctgVariants> qvars =
             make_qvars({block_phase, PHASE_NONE, block_phase});

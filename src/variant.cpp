@@ -261,7 +261,8 @@ bool ctgVariants::calcgt_is_swapped(int vi /* variant index */) const {
  * @return True if variant is on the specified haplotype
  */
 bool ctgVariants::var_on_hap(int var_idx, int hap, bool calc) const {
-    int gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx]; // simple gt, always (0|1, 1|0, or 1|1)
+    // simple gt, always (0|1, 1|0, or 1|1)
+    gt_t gt = calc ? this->calc_gts[var_idx] : this->orig_gts[var_idx];
     if (hap == 0 && (gt == GT_ALT1 || gt == GT_ALT1_REF || gt == GT_ALT1_ALT1))
         return true;
     if (hap == 1 && (gt == GT_ALT1 || gt == GT_REF_ALT1 || gt == GT_ALT1_ALT1))
@@ -587,7 +588,7 @@ void parse_variants(const std::string & vcf_fn,
     // genotype data for each call
     int GT_memsize   = 0;
     int ngt       = 0;
-    std::vector<int> GT_counts(gt_strs.size(), 0);
+    EnumArray<gt_t, int, GT_SLOTS> GT_counts{};
     int * gt      = NULL;
     bool gt_warn  = false;
 
@@ -793,7 +794,7 @@ void parse_variants(const std::string & vcf_fn,
         variant_data->observed_ploidies[ctg_idx].insert(std::abs(ngt));
 
         // parse genotype info
-        int orig_gt = GT_REF_REF;
+        gt_t orig_gt = GT_REF_REF;
         bool same = false;
         if (ngt == -1) { // no info, assume monoploid
             orig_gt = GT_ALT1;
@@ -894,7 +895,7 @@ void parse_variants(const std::string & vcf_fn,
         for (int hap = 0; hap < std::abs(ngt); hap++) { // allow single-allele chrX, chrY
 
             // set simplified GT (0|1, 1|0, or 1|1), (0|0 and .|. skipped later)
-            int simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
+            gt_t simple_gt = hap ? GT_REF_ALT1 : GT_ALT1_REF; // 0|1 or 1|0 default
             if (same) simple_gt = GT_ALT1_ALT1; // overwrite 1|1 if both agree
 
             // get ref and allele, skipping ref query
@@ -1032,19 +1033,19 @@ void parse_variants(const std::string & vcf_fn,
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = 0, // INS
                     .type = TYPE_INS, .loc = loc, .ref = "", .alt = alt,
-                    .orig_gt = uint8_t(simple_gt), .gt_qual = float(ngq ? gq[0]:0),
+                    .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                     .var_qual = vq, .phase_set = phase_set,
                     .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen, // DEL
                     .type = TYPE_DEL, .loc = loc, .ref = ref, .alt = "",
-                    .orig_gt = uint8_t(simple_gt), .gt_qual = float(ngq ? gq[0]:0),
+                    .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                     .var_qual = vq, .phase_set = phase_set,
                     .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
                 complex_total++;
             } else {
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen,
                         .type = uint8_t(type), .loc = loc, .ref = ref, .alt = alt,
-                        .orig_gt = uint8_t(simple_gt), .gt_qual = float(ngq ? gq[0]:0),
+                        .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                         .var_qual = vq, .phase_set = phase_set,
                         .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
             }
@@ -1071,8 +1072,8 @@ void parse_variants(const std::string & vcf_fn,
             pass_min_qual[false], g.min_qual, callset_strs[callset].data());
 
     if (print) INFO("  Genotypes:");
-    for (size_t i = 0; i < gt_strs.size(); i++) {
-        if (print && GT_counts[i]) INFO("    %3s: %i", gt_strs[i].data(), GT_counts[i]);
+    for (gt_t gt : EnumRange<gt_t, GT_SLOTS>{}) {
+        if (print && GT_counts[gt]) INFO("    %3s: %i", gt_strs[gt].data(), GT_counts[gt]);
     }
     if (float(GT_counts[GT_REF_ALT1]) / (GT_counts[GT_ALT1_REF]+1) > 2 ||
         float(GT_counts[GT_ALT1_REF]) / (GT_counts[GT_REF_ALT1]+1) > 2)

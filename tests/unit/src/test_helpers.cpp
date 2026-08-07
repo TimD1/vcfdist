@@ -421,7 +421,7 @@ size_t count_pos(const ParseResult & r, int pos, const std::string & ctg) {
  * @param[in] count Number of records tallied under that genotype
  * @return Substring of the INFO line, derived from gt_strs so it tracks renames
  */
-std::string gt_hist_line(uint8_t gt, int count) {
+std::string gt_hist_line(gt_t gt, int count) {
     std::string name = gt_strs[gt];
     while (name.size() < 3) name = " " + name; // the "%3s" in the INFO format right-justifies
     return "    " + name + ": " + std::to_string(count);
@@ -557,7 +557,7 @@ std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
  * @param[in] pos 0-based reference start position
  * @return Container holding a single A>C substitution with the requested genotypes
  */
-std::shared_ptr<ctgVariants> make_gt_var(uint8_t orig_gt, uint8_t calc_gt, const std::string & ctg,
+std::shared_ptr<ctgVariants> make_gt_var(gt_t orig_gt, gt_t calc_gt, const std::string & ctg,
         int pos) {
     var_desc var;
     var.pos = pos;

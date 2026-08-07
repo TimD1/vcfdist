@@ -1114,7 +1114,7 @@ TEST(SetVarCalcgtOnHap, ErrorsSuppressedWithIgnore) {
     GlobalsGuard guard;
 
     // every invalid (state, hap, set) triple from the four diploid states
-    struct transition { uint8_t calc_gt; int hap; bool set; };
+    struct transition { gt_t calc_gt; int hap; bool set; };
     const std::vector<transition> invalid = {
         {GT_REF_REF,   HAP1, false}, {GT_REF_REF,   HAP2, false},
         {GT_REF_ALT1,  HAP2, true},  {GT_REF_ALT1,  HAP1, false},

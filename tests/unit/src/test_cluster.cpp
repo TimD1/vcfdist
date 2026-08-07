@@ -1362,7 +1362,7 @@ std::shared_ptr<ctgVariants> make_sorted_callset(const std::vector<var_desc> & v
  * @param[in] gt Genotype, which decides the haplotypes the ALT length is counted on
  * @return Variant descriptor ready for make_sorted_callset()
  */
-var_desc sub_in_sc(int pos, int supercluster, uint8_t gt = GT_ALT1_ALT1) {
+var_desc sub_in_sc(int pos, int supercluster, gt_t gt = GT_ALT1_ALT1) {
     var_desc var;
     var.pos = pos;
     var.rlen = 1;

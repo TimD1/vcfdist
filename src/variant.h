@@ -49,7 +49,7 @@ struct var_fields {
     bedloc_t loc;                 ///< BED location: INSIDE, OUTSIDE, BORDER
     std::string ref;              ///< variant reference allele
     std::string alt;              ///< variant alternate allele
-    uint8_t orig_gt;              ///< simple genotype (0|1, 1|0, or 1|1)
+    gt_t orig_gt;                 ///< simple genotype (0|1, 1|0, or 1|1)
     float gt_qual;                ///< genotype quality (capped above at --max-qual when stored)
     float var_qual;               ///< variant quality (capped above at --max-qual when stored)
     int phase_set;                ///< integer representing variant phase set (0 = missing)
@@ -57,7 +57,7 @@ struct var_fields {
     int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
     uint8_t ploidy = 0;           ///< variant ploidy from std::abs(ngt) (0 = unknown)
     int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
-    uint8_t calc_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
+    gt_t calc_gt = GT_REF_REF;    ///< the other callset's genotype, recovered by alignment
     hap_fields hap[HAPS] = {};    ///< per-haplotype results, indexed by HAP1 and HAP2
 };
 
@@ -111,7 +111,7 @@ public:
     std::vector<bedloc_t> locs;      ///< BED location: INSIDE, OUTSIDE, BORDER
     std::vector<std::string> refs;  ///< variant reference allele
     std::vector<std::string> alts;  ///< variant alternate allele (always one)
-    std::vector<uint8_t> orig_gts;  ///< simple genotype (0|1, 1|0, or 1|1)
+    std::vector<gt_t> orig_gts;  ///< simple genotype (0|1, 1|0, or 1|1)
     std::vector<float> gt_quals;    ///< genotype quality (capped above at --max-qual)
     std::vector<float> var_quals;   ///< variant quality (capped above at --max-qual)
     std::vector<int> phase_sets;    ///< integer representing variant phase set (0 = missing)
@@ -128,7 +128,7 @@ public:
     int nc = 0;                     ///< Total number of clusters (size of clusters vector is nc+1 with sentinel)
 
     // set during prec_recall_aln() (size (2, n), additional axis for haplotype)
-    std::vector<uint8_t> calc_gts;                ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
+    std::vector<gt_t> calc_gts;                   ///< the other callset's genotype (0|1, 1|0, or 1|1) recovered by alignment
     std::vector< std::vector<errtype_t> > errtypes; ///< error type: TP, FP, FN
     std::vector< std::vector<int> > sync_group;   ///< group of variants that participate in credit
     std::vector< std::vector<float> > callq;      ///< min call quality in sync group (for truth, of associated call)

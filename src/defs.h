@@ -114,21 +114,32 @@ constexpr bedloc_t BED_BORDER  = bedloc_t::BED_BORDER;
 constexpr bedloc_t BED_OFFCTG  = bedloc_t::BED_OFFCTG;
 constexpr std::size_t BEDLOC_SLOTS = 4; ///< Subscript slots needed by a bedloc_t-keyed array
 
-/** @defgroup gt_constants Genotype code constants (GT_*)
- *  @{
- */
-#define GT_REF       0 ///< Haploid reference genotype (0)
-#define GT_ALT1      1 ///< Haploid alternate genotype (1)
-#define GT_REF_REF   2 ///< Diploid reference/reference genotype (0|0)
-#define GT_REF_ALT1  3 ///< Diploid reference/alternate genotype (0|1)
-#define GT_ALT1_REF  4 ///< Diploid alternate/reference genotype (1|0)
-#define GT_ALT1_ALT1 5 ///< Diploid homozygous alternate genotype (1|1)
-#define GT_ALT1_ALT2 6 ///< Diploid compound heterozygous genotype (1|2)
-#define GT_ALT2_ALT1 7 ///< Diploid compound heterozygous genotype (2|1)
-#define GT_MISSING   8 ///< No-call genotype, every allele missing (.|. or .)
-#define GT_HALF      9 ///< Half-call genotype, exactly one allele missing (1|. or .|1)
-#define GT_OTHER    10 ///< Other/unknown genotype
-/** @} */
+/** @brief Simplified genotype of one variant. */
+enum class gt_t : int8_t {
+    GT_REF       =  0, ///< Haploid reference genotype (0)
+    GT_ALT1      =  1, ///< Haploid alternate genotype (1)
+    GT_REF_REF   =  2, ///< Diploid reference/reference genotype (0|0)
+    GT_REF_ALT1  =  3, ///< Diploid reference/alternate genotype (0|1)
+    GT_ALT1_REF  =  4, ///< Diploid alternate/reference genotype (1|0)
+    GT_ALT1_ALT1 =  5, ///< Diploid homozygous alternate genotype (1|1)
+    GT_ALT1_ALT2 =  6, ///< Diploid compound heterozygous genotype (1|2)
+    GT_ALT2_ALT1 =  7, ///< Diploid compound heterozygous genotype (2|1)
+    GT_MISSING   =  8, ///< No-call genotype, every allele missing (.|. or .)
+    GT_HALF      =  9, ///< Half-call genotype, exactly one allele missing (1|. or .|1)
+    GT_OTHER     = 10, ///< Other/unknown genotype
+};
+constexpr gt_t GT_REF       = gt_t::GT_REF;
+constexpr gt_t GT_ALT1      = gt_t::GT_ALT1;
+constexpr gt_t GT_REF_REF   = gt_t::GT_REF_REF;
+constexpr gt_t GT_REF_ALT1  = gt_t::GT_REF_ALT1;
+constexpr gt_t GT_ALT1_REF  = gt_t::GT_ALT1_REF;
+constexpr gt_t GT_ALT1_ALT1 = gt_t::GT_ALT1_ALT1;
+constexpr gt_t GT_ALT1_ALT2 = gt_t::GT_ALT1_ALT2;
+constexpr gt_t GT_ALT2_ALT1 = gt_t::GT_ALT2_ALT1;
+constexpr gt_t GT_MISSING   = gt_t::GT_MISSING;
+constexpr gt_t GT_HALF      = gt_t::GT_HALF;
+constexpr gt_t GT_OTHER     = gt_t::GT_OTHER;
+constexpr std::size_t GT_SLOTS = 11; ///< Slots needed by a gt_t-keyed array
 
 /** @brief Benchmark error type. */
 enum class errtype_t : int8_t {
