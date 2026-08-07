@@ -1023,7 +1023,7 @@ void parse_variants(const std::string & vcf_fn,
         WARN("%d records with parse errors in %s VCF, kept",
             bcf_errcode_total, callset_strs[callset].data());
 
-    if (PS_missing_total)
+    if (PS_missing_total) 
         WARN("%d variants missing PS tags in %s VCF, kept",
             PS_missing_total, callset_strs[callset].data());
 
