@@ -208,6 +208,10 @@
   files:
     - path: preserved_fields_out_summary.vcf
       contains:
+        # the reader is told that a split source record repeats its preserved values, since
+        # summing a count-like field over both halves of the CPX would double-count it
+        - "##vcfdistPreservedFields=<Description=\"ID, QUAL, FILTER, INFO, and the non-fixed FORMAT fields are carried over"
+        - "each repeating the same preserved values, so summing a count-like field over records double-counts the source value."
         # every preserved field is declared, and the dropped ones are not
         - "##FILTER=<ID=LowConf,Description=\"Low confidence call\">"
         - "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total read depth\">"

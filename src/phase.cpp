@@ -29,6 +29,9 @@
  *       does not own a record writes '.' for each appended FORMAT key
  * @note Number=A/R/G fields are omitted: their values index the source record's ALT list, while
  *       these records carry normalized, split alleles. parse_variants() names what it dropped
+ * @note A source record that parsing split into several entries yields several records here, each
+ *       repeating that record's preserved columns, so summing a count-like preserved field over
+ *       records double-counts the one source value. The header states this for the reader
  * @note The input FILTER is preserved verbatim, on evaluated records included. A GA4GH consumer
  *       reads a non-PASS FILTER on an evaluated record as a filtered call and demotes it, turning
  *       filtered TPs into FNs and filtered FPs into Ns, so a caller's own non-PASS filter accepted

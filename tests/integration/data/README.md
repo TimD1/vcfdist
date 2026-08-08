@@ -101,6 +101,10 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   columns and the truth sample writes `.` for each appended FORMAT key; the false negative at 256
   is owned by the truth and the query sample pads instead. The `LowConf` `FILTER` is preserved
   verbatim on an evaluated record rather than rewritten to `PASS`.
+- the CPX at 210 and the het-alt at 250 each become two records carrying identical preserved
+  values, since both halves resolve to the same source record. That duplication is intended and
+  the scenario pins it, but it means summing a count-like preserved field over records
+  double-counts the source value; the output header states this.
 
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 

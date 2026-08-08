@@ -890,6 +890,18 @@ bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
     lines.push_back("##FORMAT=<ID=FE,Number=1,Type=Integer,Description=\"Flip Error (a per-supercluster error)\">");
     lines.push_back("##FORMAT=<ID=GE,Number=1,Type=String,Description=\"Genotype Error ('+' if 0/1 truth -> 1/1 query, '-' if 1/1 truth -> 0/1 query, '.' otherwise)\">");
 
+    // A source record that parsing split -- a complex variant into an INS and a DEL, or a het-alt
+    // into one entry per ALT -- becomes several records here, and each resolves back to the same
+    // source record, so each carries an identical copy of its preserved columns. That is intended,
+    // but a reader cannot infer it from the file, and summing a count-like preserved field over
+    // these records double-counts the one source value.
+    lines.push_back("##vcfdistPreservedFields=<Description=\"ID, QUAL, FILTER, INFO, and the "
+            "non-fixed FORMAT fields are carried over from whichever callset owns each record. "
+            "One source record may yield several records here (a complex variant is split into an "
+            "INS and a DEL, a het-alt into one record per ALT), each repeating the same preserved "
+            "values, so summing a count-like field over records double-counts the source value. "
+            "Number=A/R/G fields are omitted, since their values index the source ALT list.\">");
+
     // declare the fields carried over from the inputs, PASS excluded since it is declared above
     std::unordered_set<std::string> declared = {"FILTER/PASS"};
     for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
