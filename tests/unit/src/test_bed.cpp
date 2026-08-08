@@ -2,6 +2,7 @@
  * @file test_bed.cpp
  * @brief Unit tests for bed.cpp: BED parsing, validation, and interval classification.
  */
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -36,6 +37,31 @@ bedData two_region_bed() {
  */
 std::shared_ptr<fastaData> two_contig_ref() {
     return make_fasta({{"chr1", "ACGTACGTACGT"}, {"chr2", "TTTTTTTTTTTT"}});
+}
+
+/// Lines the three encoding tests share, so any difference between them is the encoding alone.
+const std::vector<std::string> encoded_lines = {"chr1\t2\t8", "chr1\t20\t30", "chr2\t0\t5"};
+
+/**
+ * @brief Asserts that a bedData holds exactly the regions encoded_lines describes.
+ * @param[in] bed BED parsed from encoded_lines in one of the three accepted encodings
+ */
+void expect_encoded_regions(bedData & bed) {
+    ASSERT_EQ(size_t(2), bed.contigs.size());
+    EXPECT_EQ("chr1", bed.contigs[0]);
+    EXPECT_EQ("chr2", bed.contigs[1]);
+
+    ASSERT_EQ(2, bed.regions["chr1"].n);
+    EXPECT_EQ(2, bed.regions["chr1"].starts[0]);
+    EXPECT_EQ(8, bed.regions["chr1"].stops[0]);
+    EXPECT_EQ(20, bed.regions["chr1"].starts[1]);
+    EXPECT_EQ(30, bed.regions["chr1"].stops[1]);
+
+    ASSERT_EQ(1, bed.regions["chr2"].n);
+    EXPECT_EQ(0, bed.regions["chr2"].starts[0]);
+    EXPECT_EQ(5, bed.regions["chr2"].stops[0]);
+
+    EXPECT_EQ(21L, bed.size);
 }
 
 /* bedData::bedData *******************************************************************************/
@@ -136,6 +162,98 @@ TEST(BedCtor, BlankLineErrors) {
     // a trailing blank line has no coordinates to read, so it is rejected with its line number
     EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
             "Invalid coordinate '' on line 2 of BED file");
+}
+
+TEST(BedCtor, ParsesUncompressed) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, encoded_lines, "test.bed", BEDZIP_NONE);
+
+    bedData bed(bed_fn);
+
+    expect_encoded_regions(bed);
+}
+
+TEST(BedCtor, ParsesGzip) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, encoded_lines, "test.bed.gz", BEDZIP_GZIP);
+
+    // the GIAB stratification sets ship as plain gzip, which is not seekable and not blocked
+    bedData bed(bed_fn);
+
+    expect_encoded_regions(bed);
+}
+
+TEST(BedCtor, ParsesBgzip) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, encoded_lines, "test.bed.gz", BEDZIP_BGZIP);
+
+    bedData bed(bed_fn);
+
+    expect_encoded_regions(bed);
+}
+
+TEST(BedCtor, DetectsEncodingFromContents) {
+    GlobalsGuard guard;
+    TempDir dir;
+    // the extension says plain text and the bytes say bgzip; the bytes are what must decide
+    std::string bed_fn = write_tmp_bed(dir, encoded_lines, "misnamed.bed", BEDZIP_BGZIP);
+
+    bedData bed(bed_fn);
+
+    expect_encoded_regions(bed);
+}
+
+TEST(BedCtor, MalformedCoordInGzipNamesLine) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8", "chr1\tstart\tstop"},
+            "test.bed.gz", BEDZIP_GZIP);
+
+    // line numbers count decoded lines, so a compressed file reports the same field and line
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1),
+            "Invalid coordinate 'start' on line 2 of BED file");
+}
+
+TEST(BedCtor, TruncatedGzipErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::vector<std::string> lines;
+    for (int i = 0; i < 100; i++) {
+        lines.push_back("chr1\t" + std::to_string(i*10) + "\t" + std::to_string(i*10 + 5));
+    }
+    std::string bed_fn = write_tmp_bed(dir, lines, "test.bed.gz", BEDZIP_GZIP);
+    std::filesystem::resize_file(bed_fn, std::filesystem::file_size(bed_fn) / 2);
+
+    // a half-read compressed file must not be mistaken for a short one that parsed cleanly
+    EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1), "Failed to read line");
+}
+
+TEST(BedCtor, AcceptsCarriageReturns) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8\r"});
+
+    // htslib strips a CRLF terminator, so the stop coordinate is not read as "8\r"
+    bedData bed(bed_fn);
+
+    ASSERT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(2, bed.regions["chr1"].starts[0]);
+    EXPECT_EQ(8, bed.regions["chr1"].stops[0]);
+}
+
+TEST(BedCtor, AcceptsEmptyFile) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {});
+
+    // an empty region set is vacuously valid, and stayed so when the reader changed
+    bedData bed(bed_fn);
+
+    EXPECT_EQ(size_t(0), bed.contigs.size());
+    EXPECT_EQ(0L, bed.size);
 }
 
 /* bedData::add ***********************************************************************************/

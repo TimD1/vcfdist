@@ -13,6 +13,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "htslib/bgzf.h"
+
 #include "test_helpers.h"
 
 /* Global state fixture ***************************************************************************/
@@ -105,18 +107,39 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
  * @param[in] dir Temporary directory that owns the written file
  * @param[in] lines Record lines, written verbatim in order
  * @param[in] name Basename of the written file
+ * @param[in] zip Encoding to store the file in
  * @return Path of the written BED
  * @throws ERROR if the BED cannot be opened for writing
+ * @throws ERROR if a compressed BED cannot be written or closed
  */
 std::string write_tmp_bed(const TempDir & dir, const std::vector<std::string> & lines,
-        const std::string & name) {
+        const std::string & name, bedzip_t zip) {
     std::string bed_fn = dir.path(name);
-    std::ofstream out(bed_fn);
-    if (!out.is_open()) {
+    std::string text;
+    for (const std::string & line : lines) text += line + "\n";
+
+    if (zip == BEDZIP_NONE) {
+        std::ofstream out(bed_fn);
+        if (!out.is_open()) {
+            ERROR("Failed to open temporary BED '%s' for writing", bed_fn.data());
+        }
+        out << text;
+        out.close();
+        return bed_fn;
+    }
+
+    // 'g' writes one plain gzip stream, where the default 'w' writes blocked gzip
+    BGZF* out = bgzf_open(bed_fn.data(), zip == BEDZIP_GZIP ? "wg" : "w");
+    if (out == NULL) {
         ERROR("Failed to open temporary BED '%s' for writing", bed_fn.data());
     }
-    for (const std::string & line : lines) out << line << "\n";
-    out.close();
+    // an empty file is a legitimate fixture, and bgzf_write() rejects a zero length
+    if (!text.empty() && bgzf_write(out, text.data(), text.size()) < 0) {
+        ERROR("Failed to write temporary BED '%s'", bed_fn.data());
+    }
+    if (bgzf_close(out) < 0) {
+        ERROR("Failed to close temporary BED '%s'", bed_fn.data());
+    }
     return bed_fn;
 }
 
