@@ -1976,6 +1976,17 @@ TEST_F(ParseVariants, EveryAlleleShapeReachesAKnownType) {
 
 /* region, size, and overlap **********************************************************************/
 
+// With no BED supplied there are no selected regions to fall outside of, so the region check is
+// skipped entirely and every variant is kept as inside. Whatever g.bed happens to hold is not
+// consulted, so a leftover region set cannot filter an unrestricted run.
+TEST_F(ParseVariants, NoBedEverythingInside) {
+    g.bed_exists = false;
+    g.bed = make_bed("chr2", {{500, 600}});
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0")});
+    ASSERT_EQ(1, hap_vars(r, HAP1)->n);
+    EXPECT_EQ(BED_INSIDE, hap_vars(r, HAP1)->locs[0]);
+}
+
 TEST_F(ParseVariants, InsideRegionKept) {
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{50, 200}});

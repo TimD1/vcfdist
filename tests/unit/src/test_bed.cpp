@@ -2,9 +2,11 @@
  * @file test_bed.cpp
  * @brief Unit tests for bed.cpp: BED parsing, validation, and interval classification.
  */
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -112,6 +114,20 @@ TEST(BedCtor, RunsCheck) {
 
     // the constructor validates after loading, so a malformed file is fatal at construction
     EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1), "BED overlap detected");
+}
+
+TEST(BedCtor, MergeOverlapsSkipsCheck) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8", "chr1\t5\t10"});
+
+    // a region set we neither author nor control is repaired rather than rejected
+    bedData bed(bed_fn, true);
+
+    ASSERT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(2, bed.regions["chr1"].starts[0]);
+    EXPECT_EQ(10, bed.regions["chr1"].stops[0]);
+    EXPECT_EQ(8L, bed.size);
 }
 
 TEST(BedCtor, NonNumericCoordErrors) {
@@ -355,19 +371,165 @@ TEST(BedCheck, ValidPasses) {
     EXPECT_EQ("", testing::internal::GetCapturedStderr());
 }
 
-/* bedData::contains ******************************************************************************/
+/* bedData::merge *********************************************************************************/
 
-TEST(BedContains, NoBedInside) {
+TEST(BedMerge, AlreadyMergedUnchanged) {
     GlobalsGuard guard;
-    g.bed_exists = false;
-    bedData bed; // deliberately empty: the early return precedes every lookup
+    bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
 
-    EXPECT_EQ(BED_INSIDE, bed.contains("chrZ", 100, 200, TYPE_SUB));
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10, 30}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({20, 40}), bed.regions["chr1"].stops);
+    EXPECT_EQ(2, bed.regions["chr1"].n);
+    EXPECT_EQ(20L, bed.size);
 }
+
+TEST(BedMerge, SortsUnsorted) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{30, 40}, {10, 20}});
+
+    // disjoint regions given out of order are ordered, not combined
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10, 30}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({20, 40}), bed.regions["chr1"].stops);
+    EXPECT_EQ(2, bed.regions["chr1"].n);
+    EXPECT_EQ(20L, bed.size);
+}
+
+TEST(BedMerge, CombinesOverlapping) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}, {15, 30}});
+    EXPECT_EQ(25L, bed.size); // add() counted [15, 20) twice
+
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({30}), bed.regions["chr1"].stops);
+    EXPECT_EQ(1, bed.regions["chr1"].n);
+
+    // the doubly-covered bases are counted once by the recomputed size
+    EXPECT_EQ(20L, bed.size);
+}
+
+TEST(BedMerge, CombinesAdjacent) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}, {20, 30}});
+
+    // abutting regions cover a contiguous span, so they become one interval
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({30}), bed.regions["chr1"].stops);
+    EXPECT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(20L, bed.size);
+}
+
+TEST(BedMerge, AbsorbsNested) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 40}, {20, 30}});
+
+    // the enclosing region must not be truncated to the nested one's stop
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({40}), bed.regions["chr1"].stops);
+    EXPECT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(30L, bed.size);
+}
+
+TEST(BedMerge, CollapsesDuplicates) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}, {10, 20}, {10, 20}});
+
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({20}), bed.regions["chr1"].stops);
+    EXPECT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(10L, bed.size);
+}
+
+TEST(BedMerge, SingleIntervalUnchanged) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}});
+
+    bed.merge();
+
+    EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({20}), bed.regions["chr1"].stops);
+    EXPECT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(10L, bed.size);
+}
+
+TEST(BedMerge, EmptyBedUnchanged) {
+    GlobalsGuard guard;
+    bedData bed;
+
+    bed.merge();
+
+    EXPECT_EQ(size_t(0), bed.contigs.size());
+    EXPECT_EQ(0L, bed.size);
+}
+
+TEST(BedMerge, MergesEachContigSeparately) {
+    GlobalsGuard guard;
+    bedData bed = make_bed({{"chr1", {{10, 20}, {15, 30}}}, {"chr2", {{50, 60}}}});
+
+    // a contig's regions never merge into another contig's, and every contig is kept
+    bed.merge();
+
+    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), bed.contigs);
+    EXPECT_EQ(1, bed.regions["chr1"].n);
+    EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({30}), bed.regions["chr1"].stops);
+    EXPECT_EQ(1, bed.regions["chr2"].n);
+    EXPECT_EQ(std::vector<int>({50}), bed.regions["chr2"].starts);
+    EXPECT_EQ(std::vector<int>({60}), bed.regions["chr2"].stops);
+    EXPECT_EQ(30L, bed.size);
+}
+
+// A merged region set is what contains() assumes, so the two must agree once merge() has run.
+TEST(BedMerge, MergedRegionsAreQueryable) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{30, 40}, {10, 25}, {20, 30}});
+
+    bed.merge(); // one [10, 40) region
+
+    EXPECT_EQ(BED_INSIDE, bed.contains("chr1", 26, 29, TYPE_SUB));
+    EXPECT_EQ(BED_OUTSIDE, bed.contains("chr1", 0, 5, TYPE_SUB));
+    EXPECT_EQ(BED_BORDER, bed.contains("chr1", 35, 45, TYPE_SUB));
+}
+
+TEST(BedMerge, ReportsCoalescedCount) {
+    GlobalsGuard guard;
+    g.verbosity = 2;
+    bedData bed = make_bed("chr1", {{10, 20}, {15, 30}, {30, 40}});
+
+    testing::internal::CaptureStderr();
+    bed.merge(); // three regions become one
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(std::string::npos, out.find("Merged 2 overlapping or adjacent BED regions")) << out;
+}
+
+TEST(BedMerge, SilentWhenNothingCoalesced) {
+    GlobalsGuard guard;
+    g.verbosity = 2;
+    bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
+
+    // a region set that was already merged is not worth a message, even at high verbosity
+    testing::internal::CaptureStderr();
+    bed.merge();
+
+    EXPECT_EQ("", testing::internal::GetCapturedStderr());
+}
+
+/* bedData::contains ******************************************************************************/
 
 TEST(BedContains, FlippedErrors) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     EXPECT_EXIT({
                 bedData bed = two_region_bed();
                 bed.contains("chr1", 8, 2, TYPE_SUB);
@@ -376,7 +538,6 @@ TEST(BedContains, FlippedErrors) {
 
 TEST(BedContains, UnknownContigOffctg) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     EXPECT_EQ(BED_OFFCTG, bed.contains("chrZ", 12, 15, TYPE_SUB));
@@ -384,7 +545,6 @@ TEST(BedContains, UnknownContigOffctg) {
 
 TEST(BedContains, BeforeAllOutside) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     EXPECT_EQ(BED_OUTSIDE, bed.contains("chr1", 2, 5, TYPE_SUB));
@@ -395,7 +555,6 @@ TEST(BedContains, BeforeAllOutside) {
 
 TEST(BedContains, AfterAllOutside) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     EXPECT_EQ(BED_OUTSIDE, bed.contains("chr1", 45, 50, TYPE_SUB));
@@ -406,7 +565,6 @@ TEST(BedContains, AfterAllOutside) {
 
 TEST(BedContains, MiddleInside) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     EXPECT_EQ(BED_INSIDE, bed.contains("chr1", 12, 15, TYPE_SUB));
@@ -418,7 +576,6 @@ TEST(BedContains, MiddleInside) {
 
 TEST(BedContains, InsAtRegionEndBorder) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     // an insertion anchored on the last base of [10, 20) adds sequence at the region edge, so it
@@ -432,7 +589,6 @@ TEST(BedContains, InsAtRegionEndBorder) {
 
 TEST(BedContains, BetweenRegionsOutside) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     // wholly within the [20, 30) gap
@@ -444,7 +600,6 @@ TEST(BedContains, BetweenRegionsOutside) {
 
 TEST(BedContains, PartialOverlapBorder) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = two_region_bed();
 
     // overhangs the left edge of the first region, so the start index falls off the front
@@ -462,11 +617,68 @@ TEST(BedContains, PartialOverlapBorder) {
 
 TEST(BedContains, SpansMultipleBorder) {
     GlobalsGuard guard;
-    g.bed_exists = true;
     bedData bed = make_bed("chr1", {{10, 20}, {30, 40}, {50, 60}});
 
     // covers all of the middle region plus part of the outer two
     EXPECT_EQ(BED_BORDER, bed.contains("chr1", 15, 55, TYPE_SUB));
+}
+
+/* bedData::classify ******************************************************************************/
+
+/**
+ * @brief Locates a variant the way contains() does, so classify() can be called on its own.
+ *
+ * Mirrors the two binary searches rather than calling contains(), since a test that obtained its
+ * indices from the function under test would pin nothing.
+ * @param[in] bed BED holding the contig
+ * @param[in] ctg Contig the variant lies on
+ * @param[in] start 0-based inclusive variant start
+ * @param[in] stop 0-based exclusive variant stop
+ * @return Indices of the last region starting at or before start, and the first stopping at or
+ *         after stop
+ */
+std::pair<int, int> locate(bedData & bed, const std::string & ctg, int start, int stop) {
+    const std::vector<int> & starts = bed.regions[ctg].starts;
+    const std::vector<int> & stops = bed.regions[ctg].stops;
+    return {int(std::upper_bound(starts.begin(), starts.end(), start) - starts.begin()) - 1,
+            int(std::lower_bound(stops.begin(), stops.end(), stop) - stops.begin())};
+}
+
+// The extraction is only correct if contains() and classify() cannot disagree, so every coordinate
+// pair that reaches classify() through contains() must classify the same way on its own.
+TEST(BedClassify, AgreesWithContains) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
+
+    for (int start = 0; start <= 50; start++) {
+        for (int stop = start; stop <= 50; stop++) {
+            for (edittype_t type : {TYPE_SUB, TYPE_INS}) {
+                auto [start_idx, stop_idx] = locate(bed, "chr1", start, stop);
+                EXPECT_EQ(bed.contains("chr1", start, stop, type),
+                        bed.classify("chr1", start, stop, type, start_idx, stop_idx))
+                        << start << "-" << stop << " type " << int(type);
+            }
+        }
+    }
+}
+
+// A variant left of every region has start_idx -1, which the index tests would read as a partial
+// overlap, so the before-all check must come first.
+TEST(BedClassify, BeforeAllOutsideNotBorder) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
+
+    EXPECT_EQ(-1, locate(bed, "chr1", 2, 5).first);
+    EXPECT_EQ(BED_OUTSIDE, bed.classify("chr1", 2, 5, TYPE_SUB, -1, 0));
+}
+
+// The mirror case: a variant right of every region has stop_idx off the end of the stop list.
+TEST(BedClassify, AfterAllOutsideNotBorder) {
+    GlobalsGuard guard;
+    bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
+
+    EXPECT_EQ(2, locate(bed, "chr1", 45, 50).second);
+    EXPECT_EQ(BED_OUTSIDE, bed.classify("chr1", 45, 50, TYPE_SUB, 1, 2));
 }
 
 /* bedData::operator std::string ******************************************************************/
