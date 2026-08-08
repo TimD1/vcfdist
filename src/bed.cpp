@@ -2,6 +2,9 @@
  * @file bed.cpp
  * @brief BED file loading, interval storage, and contig intersection utilities.
  */
+#include "htslib/hts.h"
+#include "htslib/kstring.h"
+
 #include "bed.h"
 #include "print.h"
 
@@ -41,26 +44,29 @@ static int parse_coord(const std::string & coord, const std::string & bed_fn, co
 /**
  * @brief Constructs a bedData object by reading intervals from a BED file.
  *
- * The first three columns are read and the remainder are ignored.
+ * The first three columns are read and the remainder are ignored. Reading goes through htslib, so
+ * plain, gzip, and bgzip encodings are all accepted; the encoding is detected from the file's
+ * leading bytes rather than from its extension.
  * @param[in] bed_fn The BED filename.
  * @throws ERROR if the BED file cannot be opened.
+ * @throws ERROR if a line cannot be read, which a truncated or corrupt compressed file looks like.
  * @throws ERROR if a start or stop coordinate is empty, not numeric in full, or too large.
  */
 bedData::bedData(const std::string & bed_fn) {
 
-    // fail if file doesn't exist
-    auto bed_fp = fopen(bed_fn.data(), "r");
+    // fail if file doesn't exist, or is compressed in a way htslib cannot decode
+    htsFile* bed_fp = hts_open(bed_fn.data(), "r");
     if (bed_fp == NULL) {
         ERROR("Failed to open BED file '%s'", bed_fn.data());
     }
-    fclose(bed_fp);
 
-    std::ifstream bed(bed_fn);
-    std::string region;
+    kstring_t region = KS_INITIALIZE;
     int line = 0;
-    while (getline(bed, region)) {
+    int len = 0;
+    while ((len = hts_getline(bed_fp, '\n', &region)) >= 0) {
         line++;
-        std::stringstream ss(region);
+        // hts_getline strips the terminator, so the line is the record and nothing else
+        std::stringstream ss(std::string(region.s == NULL ? "" : region.s, region.l));
         std::string contig, start, stop;
         getline(ss, contig, '\t');
         getline(ss, start, '\t');
@@ -70,6 +76,13 @@ bedData::bedData(const std::string & bed_fn) {
         const int stop_pos = parse_coord(stop, bed_fn, line);
         this->add(contig, start_pos, stop_pos);
     }
+    // -1 is end-of-file; anything lower is a read failure, which must not look like a short file
+    if (len < -1) {
+        ERROR("Failed to read line %d of BED file '%s'", line+1, bed_fn.data());
+    }
+    ks_free(&region);
+    hts_close(bed_fp);
+
     this->check();
 }
 

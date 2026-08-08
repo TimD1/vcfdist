@@ -464,7 +464,7 @@ void Globals::print_usage() const
     printf("\nOptions:\n");
     printf("\n  Inputs/Outputs:\n");
     printf("  -b, --bed <STRING>\n");
-    printf("      BED file containing regions to evaluate\n");
+    printf("      BED file containing regions to evaluate (plain, gzip, or bgzip)\n");
     printf("  -v, --verbosity <INTEGER> [%d]\n", this->verbosity);
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
     printf("  -p, --prefix <STRING> [./]\n");

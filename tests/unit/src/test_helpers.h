@@ -103,13 +103,24 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
         const vcf_opts & opts = vcf_opts());
 
 /**
+ * @enum bedzip_t
+ * @brief Encoding write_tmp_bed() stores a BED in.
+ */
+enum bedzip_t {
+    BEDZIP_NONE,  ///< uncompressed text
+    BEDZIP_GZIP,  ///< plain gzip, as `gzip` writes
+    BEDZIP_BGZIP, ///< blocked gzip, as `bgzip` writes
+};
+
+/**
  * @brief Writes a BED file into a temporary directory and returns its path.
  *
  * Lines are written verbatim, so a test can supply extra columns or malformed records that the
- * in-memory make_bed() builders cannot express.
+ * in-memory make_bed() builders cannot express. The same lines can be written in any of the three
+ * encodings bedData accepts, so an encoding test varies only the encoding.
  */
 std::string write_tmp_bed(const TempDir & dir, const std::vector<std::string> & lines,
-        const std::string & name = "test.bed");
+        const std::string & name = "test.bed", bedzip_t zip = BEDZIP_NONE);
 
 /** @brief Returns the path of a checked-in fixture under tests/unit/data/. */
 std::string data_path(const std::string & name);
