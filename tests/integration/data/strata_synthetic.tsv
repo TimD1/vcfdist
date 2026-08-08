@@ -1,0 +1,6 @@
+# Stratification manifest for the synthetic sc1/sc2 reference. Both BED paths are relative, so
+# they only resolve if they are taken relative to this file's own directory rather than the
+# working directory the run happens in.
+
+whole_sc1	synthetic.bed
+both_contigs	synthetic_2ctg.bed

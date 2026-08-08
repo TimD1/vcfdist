@@ -40,6 +40,9 @@ int main(int argc, char **argv) {
     g.stage(TIME_READ).start();
     std::shared_ptr<fastaData> ref_ptr(new fastaData(g.ref_fasta_fp));
 
+    // warn before any evaluation if the stratification regions name contigs the reference lacks
+    check_strata_contigs(ref_ptr);
+
     // parse query and truth VCFs
     std::shared_ptr<variantData> query_ptr(new variantData());
     parse_variants(g.query_vcf_fn, query_ptr, ref_ptr, QUERY);

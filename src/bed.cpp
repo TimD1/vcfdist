@@ -2,6 +2,7 @@
  * @file bed.cpp
  * @brief BED file loading, interval storage, and contig intersection utilities.
  */
+#include <filesystem>
 #include <utility>
 
 #include "htslib/hts.h"
@@ -311,6 +312,155 @@ bedData::operator std::string() const {
         }
     }
     return bed_regions;
+}
+
+
+/* Stratification manifest ************************************************************************/
+
+/**
+ * @brief Resolves one manifest BED path against the directory holding the manifest.
+ *
+ * The GIAB stratification manifests name their region sets with paths relative to themselves, so
+ * resolving against the working directory would require every manifest to be rewritten before use.
+ * @param[in] path The BED path exactly as written in the manifest.
+ * @param[in] strat_tsv_fn The manifest filename, whose parent directory relative paths resolve to.
+ * @return The path to open, unchanged if it was already absolute.
+ */
+static std::string resolve_strat_path(const std::string & path, const std::string & strat_tsv_fn) {
+    if (!path.empty() && path[0] == '/') return path;
+    return parent_path(strat_tsv_fn) + path;
+}
+
+/**
+ * @brief Loads every region set named by a stratification manifest TSV, in manifest order.
+ *
+ * The manifest is hap.py-compatible: two tab-separated columns naming a stratum and its BED file,
+ * with any further columns ignored. Blank lines and lines beginning with '#' are skipped. Reading
+ * goes through htslib, so the manifest and each region set may be plain, gzip, or bgzip encoded.
+ *
+ * Each region set is normalized at load, so it is sorted and merged before being validated; these
+ * are third-party files we neither author nor control, and contains() would return wrong answers on
+ * an unsorted or overlapping one. Normalizing does not weaken the validation: a malformation
+ * sorting and merging cannot repair still errors. Both outputs are cleared first, so a repeated
+ * call replaces the strata rather than appending to them.
+ * @param[in] strat_tsv_fn The stratification manifest filename.
+ * @param[out] strat_names Stratum names, in manifest order.
+ * @param[out] strata Parsed stratum regions, parallel to strat_names.
+ * @throws ERROR if the manifest cannot be opened.
+ * @throws ERROR if a manifest line cannot be read, which a truncated compressed file looks like.
+ * @throws ERROR if a line names fewer than two fields.
+ * @throws ERROR if a stratum name repeats, which would make an output row ambiguous.
+ * @throws ERROR if a stratum is named '*', which is reserved for the all-regions row.
+ * @throws ERROR if a stratum's BED file cannot be opened.
+ * @throws WARNING if the manifest names no region sets at all.
+ */
+void load_strata(const std::string & strat_tsv_fn, std::vector<std::string> & strat_names,
+        std::vector<bedData> & strata) {
+
+    strat_names.clear();
+    strata.clear();
+
+    htsFile* strat_fp = hts_open(strat_tsv_fn.data(), "r");
+    if (strat_fp == NULL) {
+        ERROR("Failed to open stratification manifest '%s'", strat_tsv_fn.data());
+    }
+
+    kstring_t manifest_line = KS_INITIALIZE;
+    int line = 0;
+    int len = 0;
+    while ((len = hts_getline(strat_fp, '\n', &manifest_line)) >= 0) {
+        line++;
+        // hts_getline strips the terminator, so the line is the record and nothing else
+        const std::string text(manifest_line.s == NULL ? "" : manifest_line.s, manifest_line.l);
+        if (text.empty() || text[0] == '#') continue;
+
+        std::stringstream ss(text);
+        std::string name, path;
+        getline(ss, name, '\t');
+        getline(ss, path, '\t');
+        if (name.empty() || path.empty()) {
+            ERROR("Line %d of stratification manifest '%s' does not name both a stratum and a"
+                    " BED file", line, strat_tsv_fn.data());
+        }
+        if (name == "*") {
+            ERROR("Stratum name '*' on line %d of stratification manifest '%s' is reserved for the"
+                    " all-regions row", line, strat_tsv_fn.data());
+        }
+        if (std::find(strat_names.begin(), strat_names.end(), name) != strat_names.end()) {
+            ERROR("Duplicate stratum name '%s' on line %d of stratification manifest '%s'",
+                    name.data(), line, strat_tsv_fn.data());
+        }
+
+        // an unopenable region set names both paths, since a relative path that resolved somewhere
+        // unintended is indistinguishable from a missing file when only one of the two is reported
+        const std::string bed_fn = resolve_strat_path(path, strat_tsv_fn);
+        htsFile* bed_fp = hts_open(bed_fn.data(), "r");
+        if (bed_fp == NULL) {
+            const std::string abs_fn = std::filesystem::absolute(bed_fn).string();
+            ERROR("Failed to open BED file '%s' for stratum '%s' on line %d of stratification"
+                    " manifest '%s', resolved to '%s'",
+                    path.data(), name.data(), line, strat_tsv_fn.data(), abs_fn.data());
+        }
+        hts_close(bed_fp);
+
+        strat_names.push_back(name);
+        strata.push_back(bedData(bed_fn, true));
+    }
+    // -1 is end-of-file; anything lower is a read failure, which must not look like a short file
+    if (len < -1) {
+        ERROR("Failed to read line %d of stratification manifest '%s'",
+                line+1, strat_tsv_fn.data());
+    }
+    ks_free(&manifest_line);
+    hts_close(strat_fp);
+
+    if (strat_names.empty()) {
+        WARN("Stratification manifest '%s' names no region sets", strat_tsv_fn.data());
+    } else if (g.verbosity >= 1) {
+        INFO("Loaded %d stratification region sets from '%s'",
+                int(strat_names.size()), strat_tsv_fn.data());
+    }
+}
+
+/**
+ * @brief Warns for stratification region sets sharing no contig with the reference FASTA.
+ *
+ * A region set naming contigs the reference does not have contributes to no output row but a row of
+ * zeroes, which reads as a genuine result. The realistic cause is an assembly or contig-naming
+ * mismatch -- 'chr20'-prefixed region sets against '20'-named reference contigs, or GRCh37 sets
+ * against a GRCh38 run -- so every set failing at once is diagnostic rather than incidental and is
+ * reported as one message naming that cause. A set that shares a contig but contains no evaluated
+ * variant is not warned about; that is a legitimate result.
+ * @param[in] ref_ptr A pointer to the reference fastaData.
+ * @throws WARNING naming each region set that shares no contig with the reference.
+ * @throws WARNING naming the likely cause instead, if no region set shares a contig at all.
+ */
+void check_strata_contigs(const std::shared_ptr<fastaData> & ref_ptr) {
+
+    std::vector<std::string> unmatched;
+    for (size_t i = 0; i < g.strata.size(); i++) {
+        bool shares_contig = false;
+        for (const std::string & ctg : g.strata[i].contigs) {
+            if (ref_ptr->fasta.find(ctg) != ref_ptr->fasta.end()) {
+                shares_contig = true;
+                break;
+            }
+        }
+        if (!shares_contig) unmatched.push_back(g.strat_names[i]);
+    }
+    if (unmatched.empty()) return;
+
+    if (unmatched.size() == g.strata.size()) {
+        WARN("No stratification region set in '%s' shares a contig with reference FASTA '%s';"
+                " check that both use the same reference assembly and contig naming"
+                " (such as 'chr20' rather than '20')",
+                g.strat_tsv_fn.data(), g.ref_fasta_fn.data());
+    } else {
+        for (const std::string & name : unmatched) {
+            WARN("Stratification region set '%s' shares no contig with reference FASTA '%s'",
+                    name.data(), g.ref_fasta_fn.data());
+        }
+    }
 }
 
 

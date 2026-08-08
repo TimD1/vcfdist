@@ -17,6 +17,9 @@ look for them, so a test run leaves this directory untouched.
 - `synthetic.bed` — `sc1  0  400`, the whole of `sc1`. Used by every single-contig scenario, which
   therefore never sees `sc2`.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
+- `strata_synthetic.tsv` — stratification manifest naming the two BEDs above as the strata
+  `whole_sc1` and `both_contigs`. Both paths are written relative to the manifest, so a run from
+  any other directory only finds them if relative paths resolve against the manifest's directory.
 
 Every variant `REF` allele below matches the reference at its 1-based position, and every variant
 is homozygous (`1/1`, or `1|1` in `record_shapes`) except in the `contig_start_snp` and

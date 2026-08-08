@@ -762,6 +762,277 @@ TEST(BedToString, RendersRegionsByContig) {
     EXPECT_EQ("", std::string(bedData()));
 }
 
+/* load_strata ************************************************************************************/
+
+/**
+ * @struct strata_result
+ * @brief The names and region sets one load_strata() call produced.
+ */
+struct strata_result {
+    std::vector<std::string> names;  ///< Stratum names, in manifest order
+    std::vector<bedData> strata;     ///< Parsed stratum regions, parallel to names
+};
+
+/**
+ * @brief Writes a manifest holding the given lines and loads it, returning what it parsed to.
+ * @param[in] dir Temporary directory that owns the manifest, and that relative paths resolve to
+ * @param[in] lines Manifest lines, written verbatim in order
+ * @return The loaded stratum names and region sets
+ */
+strata_result load_manifest(const TempDir & dir, const std::vector<std::string> & lines) {
+    strata_result result;
+    load_strata(write_tmp_text(dir, lines, "strata.tsv"), result.names, result.strata);
+    return result;
+}
+
+TEST(LoadStrata, ManifestOpenFailErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::vector<std::string> names;
+    std::vector<bedData> strata;
+
+    EXPECT_EXIT(load_strata(dir.path("absent.tsv"), names, strata), testing::ExitedWithCode(1),
+            "Failed to open stratification manifest");
+}
+
+TEST(LoadStrata, ResolvesRelativeToManifestDir) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::filesystem::create_directories(dir.path("sets"));
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "sets/ancestry.bed");
+
+    // "sets/ancestry.bed" names nothing beneath the working directory, so only resolution against
+    // the manifest's own directory can find it -- which is what the GIAB manifests require
+    strata_result r = load_manifest(dir, {"ancestry_AFR\tsets/ancestry.bed"});
+
+    EXPECT_EQ(std::vector<std::string>({"ancestry_AFR"}), r.names);
+    ASSERT_EQ(size_t(1), r.strata.size());
+    EXPECT_EQ(std::vector<std::string>({"chr1"}), r.strata[0].contigs);
+    EXPECT_EQ(10L, r.strata[0].size);
+}
+
+TEST(LoadStrata, AcceptsAbsolutePaths) {
+    GlobalsGuard guard;
+    TempDir dir;
+    const std::string bed_fn = write_tmp_bed(dir, {"chr1\t10\t20"}, "absolute.bed");
+    ASSERT_TRUE(std::filesystem::path(bed_fn).is_absolute());
+
+    // an absolute path is opened as written, rather than being appended to the manifest's directory
+    strata_result r = load_manifest(dir, {"refseq_cds\t" + bed_fn});
+
+    EXPECT_EQ(std::vector<std::string>({"refseq_cds"}), r.names);
+    ASSERT_EQ(size_t(1), r.strata.size());
+    EXPECT_EQ(10L, r.strata[0].size);
+}
+
+TEST(LoadStrata, SkipsCommentsAndBlankLines) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "a.bed");
+
+    strata_result r = load_manifest(dir,
+            {"# GRCh38 stratifications", "", "a\ta.bed", "", "#trailing comment"});
+
+    EXPECT_EQ(std::vector<std::string>({"a"}), r.names);
+    EXPECT_EQ(size_t(1), r.strata.size());
+}
+
+TEST(LoadStrata, IgnoresExtraColumns) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "a.bed");
+
+    strata_result r = load_manifest(dir, {"a\ta.bed\tsome\tother\tcolumns"});
+
+    EXPECT_EQ(std::vector<std::string>({"a"}), r.names);
+    ASSERT_EQ(size_t(1), r.strata.size());
+    EXPECT_EQ(10L, r.strata[0].size);
+}
+
+TEST(LoadStrata, PreservesManifestOrder) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "z.bed");
+    write_tmp_bed(dir, {"chr1\t30\t50"}, "a.bed");
+
+    // load order is manifest order, since it is also the output row order the strata will take
+    strata_result r = load_manifest(dir, {"zzz\tz.bed", "aaa\ta.bed"});
+
+    EXPECT_EQ(std::vector<std::string>({"zzz", "aaa"}), r.names);
+    ASSERT_EQ(size_t(2), r.strata.size());
+    EXPECT_EQ(10L, r.strata[0].size);
+    EXPECT_EQ(20L, r.strata[1].size);
+}
+
+TEST(LoadStrata, NormalizesRegionsAtLoad) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t30\t40", "chr1\t10\t35"}, "messy.bed");
+
+    // a third-party region set is normalized rather than rejected, so an unsorted and overlapping
+    // file loads as one merged interval instead of failing the check the same file would fail as
+    // an evaluation BED; the sort is still reported, since the file is not what check() accepts
+    testing::internal::CaptureStderr();
+    strata_result r = load_manifest(dir, {"messy\tmessy.bed"});
+    std::string out = testing::internal::GetCapturedStderr();
+
+    ASSERT_EQ(size_t(1), r.strata.size());
+    EXPECT_EQ(std::vector<int>({10}), r.strata[0].regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({40}), r.strata[0].regions["chr1"].stops);
+    EXPECT_EQ(30L, r.strata[0].size);
+    EXPECT_NE(std::string::npos, out.find("were unsorted, and have been sorted")) << out;
+}
+
+// The strata are normalized, not exempted from validation: a malformation sorting and merging
+// cannot repair is as fatal in a stratum BED as in an evaluation BED.
+TEST(LoadStrata, StratumBedStillChecked) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t8\t2"}, "flipped.bed");
+
+    EXPECT_EXIT(load_manifest(dir, {"flipped\tflipped.bed"}), testing::ExitedWithCode(1),
+            "BED region chr1:8-2 stop precedes start");
+}
+
+TEST(LoadStrata, MissingFieldErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // line numbers count skipped lines too, so the reported line is the one in the file
+    EXPECT_EXIT(load_manifest(dir, {"# comment", "name_with_no_path"}),
+            testing::ExitedWithCode(1),
+            "Line 2 of stratification manifest .* does not name both a stratum and a BED file");
+}
+
+TEST(LoadStrata, EmptyPathFieldErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // a trailing tab supplies a second field that names nothing, which is not a BED path
+    EXPECT_EXIT(load_manifest(dir, {"name\t"}), testing::ExitedWithCode(1),
+            "Line 1 of stratification manifest .* does not name both a stratum and a BED file");
+}
+
+TEST(LoadStrata, DuplicateNameErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "a.bed");
+
+    // two rows sharing a name would make every stratified output row ambiguous
+    EXPECT_EXIT(load_manifest(dir, {"dup\ta.bed", "dup\ta.bed"}), testing::ExitedWithCode(1),
+            "Duplicate stratum name 'dup' on line 2 of stratification manifest");
+}
+
+TEST(LoadStrata, ReservedStarNameErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "a.bed");
+
+    EXPECT_EXIT(load_manifest(dir, {"*\ta.bed"}), testing::ExitedWithCode(1),
+            "Stratum name '\\*' on line 1 of stratification manifest .* is reserved");
+}
+
+TEST(LoadStrata, StratumBedOpenFailErrors) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // both paths are named: the manifest-relative one identifies the offending row, and the
+    // resolved one shows where it was looked for, which a relative path alone cannot
+    EXPECT_EXIT(load_manifest(dir, {"absent\tsets/absent.bed"}), testing::ExitedWithCode(1),
+            "Failed to open BED file 'sets/absent.bed' for stratum 'absent' on line 1 of"
+            " stratification manifest .* resolved to '/.*/sets/absent.bed'");
+}
+
+TEST(LoadStrata, NoStrataWarns) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    // a manifest naming nothing is not an error; the run proceeds as though -st were absent
+    testing::internal::CaptureStderr();
+    strata_result r = load_manifest(dir, {"# every line is a comment", ""});
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(size_t(0), r.names.size());
+    EXPECT_EQ(size_t(0), r.strata.size());
+    EXPECT_NE(std::string::npos, out.find("[WARN")) << out;
+    EXPECT_NE(std::string::npos, out.find("names no region sets")) << out;
+}
+
+TEST(LoadStrata, ReplacesPriorContents) {
+    GlobalsGuard guard;
+    TempDir dir;
+    write_tmp_bed(dir, {"chr1\t10\t20"}, "a.bed");
+    write_tmp_bed(dir, {"chr2\t10\t20"}, "b.bed");
+    std::vector<std::string> names;
+    std::vector<bedData> strata;
+
+    load_strata(write_tmp_text(dir, {"a\ta.bed"}, "first.tsv"), names, strata);
+    load_strata(write_tmp_text(dir, {"b\tb.bed"}, "second.tsv"), names, strata);
+
+    // a second load replaces the strata rather than appending to them
+    EXPECT_EQ(std::vector<std::string>({"b"}), names);
+    ASSERT_EQ(size_t(1), strata.size());
+    EXPECT_EQ(std::vector<std::string>({"chr2"}), strata[0].contigs);
+}
+
+/* check_strata_contigs ***************************************************************************/
+
+TEST(CheckStrataContigs, NoStrataSilent) {
+    GlobalsGuard guard;
+
+    testing::internal::CaptureStderr();
+    check_strata_contigs(two_contig_ref());
+
+    EXPECT_EQ("", testing::internal::GetCapturedStderr());
+}
+
+TEST(CheckStrataContigs, SharedContigSilent) {
+    GlobalsGuard guard;
+    g.strat_names = {"shared"};
+    g.strata = {make_bed({{"chr2", {{0, 10}}}, {"chrZ", {{0, 10}}}})};
+
+    // one shared contig is enough; the region set may name contigs the reference does not have
+    testing::internal::CaptureStderr();
+    check_strata_contigs(two_contig_ref());
+
+    EXPECT_EQ("", testing::internal::GetCapturedStderr());
+}
+
+TEST(CheckStrataContigs, ZeroOverlapWarnsByName) {
+    GlobalsGuard guard;
+    g.ref_fasta_fn = "ref.fasta";
+    g.strat_names = {"matching", "offctg"};
+    g.strata = {make_bed("chr1", {{0, 10}}), make_bed("1", {{0, 10}})};
+
+    testing::internal::CaptureStderr();
+    check_strata_contigs(two_contig_ref());
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(std::string::npos, out.find("[WARN")) << out;
+    EXPECT_NE(std::string::npos, out.find("Stratification region set 'offctg' shares no contig"
+            " with reference FASTA 'ref.fasta'")) << out;
+    EXPECT_EQ(std::string::npos, out.find("'matching'")) << out;
+}
+
+TEST(CheckStrataContigs, AllZeroOverlapNamesLikelyCause) {
+    GlobalsGuard guard;
+    g.ref_fasta_fn = "ref.fasta";
+    g.strat_tsv_fn = "strata.tsv";
+    g.strat_names = {"one", "two"};
+    g.strata = {make_bed("1", {{0, 10}}), make_bed("2", {{0, 10}})};
+
+    // every set failing at once is an assembly or contig-naming mismatch rather than 181
+    // independent accidents, so the cause is named instead of each set
+    testing::internal::CaptureStderr();
+    check_strata_contigs(two_contig_ref());
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(std::string::npos, out.find("No stratification region set in 'strata.tsv' shares a"
+            " contig with reference FASTA 'ref.fasta'")) << out;
+    EXPECT_NE(std::string::npos, out.find("contig naming")) << out;
+    EXPECT_EQ(std::string::npos, out.find("Stratification region set 'one'")) << out;
+}
+
 /* intersect_contigs ******************************************************************************/
 
 TEST(IntersectContigs, BedDropsExtraneous) {

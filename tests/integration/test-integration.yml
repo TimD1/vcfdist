@@ -405,3 +405,41 @@
     contains:
       - "Unsorted QUERY VCF"
       - "record 3 at sc1:145 precedes position 255"
+
+- name: test_stratification_manifest-loads-without-bed
+  # swallowed_snps run again with -st and no -b. Both manifest paths are relative to the manifest
+  # itself, and pytest-workflow runs each test in its own temporary directory, so they only resolve
+  # if resolution is against the manifest's directory. Nothing reads the loaded regions yet, so the
+  # counts must match test_single-pass_large-fn-sv-recovers-snps, which runs the same callsets.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -st "${VCFDIST_REPO_PATH}/tests/integration/data/strata_synthetic.tsv"
+    -p "stratification_no_bed_out_"'
+  stderr:
+    contains:
+      - "Loaded 2 stratification region sets"
+    must_not_contain:
+      # both region sets cover sc1, so neither is a contig-naming mismatch
+      - "shares no contig"
+  files:
+    - path: stratification_no_bed_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t6\t6\t0\t0"
+        - "SV\tNONE\t0\t0\t0\t2\t0"
+
+- name: test_stratification_missing-manifest-exits-nonzero
+  # An unreadable manifest is fatal rather than silently ignored: the run that was asked for
+  # stratified output would otherwise produce none, indistinguishable from an unstratified run.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -st "${VCFDIST_REPO_PATH}/tests/integration/data/absent_manifest.tsv"
+    -p "stratification_absent_out_"'
+  exit_code: 1
+  stderr:
+    contains:
+      - "Failed to open stratification manifest"

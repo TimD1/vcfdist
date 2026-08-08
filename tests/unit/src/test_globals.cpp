@@ -604,6 +604,93 @@ TEST(ParseArgs, BedMalformedLineErrors) {
             "Invalid coordinate 'start' on line 1 of BED file");
 }
 
+/* parse_args: -st/--stratification ***************************************************************/
+
+/**
+ * @brief Writes a manifest naming tiny.bed once under the given stratum name.
+ * @param[in] f Fixture whose temporary directory owns the manifest
+ * @param[in] name Stratum name to write
+ * @return Path of the written manifest
+ * @note The BED path is absolutized, since a manifest path resolves relative BED paths against its
+ *       own directory rather than against the working directory data_path() is relative to.
+ */
+std::string write_strat_tsv(const ArgsFixture & f, const std::string & name = "tiny") {
+    const std::string tsv_fn = f.path("strata.tsv");
+    std::ofstream(tsv_fn) << name << "\t"
+            << std::filesystem::absolute(data_path("tiny.bed")).string() << "\n";
+    return tsv_fn;
+}
+
+TEST(ParseArgs, StratificationShort) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    const std::string tsv_fn = write_strat_tsv(f);
+
+    parse(f.argv({"-st", tsv_fn}));
+
+    EXPECT_EQ(tsv_fn, g.strat_tsv_fn);
+    EXPECT_EQ(1, g.nstrata);
+    EXPECT_EQ(std::vector<std::string>({"tiny"}), g.strat_names);
+    ASSERT_EQ(size_t(1), g.strata.size());
+    EXPECT_EQ(std::vector<std::string>({"chr1"}), g.strata[0].contigs);
+    EXPECT_EQ(6, g.strata[0].size);
+}
+
+TEST(ParseArgs, StratificationLong) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    const std::string tsv_fn = write_strat_tsv(f, "refseq_cds");
+
+    parse(f.argv({"--stratification", tsv_fn}));
+
+    EXPECT_EQ(tsv_fn, g.strat_tsv_fn);
+    EXPECT_EQ(1, g.nstrata);
+    EXPECT_EQ(std::vector<std::string>({"refseq_cds"}), g.strat_names);
+}
+
+TEST(ParseArgs, StratificationDefaultsToUnused) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    parse(f.argv());
+
+    // without the flag nothing is loaded, which is the state every consumer gates on
+    EXPECT_EQ("", g.strat_tsv_fn);
+    EXPECT_EQ(0, g.nstrata);
+    EXPECT_TRUE(g.strat_names.empty());
+    EXPECT_TRUE(g.strata.empty());
+}
+
+TEST(ParseArgs, StratificationMissingErrors) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    EXPECT_EXIT(parse(f.argv({"-st"})), testing::ExitedWithCode(1),
+            "Option '-st' used without providing stratification manifest filename");
+}
+
+TEST(ParseArgs, StratificationBadFileErrors) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    EXPECT_EXIT(parse(f.argv({"-st", f.path("absent.tsv")})), testing::ExitedWithCode(1),
+            "Failed to open stratification manifest");
+}
+
+TEST(ParseArgs, StratificationEmptyManifestWarns) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+    const std::string tsv_fn = f.path("empty.tsv");
+    std::ofstream(tsv_fn) << "# nothing here\n";
+
+    const std::string log = parse_capturing_stderr(f.argv({"-st", tsv_fn}), f.path("log.txt"));
+
+    // the manifest is remembered for provenance, but no stratum was loaded from it
+    EXPECT_NE(std::string::npos, log.find("names no region sets")) << log;
+    EXPECT_EQ(tsv_fn, g.strat_tsv_fn);
+    EXPECT_EQ(0, g.nstrata);
+}
+
 /* parse_args: -p/--prefix ************************************************************************/
 
 TEST(ParseArgs, PrefixRelativeDotSlash) {
@@ -1432,7 +1519,8 @@ TEST(PrintUsage, ListsDocumentedFlags) {
 
     const std::string usage = usage_text();
 
-    for (const std::string & flag : {"-b, --bed", "-v, --verbosity", "-p, --prefix",
+    for (const std::string & flag : {"-b, --bed", "-st, --stratification",
+            "-v, --verbosity", "-p, --prefix",
             "-f, --filter", "-l, --largest-variant", "-sv, --sv-threshold", "-q, --min-qual",
             "-mq, --max-qual", "-sc, --max-supercluster-size", "-ct, --credit-threshold",
             "-t, --max-threads", "-r, --max-ram", "-h, --help", "-ci, --citation",
