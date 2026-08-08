@@ -206,21 +206,22 @@ TEST(MakeCtgVariants, ProvenanceFieldsReachTheirOwnVectors) {
     var.supercluster = 5;
     var.rec_idx = 9;
     var.alt_idx = 2;
-    var.ploidy = 1;
+    var.ploidy = PLOIDY_HAPLOID;
     std::shared_ptr<ctgVariants> vars = make_ctgVariants("chr1", {var});
 
     ASSERT_EQ(1, vars->n);
     EXPECT_EQ(11, vars->phase_sets[0]);
     EXPECT_EQ(9, vars->rec_idxs[0]);
     EXPECT_EQ(2, vars->alt_idxs[0]);
-    EXPECT_EQ(1, vars->ploidies[0]);
+    EXPECT_EQ(PLOIDY_HAPLOID, vars->ploidies[0]);
     EXPECT_EQ(5, vars->superclusters[0]);
 
-    // an unspecified field yields the same "unknown" sentinel add_var() defaults to
+    // an unspecified field yields the same "unknown" sentinel add_var() defaults to, except ploidy,
+    // which has no unknown state to fall back to and defaults to diploid
     std::shared_ptr<ctgVariants> plain = make_ctgVariants("chr1", {{4, 1, TYPE_SUB, "A", "G"}});
     EXPECT_EQ(-1, plain->rec_idxs[0]);
     EXPECT_EQ(-1, plain->alt_idxs[0]);
-    EXPECT_EQ(0, plain->ploidies[0]);
+    EXPECT_EQ(PLOIDY_DIPLOID, plain->ploidies[0]);
     EXPECT_EQ(-1, plain->superclusters[0]);
 }
 

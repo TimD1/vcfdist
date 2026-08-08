@@ -29,10 +29,10 @@
         - "sc1\t140\t.\tT\tC"
         - "sc1\t146\t.\tG\tA"
         - "sc1\t256\t.\tG\tA"
-        - ":TP:1.000000:"
-        - ":FN:0.000000:"
+        - ":TP,TP:1.000000,1.000000:"
+        - ":FN,FN:0.000000,0.000000:"
       must_not_contain:
-        - ":FP:"
+        - ":FP"
 
 - name: test_single-pass_partial-match-tp-at-lenient-ct
   # partial_match_del (-ct 0.7): truth has a 10bp deletion (pos 150); query has an 8bp
@@ -52,10 +52,10 @@
         - "INDEL\tNONE\t0\t2\t2\t0\t0"
     - path: partial_match_del_ct07_summary.vcf
       contains:
-        - ":TP:0.800000:"
+        - ":TP,TP:0.800000,0.800000:"
       must_not_contain:
-        - ":FN:"
-        - ":FP:"
+        - ":FN"
+        - ":FP"
 
 - name: test_single-pass_ct1-exact-match-only
   # partial_match_del (-ct 1.0): same partially-matched 10bp-vs-8bp deletion as above, but
@@ -74,10 +74,10 @@
         - "INDEL\tNONE\t0\t0\t0\t2\t2"
     - path: partial_match_del_ct1_summary.vcf
       contains:
-        - ":FN:0.000000:"
-        - ":FP:0.000000:"
+        - ":FN,FN:0.000000,0.000000:"
+        - ":FP,FP:0.000000,0.000000:"
       must_not_contain:
-        - ":TP:"
+        - ":TP"
 
 - name: test_single-pass_colocated-spurious-call-no-distortion
   # colocated_spurious_snp: truth has a SNP (pos 200, A>G) the query misses entirely; query
@@ -97,10 +97,10 @@
       contains:
         - "sc1\t200\t.\tA\tG"
         - "sc1\t200\t.\tA\tC"
-        - ":FN:0.000000:"
-        - ":FP:0.000000:"
+        - ":FN,FN:0.000000,0.000000:"
+        - ":FP,FP:0.000000,0.000000:"
       must_not_contain:
-        - ":TP:"
+        - ":TP"
 
 - name: test_single-pass_entangled-overlap-shared-credit
   # entangled_overlap_del (-ct 0.7), exploratory: truth has a 10bp deletion at anchor 150;
@@ -123,7 +123,7 @@
         - "INDEL\tNONE\t0\t2\t2\t0\t0"
     - path: entangled_overlap_del_out_summary.vcf
       contains:
-        - ":TP:0.800000:"
+        - ":TP,TP:0.800000,0.800000:"
 
 - name: test_single-pass_adjacent-fn-no-overcredit
   # adjacent_fn_no_overcredit: regression guard for the consecutive-bypass excision fix.
@@ -145,11 +145,44 @@
     - path: adjacent_fn_no_overcredit_out_summary.vcf
       contains:
         - "sc1\t300\t.\tA\tC"
-        - ":TP:1.000000:1:0:"
-        - ":FN:0.000000:"
+        - ":TP,TP:1.000000,1.000000:1,1:0,0:"
+        - ":FN,FN:0.000000,0.000000:"
       must_not_contain:
-        - ":TP:1.000000:2:"
-        - ":FP:"
+        - ":TP,TP:1.000000,1.000000:2,"
+        - ":FP"
+
+- name: test_summary-vcf_one-record-per-variant
+  # record_shapes: query and truth are identical, so every call is a gm TP and the record shape is
+  # all that is under test. A homozygous call is one record carrying two values per per-haplotype
+  # field, not two records; a CPX is split into an INS and a DEL at parse time and each half is one
+  # such record. A het-alt (1|2) is the exception: parsing splits it into two entries with
+  # different ALTs, which nothing rejoins, so it stays two co-located records, each reporting one
+  # value for its ALT allele and '.' for its reference allele.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/record_shapes_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/record_shapes_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "record_shapes_out_"'
+  files:
+    - path: record_shapes_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t4\t4\t0\t0"
+        - "INDEL\tNONE\t0\t6\t6\t0\t0"
+    - path: record_shapes_out_summary.vcf
+      contains:
+        # hom SNP, hom CPX (as INS then DEL), and hom DEL: one record each, two values per field
+        - "sc1\t200\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
+        - "sc1\t209\t.\tG\tGTT\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t209\t.\tGCAAGA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t220\t.\tCAACT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        # het-alt: two co-located records, each carrying '.' for its reference allele
+        - "sc1\t250\t.\tA\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1.000000,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
+        - "sc1\t250\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1.000000:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
+      must_not_contain:
+        # the pre-#103 shape: a homozygous call written once per haplotype
+        - "\t1|0:TP:"
+        - "\t0|1:TP:"
 
 # --- one-sided contigs: a contig called by only one callset (synthetic 2-contig reference) ---
 # Both scenarios share one pair of VCFs, swapped between the query and truth argument slots, so
@@ -179,8 +212,7 @@
     # truth-only direction below, where it used to be dropped
     - path: one_sided_contig_query_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|0:FP:"
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t0|1:FP:"
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
 
 - name: test_one-sided-contig_truth-only
   # The mirror of the case above: sc2 is called by the truth only. Superclustering used to
@@ -203,11 +235,10 @@
         - "sc2\t49\t1\tT\tC\t50.00\tSNP\tFN"
     # regression guard for #174: sc2 has no query call, which used to skip the whole contig in the
     # summary VCF and drop these two false negatives. The query sample is empty and the truth
-    # sample keeps its unswapped haplotypes, as there is no query phasing to swap against.
+    # sample reports its own 1|1 call, one FN per allele.
     - path: one_sided_contig_truth_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:FN:0.000000:.:.:.:50:0:0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:FN:0.000000:.:.:.:50:0:0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
 
 # --- variants at reference position 0 (synthetic sc1 reference) ---
 

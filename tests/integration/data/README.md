@@ -19,8 +19,9 @@ look for them, so a test run leaves this directory untouched.
 - `synthetic_2ctg.bed` — `sc1  0  400` and `sc2  0  100`, both contigs in full.
 
 Every variant `REF` allele below matches the reference at its 1-based position, and every variant
-is homozygous (`1/1`) except in the `contig_start_snp` and `contig_end_snp` scenarios, which are
-phased heterozygous (`1|0`). Summary counts are therefore per-haplotype (doubled, except in those
+is homozygous (`1/1`, or `1|1` in `record_shapes`) except in the `contig_start_snp` and
+`contig_end_snp` scenarios, which are phased heterozygous (`1|0`), and the one het-alt call
+`record_shapes` adds. Summary counts are therefore per-haplotype (doubled, except in those
 scenarios) and are listed as `TRUTH_TP / QUERY_TP / TRUTH_FN / QUERY_FP` from
 `*precision-recall-summary.tsv`.
 
@@ -75,6 +76,17 @@ Each single-contig scenario has `<name>_truth.vcf` and `<name>_query.vcf`.
   graph's trailing node holding no bases while its coordinate span claimed two. The `POS` 350 SNP is
   the mid-contig control, whose window fits inside the contig. SNP 2/2/0/0 (not doubled).
 
+### record_shapes — one summary-VCF record per variant
+
+- truth and query are identical, so every call is a gm TP and only the record shape is under test.
+- both: hom SNP 200 A>G, hom CPX 210 `CAAGA`>`TT`, hom deletion 220 `CAACT`>`C`, and a het-alt
+  SNP 250 A>C,G called `1|2`.
+- default `-ct`: each homozygous call is one record whose per-haplotype fields carry two values,
+  and the CPX is split into an INS and a DEL at parse time, each of which is one such record. The
+  het-alt is the exception: parsing splits it into two entries with different ALTs, which nothing
+  rejoins, so it stays two co-located records, each carrying one value for its ALT allele and `.`
+  for its reference allele. SNP 4/4/0/0, INDEL 6/6/0/0.
+
 ### one_sided_contig — a contig called by only one callset (#166, #174)
 
 This scenario uses `synthetic_2ctg.bed` and one pair of VCFs rather than a `_truth`/`_query` pair,
@@ -93,5 +105,5 @@ Both directions used to segfault while superclustering, so these pin that the ru
 that the one-sided contig's calls are classified and counted. Both also pin `*summary.vcf`: the
 truth-only direction is where `sc2`'s false negatives used to be dropped, because that output
 skipped any contig the query does not call on, and the query-only direction pins the mirror. With
-no query call on `sc2` there is no phase block or phase to report there, so its truth records
-carry the unswapped haplotypes with `PB=0` and `BS=.`.
+no query call on `sc2` there is no phase block or phase to report there, so its truth record
+reports `PB=0` and `BS=.`.

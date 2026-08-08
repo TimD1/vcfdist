@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <vector>
 #include <cmath>
+#include <cstdio>
 
 #include "htslib/vcf.h"
 
@@ -382,44 +383,83 @@ void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
 
 
 /**
+ * @brief Renders the GT a sample reports for one variant, as the caller itself genotyped it.
+ * @param[in] orig_gt The caller's own genotype, never vcfdist's recovered matched_gt
+ * @param[in] ploidy Variant ploidy
+ * @return "1" for a haploid call, otherwise the phased diploid pair
+ */
+static std::string display_gt(gt_t orig_gt, ploidy_t ploidy) {
+    return ploidy == PLOIDY_HAPLOID ? "1" : gt_strs[orig_gt];
+}
+
+
+/**
  * @brief Writes sample-specific FORMAT fields for one variant to output VCF.
+ *
+ * One record is written per variant rather than per haplotype, so the per-haplotype fields (BD, BC,
+ * RD, QD, BK, SG) are comma-separated lists holding one value per haplotype: two for a diploid
+ * record, one for a haploid one. GT is rendered from orig_gt, the caller's own claim, so a
+ * haplotype carrying the reference allele has no evaluation data and every per-haplotype field
+ * reports "." for it. The evaluation lanes are keyed by matched_gt's haplotypes, which
+ * matched_gt_is_swapped() reports may be the reverse of orig_gt's.
  * @param[in] out_fp Open file pointer to output VCF
  * @param[in] vi Variant index in this container
- * @param[in] hi Haplotype index (0 or 1)
- * @param[in] gt Genotype string (e.g., "0|1", "1|1")
  * @param[in] sc_idx Supercluster index for SC field
  * @param[in] phase_block Phase block index for PB field
  * @param[in] phase_switch True if phase switched at this position
  * @param[in] phase_flip True if phase flipped (error) at this position
  * @param[in] query If true, format as query sample; if false, as truth sample
  */
-void ctgVariants::print_var_sample(FILE* out_fp, int vi, hap_t hi, const std::string & gt,
-        int sc_idx, int phase_block, bool phase_switch, bool phase_flip, bool query /* = false */) {
+void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
+        bool phase_switch, bool phase_flip, bool query /* = false */) {
 
-    // get categorization
-    std::string errtype;
-    std::string match_type;
-    if (this->credit[hi][vi] == 1) {
-        errtype = "TP"; match_type = "gm";
-    } else if (this->credit[hi][vi] == 0) {
-        errtype = query ? "FP" : "FN"; match_type = ".";
-    } else if (this->credit[hi][vi] >= g.credit_threshold) {
-        errtype = "TP"; match_type = "lm";
-    } else {
-        errtype = query ? "FP" : "FN"; match_type = "lm";
+    // ploidy is the count of genotype alleles, so it is also how many haplotypes to report on
+    ploidy_t ploidy = this->ploidies[vi];
+    int haps = int(idx(ploidy));
+    const std::string gt = display_gt(this->orig_gts[vi], ploidy);
+
+    bool swap = this->matched_gt_is_swapped(vi);
+    std::string errtypes, credits, ref_eds, query_eds, match_types, sync_groups;
+    for (int hap_idx = 0; hap_idx < haps; hap_idx++) {
+        const std::string sep = hap_idx ? "," : "";
+        hap_t hi = hap_t(hap_idx);
+
+        // this haplotype carries the reference allele, so it was never evaluated
+        if (!this->var_on_hap(vi, hi)) {
+            errtypes += sep + "."; credits += sep + "."; ref_eds += sep + ".";
+            query_eds += sep + "."; match_types += sep + "."; sync_groups += sep + ".";
+            continue;
+        }
+
+        // the evaluation lanes are keyed by matched_gt's haplotypes, not orig_gt's
+        hap_t hi_matched = swap ? other_hap(hi) : hi;
+
+        // get categorization
+        if (this->credit[hi_matched][vi] == 1) {
+            errtypes += sep + "TP"; match_types += sep + "gm";
+        } else if (this->credit[hi_matched][vi] == 0) {
+            errtypes += sep + (query ? "FP" : "FN"); match_types += sep + ".";
+        } else if (this->credit[hi_matched][vi] >= g.credit_threshold) {
+            errtypes += sep + "TP"; match_types += sep + "lm";
+        } else {
+            errtypes += sep + (query ? "FP" : "FN"); match_types += sep + "lm";
+        }
+
+        credits += sep + std::to_string(this->credit[hi_matched][vi]);
+        ref_eds += sep + (this->ref_ed[hi_matched][vi] == 0 ? "." :
+                std::to_string(this->ref_ed[hi_matched][vi]));
+        query_eds += sep + (this->ref_ed[hi_matched][vi] == 0 ? "." :
+                std::to_string(this->query_ed[hi_matched][vi]));
+        sync_groups += sep + std::to_string(int(this->sync_group[hi_matched][vi]));
     }
 
-    fprintf(out_fp, "\t%s:%s:%f:%s:%s:%s:%d:%d:%d:%d:%d:%s:%s:%s:%s%s", gt.data(), errtype.data(), 
-            this->credit[hi][vi], 
-            this->ref_ed[hi][vi] == 0 ? "." : 
-                std::to_string(this->ref_ed[hi][vi]).data(),
-            this->ref_ed[hi][vi] == 0 ? "." : 
-                std::to_string(this->query_ed[hi][vi]).data(),
-            match_type.data(), int(this->var_quals[vi]), sc_idx, 
-            int(this->sync_group[hi][vi]), this->phase_sets[vi], phase_block,
-            query ? (phase_switch ? "1" : "0") : "." , 
+    fprintf(out_fp, "\t%s:%s:%s:%s:%s:%s:%d:%d:%s:%d:%d:%s:%s:%s:%s%s", gt.data(), errtypes.data(),
+            credits.data(), ref_eds.data(), query_eds.data(), match_types.data(),
+            int(this->var_quals[vi]), sc_idx, sync_groups.data(),
+            this->phase_sets[vi], phase_block,
+            query ? (phase_switch ? "1" : "0") : "." ,
             phase_strs[this->phases[vi]].data(),
-            query ? (phase_flip ? "1" : "0") : "." , 
+            query ? (phase_flip ? "1" : "0") : "." ,
             ac_strs[this->ac_errtype[vi]].data(),
             query ? "\n" : "");
 }
@@ -970,7 +1010,9 @@ void parse_variants(const std::string & vcf_fn,
 
             // add to haplotype-specific query info
             int rec_idx = n - 1; // 0-based ordinal of this record within the input VCF
-            uint8_t ploidy = uint8_t(std::abs(ngt));
+            // ngt is 1 or 2 by here: a polyploid record errored above, and a record whose VCF
+            // declares no GT tag reports -1 and is treated as the monoploid call it is assumed to be
+            ploidy_t ploidy = ploidy_t(std::abs(ngt));
             // both CPX halves derive from the same original allele, so they share alt_idx
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = 0, // INS

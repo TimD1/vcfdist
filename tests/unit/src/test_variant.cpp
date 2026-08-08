@@ -100,7 +100,7 @@ TEST(AddVar, AllFields) {
     // add_var()'s body cannot pass
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
             .alt = "GT", .orig_gt = GT_ALT_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT_REF,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .supercluster = 7, .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -119,7 +119,7 @@ TEST(AddVar, AllFields) {
     EXPECT_EQ(33, vars.phase_sets[0]);
     EXPECT_EQ(12, vars.rec_idxs[0]);
     EXPECT_EQ(3, vars.alt_idxs[0]);
-    EXPECT_EQ(2, vars.ploidies[0]);
+    EXPECT_EQ(PLOIDY_DIPLOID, vars.ploidies[0]);
     EXPECT_EQ(7, vars.superclusters[0]);
     EXPECT_EQ(GT_ALT_REF, vars.matched_gts[0]);
     EXPECT_EQ(ERRTYPE_FN, vars.errtypes[HAP1][0]);
@@ -313,7 +313,7 @@ TEST(AddVar, OptionalFieldDefaults) {
     ASSERT_EQ(1, vars.n);
     EXPECT_EQ(-1, vars.rec_idxs[0]);
     EXPECT_EQ(-1, vars.alt_idxs[0]);
-    EXPECT_EQ(0, vars.ploidies[0]);
+    EXPECT_EQ(PLOIDY_DIPLOID, vars.ploidies[0]);
     EXPECT_EQ(-1, vars.superclusters[0]);
     EXPECT_EQ(GT_REF_REF, vars.matched_gts[0]);
     for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
@@ -337,7 +337,7 @@ TEST(GetVar, RoundTripsEveryField) {
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
             .alt = "GT", .orig_gt = GT_ALT_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT_REF,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .supercluster = 7, .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -356,7 +356,7 @@ TEST(GetVar, RoundTripsEveryField) {
     EXPECT_EQ(33, var.phase_set);
     EXPECT_EQ(12, var.rec_idx);
     EXPECT_EQ(3, var.alt_idx);
-    EXPECT_EQ(2, var.ploidy);
+    EXPECT_EQ(PLOIDY_DIPLOID, var.ploidy);
     EXPECT_EQ(7, var.supercluster);
     EXPECT_EQ(GT_ALT_REF, var.matched_gt);
     EXPECT_EQ(ERRTYPE_FN, var.hap[HAP1].errtype);
@@ -381,7 +381,7 @@ TEST(GetVar, FeedsAddVarWithoutLoss) {
     ctgVariants src("chr20");
     src.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_DEL, .loc = BED_BORDER, .ref = "AC",
             .alt = "", .orig_gt = GT_REF_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = 2, .supercluster = 7, .matched_gt = GT_ALT_REF,
+            .rec_idx = 12, .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .supercluster = 7, .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -492,13 +492,13 @@ TEST_F(ProvenanceVectors, HomozygousSnp) {
     EXPECT_EQ(10, hap1->poss[0]);
     EXPECT_EQ(REC_HOM_SNP, hap1->rec_idxs[0]);
     EXPECT_EQ(1, hap1->alt_idxs[0]);
-    EXPECT_EQ(2, hap1->ploidies[0]);
+    EXPECT_EQ(PLOIDY_DIPLOID, hap1->ploidies[0]);
 
     ASSERT_LE(1, hap2->n);
     EXPECT_EQ(10, hap2->poss[0]);
     EXPECT_EQ(REC_HOM_SNP, hap2->rec_idxs[0]);
     EXPECT_EQ(1, hap2->alt_idxs[0]);
-    EXPECT_EQ(2, hap2->ploidies[0]);
+    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[0]);
 }
 
 // A 0|1 record yields a single HAP2 variant, carrying record 1's ordinal.
@@ -507,7 +507,7 @@ TEST_F(ProvenanceVectors, HeterozygousSnp) {
     EXPECT_EQ(20, hap2->poss[1]);
     EXPECT_EQ(REC_HET_SNP, hap2->rec_idxs[1]);
     EXPECT_EQ(1, hap2->alt_idxs[1]);
-    EXPECT_EQ(2, hap2->ploidies[1]);
+    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[1]);
 }
 
 // A 1|2 record splits across haplotypes, each half keeping its own original ALT ordinal.
@@ -517,14 +517,14 @@ TEST_F(ProvenanceVectors, MultiallelicRecord) {
     EXPECT_EQ("G", hap1->alts[1]);
     EXPECT_EQ(REC_MULTIALLIC, hap1->rec_idxs[1]);
     EXPECT_EQ(1, hap1->alt_idxs[1]);
-    EXPECT_EQ(2, hap1->ploidies[1]);
+    EXPECT_EQ(PLOIDY_DIPLOID, hap1->ploidies[1]);
 
     ASSERT_LE(3, hap2->n);
     EXPECT_EQ(30, hap2->poss[2]);
     EXPECT_EQ("T", hap2->alts[2]);
     EXPECT_EQ(REC_MULTIALLIC, hap2->rec_idxs[2]);
     EXPECT_EQ(2, hap2->alt_idxs[2]);
-    EXPECT_EQ(2, hap2->ploidies[2]);
+    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[2]);
 }
 
 // A single-allele record records ploidy 1, distinct from the diploid records above.
@@ -533,7 +533,7 @@ TEST_F(ProvenanceVectors, HaploidRecord) {
     EXPECT_EQ(10, hapx->poss[0]);
     EXPECT_EQ(REC_HAPLOID, hapx->rec_idxs[0]);
     EXPECT_EQ(1, hapx->alt_idxs[0]);
-    EXPECT_EQ(1, hapx->ploidies[0]);
+    EXPECT_EQ(PLOIDY_HAPLOID, hapx->ploidies[0]);
 }
 
 // The INS and DEL halves of a CPX allele derive from one original allele, so they must agree on
@@ -554,7 +554,7 @@ TEST_F(ProvenanceVectors, ComplexVariantHalvesShareAltIdx) {
     EXPECT_EQ(hap2->alt_idxs[ins], hap2->alt_idxs[del]);
     EXPECT_EQ(REC_CPX, hap2->rec_idxs[ins]);
     EXPECT_EQ(hap2->rec_idxs[ins], hap2->rec_idxs[del]);
-    EXPECT_EQ(2, hap2->ploidies[ins]);
+    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[ins]);
     EXPECT_EQ(hap2->ploidies[ins], hap2->ploidies[del]);
 }
 
@@ -568,7 +568,7 @@ TEST(ProvenanceVectorDefaults, UnknownSentinels) {
     ASSERT_EQ(1, vars->n);
     EXPECT_EQ(-1, vars->rec_idxs[0]);
     EXPECT_EQ(-1, vars->alt_idxs[0]);
-    EXPECT_EQ(0, vars->ploidies[0]);
+    EXPECT_EQ(PLOIDY_DIPLOID, vars->ploidies[0]);
 }
 
 /* get_vartype ************************************************************************************/
@@ -1419,7 +1419,7 @@ TEST_F(ParseVariants, NoGtInHeaderWarnsAndAssumesMonoploid) {
     EXPECT_TRUE(logged(r, "'GT' tag not defined in QUERY VCF header, assuming monoploid"));
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
-    EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
+    EXPECT_EQ(PLOIDY_HAPLOID, hap_vars(r, HAP1)->ploidies[0]);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_HAP_ALT, 1)));
     EXPECT_EQ(std::vector< std::set<int> >({{1}}), r.vars->observed_ploidies);
@@ -1462,7 +1462,7 @@ TEST_F(ParseVariants, HaploidAltKeptOnHap1) {
     ASSERT_EQ(1, hap_vars(r, HAP1)->n);
     EXPECT_EQ(0, hap_vars(r, HAP2)->n);
     EXPECT_EQ(GT_ALT_REF, hap_vars(r, HAP1)->orig_gts[0]);
-    EXPECT_EQ(1, hap_vars(r, HAP1)->ploidies[0]);
+    EXPECT_EQ(PLOIDY_HAPLOID, hap_vars(r, HAP1)->ploidies[0]);
     EXPECT_TRUE(logged(r, gt_hist_line(GT_PARSE_HAP_ALT, 1)));
 }
 

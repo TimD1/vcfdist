@@ -11,25 +11,18 @@
 #include "globals.h"
 
 
-/**
- * @brief Renders one haplotype's GT, bare for a haploid record and phased for a diploid one.
- * @param[in] ploidy Ploidy of the record being written (0 = unknown, treated as diploid)
- * @param[in] hap Haplotype the alternate allele sits on
- * @return "1" when haploid, otherwise "0|1" or "1|0"
- */
-static std::string hap_gt(uint8_t ploidy, hap_t hap) {
-    return ploidy == 1 ? "1" : (hap == HAP2 ? "0|1" : "1|0");
-}
-
-
 /**************************************************************************************************/
 
 /**
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
  * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
+ * @note One record is written per variant, each sample's GT reporting that callset's own claim; the
+ *       per-haplotype fields are lists carrying one value per GT allele
+ * @note A het-alt (1|2) source record stays two co-located records, since parsing splits it into
+ *       two entries whose alleles normalize independently
  * @note Contigs called by only one callset are included; a contig with no query variants has no
- *       phase block to read, so its truth records are written unswapped with PB and BS defaulted
+ *       phase block to read, so its truth records are written with PB and BS defaulted
  * @throws ERROR if the output summary VCF file cannot be opened for writing
  * @throws ERROR if neither callset is selected next while variants remain
  */
@@ -53,15 +46,21 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 this->contigs[i].data(), this->lengths[i]);
     }
     fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
+    // The per-haplotype fields carry one value per allele of the sample's GT, which is what VCF
+    // 4.4's Number=P declares. BCF_VL_P only reaches htslib in 1.23, so a consumer on any older
+    // bcftools or pysam would report a cardinality error; Number=. produces byte-identical records
+    // and merely gives up the declared cardinality, so the count and order are stated here instead.
+    const std::string per_allele = " One value per allele of this sample's GT, in GT allele order, "
+            "'.' for a reference allele.";
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=1,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=1,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=RD,Number=1,Type=Integer,Description=\"Reference edit Distance from truth within current sync group\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=QD,Number=1,Type=Integer,Description=\"Query edit Distance from truth within current sync group\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=1,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.')\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance).%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group.%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group.%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=.,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.').%s\">\n", per_allele.data());
     fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster (index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=1,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment)\">\n");
+    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=.,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment).%s\">\n", per_allele.data());
     fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Set identifier (input, per-variant)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (output, per-supercluster, index in contig)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">\n");
@@ -150,72 +149,27 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             /* } */
 
             if (next[QUERY]) {
-                if (next[TRUTH]) {
-                    if (vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
-                        vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]]) { // query matches truth
-                        // print data for each haplotype
-                        for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                            bool swap = vars[QUERY]->matched_gt_is_swapped(ptrs[QUERY]);
-                            bool to_other = swap ^ (block_state == PHASE_SWAP) ^ flip_error;
-                            hap_t thi = to_other ? other_hap(qhi) : qhi;
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true) || 
-                                    vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
-                                vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
-                                if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) { // print truth
-                                    vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
-                                        hap_gt(vars[TRUTH]->ploidies[ptrs[TRUTH]], thi),
-                                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
-                                } else {
-                                    vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                                }
-                                if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) { // print query
-                                    vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
-                                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
-                                } else {
-                                    vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
-                                }
-                            }
-                        }
-                        ptrs[QUERY]++; ptrs[TRUTH]++;
-                    } else { // positional tie, diff vars, just print query
-                        for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                            bool swap = vars[QUERY]->matched_gt_is_swapped(ptrs[QUERY]);
-                            if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
-                                vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
-                                vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                        hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
-                                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
-                            }
-                        }
-                        ptrs[QUERY]++;
-                    }
-                } else { // query is next
-                    for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                        bool swap = vars[QUERY]->matched_gt_is_swapped(ptrs[QUERY]);
-                        if (vars[QUERY]->var_on_hap(ptrs[QUERY], qhi, true)) {
-                            vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
-                            vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                            vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY], qhi,
-                                    hap_gt(vars[QUERY]->ploidies[ptrs[QUERY]], swap ? other_hap(qhi) : qhi),
-                                    sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
-                        }
-                    }
-                    ptrs[QUERY]++;
+                // a positional tie between differing alleles is not a match: the two are written as
+                // co-located records, the truth one on the next pass
+                bool matched = next[TRUTH] &&
+                        vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
+                        vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]];
+                vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
+                if (matched) {
+                    vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH],
+                            sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
+                } else {
+                    vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
                 }
+                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY],
+                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
+                ptrs[QUERY]++;
+                if (matched) ptrs[TRUTH]++;
             } else if (next[TRUTH]) {
-                for (hap_t qhi : EnumRange<hap_t, HAP_SLOTS>{}) {
-                    bool to_other = (block_state == PHASE_SWAP) ^ flip_error;
-                    hap_t thi = to_other ? other_hap(qhi) : qhi;
-                    if (vars[TRUTH]->var_on_hap(ptrs[TRUTH], thi)) {
-                        vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
-                        vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH], thi,
-                                hap_gt(vars[TRUTH]->ploidies[ptrs[TRUTH]], thi),
-                                sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
-                        vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
-                    }
-                }
+                vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
+                vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH],
+                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
+                vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
                 ptrs[TRUTH]++;
             } else {
                 ERROR("No variants are selected next.");
