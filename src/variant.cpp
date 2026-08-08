@@ -385,7 +385,7 @@ void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
 /**
  * @brief Renders the GT a sample reports for one variant, as the caller itself genotyped it.
  * @param[in] orig_gt The caller's own genotype, never vcfdist's recovered matched_gt
- * @param[in] ploidy Haplotypes the variant was called on
+ * @param[in] ploidy Variant ploidy
  * @return "1" for a haploid call, otherwise the phased diploid pair
  */
 static std::string display_gt(gt_t orig_gt, ploidy_t ploidy) {
@@ -397,11 +397,11 @@ static std::string display_gt(gt_t orig_gt, ploidy_t ploidy) {
  * @brief Writes sample-specific FORMAT fields for one variant to output VCF.
  *
  * One record is written per variant rather than per haplotype, so the per-haplotype fields (BD, BC,
- * RD, QD, BK, SG) are comma-separated lists carrying one value per haplotype the variant was called
- * on. GT is rendered from orig_gt, the caller's own claim, so a haplotype carrying the reference
- * allele has no evaluation data and every per-haplotype field reports "." for it. The evaluation
- * lanes are keyed by matched_gt's haplotypes, which matched_gt_is_swapped() reports may be the
- * reverse of orig_gt's.
+ * RD, QD, BK, SG) are comma-separated lists holding one value per haplotype: two for a diploid
+ * record, one for a haploid one. GT is rendered from orig_gt, the caller's own claim, so a
+ * haplotype carrying the reference allele has no evaluation data and every per-haplotype field
+ * reports "." for it. The evaluation lanes are keyed by matched_gt's haplotypes, which
+ * matched_gt_is_swapped() reports may be the reverse of orig_gt's.
  * @param[in] out_fp Open file pointer to output VCF
  * @param[in] vi Variant index in this container
  * @param[in] sc_idx Supercluster index for SC field
@@ -413,8 +413,9 @@ static std::string display_gt(gt_t orig_gt, ploidy_t ploidy) {
 void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
         bool phase_switch, bool phase_flip, bool query /* = false */) {
 
+    // ploidy is the count of genotype alleles, so it is also how many haplotypes to report on
     ploidy_t ploidy = this->ploidies[vi];
-    int haps = ploidy == PLOIDY_HAPLOID ? 1 : HAPS;
+    int haps = int(idx(ploidy));
     const std::string gt = display_gt(this->orig_gts[vi], ploidy);
 
     bool swap = this->matched_gt_is_swapped(vi);
@@ -431,25 +432,25 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_b
         }
 
         // the evaluation lanes are keyed by matched_gt's haplotypes, not orig_gt's
-        hap_t hi_resolved = swap ? other_hap(hi) : hi;
+        hap_t hi_matched = swap ? other_hap(hi) : hi;
 
         // get categorization
-        if (this->credit[hi_resolved][vi] == 1) {
+        if (this->credit[hi_matched][vi] == 1) {
             errtypes += sep + "TP"; match_types += sep + "gm";
-        } else if (this->credit[hi_resolved][vi] == 0) {
+        } else if (this->credit[hi_matched][vi] == 0) {
             errtypes += sep + (query ? "FP" : "FN"); match_types += sep + ".";
-        } else if (this->credit[hi_resolved][vi] >= g.credit_threshold) {
+        } else if (this->credit[hi_matched][vi] >= g.credit_threshold) {
             errtypes += sep + "TP"; match_types += sep + "lm";
         } else {
             errtypes += sep + (query ? "FP" : "FN"); match_types += sep + "lm";
         }
 
-        credits += sep + std::to_string(this->credit[hi_resolved][vi]);
-        ref_eds += sep + (this->ref_ed[hi_resolved][vi] == 0 ? "." :
-                std::to_string(this->ref_ed[hi_resolved][vi]));
-        query_eds += sep + (this->ref_ed[hi_resolved][vi] == 0 ? "." :
-                std::to_string(this->query_ed[hi_resolved][vi]));
-        sync_groups += sep + std::to_string(int(this->sync_group[hi_resolved][vi]));
+        credits += sep + std::to_string(this->credit[hi_matched][vi]);
+        ref_eds += sep + (this->ref_ed[hi_matched][vi] == 0 ? "." :
+                std::to_string(this->ref_ed[hi_matched][vi]));
+        query_eds += sep + (this->ref_ed[hi_matched][vi] == 0 ? "." :
+                std::to_string(this->query_ed[hi_matched][vi]));
+        sync_groups += sep + std::to_string(int(this->sync_group[hi_matched][vi]));
     }
 
     fprintf(out_fp, "\t%s:%s:%s:%s:%s:%s:%d:%d:%s:%d:%d:%s:%s:%s:%s%s", gt.data(), errtypes.data(),

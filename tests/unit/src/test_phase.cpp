@@ -1170,7 +1170,7 @@ TEST(PhaseblockDataCtor, BoundariesIgnoreUnphasedMiddle) {
  * A haploid record parses to GT_ALT_REF on HAP1 alone, exactly as a heterozygous diploid call
  * does, so the ploidy is the only thing distinguishing the two by the time the writer sees them.
  * matched_gts match orig_gts so that every variant classifies as PHASE_ORIG.
- * @param[in] ploidies Haplotypes each variant was called on, in position order
+ * @param[in] ploidies Ploidy of each variant, in position order
  * @param[in] ctg Contig the variants sit on
  * @return Query variants with orig_gts, matched_gts, phase_sets, and ploidies set
  */
@@ -1319,7 +1319,7 @@ std::vector<std::string> sole_query_sample(const std::string & vcf, int vcf_pos 
  * @param[in] type Variant type (TYPE_SUB, TYPE_INS, or TYPE_DEL)
  * @param[in] orig_gt Original genotype, reported in the record's GT column
  * @param[in] matched_gt Calculated genotype, which indexes the per-haplotype evaluation lanes
- * @param[in] ploidy Haplotypes the variant was called on
+ * @param[in] ploidy Variant ploidy
  * @return Query variants holding the single described variant
  */
 std::shared_ptr<ctgVariants> make_shape_qvars(edittype_t type, gt_t orig_gt, gt_t matched_gt,
