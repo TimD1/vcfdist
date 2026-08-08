@@ -10,11 +10,12 @@
 
 #include "gtest/gtest.h"
 
-#include "htslib/vcf.h"
-
 #include "../../../src/defs.h"
 #include "../../../src/globals.h"
 #include "../../../src/phase.h"
+// htslib's headers are reached through variant.h: the build copies them into src/, so only a file
+// in that directory resolves a bare "htslib/vcf.h"
+#include "../../../src/variant.h"
 #include "test_helpers.h"
 
 namespace {
