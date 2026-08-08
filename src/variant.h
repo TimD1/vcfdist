@@ -55,7 +55,7 @@ struct var_fields {
     int phase_set;                ///< integer representing variant phase set (0 = missing)
     int rec_idx = -1;             ///< source VCF record ordinal (0-based, -1 = unknown)
     int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
-    uint8_t ploidy = 0;           ///< variant ploidy from std::abs(ngt) (0 = unknown)
+    ploidy_t ploidy = PLOIDY_DIPLOID; ///< haplotypes the variant was called on, from std::abs(ngt)
     int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
     gt_t matched_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
     EnumArray<hap_t, hap_fields, HAP_SLOTS> hap = {}; ///< per-haplotype results, indexed by HAP1 and HAP2
@@ -118,7 +118,7 @@ public:
     std::vector<int> phase_sets;    ///< integer representing variant phase set (0 = missing)
     std::vector<int> rec_idxs;      ///< source VCF record ordinal (0-based, -1 = unknown)
     std::vector<int> alt_idxs;      ///< original ALT ordinal (1-based, -1 = unknown)
-    std::vector<uint8_t> ploidies;  ///< variant ploidy from std::abs(ngt) (0 = unknown)
+    std::vector<ploidy_t> ploidies; ///< haplotypes each variant was called on, from std::abs(ngt)
     std::vector<int> superclusters; ///< initially -1, set during superclustering
     int n = 0;                      ///< Total number of variants
 

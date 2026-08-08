@@ -119,6 +119,14 @@ static_assert(HAP_SLOTS == std::size_t(HAPS), "hap_t slots must match HAPS");
 /** @brief Returns the other haplotype of the pair. */
 constexpr hap_t other_hap(hap_t h) { return h == HAP1 ? HAP2 : HAP1; }
 
+/** @brief How many haplotypes a variant's genotype was called on. */
+enum class ploidy_t : int8_t {
+    PLOIDY_HAPLOID = 1, ///< One haplotype (a monoploid call, or a record whose VCF declares no GT)
+    PLOIDY_DIPLOID = 2, ///< Two haplotypes
+};
+constexpr ploidy_t PLOIDY_HAPLOID = ploidy_t::PLOIDY_HAPLOID;
+constexpr ploidy_t PLOIDY_DIPLOID = ploidy_t::PLOIDY_DIPLOID;
+
 /** @brief Location of a variant relative to the BED regions. */
 enum class bedloc_t : int8_t {
     BED_OUTSIDE = 0, ///< Variant is fully outside all BED regions

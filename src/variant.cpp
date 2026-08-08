@@ -383,14 +383,13 @@ void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
 
 
 /**
- * @brief Renders a credit exactly as printf's "%f" would, for embedding in a comma-separated list.
- * @param[in] credit Credit on the interval [0,1]
- * @return The credit with six digits after the decimal point
+ * @brief Renders the GT a sample reports for one variant, as the caller itself genotyped it.
+ * @param[in] orig_gt The caller's own genotype, never vcfdist's recovered matched_gt
+ * @param[in] ploidy Haplotypes the variant was called on
+ * @return "1" for a haploid call, otherwise the phased diploid pair
  */
-static std::string credit_str(float credit) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%f", credit);
-    return std::string(buf);
+static std::string display_gt(gt_t orig_gt, ploidy_t ploidy) {
+    return ploidy == PLOIDY_HAPLOID ? "1" : gt_strs[orig_gt];
 }
 
 
@@ -398,10 +397,11 @@ static std::string credit_str(float credit) {
  * @brief Writes sample-specific FORMAT fields for one variant to output VCF.
  *
  * One record is written per variant rather than per haplotype, so the per-haplotype fields (BD, BC,
- * RD, QD, BK, SG) are comma-separated lists carrying one value per allele of the emitted GT. GT is
- * rendered from orig_gt, the caller's own claim, so a reference allele has no evaluation data and
- * every per-haplotype field reports "." for it. The evaluation lanes are indexed by calc_gt's
- * haplotypes, which matched_gt_is_swapped() reports may be the reverse of orig_gt's.
+ * RD, QD, BK, SG) are comma-separated lists carrying one value per haplotype the variant was called
+ * on. GT is rendered from orig_gt, the caller's own claim, so a haplotype carrying the reference
+ * allele has no evaluation data and every per-haplotype field reports "." for it. The evaluation
+ * lanes are keyed by matched_gt's haplotypes, which matched_gt_is_swapped() reports may be the
+ * reverse of orig_gt's.
  * @param[in] out_fp Open file pointer to output VCF
  * @param[in] vi Variant index in this container
  * @param[in] sc_idx Supercluster index for SC field
@@ -413,41 +413,43 @@ static std::string credit_str(float credit) {
 void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
         bool phase_switch, bool phase_flip, bool query /* = false */) {
 
-    // a haploid record carries one bare allele; an unknown ploidy (0) is rendered as diploid
-    int alleles = this->ploidies[vi] == 1 ? 1 : HAPS;
-    const std::string gt = alleles == 1 ? "1" : gt_strs[this->orig_gts[vi]];
+    ploidy_t ploidy = this->ploidies[vi];
+    int haps = ploidy == PLOIDY_HAPLOID ? 1 : HAPS;
+    const std::string gt = display_gt(this->orig_gts[vi], ploidy);
 
     bool swap = this->matched_gt_is_swapped(vi);
     std::string errtypes, credits, ref_eds, query_eds, match_types, sync_groups;
-    for (int ai = 0; ai < alleles; ai++) {
-        const std::string sep = ai ? "," : "";
-        hap_t allele = hap_t(ai);
+    for (int hap_idx = 0; hap_idx < haps; hap_idx++) {
+        const std::string sep = hap_idx ? "," : "";
+        hap_t hi = hap_t(hap_idx);
 
-        // a reference allele was never evaluated, so it has no per-haplotype data to report
-        if (!this->var_on_hap(vi, allele)) {
+        // this haplotype carries the reference allele, so it was never evaluated
+        if (!this->var_on_hap(vi, hi)) {
             errtypes += sep + "."; credits += sep + "."; ref_eds += sep + ".";
             query_eds += sep + "."; match_types += sep + "."; sync_groups += sep + ".";
             continue;
         }
 
+        // the evaluation lanes are keyed by matched_gt's haplotypes, not orig_gt's
+        hap_t hi_resolved = swap ? other_hap(hi) : hi;
+
         // get categorization
-        hap_t hi = swap ? other_hap(allele) : allele;
-        if (this->credit[hi][vi] == 1) {
+        if (this->credit[hi_resolved][vi] == 1) {
             errtypes += sep + "TP"; match_types += sep + "gm";
-        } else if (this->credit[hi][vi] == 0) {
+        } else if (this->credit[hi_resolved][vi] == 0) {
             errtypes += sep + (query ? "FP" : "FN"); match_types += sep + ".";
-        } else if (this->credit[hi][vi] >= g.credit_threshold) {
+        } else if (this->credit[hi_resolved][vi] >= g.credit_threshold) {
             errtypes += sep + "TP"; match_types += sep + "lm";
         } else {
             errtypes += sep + (query ? "FP" : "FN"); match_types += sep + "lm";
         }
 
-        credits += sep + credit_str(this->credit[hi][vi]);
-        ref_eds += sep + (this->ref_ed[hi][vi] == 0 ? "." :
-                std::to_string(this->ref_ed[hi][vi]));
-        query_eds += sep + (this->ref_ed[hi][vi] == 0 ? "." :
-                std::to_string(this->query_ed[hi][vi]));
-        sync_groups += sep + std::to_string(int(this->sync_group[hi][vi]));
+        credits += sep + std::to_string(this->credit[hi_resolved][vi]);
+        ref_eds += sep + (this->ref_ed[hi_resolved][vi] == 0 ? "." :
+                std::to_string(this->ref_ed[hi_resolved][vi]));
+        query_eds += sep + (this->ref_ed[hi_resolved][vi] == 0 ? "." :
+                std::to_string(this->query_ed[hi_resolved][vi]));
+        sync_groups += sep + std::to_string(int(this->sync_group[hi_resolved][vi]));
     }
 
     fprintf(out_fp, "\t%s:%s:%s:%s:%s:%s:%d:%d:%s:%d:%d:%s:%s:%s:%s%s", gt.data(), errtypes.data(),
@@ -1007,7 +1009,9 @@ void parse_variants(const std::string & vcf_fn,
 
             // add to haplotype-specific query info
             int rec_idx = n - 1; // 0-based ordinal of this record within the input VCF
-            uint8_t ploidy = uint8_t(std::abs(ngt));
+            // ngt is 1 or 2 by here: a polyploid record errored above, and a record whose VCF
+            // declares no GT tag reports -1 and is treated as the monoploid call it is assumed to be
+            ploidy_t ploidy = ploidy_t(std::abs(ngt));
             // both CPX halves derive from the same original allele, so they share alt_idx
             if (type == TYPE_CPX) { // split CPX into INS+DEL
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = 0, // INS

@@ -313,7 +313,7 @@ struct var_desc {
     bedloc_t loc = BED_INSIDE; ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
     int rec_idx = -1;          ///< Source VCF record ordinal, 0-based (-1 = unknown)
     int alt_idx = -1;          ///< Original ALT ordinal, 1-based (-1 = unknown)
-    uint8_t ploidy = 0;        ///< Variant ploidy from the VCF genotype (0 = unknown)
+    ploidy_t ploidy = PLOIDY_DIPLOID; ///< Haplotypes the variant was called on
 };
 
 /** @brief Builds a ctgVariants container holding the described variants, in the given order. */

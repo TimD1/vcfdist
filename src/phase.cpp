@@ -50,17 +50,17 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     // 4.4's Number=P declares. BCF_VL_P only reaches htslib in 1.23, so a consumer on any older
     // bcftools or pysam would report a cardinality error; Number=. produces byte-identical records
     // and merely gives up the declared cardinality, so the count and order are stated here instead.
-    const char* per_allele = " One value per allele of this sample's GT, in GT allele order, "
+    const std::string per_allele = " One value per allele of this sample's GT, in GT allele order, "
             "'.' for a reference allele.";
     fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).%s\">\n", per_allele);
-    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance).%s\">\n", per_allele);
-    fprintf(out_vcf, "##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group.%s\">\n", per_allele);
-    fprintf(out_vcf, "##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group.%s\">\n", per_allele);
-    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=.,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.').%s\">\n", per_allele);
+    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance).%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group.%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group.%s\">\n", per_allele.data());
+    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=.,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.').%s\">\n", per_allele.data());
     fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster (index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=.,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment).%s\">\n", per_allele);
+    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=.,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment).%s\">\n", per_allele.data());
     fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Set identifier (input, per-variant)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (output, per-supercluster, index in contig)\">\n");
     fprintf(out_vcf, "##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">\n");

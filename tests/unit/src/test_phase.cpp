@@ -1170,11 +1170,11 @@ TEST(PhaseblockDataCtor, BoundariesIgnoreUnphasedMiddle) {
  * A haploid record parses to GT_ALT_REF on HAP1 alone, exactly as a heterozygous diploid call
  * does, so the ploidy is the only thing distinguishing the two by the time the writer sees them.
  * matched_gts match orig_gts so that every variant classifies as PHASE_ORIG.
- * @param[in] ploidies Ploidy of each variant, in position order
+ * @param[in] ploidies Haplotypes each variant was called on, in position order
  * @param[in] ctg Contig the variants sit on
  * @return Query variants with orig_gts, matched_gts, phase_sets, and ploidies set
  */
-std::shared_ptr<ctgVariants> make_ploidy_qvars(const std::vector<uint8_t> & ploidies,
+std::shared_ptr<ctgVariants> make_ploidy_qvars(const std::vector<ploidy_t> & ploidies,
         const std::string & ctg = CTG) {
     std::vector<var_desc> descs;
     for (size_t i = 0; i < ploidies.size(); i++) {
@@ -1225,14 +1225,14 @@ std::string query_gt(const std::string & vcf, int vcf_pos) {
 TEST(WriteSummaryVcf, HaploidVariantRendersBareAllele) {
     GlobalsGuard guard;
     TempDir dir;
-    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({1}));
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({PLOIDY_HAPLOID}));
     EXPECT_EQ("1", query_gt(summary_vcf(dir, *result.data), 1));
 }
 
 TEST(WriteSummaryVcf, DiploidVariantRendersPhasedPair) {
     GlobalsGuard guard;
     TempDir dir;
-    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({2}));
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({PLOIDY_DIPLOID}));
     EXPECT_EQ("1|0", query_gt(summary_vcf(dir, *result.data), 1));
 }
 
@@ -1242,7 +1242,7 @@ TEST(WriteSummaryVcf, DiploidVariantRendersPhasedPair) {
 TEST(WriteSummaryVcf, MixedPloidyHaploidFirst) {
     GlobalsGuard guard;
     TempDir dir;
-    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({1, 2}));
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({PLOIDY_HAPLOID, PLOIDY_DIPLOID}));
     std::string vcf = summary_vcf(dir, *result.data);
     EXPECT_EQ("1", query_gt(vcf, 1));
     EXPECT_EQ("1|0", query_gt(vcf, SPACING + 1));
@@ -1251,7 +1251,7 @@ TEST(WriteSummaryVcf, MixedPloidyHaploidFirst) {
 TEST(WriteSummaryVcf, MixedPloidyDiploidFirst) {
     GlobalsGuard guard;
     TempDir dir;
-    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({2, 1}));
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({PLOIDY_DIPLOID, PLOIDY_HAPLOID}));
     std::string vcf = summary_vcf(dir, *result.data);
     EXPECT_EQ("1|0", query_gt(vcf, 1));
     EXPECT_EQ("1", query_gt(vcf, SPACING + 1));
@@ -1261,7 +1261,7 @@ TEST(WriteSummaryVcf, MixedPloidyDiploidFirst) {
 TEST(WriteSummaryVcf, ContigLineOmitsPloidy) {
     GlobalsGuard guard;
     TempDir dir;
-    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({2}));
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({PLOIDY_DIPLOID}));
     std::string vcf = summary_vcf(dir, *result.data);
     EXPECT_NE(std::string::npos, vcf.find("##contig=<ID=chr1,length=604>")) << vcf;
     EXPECT_EQ(std::string::npos, vcf.find("ploidy=")) << vcf;
@@ -1319,11 +1319,11 @@ std::vector<std::string> sole_query_sample(const std::string & vcf, int vcf_pos 
  * @param[in] type Variant type (TYPE_SUB, TYPE_INS, or TYPE_DEL)
  * @param[in] orig_gt Original genotype, reported in the record's GT column
  * @param[in] matched_gt Calculated genotype, which indexes the per-haplotype evaluation lanes
- * @param[in] ploidy Variant ploidy (0 = unknown, treated as diploid)
+ * @param[in] ploidy Haplotypes the variant was called on
  * @return Query variants holding the single described variant
  */
 std::shared_ptr<ctgVariants> make_shape_qvars(edittype_t type, gt_t orig_gt, gt_t matched_gt,
-        uint8_t ploidy = 2) {
+        ploidy_t ploidy = PLOIDY_DIPLOID) {
     var_desc desc;
     desc.pos = SPACING;
     desc.rlen = type == TYPE_INS ? 0 : 1;
@@ -1409,7 +1409,7 @@ TEST(WriteSummaryVcf, HaploidRecordCarriesOneValue) {
     GlobalsGuard guard;
     TempDir dir;
     std::shared_ptr<ctgVariants> qvars =
-            make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF, 1);
+            make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF, PLOIDY_HAPLOID);
     set_hap_data(qvars, HAP1, 0, ERRTYPE_TP, 2, 60, 5, 0, 1.0);
 
     std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
@@ -1470,7 +1470,7 @@ TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
         desc.alt = alt;
         desc.gt = alt == "C" ? GT_ALT_REF : GT_REF_ALT;
         desc.phase_set = 1;
-        desc.ploidy = 2;
+        desc.ploidy = PLOIDY_DIPLOID;
         descs.push_back(desc);
     }
     std::shared_ptr<ctgVariants> qvars = make_ctgVariants(CTG, descs);
