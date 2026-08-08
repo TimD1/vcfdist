@@ -55,7 +55,7 @@ EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs =
  *       -ci/--citation, none of which takes a value; each prints and exits 0. Evaluation
  *       (query.vcf, truth.vcf, ref.fasta first) accepts every other flag, each taking exactly
  *       one following value: input/output (-b, -v, -p), variant filtering (-f, -l, -sv, -q,
- *       -mq), clustering (-s), precision-recall (-ct), resources (-t, -r).
+ *       -mq), clustering (-sc), precision-recall (-ct), resources (-t, -r).
  * @throws Errors on invalid file paths, out-of-range parameters, format errors, or an
  *         informational flag used alongside the mandatory arguments.
  */
@@ -323,10 +323,10 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("Max cluster iterations must be positive");
             }
 /**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-s" ||
+        } else if (std::string(argv[i]) == "-sc" ||
                 std::string(argv[i]) == "--max-supercluster-size") {
             i++;
-            if (i == argc) ERROR("Option '-s' used without providing max supercluster size");
+            if (i == argc) ERROR("Option '-sc' used without providing max supercluster size");
             try {
                 this->max_supercluster_size = std::stoi(argv[i++]);
             } catch (const std::exception & e) {
@@ -483,7 +483,7 @@ void Globals::print_usage() const
     printf("      maximum variant quality; higher variant qualities are thresholded\n");
 
     printf("\n  Clustering:\n");
-    printf("  -s, --max-supercluster-size <INTEGER> [%d]\n", this->max_supercluster_size);
+    printf("  -sc, --max-supercluster-size <INTEGER> [%d]\n", this->max_supercluster_size);
     printf("      maximum supercluster size (larger superclusters are split)\n");
     /* printf("  -i, --max-iterations <INTEGER> [%d]\n", g.max_cluster_itrs); */
     /* printf("      maximum iterations for expanding/merging clusters\n"); */
