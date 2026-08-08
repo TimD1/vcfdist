@@ -62,6 +62,33 @@ struct var_fields {
 };
 
 /**
+ * @struct sample_fields
+ * @brief One sample's FORMAT values for a summary VCF record, in FORMAT declaration order.
+ *
+ * Values are stored htslib-encoded: a per-allele entry that was never evaluated holds
+ * bcf_int32_missing or a bcf_float_set_missing() float, and the two Number=. String fields hold the
+ * comma-joined list htslib stores as a single string. A sample that made no call at this locus
+ * leaves the per-allele vectors empty, which writes '.' for every one of its fields.
+ */
+struct sample_fields {
+    std::vector<int32_t> gt;   ///< GT alleles, bcf_gt_phased()-encoded, in GT allele order
+    std::string bd = ".";      ///< BD, per-allele benchmark decision (TP/FP/FN)
+    std::vector<float> bc;     ///< BC, per-allele benchmark credit
+    std::vector<int32_t> rd;   ///< RD, per-allele reference edit distance
+    std::vector<int32_t> qd;   ///< QD, per-allele query edit distance
+    std::string bk = ".";      ///< BK, per-allele benchmark category ('gm', 'lm', or '.')
+    float qq = 0;              ///< QQ, variant quality
+    int32_t sc = 0;            ///< SC, supercluster index in contig
+    std::vector<int32_t> sg;   ///< SG, per-allele sync group
+    int32_t ps = 0;            ///< PS, input phase set
+    int32_t pb = 0;            ///< PB, output phase block
+    int32_t bs = 0;            ///< BS, block phase
+    int32_t vp = 0;            ///< VP, variant phase
+    int32_t fe = 0;            ///< FE, flip error
+    std::string ge = ".";      ///< GE, allele count (genotype) error
+};
+
+/**
  * @class ctgVariants
  * @brief Store all variant information for a single contig and callset.
  */
@@ -77,16 +104,13 @@ public:
     /** @brief Returns every field of one variant, for copying it into another container. */
     var_fields get_var(int idx) const;
 
-    /** @brief Writes fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) for one variant. */
-    void print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
-            const std::string & ctg, int idx);
+    /** @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER) of one record. */
+    void set_var_record(const bcf_hdr_t* hdr, bcf1_t* rec, std::shared_ptr<fastaData> ref,
+            const std::string & ctg, int idx) const;
 
-    /** @brief Writes dot-separated empty sample fields for a variant with no call on this haplotype. */
-    void print_var_empty(FILE* out_fp, int sc_idx, int phase_block, bool query = false);
-
-    /** @brief Writes sample-specific FORMAT fields for one variant to output VCF. */
-    void print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
-            bool phase_switch, bool phase_flip, bool query = false);
+    /** @brief Returns one sample's FORMAT values for a variant it called. */
+    sample_fields var_sample_fields(int vi, int sc_idx, int phase_block,
+            bool phase_switch, bool phase_flip, bool query = false) const;
 
     /** @brief Returns true if a variant is present on the specified haplotype. */
     bool var_on_hap(int var_idx, hap_t hap, bool matched = false) const;
@@ -169,6 +193,17 @@ public:
 
 /** @brief Classifies a record's raw GT array into its parse-time genotype shape. */
 gtparse_t classify_gt(const int32_t * gt, int ngt);
+
+/** @brief Builds the summary VCF header, declaring every FORMAT field and the TRUTH/QUERY samples. */
+bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
+        const std::vector<int> & lengths);
+
+/** @brief Returns the FORMAT values of a sample that made no call at a locus. */
+sample_fields empty_sample_fields(int sc_idx, int phase_block);
+
+/** @brief Sets every FORMAT field of one record from the two samples' values. */
+void set_record_samples(const bcf_hdr_t* hdr, bcf1_t* rec,
+        const sample_fields & truth, const sample_fields & query);
 
 /** @brief Parses variants from a VCF file into a variantData container, with filtering and validation. */
 void parse_variants(const std::string & vcf_fn,

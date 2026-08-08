@@ -29,8 +29,8 @@
         - "sc1\t140\t.\tT\tC"
         - "sc1\t146\t.\tG\tA"
         - "sc1\t256\t.\tG\tA"
-        - ":TP,TP:1.000000,1.000000:"
-        - ":FN,FN:0.000000,0.000000:"
+        - ":TP,TP:1,1:"
+        - ":FN,FN:0,0:"
       must_not_contain:
         - ":FP"
 
@@ -52,7 +52,7 @@
         - "INDEL\tNONE\t0\t2\t2\t0\t0"
     - path: partial_match_del_ct07_summary.vcf
       contains:
-        - ":TP,TP:0.800000,0.800000:"
+        - ":TP,TP:0.8,0.8:"
       must_not_contain:
         - ":FN"
         - ":FP"
@@ -74,8 +74,8 @@
         - "INDEL\tNONE\t0\t0\t0\t2\t2"
     - path: partial_match_del_ct1_summary.vcf
       contains:
-        - ":FN,FN:0.000000,0.000000:"
-        - ":FP,FP:0.000000,0.000000:"
+        - ":FN,FN:0,0:"
+        - ":FP,FP:0,0:"
       must_not_contain:
         - ":TP"
 
@@ -97,8 +97,8 @@
       contains:
         - "sc1\t200\t.\tA\tG"
         - "sc1\t200\t.\tA\tC"
-        - ":FN,FN:0.000000,0.000000:"
-        - ":FP,FP:0.000000,0.000000:"
+        - ":FN,FN:0,0:"
+        - ":FP,FP:0,0:"
       must_not_contain:
         - ":TP"
 
@@ -123,7 +123,7 @@
         - "INDEL\tNONE\t0\t2\t2\t0\t0"
     - path: entangled_overlap_del_out_summary.vcf
       contains:
-        - ":TP,TP:0.800000,0.800000:"
+        - ":TP,TP:0.8,0.8:"
 
 - name: test_single-pass_adjacent-fn-no-overcredit
   # adjacent_fn_no_overcredit: regression guard for the consecutive-bypass excision fix.
@@ -145,10 +145,10 @@
     - path: adjacent_fn_no_overcredit_out_summary.vcf
       contains:
         - "sc1\t300\t.\tA\tC"
-        - ":TP,TP:1.000000,1.000000:1,1:0,0:"
-        - ":FN,FN:0.000000,0.000000:"
+        - ":TP,TP:1,1:1,1:0,0:"
+        - ":FN,FN:0,0:"
       must_not_contain:
-        - ":TP,TP:1.000000,1.000000:2,"
+        - ":TP,TP:1,1:2,"
         - ":FP"
 
 - name: test_summary-vcf_one-record-per-variant
@@ -172,13 +172,13 @@
     - path: record_shapes_out_summary.vcf
       contains:
         # hom SNP, hom CPX (as INS then DEL), and hom DEL: one record each, two values per field
-        - "sc1\t200\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1.000000,1.000000:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
+        - "sc1\t200\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1,1:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1,1:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
         - "sc1\t209\t.\tG\tGTT\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
         - "sc1\t209\t.\tGCAAGA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
         - "sc1\t220\t.\tCAACT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
         # het-alt: two co-located records, each carrying '.' for its reference allele
-        - "sc1\t250\t.\tA\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1.000000,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
-        - "sc1\t250\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1.000000:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
+        - "sc1\t250\t.\tA\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
+        - "sc1\t250\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
       must_not_contain:
         # the pre-#103 shape: a homozygous call written once per haplotype
         - "\t1|0:TP:"
@@ -212,7 +212,7 @@
     # truth-only direction below, where it used to be dropped
     - path: one_sided_contig_query_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0,0:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
 
 - name: test_one-sided-contig_truth-only
   # The mirror of the case above: sc2 is called by the truth only. Superclustering used to
@@ -238,7 +238,7 @@
     # sample reports its own 1|1 call, one FN per allele.
     - path: one_sided_contig_truth_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0.000000,0.000000:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
+        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0,0:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
 
 # --- variants at reference position 0 (synthetic sc1 reference) ---
 
