@@ -13,6 +13,9 @@
 #include "../../../src/defs.h"
 #include "../../../src/globals.h"
 #include "../../../src/phase.h"
+// htslib's headers are reached through variant.h: the build copies them into src/, so only a file
+// in that directory resolves a bare "htslib/vcf.h"
+#include "../../../src/variant.h"
 #include "test_helpers.h"
 
 namespace {
@@ -1358,7 +1361,7 @@ TEST(WriteSummaryVcf, HomSnpIsOneRecordWithTwoValues) {
     std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
     EXPECT_EQ("1|1", sample.at(FMT_GT));
     EXPECT_EQ("TP,TP", sample.at(FMT_BD));
-    EXPECT_EQ("1.000000,1.000000", sample.at(FMT_BC));
+    EXPECT_EQ("1,1", sample.at(FMT_BC));
     EXPECT_EQ("3,3", sample.at(FMT_RD));
     EXPECT_EQ("0,0", sample.at(FMT_QD));
     EXPECT_EQ("gm,gm", sample.at(FMT_BK));
@@ -1384,7 +1387,7 @@ TEST(WriteSummaryVcf, HomIndelIsOneRecordWithTwoValues) {
     std::vector<std::string> sample = split(cols.at(QUERY_COL), ':');
     EXPECT_EQ("1|1", sample.at(FMT_GT));
     EXPECT_EQ("TP,TP", sample.at(FMT_BD));
-    EXPECT_EQ("1.000000,1.000000", sample.at(FMT_BC));
+    EXPECT_EQ("1,1", sample.at(FMT_BC));
 }
 
 // A heterozygous call still carries one value per GT allele, but its reference allele was never
@@ -1399,7 +1402,7 @@ TEST(WriteSummaryVcf, HetRecordDotsTheReferenceAllele) {
     std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
     EXPECT_EQ("1|0", sample.at(FMT_GT));
     EXPECT_EQ("TP,.", sample.at(FMT_BD));
-    EXPECT_EQ("1.000000,.", sample.at(FMT_BC));
+    EXPECT_EQ("1,.", sample.at(FMT_BC));
     EXPECT_EQ("5,.", sample.at(FMT_RD));
     EXPECT_EQ("2,.", sample.at(FMT_SG));
 }
@@ -1415,7 +1418,7 @@ TEST(WriteSummaryVcf, HaploidRecordCarriesOneValue) {
     std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
     EXPECT_EQ("1", sample.at(FMT_GT));
     EXPECT_EQ("TP", sample.at(FMT_BD));
-    EXPECT_EQ("1.000000", sample.at(FMT_BC));
+    EXPECT_EQ("1", sample.at(FMT_BC));
     EXPECT_EQ("5", sample.at(FMT_RD));
     EXPECT_EQ("2", sample.at(FMT_SG));
 }
@@ -1434,7 +1437,7 @@ TEST(WriteSummaryVcf, PerAlleleValuesFollowTheGenotypeSwap) {
     std::vector<std::string> sample = sole_query_sample(shape_vcf(dir, qvars), SPACING + 1);
     EXPECT_EQ("1|0", sample.at(FMT_GT));
     EXPECT_EQ("TP,.", sample.at(FMT_BD));
-    EXPECT_EQ("1.000000,.", sample.at(FMT_BC));
+    EXPECT_EQ("1,.", sample.at(FMT_BC));
     EXPECT_EQ("2,.", sample.at(FMT_SG));
 }
 
@@ -1451,7 +1454,7 @@ TEST(WriteSummaryVcf, PerAlleleValuesAreInGenotypeAlleleOrder) {
     EXPECT_EQ("3,7", sample.at(FMT_RD));
     EXPECT_EQ("0,2", sample.at(FMT_QD));
     EXPECT_EQ("1,6", sample.at(FMT_SG));
-    EXPECT_EQ("1.000000,0.750000", sample.at(FMT_BC));
+    EXPECT_EQ("1,0.75", sample.at(FMT_BC));
 }
 
 // A het-alt (1|2) source record is parsed into two entries with different ALTs, and the
@@ -1485,6 +1488,43 @@ TEST(WriteSummaryVcf, HetAltStaysTwoColocatedRecords) {
     EXPECT_EQ("G", split(recs[1], '\t').at(4));
     EXPECT_EQ("1|0", split(split(recs[0], '\t').at(QUERY_COL), ':').at(FMT_GT));
     EXPECT_EQ("0|1", split(split(recs[1], '\t').at(QUERY_COL), ':').at(FMT_GT));
+}
+
+// The records are built as bcf1_t and written with bcf_write(), so htslib must be able to read
+// back what it wrote: a field whose values disagree with its header declaration is rejected on the
+// way in, which no assertion over the rendered text would catch. The two variants differ in ploidy
+// so that the per-allele lists are padded to a shared length, the encoding most likely to break.
+TEST(WriteSummaryVcf, RecordsReadBackThroughHtslib) {
+    GlobalsGuard guard;
+    TempDir dir;
+    pipeline_result result = run_pipeline(dir, make_ploidy_qvars({PLOIDY_DIPLOID, PLOIDY_HAPLOID}));
+    const std::string vcf_fn = dir.path("readback.vcf");
+    {
+        StderrToFile redirect(dir.path("readback.log"));
+        result.data->write_summary_vcf(vcf_fn);
+    }
+
+    htsFile* vcf = bcf_open(vcf_fn.data(), "r");
+    ASSERT_NE(nullptr, vcf);
+    bcf_hdr_t* hdr = bcf_hdr_read(vcf);
+    ASSERT_NE(nullptr, hdr);
+    EXPECT_EQ(2, bcf_hdr_nsamples(hdr));
+    EXPECT_STREQ("TRUTH", hdr->samples[0]);
+    EXPECT_STREQ("QUERY", hdr->samples[1]);
+
+    bcf1_t* rec = bcf_init();
+    int records = 0;
+    int read_ret = 0;
+    while ((read_ret = bcf_read(vcf, hdr, rec)) == 0) {
+        EXPECT_EQ(0, rec->errcode);
+        records++;
+    }
+    EXPECT_EQ(-1, read_ret); // end of file rather than a parse failure
+    EXPECT_EQ(2, records);
+
+    bcf_destroy(rec);
+    bcf_hdr_destroy(hdr);
+    bcf_close(vcf);
 }
 
 // Number=P would declare the one-value-per-GT-allele cardinality these fields carry, but it is a

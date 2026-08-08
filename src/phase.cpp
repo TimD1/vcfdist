@@ -24,50 +24,23 @@
  * @note Contigs called by only one callset are included; a contig with no query variants has no
  *       phase block to read, so its truth records are written with PB and BS defaulted
  * @throws ERROR if the output summary VCF file cannot be opened for writing
+ * @throws ERROR if the header or any record cannot be written
  * @throws ERROR if neither callset is selected next while variants remain
  */
 void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
 
     // VCF header
     if (g.verbosity >= 1) INFO("  Writing summary VCF to '%s'", out_vcf_fn.data());
-    FILE* out_vcf = fopen(out_vcf_fn.data(), "w");
+    htsFile* out_vcf = hts_open(out_vcf_fn.data(), "w");
     if (out_vcf == NULL) {
         ERROR("Failed to open summary VCF file '%s'", out_vcf_fn.data());
     }
-    const std::chrono::time_point<std::chrono::system_clock> now{std::chrono::system_clock::now()};
-    time_t tt = std::chrono::system_clock::to_time_t(now);
-    tm local_time = *localtime(&tt);
-    fprintf(out_vcf, "##fileformat=VCFv4.2\n");
-    fprintf(out_vcf, "##fileDate=%04d%02d%02d\n", local_time.tm_year + 1900, 
-            local_time.tm_mon + 1, local_time.tm_mday);
-    fprintf(out_vcf, "##CL=%s\n", g.cmd.data());
-    for (size_t i = 0; i < this->contigs.size(); i++) {
-        fprintf(out_vcf, "##contig=<ID=%s,length=%d>\n",
-                this->contigs[i].data(), this->lengths[i]);
+    bcf_hdr_t* hdr = summary_vcf_header(this->contigs, this->lengths);
+    if (bcf_hdr_write(out_vcf, hdr) != 0) {
+        ERROR("Failed to write summary VCF header to '%s'", out_vcf_fn.data());
     }
-    fprintf(out_vcf, "##FILTER=<ID=PASS,Description=\"All filters passed\">\n");
-    // The per-haplotype fields carry one value per allele of the sample's GT, which is what VCF
-    // 4.4's Number=P declares. BCF_VL_P only reaches htslib in 1.23, so a consumer on any older
-    // bcftools or pysam would report a cardinality error; Number=. produces byte-identical records
-    // and merely gives up the declared cardinality, so the count and order are stated here instead.
-    const std::string per_allele = " One value per allele of this sample's GT, in GT allele order, "
-            "'.' for a reference allele.";
-    fprintf(out_vcf, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN).%s\">\n", per_allele.data());
-    fprintf(out_vcf, "##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance).%s\">\n", per_allele.data());
-    fprintf(out_vcf, "##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group.%s\">\n", per_allele.data());
-    fprintf(out_vcf, "##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group.%s\">\n", per_allele.data());
-    fprintf(out_vcf, "##FORMAT=<ID=BK,Number=.,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.').%s\">\n", per_allele.data());
-    fprintf(out_vcf, "##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster (index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=SG,Number=.,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment).%s\">\n", per_allele.data());
-    fprintf(out_vcf, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Set identifier (input, per-variant)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (output, per-supercluster, index in contig)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=VP,Number=1,Type=Integer,Description=\"Variant Phase: 0 = PHASE_ORIG, 1 = PHASE_SWAP, . = PHASE_NONE)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=FE,Number=1,Type=Integer,Description=\"Flip Error (a per-supercluster error)\">\n");
-    fprintf(out_vcf, "##FORMAT=<ID=GE,Number=1,Type=String,Description=\"Genotype Error ('+' if 0/1 truth -> 1/1 query, '-' if 1/1 truth -> 0/1 query, '.' otherwise)\">\n");
-    fprintf(out_vcf, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRUTH\tQUERY\n");
+    bcf1_t* rec = bcf_init();
+    if (rec == NULL) ERROR("Failed to allocate summary VCF record");
 
     // write variants
     for (std::string ctg : this->contigs) {
@@ -133,7 +106,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 phase_block++;
 
             /* if (next[QUERY] && ptrs[QUERY] < qvars->n) { */
-            /*     fprintf(out_vcf, "orig_gt: %s\tmatched_gt: %s\tcredit: %.2f|%.2f\tref_dist: %d|%d\tphase: %s\n", */ 
+            /*     fprintf(stderr, "orig_gt: %s\tmatched_gt: %s\tcredit: %.2f|%.2f\tref_dist: %d|%d\tphase: %s\n", */ 
             /*             gt_strs[vars[QUERY]->orig_gts[ptrs[QUERY]]].data(), */
             /*             gt_strs[vars[QUERY]->matched_gts[ptrs[QUERY]]].data(), */
             /*             vars[QUERY]->credit[HAP1][ptrs[QUERY]], */
@@ -144,39 +117,47 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             /*             ); */
             /* } */
             /* if (next[TRUTH] && ptrs[TRUTH] < tvars->n) { */
-            /*     fprintf(out_vcf, "orig_gt: %s\n", */ 
+            /*     fprintf(stderr, "orig_gt: %s\n", */ 
             /*             gt_strs[vars[TRUTH]->orig_gts[ptrs[TRUTH]]].data()); */
             /* } */
 
+            bcf_clear(rec);
             if (next[QUERY]) {
                 // a positional tie between differing alleles is not a match: the two are written as
                 // co-located records, the truth one on the next pass
                 bool matched = next[TRUTH] &&
                         vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]];
-                vars[QUERY]->print_var_info(out_vcf, this->ref, ctg, ptrs[QUERY]);
-                if (matched) {
-                    vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH],
-                            sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
-                } else {
-                    vars[TRUTH]->print_var_empty(out_vcf, sc_idx, phase_block);
-                }
-                vars[QUERY]->print_var_sample(out_vcf, ptrs[QUERY],
-                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error, true);
+                vars[QUERY]->set_var_record(hdr, rec, this->ref, ctg, ptrs[QUERY]);
+                set_record_samples(hdr, rec,
+                        matched ? vars[TRUTH]->var_sample_fields(ptrs[TRUTH], sc_idx, phase_block,
+                                block_state == PHASE_SWAP, flip_error) :
+                                empty_sample_fields(sc_idx, phase_block),
+                        vars[QUERY]->var_sample_fields(ptrs[QUERY], sc_idx, phase_block,
+                                block_state == PHASE_SWAP, flip_error, true));
                 ptrs[QUERY]++;
                 if (matched) ptrs[TRUTH]++;
             } else if (next[TRUTH]) {
-                vars[TRUTH]->print_var_info(out_vcf, this->ref, ctg, ptrs[TRUTH]);
-                vars[TRUTH]->print_var_sample(out_vcf, ptrs[TRUTH],
-                        sc_idx, phase_block, block_state == PHASE_SWAP, flip_error);
-                vars[QUERY]->print_var_empty(out_vcf, sc_idx, phase_block, true);
+                vars[TRUTH]->set_var_record(hdr, rec, this->ref, ctg, ptrs[TRUTH]);
+                set_record_samples(hdr, rec,
+                        vars[TRUTH]->var_sample_fields(ptrs[TRUTH], sc_idx, phase_block,
+                                block_state == PHASE_SWAP, flip_error),
+                        empty_sample_fields(sc_idx, phase_block));
                 ptrs[TRUTH]++;
             } else {
                 ERROR("No variants are selected next.");
             }
+            if (bcf_write(out_vcf, hdr, rec) != 0) {
+                ERROR("Failed to write summary VCF record at %s:%lld", ctg.data(),
+                        static_cast<long long>(rec->pos+1));
+            }
         }
     }
-    fclose(out_vcf);
+    bcf_destroy(rec);
+    bcf_hdr_destroy(hdr);
+    if (hts_close(out_vcf) != 0) {
+        ERROR("Failed to close summary VCF file '%s'", out_vcf_fn.data());
+    }
 }
 
 

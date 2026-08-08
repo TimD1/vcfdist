@@ -3,6 +3,7 @@
  * @brief Per-contig and per-callset variant containers with VCF parsing and output utilities.
  */
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -334,100 +335,205 @@ void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
 /**************************************************************************************************/
 
 /**
- * @brief Writes fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) for one variant.
- * @param[in] out_fp Open file pointer to output VCF
+ * @brief Builds the summary VCF header, declaring every FORMAT field and the TRUTH/QUERY samples.
+ * @param[in] contigs Contig names, in the order records are written
+ * @param[in] lengths Contig lengths, parallel to contigs
+ * @return Header owning its own memory, to be released by the caller with bcf_hdr_destroy()
+ * @throws ERROR The header cannot be allocated, a header line htslib rejects, a sample htslib
+ *         rejects, or a header htslib cannot synchronize
+ */
+bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
+        const std::vector<int> & lengths) {
+
+    // bcf_hdr_init() supplies the ##fileformat line
+    bcf_hdr_t* hdr = bcf_hdr_init("w");
+    if (hdr == NULL) ERROR("Failed to allocate summary VCF header");
+
+    const std::chrono::time_point<std::chrono::system_clock> now{std::chrono::system_clock::now()};
+    time_t tt = std::chrono::system_clock::to_time_t(now);
+    tm local_time = *localtime(&tt);
+    char file_date[32];
+    snprintf(file_date, sizeof(file_date), "##fileDate=%04d%02d%02d", local_time.tm_year + 1900,
+            local_time.tm_mon + 1, local_time.tm_mday);
+
+    // The per-haplotype fields carry one value per allele of the sample's GT, which is what VCF
+    // 4.4's Number=P declares. BCF_VL_P only reaches htslib in 1.23, so a consumer on any older
+    // bcftools or pysam would report a cardinality error; Number=. produces identical records and
+    // merely gives up the declared cardinality, so the count and order are stated here instead.
+    const std::string per_allele = " One value per allele of this sample's GT, in GT allele order, "
+            "'.' for a reference allele.";
+    std::vector<std::string> lines = {file_date, "##CL=" + g.cmd};
+    for (size_t i = 0; i < contigs.size(); i++) {
+        lines.push_back("##contig=<ID=" + contigs[i] + ",length=" +
+                std::to_string(lengths[i]) + ">");
+    }
+    // every record PASSes, and htslib rejects a filter its header does not declare; bcf_hdr_init()
+    // declares PASS itself, and appending an ID it already holds is a no-op rather than a duplicate
+    lines.push_back("##FILTER=<ID=PASS,Description=\"All filters passed\">");
+    lines.push_back("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GenoType\">");
+    lines.push_back("##FORMAT=<ID=BD,Number=.,Type=String,Description=\"Benchmark Decision for call (TP/FP/FN)." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=BC,Number=.,Type=Float,Description=\"Benchmark Credit (on the interval [0,1], based on sync group edit distance)." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=RD,Number=.,Type=Integer,Description=\"Reference edit Distance from truth within current sync group." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=QD,Number=.,Type=Integer,Description=\"Query edit Distance from truth within current sync group." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=BK,Number=.,Type=String,Description=\"BenchmarK category ('gm' if credit == 1, 'lm' if credit > 0, else '.')." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=QQ,Number=1,Type=Float,Description=\"variant Quality\">");
+    lines.push_back("##FORMAT=<ID=SC,Number=1,Type=Integer,Description=\"SuperCluster (index in contig)\">");
+    lines.push_back("##FORMAT=<ID=SG,Number=.,Type=Integer,Description=\"Sync Group (index in supercluster, for credit assignment)." + per_allele + "\">");
+    lines.push_back("##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase Set identifier (input, per-variant)\">");
+    lines.push_back("##FORMAT=<ID=PB,Number=1,Type=Integer,Description=\"Phase Block (output, per-supercluster, index in contig)\">");
+    lines.push_back("##FORMAT=<ID=BS,Number=1,Type=Integer,Description=\"Block Phase: 0 = PHASE_KEEP, 1 = PHASE_SWAP)\">");
+    lines.push_back("##FORMAT=<ID=VP,Number=1,Type=Integer,Description=\"Variant Phase: 0 = PHASE_ORIG, 1 = PHASE_SWAP, . = PHASE_NONE)\">");
+    lines.push_back("##FORMAT=<ID=FE,Number=1,Type=Integer,Description=\"Flip Error (a per-supercluster error)\">");
+    lines.push_back("##FORMAT=<ID=GE,Number=1,Type=String,Description=\"Genotype Error ('+' if 0/1 truth -> 1/1 query, '-' if 1/1 truth -> 0/1 query, '.' otherwise)\">");
+    for (const std::string & line : lines) {
+        if (bcf_hdr_append(hdr, line.data()) != 0)
+            ERROR("Failed to add summary VCF header line '%s'", line.data());
+    }
+
+    // the samples are added in the order their columns are written
+    for (const char* sample : {"TRUTH", "QUERY"}) {
+        if (bcf_hdr_add_sample(hdr, sample) < 0)
+            ERROR("Failed to add sample '%s' to summary VCF header", sample);
+    }
+    if (bcf_hdr_sync(hdr) < 0) ERROR("Failed to synchronize summary VCF header");
+    return hdr;
+}
+
+
+/**
+ * @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER) of one record.
+ * @param[in] hdr Summary VCF header, which must declare this contig
+ * @param[in,out] rec Cleared record to fill
  * @param[in] ref Reference FASTA data for retrieving flanking bases for indels
  * @param[in] ctg Contig name
  * @param[in] idx Variant index in this container
+ * @throws ERROR The contig is not declared in the header
  * @throws ERROR An INS/DEL sits at the contig start (0-based pos 0), leaving no preceding base to anchor
  * @throws ERROR The variant type is not TYPE_SUB, TYPE_INS, or TYPE_DEL
+ * @throws ERROR htslib rejects the record's FILTER or alleles
  */
-void ctgVariants::print_var_info(FILE* out_fp, std::shared_ptr<fastaData> ref,
-        const std::string & ctg, int idx) {
-    char ref_base;
+void ctgVariants::set_var_record(const bcf_hdr_t* hdr, bcf1_t* rec,
+        std::shared_ptr<fastaData> ref, const std::string & ctg, int idx) const {
+
+    rec->rid = bcf_hdr_name2id(hdr, ctg.data());
+    if (rec->rid < 0) ERROR("Contig '%s' is not declared in the summary VCF header", ctg.data());
+    bcf_float_set_missing(rec->qual);
+    if (bcf_add_filter(hdr, rec, bcf_hdr_id2int(hdr, BCF_DT_ID, "PASS")) < 0)
+        ERROR("Failed to set FILTER on summary VCF record at %s:%d", ctg.data(), this->poss[idx]);
+
+    std::string ref_allele, alt_allele;
     switch (this->types[idx]) {
     case TYPE_SUB:
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE",
-                ctg.data(), this->poss[idx]+1, this->refs[idx].data(),
-                this->alts[idx].data());
+        rec->pos = this->poss[idx];
+        ref_allele = this->refs[idx];
+        alt_allele = this->alts[idx];
         break;
     case TYPE_INS:
-    case TYPE_DEL:
+    case TYPE_DEL: {
         // INS/DEL are left-anchored on the preceding reference base; at contig start (0-based
         // pos 0) there is no preceding base, so guard against the out-of-bounds read of index -1
         if (this->poss[idx] == 0)
-            ERROR("Cannot left-anchor INS/DEL at contig start (0-based pos 0) on '%s' in print_var_info",
+            ERROR("Cannot left-anchor INS/DEL at contig start (0-based pos 0) on '%s' in set_var_record",
                     ctg.data());
-        ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
-        fprintf(out_fp, "%s\t%d\t.\t%s\t%s\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE", ctg.data(), 
-                this->poss[idx], (ref_base + this->refs[idx]).data(), 
-                (ref_base + this->alts[idx]).data());
+        rec->pos = this->poss[idx] - 1;
+        char ref_base = ref->fasta.at(ctg)[this->poss[idx]-1];
+        ref_allele = ref_base + this->refs[idx];
+        alt_allele = ref_base + this->alts[idx];
         break;
-    default:
-        ERROR("print_var_info not implemented for type %d", static_cast<int>(this->types[idx]));
     }
+    default:
+        ERROR("set_var_record not implemented for type %d", static_cast<int>(this->types[idx]));
+    }
+
+    const char* alleles[2] = {ref_allele.data(), alt_allele.data()};
+    if (bcf_update_alleles(hdr, rec, alleles, 2) < 0)
+        ERROR("Failed to set alleles on summary VCF record at %s:%d", ctg.data(), this->poss[idx]);
 }
 
 
 /**
- * @brief Writes dot-separated empty sample fields for a variant with no call on this haplotype.
- * @param[in] out_fp Open file pointer to output VCF
- * @param[in] sc_idx Supercluster index for SC field
- * @param[in] phase_block Phase block index for PB field
- * @param[in] query If true, append newline (end of record); if false, tab (more samples follow)
- */
-void ctgVariants::print_var_empty(FILE* out_fp, int sc_idx,
-        int phase_block, bool query /* = false */) {
-    fprintf(out_fp, "\t.:.:.:.:.:.:.:%d:.:.:%d:.:.:.:.%s", sc_idx, phase_block, query ? "\n" : "");
-}
-
-
-/**
- * @brief Renders the GT a sample reports for one variant, as the caller itself genotyped it.
+ * @brief Encodes the GT a sample reports for one variant, as the caller itself genotyped it.
  * @param[in] orig_gt The caller's own genotype, never vcfdist's recovered matched_gt
  * @param[in] ploidy Variant ploidy
- * @return "1" for a haploid call, otherwise the phased diploid pair
+ * @return Phased allele indices: one for a haploid call, otherwise the diploid pair
  */
-static std::string display_gt(gt_t orig_gt, ploidy_t ploidy) {
-    return ploidy == PLOIDY_HAPLOID ? "1" : gt_strs[orig_gt];
+static std::vector<int32_t> genotype_alleles(gt_t orig_gt, ploidy_t ploidy) {
+    if (ploidy == PLOIDY_HAPLOID) return {bcf_gt_phased(1)};
+    return {bcf_gt_phased(orig_gt == GT_ALT_REF || orig_gt == GT_ALT_ALT ? 1 : 0),
+            bcf_gt_phased(orig_gt == GT_REF_ALT || orig_gt == GT_ALT_ALT ? 1 : 0)};
 }
 
 
 /**
- * @brief Writes sample-specific FORMAT fields for one variant to output VCF.
+ * @brief Returns the FORMAT values of a sample that made no call at a locus.
+ * @param[in] sc_idx Supercluster index for the SC field
+ * @param[in] phase_block Phase block index for the PB field
+ * @return Values reporting '.' for every field but SC and PB, which are locus-wide
+ */
+sample_fields empty_sample_fields(int sc_idx, int phase_block) {
+    sample_fields fields;
+    bcf_float_set_missing(fields.qq);
+    fields.sc = sc_idx;
+    fields.ps = bcf_int32_missing;
+    fields.pb = phase_block;
+    fields.bs = bcf_int32_missing;
+    fields.vp = bcf_int32_missing;
+    fields.fe = bcf_int32_missing;
+    return fields;
+}
+
+
+/**
+ * @brief Returns one sample's FORMAT values for a variant it called.
  *
  * One record is written per variant rather than per haplotype, so the per-haplotype fields (BD, BC,
- * RD, QD, BK, SG) are comma-separated lists holding one value per haplotype: two for a diploid
- * record, one for a haploid one. GT is rendered from orig_gt, the caller's own claim, so a
- * haplotype carrying the reference allele has no evaluation data and every per-haplotype field
- * reports "." for it. The evaluation lanes are keyed by matched_gt's haplotypes, which
- * matched_gt_is_swapped() reports may be the reverse of orig_gt's.
- * @param[in] out_fp Open file pointer to output VCF
+ * RD, QD, BK, SG) hold one value per haplotype: two for a diploid record, one for a haploid one. GT
+ * reports orig_gt, the caller's own claim, so a haplotype carrying the reference allele has no
+ * evaluation data and every per-haplotype field reports '.' for it. The evaluation lanes are keyed
+ * by matched_gt's haplotypes, which matched_gt_is_swapped() reports may be the reverse of orig_gt's.
  * @param[in] vi Variant index in this container
- * @param[in] sc_idx Supercluster index for SC field
- * @param[in] phase_block Phase block index for PB field
+ * @param[in] sc_idx Supercluster index for the SC field
+ * @param[in] phase_block Phase block index for the PB field
  * @param[in] phase_switch True if phase switched at this position
  * @param[in] phase_flip True if phase flipped (error) at this position
- * @param[in] query If true, format as query sample; if false, as truth sample
+ * @param[in] query If true, report as the query sample; if false, as the truth sample
+ * @return This sample's FORMAT values, htslib-encoded
  */
-void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_block,
-        bool phase_switch, bool phase_flip, bool query /* = false */) {
+sample_fields ctgVariants::var_sample_fields(int vi, int sc_idx, int phase_block,
+        bool phase_switch, bool phase_flip, bool query /* = false */) const {
 
     // ploidy is the count of genotype alleles, so it is also how many haplotypes to report on
     ploidy_t ploidy = this->ploidies[vi];
     int haps = int(idx(ploidy));
-    const std::string gt = display_gt(this->orig_gts[vi], ploidy);
+
+    sample_fields fields;
+    fields.gt = genotype_alleles(this->orig_gts[vi], ploidy);
+    // QQ was printed with %d before this file wrote records through htslib, so it stays truncated
+    fields.qq = float(int(this->var_quals[vi]));
+    fields.sc = sc_idx;
+    fields.ps = this->phase_sets[vi];
+    fields.pb = phase_block;
+    fields.bs = query ? (phase_switch ? 1 : 0) : bcf_int32_missing;
+    fields.vp = this->phases[vi] == PHASE_NONE ?
+            bcf_int32_missing : int32_t(idx(this->phases[vi]));
+    fields.fe = query ? (phase_flip ? 1 : 0) : bcf_int32_missing;
+    fields.ge = ac_strs[this->ac_errtype[vi]];
 
     bool swap = this->matched_gt_is_swapped(vi);
-    std::string errtypes, credits, ref_eds, query_eds, match_types, sync_groups;
+    float missing_credit;
+    bcf_float_set_missing(missing_credit);
+    std::string errtypes, match_types;
     for (int hap_idx = 0; hap_idx < haps; hap_idx++) {
         const std::string sep = hap_idx ? "," : "";
         hap_t hi = hap_t(hap_idx);
 
         // this haplotype carries the reference allele, so it was never evaluated
         if (!this->var_on_hap(vi, hi)) {
-            errtypes += sep + "."; credits += sep + "."; ref_eds += sep + ".";
-            query_eds += sep + "."; match_types += sep + "."; sync_groups += sep + ".";
+            errtypes += sep + "."; match_types += sep + ".";
+            fields.bc.push_back(missing_credit);
+            fields.rd.push_back(bcf_int32_missing);
+            fields.qd.push_back(bcf_int32_missing);
+            fields.sg.push_back(bcf_int32_missing);
             continue;
         }
 
@@ -445,23 +551,111 @@ void ctgVariants::print_var_sample(FILE* out_fp, int vi, int sc_idx, int phase_b
             errtypes += sep + (query ? "FP" : "FN"); match_types += sep + "lm";
         }
 
-        credits += sep + std::to_string(this->credit[hi_matched][vi]);
-        ref_eds += sep + (this->ref_ed[hi_matched][vi] == 0 ? "." :
-                std::to_string(this->ref_ed[hi_matched][vi]));
-        query_eds += sep + (this->ref_ed[hi_matched][vi] == 0 ? "." :
-                std::to_string(this->query_ed[hi_matched][vi]));
-        sync_groups += sep + std::to_string(int(this->sync_group[hi_matched][vi]));
+        fields.bc.push_back(this->credit[hi_matched][vi]);
+        fields.rd.push_back(this->ref_ed[hi_matched][vi] == 0 ?
+                bcf_int32_missing : this->ref_ed[hi_matched][vi]);
+        fields.qd.push_back(this->ref_ed[hi_matched][vi] == 0 ?
+                bcf_int32_missing : this->query_ed[hi_matched][vi]);
+        fields.sg.push_back(this->sync_group[hi_matched][vi]);
     }
+    fields.bd = errtypes;
+    fields.bk = match_types;
+    return fields;
+}
 
-    fprintf(out_fp, "\t%s:%s:%s:%s:%s:%s:%d:%d:%s:%d:%d:%s:%s:%s:%s%s", gt.data(), errtypes.data(),
-            credits.data(), ref_eds.data(), query_eds.data(), match_types.data(),
-            int(this->var_quals[vi]), sc_idx, sync_groups.data(),
-            this->phase_sets[vi], phase_block,
-            query ? (phase_switch ? "1" : "0") : "." ,
-            phase_strs[this->phases[vi]].data(),
-            query ? (phase_flip ? "1" : "0") : "." ,
-            ac_strs[this->ac_errtype[vi]].data(),
-            query ? "\n" : "");
+
+/** @brief Sets one value to the missing value of its type. */
+static void set_missing(int32_t & value) { value = bcf_int32_missing; }
+static void set_missing(float & value) { bcf_float_set_missing(value); }
+
+/** @brief Sets one value to the end-of-vector marker of its type. */
+static void set_vector_end(int32_t & value) { value = bcf_int32_vector_end; }
+static void set_vector_end(float & value) { bcf_float_set_vector_end(value); }
+
+/**
+ * @brief Concatenates two samples' per-allele values into one buffer of a shared value count.
+ *
+ * htslib stores the same number of values for every sample, so a haploid sample beside a diploid
+ * one is padded with the end-of-vector marker, which the writer prints as a shorter list. A sample
+ * with no values at all still occupies one slot, holding the missing value.
+ * @param[in] truth The truth sample's values
+ * @param[in] query The query sample's values
+ * @return The truth sample's padded values followed by the query sample's
+ */
+template <typename T>
+static std::vector<T> pad_per_allele(const std::vector<T> & truth, const std::vector<T> & query) {
+    const std::vector<T>* samples[2] = {&truth, &query};
+    size_t n = std::max(std::max(truth.size(), query.size()), size_t(1));
+    std::vector<T> values(2 * n);
+    for (size_t si = 0; si < 2; si++) {
+        for (size_t i = 0; i < n; i++) {
+            T & value = values[si*n + i];
+            if (i < samples[si]->size()) value = (*samples[si])[i];
+            else if (i == 0) set_missing(value);
+            else set_vector_end(value);
+        }
+    }
+    return values;
+}
+
+/** @brief Sets one integer FORMAT field of a record, holding one value per sample per allele. */
+static void update_format(const bcf_hdr_t* hdr, bcf1_t* rec, const char* key,
+        const std::vector<int32_t> & values) {
+    if (bcf_update_format_int32(hdr, rec, key, values.data(), int(values.size())) < 0)
+        ERROR("Failed to set FORMAT/%s on summary VCF record", key);
+}
+
+/** @brief Sets one float FORMAT field of a record, holding one value per sample per allele. */
+static void update_format(const bcf_hdr_t* hdr, bcf1_t* rec, const char* key,
+        const std::vector<float> & values) {
+    if (bcf_update_format_float(hdr, rec, key, values.data(), int(values.size())) < 0)
+        ERROR("Failed to set FORMAT/%s on summary VCF record", key);
+}
+
+/** @brief Sets one string FORMAT field of a record, holding one string per sample. */
+static void update_format(const bcf_hdr_t* hdr, bcf1_t* rec, const char* key,
+        const std::string & truth, const std::string & query) {
+    const char* values[2] = {truth.data(), query.data()};
+    if (bcf_update_format_string(hdr, rec, key, values, 2) < 0)
+        ERROR("Failed to set FORMAT/%s on summary VCF record", key);
+}
+
+
+/**
+ * @brief Sets every FORMAT field of one record from the two samples' values.
+ *
+ * Fields are added in FORMAT declaration order, which is the order htslib writes them in.
+ * @param[in] hdr Summary VCF header, which must declare every field
+ * @param[in,out] rec Record whose fixed fields are already set
+ * @param[in] truth The truth sample's values
+ * @param[in] query The query sample's values
+ * @throws ERROR htslib rejects any field's values
+ */
+void set_record_samples(const bcf_hdr_t* hdr, bcf1_t* rec,
+        const sample_fields & truth, const sample_fields & query) {
+
+    // a sample with no call reports one missing allele, the '.' genotype
+    std::vector<int32_t> truth_gt = truth.gt, query_gt = query.gt;
+    if (truth_gt.empty()) truth_gt.push_back(bcf_gt_missing);
+    if (query_gt.empty()) query_gt.push_back(bcf_gt_missing);
+    const std::vector<int32_t> gt = pad_per_allele(truth_gt, query_gt);
+    if (bcf_update_genotypes(hdr, rec, gt.data(), int(gt.size())) < 0)
+        ERROR("Failed to set FORMAT/GT on summary VCF record");
+
+    update_format(hdr, rec, "BD", truth.bd, query.bd);
+    update_format(hdr, rec, "BC", pad_per_allele(truth.bc, query.bc));
+    update_format(hdr, rec, "RD", pad_per_allele(truth.rd, query.rd));
+    update_format(hdr, rec, "QD", pad_per_allele(truth.qd, query.qd));
+    update_format(hdr, rec, "BK", truth.bk, query.bk);
+    update_format(hdr, rec, "QQ", std::vector<float>{truth.qq, query.qq});
+    update_format(hdr, rec, "SC", std::vector<int32_t>{truth.sc, query.sc});
+    update_format(hdr, rec, "SG", pad_per_allele(truth.sg, query.sg));
+    update_format(hdr, rec, "PS", std::vector<int32_t>{truth.ps, query.ps});
+    update_format(hdr, rec, "PB", std::vector<int32_t>{truth.pb, query.pb});
+    update_format(hdr, rec, "BS", std::vector<int32_t>{truth.bs, query.bs});
+    update_format(hdr, rec, "VP", std::vector<int32_t>{truth.vp, query.vp});
+    update_format(hdr, rec, "FE", std::vector<int32_t>{truth.fe, query.fe});
+    update_format(hdr, rec, "GE", truth.ge, query.ge);
 }
 
 /**************************************************************************************************/
