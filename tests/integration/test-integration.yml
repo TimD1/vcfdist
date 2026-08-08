@@ -357,3 +357,19 @@
   stderr:
     contains:
       - "Failed to parse record 1 of QUERY VCF"
+
+- name: test_unsorted-query-vcf-exits-nonzero
+  # A query VCF whose records go backwards within a contig. Before #232 the out-of-order record was
+  # dropped by the overlap filter with a warning only at higher verbosity, so the run exited 0 with
+  # a full precision/recall table whose denominators silently omitted it.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/unsorted_position_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "unsorted_position_out_"'
+  exit_code: 1
+  stderr:
+    contains:
+      - "Unsorted QUERY VCF"
+      - "record 3 at sc1:145 precedes position 255"

@@ -107,3 +107,12 @@ truth-only direction is where `sc2`'s false negatives used to be dropped, becaus
 skipped any contig the query does not call on, and the query-only direction pins the mirror. With
 no query call on `sc2` there is no phase block or phase to report there, so its truth record
 reports `PB=0` and `BS=.`.
+
+### unsorted_position_query — a coordinate-unsorted VCF (#232)
+
+- `unsorted_position_query.vcf` — the `swallowed_snps` query's three SNPs with the last two swapped,
+  so `sc1` 146 follows `sc1` 256. It is run against `swallowed_snps_truth.vcf`.
+- the run exits non-zero naming the offending record. This one is checked here rather than only in
+  the unit tests because the failure mode it replaces was a *successful* run: the backwards record
+  was dropped by the overlap filter, warned about only above the default verbosity, and every
+  denominator was then quietly wrong.
