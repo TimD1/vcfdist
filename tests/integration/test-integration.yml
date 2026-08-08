@@ -292,3 +292,18 @@
       contains:
         - "SNP\tNONE\t0\t6\t6\t0\t0"
         - "SV\tNONE\t0\t0\t0\t2\t0"
+
+- name: test_malformed-query-vcf-exits-nonzero
+  # A query VCF whose header mis-declares GT as Float is rejected by htslib inside bcf_read.
+  # Before #227 that read ended as though the file were empty and vcfdist exited 0 with a full
+  # precision/recall table, indistinguishable from a caller that legitimately found nothing.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/malformed_gt_type_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "malformed_gt_type_out_"'
+  exit_code: 1
+  stderr:
+    contains:
+      - "Failed to parse record 1 of QUERY VCF"
