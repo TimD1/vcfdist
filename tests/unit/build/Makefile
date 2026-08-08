@@ -26,6 +26,10 @@ CXXFLAGS += -Wall -Wextra -std=c++17
 CXXFLAGS += -Werror=missing-field-initializers
 # Test objects are not shared and the suite runs in ~0.1s, so they skip optimization to build faster.
 TEST_CXXFLAGS = $(filter-out -O%,$(CXXFLAGS))
+# A quoted include is resolved against the including file's own directory first, so "htslib/x.h"
+# reaches CI's copy of the headers only from a file in src/. Put src/ on the search path as well,
+# so a test can include an htslib header directly rather than through a vcfdist one.
+TEST_CXXFLAGS += -I$(SRC)
 LDFLAGS += -lz -lhts -lpthread -lm -lstdc++
 SRC_HEADERS = $(wildcard $(SRC)/*.h)
 TEST_HEADERS = $(wildcard $(TEST_SRC)/*.h)
