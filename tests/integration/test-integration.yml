@@ -301,6 +301,27 @@
       must_not_contain:
         - "sc2\t50\t."
 
+- name: test_bed-absent-contig_undeclared-by-other-callset
+  # The one_sided_contig VCFs above both declare sc2 in their headers, so both callsets can be
+  # indexed by it. Here the truth's header omits sc2 entirely, which is what parse_variants()
+  # distinguishes: it creates a ctgVariants per header contig, and appends to `contigs` per record.
+  # Superclustering merges variants[hap][ctg] across the union of both contig lists and dereferences
+  # the result, so an unpaired sc2 segfaults rather than being reported.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/undeclared_contig_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/undeclared_contig_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "undeclared_contig_"'
+  files:
+    # sc2 is outside the BED, so pairing it changes nothing that is counted
+    - path: undeclared_contig_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t0\t0"
+    - path: undeclared_contig_query.tsv
+      must_not_contain:
+        - "sc2"
+
 # --- variants at reference position 0 (synthetic sc1 reference) ---
 
 - name: test_contig-start-snp-scored-as-tp

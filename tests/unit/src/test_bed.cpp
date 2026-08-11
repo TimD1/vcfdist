@@ -1146,10 +1146,10 @@ TEST(IntersectContigs, ContigOutsideBedDoesNotWarnOnPloidy) {
     EXPECT_EQ(std::string::npos, out.find("contig 'chr2' has ploid")) << out;
 }
 
-// A truth contig outside the BED has no query counterpart to look up, because the injection block
-// below iterates the BED contigs only. Indexing observed_ploidies with the result of a failed
-// std::find would read past the end of the vector.
-TEST(IntersectContigs, TruthOnlyContigOutsideBedIsSafe) {
+// A truth contig outside the BED still gets a query counterpart, because both callsets must remain
+// indexable by every contig either one carries. Consumers index variants[hap][ctg] over the union
+// of the two contig lists and dereference the result without a null check.
+TEST(IntersectContigs, TruthOnlyContigOutsideBedIsPaired) {
     GlobalsGuard guard;
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{0, 10}});
@@ -1162,9 +1162,42 @@ TEST(IntersectContigs, TruthOnlyContigOutsideBedIsSafe) {
     intersect_contigs(query, truth, ref);
     std::string out = testing::internal::GetCapturedStderr();
 
-    // chr2 stays truth-only: the BED does not name it, so nothing injects a query counterpart
-    EXPECT_EQ(std::vector<std::string>({"chr1"}), query->contigs);
+    // the query gains chr2, empty and having observed no ploidy of its own
+    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), query->contigs);
+    EXPECT_EQ(std::vector<int>({12, 12}), query->lengths);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}, {}}), query->observed_ploidies);
+    ASSERT_NE(nullptr, query->variants[HAP1]["chr2"]);
+    ASSERT_NE(nullptr, query->variants[HAP2]["chr2"]);
+    EXPECT_EQ(0, query->variants[HAP1]["chr2"]->n);
+
+    // pairing it must not be mistaken for a ploidy disagreement, nor warned about as one-sided
     EXPECT_EQ(std::string::npos, out.find("contig 'chr2' has ploid")) << out;
+    EXPECT_EQ(std::string::npos, out.find("Contig 'chr2'")) << out;
+}
+
+// The mirror: a query contig outside the BED gains a truth counterpart.
+TEST(IntersectContigs, QueryOnlyContigOutsideBedIsPaired) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 10}});
+    std::shared_ptr<variantData> query =
+            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {1}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<fastaData> ref = two_contig_ref();
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), truth->contigs);
+    EXPECT_EQ(std::vector<int>({12, 12}), truth->lengths);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}, {}}), truth->observed_ploidies);
+    ASSERT_NE(nullptr, truth->variants[HAP1]["chr2"]);
+    ASSERT_NE(nullptr, truth->variants[HAP2]["chr2"]);
+    EXPECT_EQ(0, truth->variants[HAP1]["chr2"]->n);
+
+    EXPECT_EQ(std::string::npos, out.find("contig 'chr2' has ploid")) << out;
+    EXPECT_EQ(std::string::npos, out.find("Contig 'chr2'")) << out;
 }
 
 TEST(IntersectContigs, BedMissingInFastaErrors) {

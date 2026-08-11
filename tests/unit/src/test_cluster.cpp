@@ -10,6 +10,7 @@
 
 #include "gtest/gtest.h"
 
+#include "../../../src/bed.h"
 #include "../../../src/cluster.h"
 #include "../../../src/defs.h"
 #include "../../../src/globals.h"
@@ -1696,6 +1697,40 @@ TEST(SuperclusterDataCtor, EndToEndSmoke) {
     // variant starts supercluster 1
     EXPECT_EQ(std::vector<int>({0, 1}), qvars->superclusters);
     EXPECT_EQ(std::vector<int>({0}), tvars->superclusters);
+}
+
+// The merge dereferences variants[hap][ctg] for every contig in the union of both contig lists, so
+// a contig one callset never declared segfaults rather than being reported. intersect_contigs() is
+// what rules that state out, by pairing every contig across the two callsets, and a BED covering
+// only some of them must not be able to leave a contig unpaired. Runs the two together because
+// neither function alone can show the invariant holds.
+TEST(SuperclusterDataCtor, BedAbsentOneSidedContigIsPairedByIntersect) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 100}});
+
+    // chr2 is outside the BED and declared by the query alone, as a VCF header naming a contig the
+    // other callset's header omits entirely would leave it
+    std::shared_ptr<variantData> qvd =
+            make_variantData(QUERY, {"chr1", "chr2"}, {1000, 500}, {{2}, {2}});
+    std::shared_ptr<variantData> tvd = make_variantData(TRUTH, {"chr1"}, {1000}, {{2}});
+    std::shared_ptr<fastaData> ref =
+            make_fasta({{"chr1", std::string(1000, 'A')}, {"chr2", std::string(500, 'C')}});
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(qvd, tvd, ref);
+    testing::internal::GetCapturedStderr();
+
+    // the invariant the merge relies on: both callsets are indexable by every contig
+    ASSERT_NE(nullptr, tvd->variants[HAP1]["chr2"]);
+    ASSERT_NE(nullptr, tvd->variants[HAP2]["chr2"]);
+
+    superclusterData sc_data(qvd, tvd, ref);
+
+    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), sc_data.contigs);
+    EXPECT_NE(nullptr, sc_data.superclusters["chr2"]->callset_vars[QUERY]);
+    EXPECT_NE(nullptr, sc_data.superclusters["chr2"]->callset_vars[TRUTH]);
+    EXPECT_EQ(0, sc_data.superclusters["chr2"]->callset_vars[TRUTH]->n);
 }
 
 /* wf_swg_cluster *********************************************************************************/

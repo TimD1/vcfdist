@@ -111,6 +111,27 @@ skipped any contig the query does not call on, and the query-only direction pins
 no query call on `sc2` there is no phase block or phase to report there, so its truth record
 reports `PB=0` and `BS=.`.
 
+### bed_absent_contig — a one-sided contig outside the BED (#246)
+
+Reuses the `one_sided_contig` VCF pair against `synthetic.bed` (`sc1` alone) instead of
+`synthetic_2ctg.bed`, in both directions, so `sc2` is called by one callset and lies outside the
+evaluated regions. `sc2` is retained rather than pruned, but `parse_variants()` has already
+discarded its calls as off-contig, so both directions score SNP 2/2/0/0 — the same as running with
+`sc2` removed from the input entirely. Each direction pins that `sc2` reaches `*summary.vcf`'s
+header and carries no record there, which is what a later change writes retained calls into.
+
+### undeclared_contig — a contig one callset's header omits (#246)
+
+- `undeclared_contig_query.vcf` — declares `sc1` and `sc2`; SNP `sc1` 200 A>G and SNP `sc2` 50 T>C.
+- `undeclared_contig_truth.vcf` — declares `sc1` only; SNP `sc1` 200 A>G.
+
+Run against `synthetic.bed`, so `sc2` is also outside the evaluated regions. Unlike the
+`one_sided_contig` pair, whose files both declare `sc2`, the truth here never declares it at all —
+the distinction `parse_variants()` draws, since it creates a `ctgVariants` per *header* contig but
+appends to `contigs` per *record*. Superclustering merges `variants[hap][ctg]` across the union of
+both contig lists and dereferences the result without a null check, so a contig left unpaired by
+`intersect_contigs()` segfaults instead of being reported. Metrics match the declared-by-both case.
+
 ### unsorted_position_query — a coordinate-unsorted VCF (#232)
 
 - `unsorted_position_query.vcf` — the `swallowed_snps` query's three SNPs with the last two swapped,

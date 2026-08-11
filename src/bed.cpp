@@ -481,12 +481,40 @@ static std::string ploidy_set_str(const std::set<int> & ploidies) {
 }
 
 /**
+ * @brief Gives one callset an empty entry for every contig the other carries but it lacks.
+ *
+ * Consumers index variants[hap][ctg] over the union of the two callsets' contig lists and
+ * dereference the result without a null check -- superclusterData's merge does, since a contig is
+ * superclustered whenever either callset has variants there. std::unordered_map::operator[] would
+ * insert a null shared_ptr for an absent contig, so the two lists are kept mutually inclusive here
+ * rather than guarded at each consumer.
+ * @param[in] ref_ptr A pointer to the reference fastaData, supplying the contig's length.
+ * @param[in] from_ptr The callset whose contigs are being copied across.
+ * @param[in,out] to_ptr The callset gaining an empty entry per contig it lacks.
+ */
+static void pair_missing_contigs(const std::shared_ptr<fastaData> & ref_ptr,
+        const std::shared_ptr<variantData> & from_ptr,
+        const std::shared_ptr<variantData> & to_ptr) {
+    for (const std::string & ctg : from_ptr->contigs) {
+        if (std::find(to_ptr->contigs.begin(), to_ptr->contigs.end(), ctg)
+                != to_ptr->contigs.end()) continue;
+        to_ptr->variants[HAP1][ctg] = std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
+        to_ptr->variants[HAP2][ctg] = std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
+        to_ptr->contigs.push_back(ctg);
+        // safe: intersect_contigs() has already rejected any VCF contig the FASTA lacks
+        to_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
+        to_ptr->observed_ploidies.push_back({});
+    }
+}
+
+/**
  * @brief Reconciles the contigs of the reference FASTA, query VCF, truth VCF, and optional BED.
  *
  * Every contig either VCF carries is retained, along with its reference sequence, so that variants
  * on it remain reportable; contigs outside the BED are simply never evaluated, since
  * parse_variants() has already discarded their variants as BED_OFFCTG. Contigs the BED names but a
- * VCF lacks are injected empty, so that both callsets cover every evaluated region.
+ * VCF lacks are injected empty, so that both callsets cover every evaluated region, and the two
+ * callsets are then paired so that each is indexable by every contig the other carries.
  *
  * @param[in,out] query_ptr A pointer to the query variantData, gaining any missing BED contigs.
  * @param[in,out] truth_ptr A pointer to the truth variantData, gaining any missing BED contigs.
@@ -564,38 +592,27 @@ void intersect_contigs(
 
     } else { // use truth VCF to determine contigs
 
-        // ensure query/truth VCFs contain the same contigs (even if devoid of variants)
-        for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
-            std::string ctg = query_ptr->contigs[i];
-            if (std::find(truth_ptr->contigs.begin(), 
-                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end()) {
+        // warn if the truth and query contig lists differ; with no BED every contig is evaluated,
+        // so a one-sided contig here really does yield only false positives or only false negatives
+        for (const std::string & ctg : query_ptr->contigs) {
+            if (std::find(truth_ptr->contigs.begin(),
+                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end())
                 WARN("Contig '%s' found in query VCF but not truth VCF."
                      " All query variants on '%s' will be false positives.", ctg.data(), ctg.data());
-                truth_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-                truth_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-                truth_ptr->contigs.push_back(ctg);
-                truth_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                truth_ptr->observed_ploidies.push_back({});
-            }
         }
-        for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
-            std::string ctg = truth_ptr->contigs[i];
-            if (std::find(query_ptr->contigs.begin(), 
-                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end()) {
+        for (const std::string & ctg : truth_ptr->contigs) {
+            if (std::find(query_ptr->contigs.begin(),
+                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
                 WARN("Contig '%s' found in truth VCF but not query VCF."
                      " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
-                query_ptr->variants[HAP1][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-                query_ptr->variants[HAP2][ctg] = 
-                        std::shared_ptr<ctgVariants>(new ctgVariants(ctg));
-                query_ptr->contigs.push_back(ctg);
-                query_ptr->lengths.push_back(ref_ptr->lengths.at(ctg));
-                query_ptr->observed_ploidies.push_back({});
-            }
         }
     }
+
+    // Pair the two callsets' contig lists, whether or not a BED narrowed what is evaluated. The BED
+    // branch above only injects the contigs the BED names, so a one-sided contig outside the BED
+    // would otherwise survive with no counterpart for the merge to index.
+    pair_missing_contigs(ref_ptr, query_ptr, truth_ptr);
+    pair_missing_contigs(ref_ptr, truth_ptr, query_ptr);
 
     // verify the observed ploidies match for all evaluated truth/query contigs
     for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
@@ -606,9 +623,9 @@ void intersect_contigs(
         if (g.bed_exists && std::find(g.bed.contigs.begin(), g.bed.contigs.end(), ctg)
                 == g.bed.contigs.end()) continue;
 
-        // Unreachable: the skip above drops the BED-absent contigs, and the injection above pairs
-        // every remaining one. Guarded anyway, since indexing on a failed find() would read out of
-        // bounds rather than report anything.
+        // Unreachable: pair_missing_contigs() has given the query every contig the truth carries.
+        // Guarded anyway, since indexing on a failed find() would read past the end of the vector
+        // rather than report anything.
         auto query_itr = std::find(query_ptr->contigs.begin(), query_ptr->contigs.end(), ctg);
         if (query_itr == query_ptr->contigs.end()) continue;
         int query_ctg_idx = query_itr - query_ptr->contigs.begin();
