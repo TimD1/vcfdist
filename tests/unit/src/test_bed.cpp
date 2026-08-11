@@ -116,18 +116,50 @@ TEST(BedCtor, RunsCheck) {
     EXPECT_EXIT(bedData bed(bed_fn), testing::ExitedWithCode(1), "BED overlap detected");
 }
 
-TEST(BedCtor, MergeOverlapsSkipsCheck) {
+// The same file BedCtor.RunsCheck rejects: normalizing repairs the overlap, so the check that
+// still runs afterwards has nothing left to reject.
+TEST(BedCtor, NormalizedOverlapPassesCheck) {
     GlobalsGuard guard;
     TempDir dir;
     std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8", "chr1\t5\t10"});
 
-    // a region set we neither author nor control is repaired rather than rejected
+    testing::internal::CaptureStderr();
     bedData bed(bed_fn, true);
+    EXPECT_EQ("", testing::internal::GetCapturedStderr());
 
     ASSERT_EQ(1, bed.regions["chr1"].n);
     EXPECT_EQ(2, bed.regions["chr1"].starts[0]);
     EXPECT_EQ(10, bed.regions["chr1"].stops[0]);
     EXPECT_EQ(8L, bed.size);
+}
+
+// Normalizing repairs disorder and overlap and nothing else, so the validation it precedes is not
+// weakened: a malformation sorting and merging cannot fix is still fatal.
+TEST(BedCtor, NormalizeStillRunsCheck) {
+    GlobalsGuard guard;
+    TempDir dir;
+
+    EXPECT_EXIT({
+                std::string bed_fn = write_tmp_bed(dir, {"chr1\t8\t2"}, "flipped.bed");
+                bedData bed(bed_fn, true);
+            }, testing::ExitedWithCode(1), "BED region chr1:8-2 stop precedes start");
+
+    EXPECT_EXIT({
+                std::string bed_fn = write_tmp_bed(dir, {"chr1\t5\t5"}, "empty_region.bed");
+                bedData bed(bed_fn, true);
+            }, testing::ExitedWithCode(1), "BED region chr1:5-5 length zero");
+}
+
+TEST(BedCtor, RecordsFilename) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t2\t8"});
+
+    // the messages normalize() prints name the file, so the file has to be remembered
+    bedData bed(bed_fn);
+
+    EXPECT_EQ(bed_fn, bed.filename);
+    EXPECT_EQ("", bedData().filename);
 }
 
 TEST(BedCtor, NonNumericCoordErrors) {
@@ -371,13 +403,13 @@ TEST(BedCheck, ValidPasses) {
     EXPECT_EQ("", testing::internal::GetCapturedStderr());
 }
 
-/* bedData::merge *********************************************************************************/
+/* bedData::normalize *****************************************************************************/
 
-TEST(BedMerge, AlreadyMergedUnchanged) {
+TEST(BedNormalize, AlreadyMergedUnchanged) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
 
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<int>({10, 30}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({20, 40}), bed.regions["chr1"].stops);
@@ -385,12 +417,14 @@ TEST(BedMerge, AlreadyMergedUnchanged) {
     EXPECT_EQ(20L, bed.size);
 }
 
-TEST(BedMerge, SortsUnsorted) {
+TEST(BedNormalize, SortsUnsorted) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{30, 40}, {10, 20}});
 
     // disjoint regions given out of order are ordered, not combined
-    bed.merge();
+    testing::internal::CaptureStderr();
+    bed.normalize();
+    EXPECT_NE(std::string::npos, testing::internal::GetCapturedStderr().find("were unsorted"));
 
     EXPECT_EQ(std::vector<int>({10, 30}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({20, 40}), bed.regions["chr1"].stops);
@@ -398,12 +432,12 @@ TEST(BedMerge, SortsUnsorted) {
     EXPECT_EQ(20L, bed.size);
 }
 
-TEST(BedMerge, CombinesOverlapping) {
+TEST(BedNormalize, CombinesOverlapping) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{10, 20}, {15, 30}});
     EXPECT_EQ(25L, bed.size); // add() counted [15, 20) twice
 
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({30}), bed.regions["chr1"].stops);
@@ -413,12 +447,12 @@ TEST(BedMerge, CombinesOverlapping) {
     EXPECT_EQ(20L, bed.size);
 }
 
-TEST(BedMerge, CombinesAdjacent) {
+TEST(BedNormalize, CombinesAdjacent) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{10, 20}, {20, 30}});
 
     // abutting regions cover a contiguous span, so they become one interval
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({30}), bed.regions["chr1"].stops);
@@ -426,12 +460,12 @@ TEST(BedMerge, CombinesAdjacent) {
     EXPECT_EQ(20L, bed.size);
 }
 
-TEST(BedMerge, AbsorbsNested) {
+TEST(BedNormalize, AbsorbsNested) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{10, 40}, {20, 30}});
 
     // the enclosing region must not be truncated to the nested one's stop
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({40}), bed.regions["chr1"].stops);
@@ -439,11 +473,11 @@ TEST(BedMerge, AbsorbsNested) {
     EXPECT_EQ(30L, bed.size);
 }
 
-TEST(BedMerge, CollapsesDuplicates) {
+TEST(BedNormalize, CollapsesDuplicates) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{10, 20}, {10, 20}, {10, 20}});
 
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({20}), bed.regions["chr1"].stops);
@@ -451,11 +485,11 @@ TEST(BedMerge, CollapsesDuplicates) {
     EXPECT_EQ(10L, bed.size);
 }
 
-TEST(BedMerge, SingleIntervalUnchanged) {
+TEST(BedNormalize, SingleIntervalUnchanged) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{10, 20}});
 
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<int>({10}), bed.regions["chr1"].starts);
     EXPECT_EQ(std::vector<int>({20}), bed.regions["chr1"].stops);
@@ -463,22 +497,22 @@ TEST(BedMerge, SingleIntervalUnchanged) {
     EXPECT_EQ(10L, bed.size);
 }
 
-TEST(BedMerge, EmptyBedUnchanged) {
+TEST(BedNormalize, EmptyBedUnchanged) {
     GlobalsGuard guard;
     bedData bed;
 
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(size_t(0), bed.contigs.size());
     EXPECT_EQ(0L, bed.size);
 }
 
-TEST(BedMerge, MergesEachContigSeparately) {
+TEST(BedNormalize, MergesEachContigSeparately) {
     GlobalsGuard guard;
     bedData bed = make_bed({{"chr1", {{10, 20}, {15, 30}}}, {"chr2", {{50, 60}}}});
 
     // a contig's regions never merge into another contig's, and every contig is kept
-    bed.merge();
+    bed.normalize();
 
     EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), bed.contigs);
     EXPECT_EQ(1, bed.regions["chr1"].n);
@@ -491,37 +525,67 @@ TEST(BedMerge, MergesEachContigSeparately) {
 }
 
 // A merged region set is what contains() assumes, so the two must agree once merge() has run.
-TEST(BedMerge, MergedRegionsAreQueryable) {
+TEST(BedNormalize, MergedRegionsAreQueryable) {
     GlobalsGuard guard;
     bedData bed = make_bed("chr1", {{30, 40}, {10, 25}, {20, 30}});
 
-    bed.merge(); // one [10, 40) region
+    testing::internal::CaptureStderr();
+    bed.normalize(); // one [10, 40) region
+    testing::internal::GetCapturedStderr(); // the input was unsorted, which warns
 
     EXPECT_EQ(BED_INSIDE, bed.contains("chr1", 26, 29, TYPE_SUB));
     EXPECT_EQ(BED_OUTSIDE, bed.contains("chr1", 0, 5, TYPE_SUB));
     EXPECT_EQ(BED_BORDER, bed.contains("chr1", 35, 45, TYPE_SUB));
 }
 
-TEST(BedMerge, ReportsCoalescedCount) {
+// The message tests load from a file rather than building in memory, since what they assert on is
+// the file being named -- #47 normalizes many region sets, so a message about one of them has to
+// say which.
+TEST(BedNormalize, ReportsCoalescedCount) {
     GlobalsGuard guard;
     g.verbosity = 2;
-    bedData bed = make_bed("chr1", {{10, 20}, {15, 30}, {30, 40}});
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t10\t20", "chr1\t15\t30", "chr1\t30\t40"});
 
     testing::internal::CaptureStderr();
-    bed.merge(); // three regions become one
+    bedData bed(bed_fn, true); // three regions become one
     std::string out = testing::internal::GetCapturedStderr();
 
-    EXPECT_NE(std::string::npos, out.find("Merged 2 overlapping or adjacent BED regions")) << out;
+    EXPECT_NE(std::string::npos, out.find("Merged 2 overlapping or adjacent regions")) << out;
+    EXPECT_NE(std::string::npos, out.find(bed_fn)) << out;
+
+    // these regions ascend, so merging them is not grounds for reporting the file as unsorted
+    EXPECT_EQ(std::string::npos, out.find("unsorted")) << out;
 }
 
-TEST(BedMerge, SilentWhenNothingCoalesced) {
+TEST(BedNormalize, WarnsWhenUnsorted) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t30\t40", "chr1\t10\t20"});
+
+    // sorting is a repair, not a formality: the file is not what check() would have accepted
+    testing::internal::CaptureStderr();
+    bedData bed(bed_fn, true);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(std::string::npos, out.find("[WARN")) << out;
+    EXPECT_NE(std::string::npos, out.find("were unsorted")) << out;
+    EXPECT_NE(std::string::npos, out.find(bed_fn)) << out;
+
+    // the regions are sorted, and disjoint regions are not merged along the way
+    EXPECT_EQ(std::vector<int>({10, 30}), bed.regions["chr1"].starts);
+    EXPECT_EQ(std::vector<int>({20, 40}), bed.regions["chr1"].stops);
+}
+
+TEST(BedNormalize, SilentWhenAlreadyNormalized) {
     GlobalsGuard guard;
     g.verbosity = 2;
-    bedData bed = make_bed("chr1", {{10, 20}, {30, 40}});
+    TempDir dir;
+    std::string bed_fn = write_tmp_bed(dir, {"chr1\t10\t20", "chr1\t30\t40"});
 
-    // a region set that was already merged is not worth a message, even at high verbosity
+    // a sorted, disjoint region set is repaired in no respect, so neither message fires
     testing::internal::CaptureStderr();
-    bed.merge();
+    bedData bed(bed_fn, true);
 
     EXPECT_EQ("", testing::internal::GetCapturedStderr());
 }

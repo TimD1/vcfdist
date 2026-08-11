@@ -50,19 +50,23 @@ static int parse_coord(const std::string & coord, const std::string & bed_fn, co
  * plain, gzip, and bgzip encodings are all accepted; the encoding is detected from the file's
  * leading bytes rather than from its extension.
  *
- * The loaded regions are then either validated with check(), which rejects an unsorted or
- * overlapping file, or repaired with merge(). The strict reading is right for an evaluation region
- * whose malformation silently changes every denominator, and the lenient one for a third-party
- * region set we neither author nor control.
+ * The loaded regions are optionally normalized, then validated with check() either way. Rejecting
+ * an unsorted or overlapping file outright is right for an evaluation region whose malformation
+ * silently changes every denominator; normalizing first is right for a third-party region set we
+ * neither author nor control. Normalizing does not weaken the validation, since disorder and
+ * overlap are the only malformations it repairs -- a flipped or zero-length interval still errors.
  * @param[in] bed_fn The BED filename.
- * @param[in] merge_overlaps Whether to merge unsorted/overlapping regions rather than reject them.
+ * @param[in] normalize Whether to sort and merge the regions before validating them.
  * @throws ERROR if the BED file cannot be opened.
  * @throws ERROR if a line cannot be read, which a truncated or corrupt compressed file looks like.
  * @throws ERROR if a start or stop coordinate is empty, not numeric in full, or too large.
- * @throws ERROR if merge_overlaps is false and the regions fail check().
- * @throws WARNING if merge_overlaps is false and adjacent regions share a boundary.
+ * @throws ERROR if the regions fail check().
+ * @throws WARNING if the regions are normalized and were not already sorted.
+ * @throws WARNING if adjacent regions share a boundary, which normalizing would have merged.
  */
-bedData::bedData(const std::string & bed_fn, bool merge_overlaps) {
+bedData::bedData(const std::string & bed_fn, bool normalize) {
+
+    this->filename = bed_fn;
 
     // fail if file doesn't exist, or is compressed in a way htslib cannot decode
     htsFile* bed_fp = hts_open(bed_fn.data(), "r");
@@ -93,8 +97,9 @@ bedData::bedData(const std::string & bed_fn, bool merge_overlaps) {
     ks_free(&region);
     hts_close(bed_fp);
 
-    if (merge_overlaps) this->merge();
-    else this->check();
+    // normalizing repairs disorder and overlap; check() still has to reject what it cannot
+    if (normalize) this->normalize();
+    this->check();
 }
 
 /**
@@ -167,11 +172,16 @@ void bedData::check() {
  * unsorted or overlapping region set makes it return wrong answers rather than merely being
  * untidy. The total size is recomputed from the merged intervals, since bases covered by more than
  * one input interval were counted once per interval by add().
+ *
+ * A flipped or zero-length interval is left exactly as it was found, since neither is repairable
+ * by sorting or merging; check() rejects both.
+ * @throws WARNING if the intervals on any contig were not already sorted.
  */
-void bedData::merge() {
+void bedData::normalize() {
 
     long merged_size = 0;
     int coalesced = 0;
+    bool was_unsorted = false;
     for (const std::string & contig : this->contigs) {
         contigRegions & ctg_regions = this->regions[contig];
 
@@ -179,6 +189,9 @@ void bedData::merge() {
         std::vector< std::pair<int, int> > intervals;
         for (int i = 0; i < ctg_regions.n; i++)
             intervals.push_back(std::make_pair(ctg_regions.starts[i], ctg_regions.stops[i]));
+        // reported rather than silently corrected, since an unsorted region set means the file is
+        // not what check() would have accepted
+        if (!std::is_sorted(intervals.begin(), intervals.end())) was_unsorted = true;
         std::sort(intervals.begin(), intervals.end());
 
         std::vector<int> starts, stops;
@@ -200,8 +213,12 @@ void bedData::merge() {
     }
     this->size = merged_size;
 
+    if (was_unsorted)
+        WARN("Regions in BED file '%s' were unsorted, and have been sorted.",
+                this->filename.data());
     if (g.verbosity >= 2 && coalesced)
-        INFO("Merged %d overlapping or adjacent BED regions.", coalesced);
+        INFO("Merged %d overlapping or adjacent regions in BED file '%s'.",
+                coalesced, this->filename.data());
 }
 
 /**
