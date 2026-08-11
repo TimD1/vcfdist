@@ -483,6 +483,13 @@ static std::string ploidy_set_str(const std::set<int> & ploidies) {
 /**
  * @brief Intersects reference FASTA, query VCF, truth VCF, and optional BED regions, retaining only common contigs.
  *
+ * On return, both callsets carry identical `contigs` lists and every contig in them is indexable in
+ * both callsets' `variants[hap]` maps, whether or not a BED was given. Two consumers are written
+ * against that invariant: the ploidy comparison below indexes `observed_ploidies` by the query's
+ * position of a truth contig, and superclusterData::load_and_merge_callset_vars_across_haps()
+ * indexes `variants[hap][ctg]` for every contig in the union of both lists. Both guard against a
+ * violation rather than trusting it, so weakening the injection below degrades to a skipped contig
+ * rather than an out-of-bounds read or a null dereference.
  * @param[in] query_ptr A pointer to the query variantData.
  * @param[in] truth_ptr A pointer to the truth variantData.
  * @param[in] ref_ptr A pointer to the reference fastaData.
@@ -556,7 +563,7 @@ void intersect_contigs(
                      " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
         }
 
-        // ensure all inputs contain required contigs (even if empty)
+        // ensure all inputs contain required contigs (even if empty), establishing the invariant
         for (std::string ctg : g.bed.contigs) {
             if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
                 ERROR("Contig '%s' found in BED but not reference FASTA.", ctg.data());
@@ -592,7 +599,7 @@ void intersect_contigs(
                 ERROR("Contig '%s' found in truth VCF but not reference FASTA. Please provide BED file.", ctg.data());
         }
 
-        // ensure query/truth VCFs contain the same contigs (even if devoid of variants)
+        // cross-inject so both VCFs carry the same contigs (even if devoid of variants), the invariant
         for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
             std::string ctg = query_ptr->contigs[i];
             if (std::find(truth_ptr->contigs.begin(), 
@@ -637,8 +644,11 @@ void intersect_contigs(
     // verify the observed ploidies match for all truth/query contigs
     for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
         std::string ctg = truth_ptr->contigs[i];
-        int query_ctg_idx = std::find(query_ptr->contigs.begin(),
-                query_ptr->contigs.end(), ctg) - query_ptr->contigs.begin();
+        auto query_ctg_itr = std::find(query_ptr->contigs.begin(),
+                query_ptr->contigs.end(), ctg);
+        // a truth contig with no query counterpart has no ploidies to compare against
+        if (query_ctg_itr == query_ptr->contigs.end()) continue;
+        int query_ctg_idx = query_ctg_itr - query_ptr->contigs.begin();
         int truth_ctg_idx = i;
         const std::set<int> & truth_ploidies = truth_ptr->observed_ploidies[truth_ctg_idx];
         const std::set<int> & query_ploidies = query_ptr->observed_ploidies[query_ctg_idx];
