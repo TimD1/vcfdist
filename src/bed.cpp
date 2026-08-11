@@ -483,13 +483,6 @@ static std::string ploidy_set_str(const std::set<int> & ploidies) {
 /**
  * @brief Intersects reference FASTA, query VCF, truth VCF, and optional BED regions, retaining only common contigs.
  *
- * On return, both callsets carry identical `contigs` lists and every contig in them is indexable in
- * both callsets' `variants[hap]` maps, whether or not a BED was given. Two consumers are written
- * against that invariant: the ploidy comparison below indexes `observed_ploidies` by the query's
- * position of a truth contig, and superclusterData::load_and_merge_callset_vars_across_haps()
- * indexes `variants[hap][ctg]` for every contig in the union of both lists. Both guard against a
- * violation rather than trusting it, so weakening the injection below degrades to a skipped contig
- * rather than an out-of-bounds read or a null dereference.
  * @param[in] query_ptr A pointer to the query variantData.
  * @param[in] truth_ptr A pointer to the truth variantData.
  * @param[in] ref_ptr A pointer to the reference fastaData.
@@ -563,7 +556,7 @@ void intersect_contigs(
                      " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
         }
 
-        // ensure all inputs contain required contigs (even if empty), establishing the invariant
+        // ensure all inputs contain required contigs (even if empty)
         for (std::string ctg : g.bed.contigs) {
             if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
                 ERROR("Contig '%s' found in BED but not reference FASTA.", ctg.data());
@@ -599,7 +592,7 @@ void intersect_contigs(
                 ERROR("Contig '%s' found in truth VCF but not reference FASTA. Please provide BED file.", ctg.data());
         }
 
-        // cross-inject so both VCFs carry the same contigs (even if devoid of variants), the invariant
+        // ensure query/truth VCFs contain the same contigs (even if devoid of variants)
         for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
             std::string ctg = query_ptr->contigs[i];
             if (std::find(truth_ptr->contigs.begin(), 

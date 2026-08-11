@@ -77,11 +77,6 @@ int ctgSuperclusters::get_max_ref_pos(int qvi_start, int qvi_end, int tvi_start,
  * nc at 0 as wf_swg_cluster() does, so `clusters` is never empty and `clusters[0]` is always
  * readable. Callers rely on that because a contig is superclustered whenever *either* callset has
  * variants there.
- *
- * `this->contigs` is the union of both callsets' contig lists, so intersect_contigs()' invariant is
- * what normally makes every contig indexable in `vars`. A contig this callset never declared is
- * treated as empty and gets the same trailing boundary, rather than being inserted into `vars` as a
- * null ctgVariants and dereferenced.
  * @param[in] callset The variant callset that is being added, either TRUTH or QUERY.
  * @param[in] vars For each haplotype, a mapping from contig names to ctgVariants.
  * @throws ERROR if no variants are present on the contig.
