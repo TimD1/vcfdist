@@ -143,6 +143,8 @@ To include more details on intermediate results, run it again at higher verbosit
 
 Both input VCFs must be coordinate-sorted: each contig's records must be grouped together, and within a contig positions must not decrease. vcfdist exits with an error naming the offending record otherwise.
 
+Every contig either input VCF carries must also be present in the reference FASTA, whether or not a BED file restricts which regions are evaluated. vcfdist exits with an error naming the contig and the callset otherwise. A query VCF carrying decoy or alt contigs (`chrEBV`, `HLA-*`) therefore needs a reference that includes them, or those records removed.
+
 ## Wiki
 
 The [vcfdist wiki](https://github.com/TimD1/vcfdist/wiki) has helpful information on [command-line parameters](https://github.com/TimD1/vcfdist/wiki/02-Parameters-and-Usage), [output documentation](https://github.com/TimD1/vcfdist/wiki/09-Outputs), and [implementation](https://github.com/TimD1/vcfdist/wiki/01-Overview).

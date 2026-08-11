@@ -1035,7 +1035,9 @@ TEST(CheckStrataContigs, AllZeroOverlapNamesLikelyCause) {
 
 /* intersect_contigs ******************************************************************************/
 
-TEST(IntersectContigs, BedDropsExtraneous) {
+// A contig outside the BED survives so that its variants remain reportable. It is already empty:
+// parse_variants() discards every variant on it as BED_OFFCTG, so keeping it costs an entry.
+TEST(IntersectContigs, BedKeepsContigOutsideBed) {
     GlobalsGuard guard;
     g.bed_exists = true;
     g.bed = make_bed("chr1", {{0, 10}});
@@ -1048,16 +1050,121 @@ TEST(IntersectContigs, BedDropsExtraneous) {
     intersect_contigs(query, truth, ref);
     testing::internal::GetCapturedStderr();
 
-    // chr2 is absent from the BED, so it is dropped from the query along with its parallel fields
-    EXPECT_EQ(std::vector<std::string>({"chr1"}), query->contigs);
-    EXPECT_EQ(std::vector<int>({12}), query->lengths);
-    EXPECT_EQ(std::vector< std::set<int> >({{2}}), query->observed_ploidies);
-    EXPECT_EQ(size_t(0), query->variants[HAP1].count("chr2"));
-    EXPECT_EQ(size_t(0), query->variants[HAP2].count("chr2"));
+    // chr2 keeps its entry in contigs and in every field parallel to it
+    EXPECT_EQ(std::vector<std::string>({"chr1", "chr2"}), query->contigs);
+    EXPECT_EQ(std::vector<int>({12, 12}), query->lengths);
+    EXPECT_EQ(std::vector< std::set<int> >({{2}, {2}}), query->observed_ploidies);
+    EXPECT_EQ(size_t(1), query->variants[HAP1].count("chr2"));
+    EXPECT_EQ(size_t(1), query->variants[HAP2].count("chr2"));
 
-    // the reference is pruned to the BED contigs too
-    EXPECT_EQ(size_t(1), ref->fasta.size());
-    EXPECT_EQ(size_t(1), ref->fasta.count("chr1"));
+    // set_var_record() anchors an INS/DEL in the reference sequence, so it must survive too
+    EXPECT_EQ(size_t(2), ref->fasta.size());
+    EXPECT_EQ("TTTTTTTTTTTT", ref->fasta.at("chr2"));
+}
+
+// The BED contig list, not the truth VCF, decides which reference sequences are needed, and neither
+// decides what may be freed: a contig absent from both is still reachable through a retained call.
+TEST(IntersectContigs, NobedKeepsRefContigAbsentFromTruth) {
+    GlobalsGuard guard;
+    g.bed_exists = false;
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<fastaData> ref = two_contig_ref();
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(size_t(2), ref->fasta.size());
+    EXPECT_EQ("TTTTTTTTTTTT", ref->fasta.at("chr2"));
+}
+
+// Retaining a contig means its reference sequence is now required, so a missing one is an error
+// rather than a silent drop. Checked for both callsets, and whether or not a BED was supplied.
+TEST(IntersectContigs, QueryContigMissingFromFastaErrors) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 10}});
+    EXPECT_EXIT({
+                std::shared_ptr<variantData> query =
+                        make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+                std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
+                std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
+                intersect_contigs(query, truth, ref);
+            }, testing::ExitedWithCode(1),
+            "Contig 'chr2' found in QUERY VCF but not reference FASTA");
+}
+
+TEST(IntersectContigs, BedTruthContigMissingFromFastaErrors) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 10}});
+    EXPECT_EXIT({
+                std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
+                std::shared_ptr<variantData> truth =
+                        make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+                std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
+                intersect_contigs(query, truth, ref);
+            }, testing::ExitedWithCode(1),
+            "Contig 'chr2' found in TRUTH VCF but not reference FASTA");
+}
+
+// Nothing is evaluated on a contig outside the BED, so there are no false positives or false
+// negatives there to warn about.
+TEST(IntersectContigs, ContigOutsideBedDoesNotWarnOnMissingCounterpart) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 10}});
+    std::shared_ptr<variantData> query =
+            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+    std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<fastaData> ref = two_contig_ref();
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(std::string::npos, out.find("Contig 'chr2'")) << out;
+}
+
+// Ploidies are recorded before parse_variants() applies the BED filter, so a contig outside the BED
+// carries observed ploidies that no evaluation ever consults. Disagreement there is not actionable.
+TEST(IntersectContigs, ContigOutsideBedDoesNotWarnOnPloidy) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 10}});
+    std::shared_ptr<variantData> query =
+            make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {1}});
+    std::shared_ptr<variantData> truth =
+            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+    std::shared_ptr<fastaData> ref = two_contig_ref();
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(std::string::npos, out.find("contig 'chr2' has ploid")) << out;
+}
+
+// A truth contig outside the BED has no query counterpart to look up, because the injection block
+// below iterates the BED contigs only. Indexing observed_ploidies with the result of a failed
+// std::find would read past the end of the vector.
+TEST(IntersectContigs, TruthOnlyContigOutsideBedIsSafe) {
+    GlobalsGuard guard;
+    g.bed_exists = true;
+    g.bed = make_bed("chr1", {{0, 10}});
+    std::shared_ptr<variantData> query = make_variantData(QUERY, {"chr1"}, {12}, {{2}});
+    std::shared_ptr<variantData> truth =
+            make_variantData(TRUTH, {"chr1", "chr2"}, {12, 12}, {{2}, {1}});
+    std::shared_ptr<fastaData> ref = two_contig_ref();
+
+    testing::internal::CaptureStderr();
+    intersect_contigs(query, truth, ref);
+    std::string out = testing::internal::GetCapturedStderr();
+
+    // chr2 stays truth-only: the BED does not name it, so nothing injects a query counterpart
+    EXPECT_EQ(std::vector<std::string>({"chr1"}), query->contigs);
+    EXPECT_EQ(std::string::npos, out.find("contig 'chr2' has ploid")) << out;
 }
 
 TEST(IntersectContigs, BedMissingInFastaErrors) {
@@ -1166,7 +1273,7 @@ TEST(IntersectContigs, NobedTruthOnlyContigWarns) {
     EXPECT_EQ(0, query->variants[HAP2]["chr2"]->n);
 }
 
-TEST(IntersectContigs, NobedFastaMissingErrors) {
+TEST(IntersectContigs, NobedTruthContigMissingFromFastaErrors) {
     GlobalsGuard guard;
     g.bed_exists = false;
     EXPECT_EXIT({
@@ -1176,7 +1283,22 @@ TEST(IntersectContigs, NobedFastaMissingErrors) {
                 std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
                 intersect_contigs(query, truth, ref);
             }, testing::ExitedWithCode(1),
-            "Contig 'chr2' found in truth VCF but not reference FASTA");
+            "Contig 'chr2' found in TRUTH VCF but not reference FASTA");
+}
+
+// Without a BED the missing sequence was previously reached as an unhandled std::out_of_range from
+// lengths.at() while injecting the contig into the truth, rather than as a reported error.
+TEST(IntersectContigs, NobedQueryContigMissingFromFastaErrors) {
+    GlobalsGuard guard;
+    g.bed_exists = false;
+    EXPECT_EXIT({
+                std::shared_ptr<variantData> query =
+                        make_variantData(QUERY, {"chr1", "chr2"}, {12, 12}, {{2}, {2}});
+                std::shared_ptr<variantData> truth = make_variantData(TRUTH, {"chr1"}, {12}, {{2}});
+                std::shared_ptr<fastaData> ref = make_fasta("chr1", "ACGTACGTACGT");
+                intersect_contigs(query, truth, ref);
+            }, testing::ExitedWithCode(1),
+            "Contig 'chr2' found in QUERY VCF but not reference FASTA");
 }
 
 TEST(IntersectContigs, PloidyMismatchWarns) {

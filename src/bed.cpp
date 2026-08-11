@@ -481,14 +481,21 @@ static std::string ploidy_set_str(const std::set<int> & ploidies) {
 }
 
 /**
- * @brief Intersects reference FASTA, query VCF, truth VCF, and optional BED regions, retaining only common contigs.
+ * @brief Reconciles the contigs of the reference FASTA, query VCF, truth VCF, and optional BED.
  *
- * @param[in] query_ptr A pointer to the query variantData.
- * @param[in] truth_ptr A pointer to the truth variantData.
+ * Every contig either VCF carries is retained, along with its reference sequence, so that variants
+ * on it remain reportable; contigs outside the BED are simply never evaluated, since
+ * parse_variants() has already discarded their variants as BED_OFFCTG. Contigs the BED names but a
+ * VCF lacks are injected empty, so that both callsets cover every evaluated region.
+ *
+ * @param[in,out] query_ptr A pointer to the query variantData, gaining any missing BED contigs.
+ * @param[in,out] truth_ptr A pointer to the truth variantData, gaining any missing BED contigs.
  * @param[in] ref_ptr A pointer to the reference fastaData.
- * @throws WARNING if contigs in either VCF are not present in either the other VCF or BED file.
- * @throws WARNING if corresponding contigs in the truth and query VCFs observed differing ploidies.
- * @throws ERROR if a contig to be evaluated is not present in the reference FASTA.
+ * @throws WARNING if a BED contig is present in one VCF but not the other.
+ * @throws WARNING if corresponding evaluated contigs in the truth and query VCFs observed differing
+ *         ploidies.
+ * @throws ERROR if a contig in either VCF is not present in the reference FASTA.
+ * @throws ERROR if a contig in the BED file is not present in the reference FASTA.
  */
 void intersect_contigs(
         std::shared_ptr<variantData> query_ptr,
@@ -497,61 +504,32 @@ void intersect_contigs(
     if (g.verbosity >= 1) INFO(" ");
     if (g.verbosity >= 1) INFO("  Checking contigs:");
 
+    // Every contig in either callset is retained, so every one of them needs reference sequence:
+    // set_var_record() anchors an INS/DEL in ref->fasta when writing a variant back out.
+    const std::vector< std::pair<callset_t, std::shared_ptr<variantData> > > callsets =
+            {{QUERY, query_ptr}, {TRUTH, truth_ptr}};
+    for (const auto & [callset, vcf_ptr] : callsets) {
+        for (const std::string & ctg : vcf_ptr->contigs) {
+            if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
+                ERROR("Contig '%s' found in %s VCF but not reference FASTA.",
+                        ctg.data(), callset_strs[callset].data());
+        }
+    }
+
     if (g.bed_exists) { // use BED to determine contigs
 
-        // remove all extraneous contigs in query VCF not in BED
-        std::vector<std::string>::iterator itr = query_ptr->contigs.begin();
-        while (itr != query_ptr->contigs.end()) { // query
-            if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
-                        *itr) == g.bed.contigs.end()) {
-                query_ptr->lengths.erase(query_ptr->lengths.begin() + 
-                        (itr - query_ptr->contigs.begin()));
-                query_ptr->observed_ploidies.erase(query_ptr->observed_ploidies.begin() +
-                        (itr - query_ptr->contigs.begin()));
-                query_ptr->variants[HAP1].erase(*itr);
-                query_ptr->variants[HAP2].erase(*itr);
-                std::string dropped_ctg = *itr; // save name, erase() invalidates itr
-                itr = query_ptr->contigs.erase(itr);
-                if (g.verbosity >= 2)
-                    WARN("Ignoring %s from QUERY VCF, not in BED file.", dropped_ctg.data());
-            } else ++itr;
-        }
-        // remove all extraneous contigs in truth VCF not in BED
-        itr = truth_ptr->contigs.begin();
-        while (itr != truth_ptr->contigs.end()) { // truth
-            if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
-                        *itr) == g.bed.contigs.end()) {
-                truth_ptr->lengths.erase(truth_ptr->lengths.begin() + 
-                        (itr - truth_ptr->contigs.begin()));
-                truth_ptr->observed_ploidies.erase(truth_ptr->observed_ploidies.begin() +
-                        (itr - truth_ptr->contigs.begin()));
-                truth_ptr->variants[HAP1].erase(*itr);
-                truth_ptr->variants[HAP2].erase(*itr);
-                std::string dropped_ctg = *itr; // save name, erase() invalidates itr
-                itr = truth_ptr->contigs.erase(itr);
-                if (g.verbosity >= 2)
-                    WARN("Ignoring %s from TRUTH VCF, not in BED file.", dropped_ctg.data());
-            } else ++itr;
-        }
-        // remove all extraneous contigs in ref FASTA not in BED
-        auto itr2 = ref_ptr->fasta.begin();
-        while (itr2 != ref_ptr->fasta.end()) { // fasta
-            if (std::find(g.bed.contigs.begin(), g.bed.contigs.end(),
-                        itr2->first) == g.bed.contigs.end()) {
-                itr2 = ref_ptr->fasta.erase(itr2);
-            } else itr2++;
-        }
-
-        // warn if list of truth and query contigs are not the same
-        for (std::string ctg : query_ptr->contigs) {
-            if (std::find(truth_ptr->contigs.begin(), 
-                        truth_ptr->contigs.end(), ctg) == truth_ptr->contigs.end())
+        // Warn if the truth and query contig lists differ, over the BED contigs alone: nothing is
+        // evaluated outside them, so a one-sided contig there yields neither FPs nor FNs to warn
+        // about. Runs before the injection below, which would otherwise mask every difference.
+        for (const std::string & ctg : g.bed.contigs) {
+            bool in_query = std::find(query_ptr->contigs.begin(),
+                    query_ptr->contigs.end(), ctg) != query_ptr->contigs.end();
+            bool in_truth = std::find(truth_ptr->contigs.begin(),
+                    truth_ptr->contigs.end(), ctg) != truth_ptr->contigs.end();
+            if (in_query && !in_truth)
                 WARN("Contig '%s' found in query VCF but not truth VCF."
                      " All query variants on '%s' will be false positives.", ctg.data(), ctg.data());
-        }
-        for (std::string ctg : truth_ptr->contigs) {
-            if (std::find(query_ptr->contigs.begin(), 
-                        query_ptr->contigs.end(), ctg) == query_ptr->contigs.end())
+            if (in_truth && !in_query)
                 WARN("Contig '%s' found in truth VCF but not query VCF."
                      " All truth variants on '%s' will be false negatives.", ctg.data(), ctg.data());
         }
@@ -586,12 +564,6 @@ void intersect_contigs(
 
     } else { // use truth VCF to determine contigs
 
-        // ensure fasta contains all contigs
-        for (std::string ctg : truth_ptr->contigs) {
-            if (ref_ptr->fasta.find(ctg) == ref_ptr->fasta.end())
-                ERROR("Contig '%s' found in truth VCF but not reference FASTA. Please provide BED file.", ctg.data());
-        }
-
         // ensure query/truth VCFs contain the same contigs (even if devoid of variants)
         for (int i = 0; i < int(query_ptr->contigs.size()); i++) {
             std::string ctg = query_ptr->contigs[i];
@@ -623,22 +595,23 @@ void intersect_contigs(
                 query_ptr->observed_ploidies.push_back({});
             }
         }
-
-        // remove extra contigs from ref FASTA
-        auto itr = ref_ptr->fasta.begin();
-        while (itr != ref_ptr->fasta.end()) {
-            if (std::find(truth_ptr->contigs.begin(), truth_ptr->contigs.end(),
-                        itr->first) == truth_ptr->contigs.end()) {
-                itr = ref_ptr->fasta.erase(itr);
-            } else itr++;
-        }
     }
 
-    // verify the observed ploidies match for all truth/query contigs
+    // verify the observed ploidies match for all evaluated truth/query contigs
     for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
         std::string ctg = truth_ptr->contigs[i];
-        int query_ctg_idx = std::find(query_ptr->contigs.begin(),
-                query_ptr->contigs.end(), ctg) - query_ptr->contigs.begin();
+
+        // Ploidy is recorded before parse_variants() applies the BED filter, so a contig outside
+        // the BED carries ploidies no evaluation consults; disagreement there is not actionable.
+        if (g.bed_exists && std::find(g.bed.contigs.begin(), g.bed.contigs.end(), ctg)
+                == g.bed.contigs.end()) continue;
+
+        // Unreachable: the skip above drops the BED-absent contigs, and the injection above pairs
+        // every remaining one. Guarded anyway, since indexing on a failed find() would read out of
+        // bounds rather than report anything.
+        auto query_itr = std::find(query_ptr->contigs.begin(), query_ptr->contigs.end(), ctg);
+        if (query_itr == query_ptr->contigs.end()) continue;
+        int query_ctg_idx = query_itr - query_ptr->contigs.begin();
         int truth_ctg_idx = i;
         const std::set<int> & truth_ploidies = truth_ptr->observed_ploidies[truth_ctg_idx];
         const std::set<int> & query_ploidies = query_ptr->observed_ploidies[query_ctg_idx];

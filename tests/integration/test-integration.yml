@@ -240,6 +240,67 @@
       contains:
         - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0,0:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
 
+# --- contigs outside the BED file (synthetic 2-contig reference) ---
+# The same VCF pair as the one-sided-contig scenarios above, run against synthetic.bed (sc1 only)
+# instead of synthetic_2ctg.bed, so sc2 falls outside the evaluated regions in each direction.
+# The contig is retained rather than pruned, so it reaches the output contig list; parse_variants()
+# has already discarded its variants as BED_OFFCTG, so it contributes nothing to any metric.
+
+- name: test_bed-absent-contig_query-only-not-evaluated
+  # sc2 is called by the query alone and lies outside the BED. Contrast with
+  # test_one-sided-contig_query-only above, which runs the identical VCF pair against a BED that
+  # does cover sc2 and scores those same two calls as false positives.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_both.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_sc1only.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "bed_absent_contig_query_only_"'
+  files:
+    # only sc1 is evaluated, so the two sc2 calls are neither true nor false positives
+    - path: bed_absent_contig_query_only_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t0\t0"
+    - path: bed_absent_contig_query_only_query.tsv
+      contains:
+        - "sc1\t199\t0\tA\tG\t50.00\tSNP\tTP"
+      must_not_contain:
+        - "sc2"
+    # sc2 survives as far as the output contig list, but carries no record
+    - path: bed_absent_contig_query_only_summary.vcf
+      contains:
+        - "##contig=<ID=sc2,length=100>"
+      must_not_contain:
+        - "sc2\t50\t."
+
+- name: test_bed-absent-contig_truth-only-not-evaluated
+  # The mirror: sc2 is called by the truth alone and lies outside the BED, so nothing injects a
+  # query counterpart for it. Comparing the two callsets' observed ploidies on sc2 would then index
+  # the query's ploidy vector out of bounds, which this scenario is the integration-level guard for.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_sc1only.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/one_sided_contig_both.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "bed_absent_contig_truth_only_"'
+  stderr:
+    must_not_contain:
+      - "contig 'sc2' has ploid"
+  files:
+    - path: bed_absent_contig_truth_only_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t2\t2\t0\t0"
+    - path: bed_absent_contig_truth_only_truth.tsv
+      contains:
+        - "sc1\t199\t0\tA\tG\t50.00\tSNP\tTP"
+      must_not_contain:
+        - "sc2"
+    - path: bed_absent_contig_truth_only_summary.vcf
+      contains:
+        - "##contig=<ID=sc2,length=100>"
+      must_not_contain:
+        - "sc2\t50\t."
+
 # --- variants at reference position 0 (synthetic sc1 reference) ---
 
 - name: test_contig-start-snp-scored-as-tp
