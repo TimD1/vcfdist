@@ -40,22 +40,28 @@ public:
     // constructors
     /** @brief Constructs an empty bedData object with no regions. */
     bedData() {;}
-    /** @brief Constructs a bedData object by reading regions from a BED file. */
-    bedData(const std::string & bed_fn);
+    /** @brief Constructs a bedData object by reading regions from a BED file, optionally normalizing. */
+    bedData(const std::string & bed_fn, bool normalize = false);
 
     // member functions
     /** @brief Adds a single [start, stop) region on a contig to this bedData. */
     void add(const std::string & contig, const int & start, const int & stop);
     /** @brief Validates that all BED intervals are sorted and non-overlapping. */
     void check();
+    /** @brief Sorts each contig's intervals and merges those that overlap or abut. */
+    void normalize();
     /** @brief Returns BED location type (BED_INSIDE/OUTSIDE/BORDER/OFFCTG) for a variant interval. */
     bedloc_t contains(std::string contig, const int & start, const int & stop,
             const edittype_t & type);
+    /** @brief Returns BED location type for a variant already located within a contig's intervals. */
+    bedloc_t classify(const std::string & contig, const int & start, const int & stop,
+            const edittype_t & type, const int & start_idx, const int & stop_idx);
 
     /** @brief Returns a string representation of all stored BED regions. */
     operator std::string() const;
 
     // member variables
+    std::string filename; ///< BED file the regions were read from, empty if built in memory
     long size = 0;  ///< total size of all regions in BED file, in bases
     std::vector<std::string> contigs; ///< list of contigs in BED file
     std::unordered_map<std::string, contigRegions> regions; ///< mapping from contigs to struct storing all intervals on a contig

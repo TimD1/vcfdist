@@ -1172,8 +1172,10 @@ void parse_variants(const std::string & vcf_fn,
                     rlen = ref.size(); break;
             }
 
-            // check that variant (original representation) is in region of interest
-            bedloc_t loc = g.bed.contains(ctg, rec->pos, rec->pos + reflen, type);
+            // check that variant (original representation) is in region of interest; with no BED
+            // supplied there are no regions to be outside of, so every variant is evaluated
+            bedloc_t loc = g.bed_exists ?
+                    g.bed.contains(ctg, rec->pos, rec->pos + reflen, type) : BED_INSIDE;
             switch (loc) {
                 case BED_OUTSIDE: 
                 case BED_OFFCTG:

@@ -2,6 +2,8 @@
  * @file bed.cpp
  * @brief BED file loading, interval storage, and contig intersection utilities.
  */
+#include <utility>
+
 #include "htslib/hts.h"
 #include "htslib/kstring.h"
 
@@ -47,12 +49,24 @@ static int parse_coord(const std::string & coord, const std::string & bed_fn, co
  * The first three columns are read and the remainder are ignored. Reading goes through htslib, so
  * plain, gzip, and bgzip encodings are all accepted; the encoding is detected from the file's
  * leading bytes rather than from its extension.
+ *
+ * The loaded regions are optionally normalized, then validated with check() either way. Rejecting
+ * an unsorted or overlapping file outright is right for an evaluation region whose malformation
+ * silently changes every denominator; normalizing first is right for a third-party region set we
+ * neither author nor control. Normalizing does not weaken the validation, since disorder and
+ * overlap are the only malformations it repairs -- a flipped or zero-length interval still errors.
  * @param[in] bed_fn The BED filename.
+ * @param[in] normalize Whether to sort and merge the regions before validating them.
  * @throws ERROR if the BED file cannot be opened.
  * @throws ERROR if a line cannot be read, which a truncated or corrupt compressed file looks like.
  * @throws ERROR if a start or stop coordinate is empty, not numeric in full, or too large.
+ * @throws ERROR if the regions fail check().
+ * @throws WARNING if the regions are normalized and were not already sorted.
+ * @throws WARNING if adjacent regions share a boundary, which normalizing would have merged.
  */
-bedData::bedData(const std::string & bed_fn) {
+bedData::bedData(const std::string & bed_fn, bool normalize) {
+
+    this->filename = bed_fn;
 
     // fail if file doesn't exist, or is compressed in a way htslib cannot decode
     htsFile* bed_fp = hts_open(bed_fn.data(), "r");
@@ -83,6 +97,8 @@ bedData::bedData(const std::string & bed_fn) {
     ks_free(&region);
     hts_close(bed_fp);
 
+    // normalizing repairs disorder and overlap; check() still has to reject what it cannot
+    if (normalize) this->normalize();
     this->check();
 }
 
@@ -150,6 +166,62 @@ void bedData::check() {
 }
 
 /**
+ * @brief Sorts each contig's intervals by start and merges those that overlap or abut.
+ *
+ * contains() locates a variant with two binary searches over the start and stop lists, so an
+ * unsorted or overlapping region set makes it return wrong answers rather than merely being
+ * untidy. The total size is recomputed from the merged intervals, since bases covered by more than
+ * one input interval were counted once per interval by add().
+ *
+ * A flipped or zero-length interval is left exactly as it was found, since neither is repairable
+ * by sorting or merging; check() rejects both.
+ * @throws WARNING if the intervals on any contig were not already sorted.
+ */
+void bedData::normalize() {
+
+    long merged_size = 0;
+    int coalesced = 0;
+    bool was_unsorted = false;
+    for (const std::string & contig : this->contigs) {
+        contigRegions & ctg_regions = this->regions[contig];
+
+        // sort by start, then by stop, so that a region nested in another follows it
+        std::vector< std::pair<int, int> > intervals;
+        for (int i = 0; i < ctg_regions.n; i++)
+            intervals.push_back(std::make_pair(ctg_regions.starts[i], ctg_regions.stops[i]));
+        // reported rather than silently corrected, since an unsorted region set means the file is
+        // not what check() would have accepted
+        if (!std::is_sorted(intervals.begin(), intervals.end())) was_unsorted = true;
+        std::sort(intervals.begin(), intervals.end());
+
+        std::vector<int> starts, stops;
+        for (const auto & [start, stop] : intervals) {
+            // starts ascend, so any interval reaching the running stop extends it instead
+            if (!starts.empty() && start <= stops.back()) {
+                stops.back() = std::max(stops.back(), stop);
+            } else {
+                starts.push_back(start);
+                stops.push_back(stop);
+            }
+        }
+        for (size_t i = 0; i < starts.size(); i++) merged_size += stops[i] - starts[i];
+
+        coalesced += ctg_regions.n - int(starts.size());
+        ctg_regions.starts = std::move(starts);
+        ctg_regions.stops = std::move(stops);
+        ctg_regions.n = int(ctg_regions.starts.size());
+    }
+    this->size = merged_size;
+
+    if (was_unsorted)
+        WARN("Regions in BED file '%s' were unsorted, and have been sorted.",
+                this->filename.data());
+    if (g.verbosity >= 2 && coalesced)
+        INFO("Merged %d overlapping or adjacent regions in BED file '%s'.",
+                coalesced, this->filename.data());
+}
+
+/**
  * @brief Returns BED location type for a variant interval.
  *
  * @param[in] contig The contig containing the variant.
@@ -162,18 +234,11 @@ void bedData::check() {
 bedloc_t bedData::contains(std::string contig, const int & start, const int & stop,
         const edittype_t & type) {
 
-    if (!g.bed_exists) return BED_INSIDE;
-
     if (stop < start)
         ERROR("Invalid region %s:%d-%d in BED contains", contig.data(), start, stop);
 
     // contig not in BED
     if (this->regions.find(contig) == this->regions.end()) return BED_OFFCTG;
-
-    // variant before/after all BED regions
-    if (stop <= this->regions[contig].starts[0]) return BED_OUTSIDE;
-    if (start >= this->regions[contig].stops[ 
-            this->regions[contig].stops.size()-1]) return BED_OUTSIDE;
 
     // get indices of variant within bed regions list
     int start_idx = std::upper_bound(
@@ -185,21 +250,48 @@ bedloc_t bedData::contains(std::string contig, const int & start, const int & st
             this->regions[contig].stops.end(),
             stop) - this->regions[contig].stops.begin();
 
+    return this->classify(contig, start, stop, type, start_idx, stop_idx);
+}
+
+/**
+ * @brief Returns BED location type for a variant already located within a contig's intervals.
+ *
+ * Locating a variant and classifying it are kept apart so that a caller locating it some other way
+ * -- a cursor advanced across position-sorted variants, say -- shares this decision tree instead of
+ * reimplementing it. No search is performed here; both indices are supplied by the caller.
+ * @param[in] contig The contig containing the variant, which must be present in this bedData.
+ * @param[in] start The 0-based inclusive start position of the variant.
+ * @param[in] stop The 0-based exclusive end position of the variant.
+ * @param[in] type The type of the variant.
+ * @param[in] start_idx Index of the last region starting at or before start, or -1 if there is none.
+ * @param[in] stop_idx Index of the first region stopping at or after stop, or the region count.
+ * @return One of: BED_INSIDE, BED_OUTSIDE, BED_BORDER.
+ */
+bedloc_t bedData::classify(const std::string & contig, const int & start, const int & stop,
+        const edittype_t & type, const int & start_idx, const int & stop_idx) {
+
+    const contigRegions & ctg_regions = this->regions.at(contig);
+
+    // variant before/after all BED regions; these precede the index tests below because a variant
+    // left of the first region has start_idx -1, which would otherwise read as BED_BORDER
+    if (stop <= ctg_regions.starts[0]) return BED_OUTSIDE;
+    if (start >= ctg_regions.stops.back()) return BED_OUTSIDE;
+
     // variant must be partially in region, other index off end
     if (start_idx < 0) return BED_BORDER;
-    if (stop_idx >= int(this->regions[contig].stops.size())) return BED_BORDER;
+    if (stop_idx >= int(ctg_regions.stops.size())) return BED_BORDER;
 
     // variant in middle
     if (stop_idx == start_idx) {
         // don't allow INS exactly at region end
-        if (type == TYPE_INS && start == this->regions[contig].stops[stop_idx]-1)
+        if (type == TYPE_INS && start == ctg_regions.stops[stop_idx]-1)
             return BED_BORDER;
         return BED_INSIDE;
     }
     if (stop_idx == start_idx + 1) {
-        int next_region_start = this->regions[contig].starts[stop_idx];
-        int prev_region_stop = this->regions[contig].stops[start_idx];
-        if (start >= prev_region_stop && stop <= next_region_start) 
+        int next_region_start = ctg_regions.starts[stop_idx];
+        int prev_region_stop = ctg_regions.stops[start_idx];
+        if (start >= prev_region_stop && stop <= next_region_start)
             return BED_OUTSIDE; // between
         return BED_BORDER; // both
     }
