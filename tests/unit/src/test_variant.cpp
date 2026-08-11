@@ -900,6 +900,15 @@ TEST(GetPhaseMatch, HomozygousIsNotHeterozygous) {
     EXPECT_EQ(PHASEMATCH_NOT_HETEROZYGOUS, vars->get_phase_match(0));
 }
 
+TEST(GetPhaseMatch, HomozygousReferenceIsNotHeterozygous) {
+    GlobalsGuard guard;
+
+    // parse_variants stores one variant per non-reference allele, so 0|0 cannot currently reach
+    // get_phase_match; the test pins the answer anyway, since the genotype has no phase either
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_REF, GT_REF_REF);
+    EXPECT_EQ(PHASEMATCH_NOT_HETEROZYGOUS, vars->get_phase_match(0));
+}
+
 TEST(GetPhaseMatch, HaploidIsNotHeterozygous) {
     GlobalsGuard guard;
     std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_REF, GT_ALT_REF);
