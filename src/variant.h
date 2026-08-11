@@ -125,6 +125,15 @@ public:
     /** @brief Records a variant's allele count error type from its original and matched genotypes. */
     ac_errtype_t set_allele_errtype(int vi, bool query);
 
+    /** @brief Returns a variant's highest per-haplotype credit, bucketed against --credit-threshold. */
+    credit_t get_max_allele_credit(int vi) const;
+
+    /** @brief Returns whether a variant's alignment phasing matches the phasing its block chose. */
+    phasematch_t get_phase_match(int vi) const;
+
+    /** @brief Returns the most stringent match tier a variant satisfies. */
+    matchtier_t get_match_tier(int vi) const;
+
     /** @brief Returns true if haplotypes should be swapped when reporting matched_gt data relative to orig_gt. */
     bool matched_gt_is_swapped(int vi) const;
 
@@ -193,6 +202,12 @@ public:
 
 /** @brief Classifies a record's raw GT array into its parse-time genotype shape. */
 gtparse_t classify_gt(const int32_t * gt, int ngt);
+
+/** @brief Maps an allele count error type onto the query's allele count relative to the truth's. */
+allelecount_t ac_errtype_to_allele_count(ac_errtype_t ac_errtype);
+
+/** @brief Returns the most stringent match tier the three criteria jointly satisfy. */
+matchtier_t match_tier(credit_t max_credit, allelecount_t allele_count, phasematch_t phase_match);
 
 /** @brief Builds the summary VCF header, declaring every FORMAT field and the TRUTH/QUERY samples. */
 bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,

@@ -335,6 +335,79 @@ constexpr std::size_t PHASEPTR_SLOTS = 2; ///< Slots needed by a phaseptr_t-keye
 /** @brief Returns the opposite phasing state. */
 constexpr phase_t other_phase(phase_t p) { return p == PHASE_ORIG ? PHASE_SWAP : PHASE_ORIG; }
 
+/* Match tier criteria ****************************************************************************/
+
+/**
+ * @brief A variant's highest per-haplotype credit, bucketed against --credit-threshold.
+ *
+ * The one ordered criterion, so the match tier ladder can compare it. The other two are
+ * categorical: a minimum comparison on them would accept a value in the wrong direction.
+ */
+enum class credit_t : int8_t {
+    CREDIT_ZERO    = 0, ///< No haplotype earned any credit
+    CREDIT_NONZERO = 1, ///< Some haplotype earned partial credit, none reached --credit-threshold
+    CREDIT_PASS    = 2, ///< At least one haplotype reached --credit-threshold
+};
+constexpr credit_t CREDIT_ZERO    = credit_t::CREDIT_ZERO;
+constexpr credit_t CREDIT_NONZERO = credit_t::CREDIT_NONZERO;
+constexpr credit_t CREDIT_PASS    = credit_t::CREDIT_PASS;
+constexpr std::size_t CREDIT_SLOTS = 3; ///< Slots needed by a credit_t-keyed array
+
+/**
+ * @brief A site's query alternate allele count, relative to its truth alternate allele count.
+ *
+ * Categorical with the middle value correct: LOSS and GAIN are errors in opposite directions.
+ */
+enum class allelecount_t : int8_t {
+    ALLELE_COUNT_LOSS  = 0, ///< Query claims fewer alternate alleles than truth
+    ALLELE_COUNT_EQUAL = 1, ///< Query and truth claim the same number of alternate alleles
+    ALLELE_COUNT_GAIN  = 2, ///< Query claims more alternate alleles than truth
+};
+constexpr allelecount_t ALLELE_COUNT_LOSS  = allelecount_t::ALLELE_COUNT_LOSS;
+constexpr allelecount_t ALLELE_COUNT_EQUAL = allelecount_t::ALLELE_COUNT_EQUAL;
+constexpr allelecount_t ALLELE_COUNT_GAIN  = allelecount_t::ALLELE_COUNT_GAIN;
+constexpr std::size_t ALLELECOUNT_SLOTS = 3; ///< Slots needed by an allelecount_t-keyed array
+
+/**
+ * @brief Whether a variant's alignment phasing matches the phasing its phase block chose.
+ *
+ * Correct/incorrect plus two values for which the question does not arise. They differ:
+ * PHASEMATCH_NOT_HETEROZYGOUS means no phase is possible, PHASEMATCH_UNPHASED that none was
+ * reported, so the match tier ladder accepts the former and rejects the latter.
+ */
+enum class phasematch_t : int8_t {
+    PHASEMATCH_CORRECT          = 0, ///< Variant is phased as its phase block is
+    PHASEMATCH_INCORRECT        = 1, ///< Variant is phased opposite its phase block
+    PHASEMATCH_UNPHASED         = 2, ///< No phasing information available for this variant
+    PHASEMATCH_NOT_HETEROZYGOUS = 3, ///< Homozygous or haploid, so it occupies no phased pair
+};
+constexpr phasematch_t PHASEMATCH_CORRECT          = phasematch_t::PHASEMATCH_CORRECT;
+constexpr phasematch_t PHASEMATCH_INCORRECT        = phasematch_t::PHASEMATCH_INCORRECT;
+constexpr phasematch_t PHASEMATCH_UNPHASED         = phasematch_t::PHASEMATCH_UNPHASED;
+constexpr phasematch_t PHASEMATCH_NOT_HETEROZYGOUS = phasematch_t::PHASEMATCH_NOT_HETEROZYGOUS;
+constexpr std::size_t PHASEMATCH_SLOTS = 4; ///< Slots needed by a phasematch_t-keyed array
+
+/**
+ * @brief The most stringent GA4GH comparison method a variant satisfies.
+ *
+ * Each tier adds one criterion to the one below it, so the tiers are a conjunction and
+ * MATCH_PM implies MATCH_GM implies MATCH_AM implies MATCH_LM. The enumerators are ordered by
+ * increasing stringency so that a >= comparison expresses "at least this tier".
+ */
+enum class matchtier_t : int8_t {
+    MATCH_NONE = 0, ///< No tier reached: nothing matched at all
+    MATCH_LM   = 1, ///< Local match: some partial credit somewhere
+    MATCH_AM   = 2, ///< Allele match: at least one allele fully matched
+    MATCH_GM   = 3, ///< Genotype match: matched allele count equals claimed allele count
+    MATCH_PM   = 4, ///< Phase match: phase correct, or not applicable
+};
+constexpr matchtier_t MATCH_NONE = matchtier_t::MATCH_NONE;
+constexpr matchtier_t MATCH_LM   = matchtier_t::MATCH_LM;
+constexpr matchtier_t MATCH_AM   = matchtier_t::MATCH_AM;
+constexpr matchtier_t MATCH_GM   = matchtier_t::MATCH_GM;
+constexpr matchtier_t MATCH_PM   = matchtier_t::MATCH_PM;
+constexpr std::size_t MATCHTIER_SLOTS = 5; ///< Slots needed by a matchtier_t-keyed array
+
 /** @defgroup logging_macros Timestamped logging macros
  *  Print colored, timestamped messages to stderr. Exit on ERROR.
  *  @{

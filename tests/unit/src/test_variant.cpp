@@ -790,6 +790,246 @@ TEST(SetAlleleErrtype, FalseHeterozygousAgreesAcrossCallsets) {
     EXPECT_EQ("-", ac_strs[tvars->ac_errtype[0]]);
 }
 
+/* ac_errtype_to_allele_count *********************************************************************/
+
+// The mapping is total: every allele count error type reaches a direction, including the 0 -> N
+// pure query false positives and the N -> 0 pure truth false negatives.
+
+TEST(AcErrtypeToAlleleCount, QueryClaimsMoreAllelesGains) {
+    EXPECT_EQ(ALLELE_COUNT_GAIN, ac_errtype_to_allele_count(AC_ERR_0_TO_1));
+    EXPECT_EQ(ALLELE_COUNT_GAIN, ac_errtype_to_allele_count(AC_ERR_0_TO_2));
+    EXPECT_EQ(ALLELE_COUNT_GAIN, ac_errtype_to_allele_count(AC_ERR_1_TO_2));
+}
+
+TEST(AcErrtypeToAlleleCount, MatchingCountsAreEqual) {
+    EXPECT_EQ(ALLELE_COUNT_EQUAL, ac_errtype_to_allele_count(AC_ERR_1_TO_1));
+    EXPECT_EQ(ALLELE_COUNT_EQUAL, ac_errtype_to_allele_count(AC_ERR_2_TO_2));
+}
+
+TEST(AcErrtypeToAlleleCount, QueryClaimsFewerAllelesLoses) {
+    EXPECT_EQ(ALLELE_COUNT_LOSS, ac_errtype_to_allele_count(AC_ERR_1_TO_0));
+    EXPECT_EQ(ALLELE_COUNT_LOSS, ac_errtype_to_allele_count(AC_ERR_2_TO_0));
+    EXPECT_EQ(ALLELE_COUNT_LOSS, ac_errtype_to_allele_count(AC_ERR_2_TO_1));
+}
+
+TEST(AcErrtypeToAlleleCount, UnknownErrors) {
+    GlobalsGuard guard;
+    EXPECT_EXIT(ac_errtype_to_allele_count(AC_UNKNOWN), testing::ExitedWithCode(1),
+            "Unknown allele count error type");
+}
+
+/* get_max_allele_credit **************************************************************************/
+
+TEST(GetMaxAlleleCredit, ZeroWhenNoHaplotypeScored) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+    EXPECT_EQ(CREDIT_ZERO, vars->get_max_allele_credit(0));
+}
+
+TEST(GetMaxAlleleCredit, NonzeroBelowThreshold) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+    vars->credit[HAP2][0] = 0.25;
+    EXPECT_EQ(CREDIT_NONZERO, vars->get_max_allele_credit(0));
+}
+
+TEST(GetMaxAlleleCredit, PassesAtThreshold) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+
+    // the boundary is inclusive, as it is where prec_recall_aln() calls a haplotype a TP. Both
+    // comparisons promote a float credit to the double threshold, so pick one a float holds exactly.
+    vars->credit[HAP2][0] = 0.5;
+    EXPECT_EQ(CREDIT_PASS, vars->get_max_allele_credit(0));
+}
+
+TEST(GetMaxAlleleCredit, MaximumRunsOverBothHaplotypes) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
+    vars->credit[HAP1][0] = 0.25;
+    vars->credit[HAP2][0] = 0.75;
+    EXPECT_EQ(CREDIT_PASS, vars->get_max_allele_credit(0));
+}
+
+/* get_phase_match ********************************************************************************/
+
+TEST(GetPhaseMatch, CorrectWhenVariantAgreesWithItsBlock) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+    vars->phases[0] = PHASE_ORIG;
+    vars->pb_phases[0] = PHASE_ORIG;
+    EXPECT_EQ(PHASEMATCH_CORRECT, vars->get_phase_match(0));
+}
+
+TEST(GetPhaseMatch, IncorrectWhenVariantOpposesItsBlock) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_ALT_REF);
+    vars->phases[0] = PHASE_SWAP;
+    vars->pb_phases[0] = PHASE_ORIG;
+    EXPECT_EQ(PHASEMATCH_INCORRECT, vars->get_phase_match(0));
+}
+
+TEST(GetPhaseMatch, UnphasedWhenVariantHasNoPhase) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+    vars->phases[0] = PHASE_NONE;
+    vars->pb_phases[0] = PHASE_ORIG;
+    EXPECT_EQ(PHASEMATCH_UNPHASED, vars->get_phase_match(0));
+}
+
+TEST(GetPhaseMatch, UnphasedWhenBlockHasNoPhase) {
+    GlobalsGuard guard;
+
+    // phases and pb_phases are populated for query variants only, so a truth heterozygote lands here
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+    vars->phases[0] = PHASE_ORIG;
+    vars->pb_phases[0] = PHASE_NONE;
+    EXPECT_EQ(PHASEMATCH_UNPHASED, vars->get_phase_match(0));
+}
+
+TEST(GetPhaseMatch, HomozygousIsNotHeterozygous) {
+    GlobalsGuard guard;
+
+    // a homozygous variant keeps the PHASE_NONE default, and must not be reported as merely unphased
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
+    ASSERT_EQ(PHASE_NONE, vars->phases[0]);
+    EXPECT_EQ(PHASEMATCH_NOT_HETEROZYGOUS, vars->get_phase_match(0));
+}
+
+TEST(GetPhaseMatch, HaploidIsNotHeterozygous) {
+    GlobalsGuard guard;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_REF, GT_ALT_REF);
+    vars->ploidies[0] = PLOIDY_HAPLOID;
+    EXPECT_EQ(PHASEMATCH_NOT_HETEROZYGOUS, vars->get_phase_match(0));
+}
+
+TEST(GetPhaseMatch, HomozygousOutranksAPhasedBlock) {
+    GlobalsGuard guard;
+
+    // the zygosity test runs first, so stale phasing cannot make a homozygote look flipped
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_ALT);
+    vars->phases[0] = PHASE_ORIG;
+    vars->pb_phases[0] = PHASE_SWAP;
+    EXPECT_EQ(PHASEMATCH_NOT_HETEROZYGOUS, vars->get_phase_match(0));
+}
+
+/* match_tier *************************************************************************************/
+
+TEST(MatchTier, NoTierWithoutCredit) {
+    EXPECT_EQ(MATCH_NONE,
+            match_tier(CREDIT_ZERO, ALLELE_COUNT_EQUAL, PHASEMATCH_CORRECT));
+}
+
+TEST(MatchTier, LmWithPartialCredit) {
+    EXPECT_EQ(MATCH_LM,
+            match_tier(CREDIT_NONZERO, ALLELE_COUNT_EQUAL, PHASEMATCH_CORRECT));
+}
+
+TEST(MatchTier, LmForZeroToNWithSubThresholdCredit) {
+    // a query heterozygote whose best haplotype scored below --credit-threshold: no matched
+    // haplotype, so the allele count gains, yet the partial credit still reaches lm
+    EXPECT_EQ(MATCH_LM,
+            match_tier(CREDIT_NONZERO, ALLELE_COUNT_GAIN, PHASEMATCH_UNPHASED));
+}
+
+TEST(MatchTier, AmWhenAlleleCountGains) {
+    EXPECT_EQ(MATCH_AM,
+            match_tier(CREDIT_PASS, ALLELE_COUNT_GAIN, PHASEMATCH_CORRECT));
+}
+
+TEST(MatchTier, AmWhenAlleleCountLoses) {
+    EXPECT_EQ(MATCH_AM,
+            match_tier(CREDIT_PASS, ALLELE_COUNT_LOSS, PHASEMATCH_CORRECT));
+}
+
+TEST(MatchTier, GmWhenPhaseIncorrect) {
+    EXPECT_EQ(MATCH_GM,
+            match_tier(CREDIT_PASS, ALLELE_COUNT_EQUAL, PHASEMATCH_INCORRECT));
+}
+
+TEST(MatchTier, GmWhenUnphased) {
+    // no phase was reported, which is not the same as no phase being possible
+    EXPECT_EQ(MATCH_GM,
+            match_tier(CREDIT_PASS, ALLELE_COUNT_EQUAL, PHASEMATCH_UNPHASED));
+}
+
+TEST(MatchTier, PmWhenPhaseCorrect) {
+    EXPECT_EQ(MATCH_PM,
+            match_tier(CREDIT_PASS, ALLELE_COUNT_EQUAL, PHASEMATCH_CORRECT));
+}
+
+TEST(MatchTier, PmWhenNotHeterozygous) {
+    EXPECT_EQ(MATCH_PM,
+            match_tier(CREDIT_PASS, ALLELE_COUNT_EQUAL, PHASEMATCH_NOT_HETEROZYGOUS));
+}
+
+TEST(MatchTier, TiersAreAConjunctionOverEveryCriterionCombination) {
+    // pm implies gm implies am implies lm, which the rest of the GA4GH export path assumes. The
+    // enumerators are ordered by stringency, so asserting each rung's conjunction at >= that tier
+    // asserts the implication chain along with it.
+    for (credit_t max_credit : EnumRange<credit_t, CREDIT_SLOTS>{}) {
+        for (allelecount_t allele_count : EnumRange<allelecount_t, ALLELECOUNT_SLOTS>{}) {
+            for (phasematch_t phase_match : EnumRange<phasematch_t, PHASEMATCH_SLOTS>{}) {
+                SCOPED_TRACE("credit " + std::to_string(idx(max_credit)) +
+                        ", allele count " + std::to_string(idx(allele_count)) +
+                        ", phase match " + std::to_string(idx(phase_match)));
+
+                bool lm = max_credit != CREDIT_ZERO;
+                bool am = max_credit == CREDIT_PASS;
+                bool gm = allele_count == ALLELE_COUNT_EQUAL;
+                bool pm = phase_match == PHASEMATCH_CORRECT ||
+                        phase_match == PHASEMATCH_NOT_HETEROZYGOUS;
+
+                // the am criterion must be strictly stronger than the lm criterion it sits above,
+                // or the two credit rungs alone would already break monotonicity
+                EXPECT_TRUE(!am || lm);
+
+                matchtier_t tier = match_tier(max_credit, allele_count, phase_match);
+                EXPECT_EQ(lm, tier >= MATCH_LM);
+                EXPECT_EQ(lm && am, tier >= MATCH_AM);
+                EXPECT_EQ(lm && am && gm, tier >= MATCH_GM);
+                EXPECT_EQ(lm && am && gm && pm, tier >= MATCH_PM);
+            }
+        }
+    }
+}
+
+/* get_match_tier *********************************************************************************/
+
+TEST(GetMatchTier, CorrectlyPhasedFullyCreditedHeterozygoteReachesPm) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_ALT);
+    vars->credit[HAP2][0] = 1;
+    vars->ac_errtype[0] = AC_ERR_1_TO_1;
+    vars->phases[0] = PHASE_ORIG;
+    vars->pb_phases[0] = PHASE_ORIG;
+    EXPECT_EQ(MATCH_PM, vars->get_match_tier(0));
+}
+
+TEST(GetMatchTier, FalseHomozygoteStopsAtAm) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+
+    // one truth allele called as two: an allele matched, but the genotype did not
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_ALT_ALT, GT_ALT_REF);
+    vars->credit[HAP1][0] = 1;
+    vars->ac_errtype[0] = AC_ERR_1_TO_2;
+    EXPECT_EQ(MATCH_AM, vars->get_match_tier(0));
+}
+
+TEST(GetMatchTier, UncreditedVariantReachesNoTier) {
+    GlobalsGuard guard;
+    g.credit_threshold = 0.5;
+    std::shared_ptr<ctgVariants> vars = make_gt_var(GT_REF_ALT, GT_REF_REF);
+    vars->ac_errtype[0] = AC_ERR_0_TO_1;
+    EXPECT_EQ(MATCH_NONE, vars->get_match_tier(0));
+}
+
 /* matched_gt_is_swapped **************************************************************************/
 
 TEST(CalcgtIsSwapped, EqualFalse) {
