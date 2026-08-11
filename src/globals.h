@@ -29,6 +29,12 @@ public:
     bedData bed;              ///< Parsed BED region data
     bool bed_exists = false;  ///< True if a BED file was provided
 
+    // stratification
+    std::string strat_tsv_fn;              ///< Stratification manifest TSV filename (empty if none)
+    std::vector<std::string> strat_names;  ///< Stratum names, in manifest order
+    std::vector<bedData> strata;           ///< Parsed stratum regions, parallel to strat_names
+    int nstrata = 0;                       ///< Number of strata (0 if --stratification unused)
+
     // variant filtering
     std::vector<std::string> filters; ///< FILTER tag values to include (empty = all)
     std::vector<int> filter_ids;      ///< htslib integer IDs corresponding to filters

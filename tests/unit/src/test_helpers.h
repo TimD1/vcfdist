@@ -113,6 +113,15 @@ enum bedzip_t {
 };
 
 /**
+ * @brief Writes newline-terminated lines into a temporary directory and returns the path.
+ *
+ * Lines are written verbatim, so any line-oriented fixture -- a BED, a stratification manifest, or
+ * a file malformed on purpose -- can be built without a format-specific writer.
+ */
+std::string write_tmp_text(const TempDir & dir, const std::vector<std::string> & lines,
+        const std::string & name);
+
+/**
  * @brief Writes a BED file into a temporary directory and returns its path.
  *
  * Lines are written verbatim, so a test can supply extra columns or malformed records that the

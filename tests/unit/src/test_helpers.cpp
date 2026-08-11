@@ -103,6 +103,26 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
 }
 
 /**
+ * @brief Writes newline-terminated lines into a temporary directory and returns the path.
+ * @param[in] dir Temporary directory that owns the written file
+ * @param[in] lines Lines, written verbatim in order
+ * @param[in] name Basename of the written file, which may name a subdirectory of dir
+ * @return Path of the written file
+ * @throws ERROR if the file cannot be opened for writing
+ */
+std::string write_tmp_text(const TempDir & dir, const std::vector<std::string> & lines,
+        const std::string & name) {
+    std::string fn = dir.path(name);
+    std::ofstream out(fn);
+    if (!out.is_open()) {
+        ERROR("Failed to open temporary file '%s' for writing", fn.data());
+    }
+    for (const std::string & line : lines) out << line << "\n";
+    out.close();
+    return fn;
+}
+
+/**
  * @brief Writes a BED file into a temporary directory and returns its path.
  * @param[in] dir Temporary directory that owns the written file
  * @param[in] lines Record lines, written verbatim in order
@@ -114,19 +134,11 @@ std::string write_tmp_vcf(const TempDir & dir, const std::vector<std::string> & 
  */
 std::string write_tmp_bed(const TempDir & dir, const std::vector<std::string> & lines,
         const std::string & name, bedzip_t zip) {
+    if (zip == BEDZIP_NONE) return write_tmp_text(dir, lines, name);
+
     std::string bed_fn = dir.path(name);
     std::string text;
     for (const std::string & line : lines) text += line + "\n";
-
-    if (zip == BEDZIP_NONE) {
-        std::ofstream out(bed_fn);
-        if (!out.is_open()) {
-            ERROR("Failed to open temporary BED '%s' for writing", bed_fn.data());
-        }
-        out << text;
-        out.close();
-        return bed_fn;
-    }
 
     // 'g' writes one plain gzip stream, where the default 'w' writes blocked gzip
     BGZF* out = bgzf_open(bed_fn.data(), zip == BEDZIP_GZIP ? "wg" : "w");

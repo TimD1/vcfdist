@@ -528,6 +528,74 @@ TEST(WriteParams, FiltersSingle) {
     EXPECT_EQ(std::string::npos, contents.find("PASS,"));
 }
 
+TEST(WriteParams, StratificationManifestRecorded) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+    g.strat_tsv_fn = "/data/strata/manifest.tsv";
+    g.nstrata = 181;
+
+    write_params();
+
+    std::string contents = read_file(g.out_prefix + "parameters.tsv");
+    EXPECT_NE(std::string::npos,
+            contents.find("\nstratification\t/data/strata/manifest.tsv\n")) << contents;
+
+    // the manifest names the strata but not how many were loaded from it, and a manifest whose
+    // region sets went missing is exactly what a reader of this file needs to be able to tell
+    EXPECT_NE(std::string::npos, contents.find("\nnstrata\t181\n")) << contents;
+}
+
+TEST(WriteParams, StratificationManifestEmptyWhenUnused) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+    g.strat_tsv_fn.clear();
+    g.nstrata = 0;
+
+    write_params();
+
+    std::string contents = read_file(g.out_prefix + "parameters.tsv");
+    EXPECT_NE(std::string::npos, contents.find("\nstratification\t\n")) << contents;
+    EXPECT_NE(std::string::npos, contents.find("\nnstrata\t0\n")) << contents;
+}
+
+// write_params() emits one fprintf per row, where a dropped or duplicated row is a one-line edit
+// away, so the whole key list is pinned in order rather than only the keys one test looks at.
+TEST(WriteParams, WritesEveryKeyOnceInOrder) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+
+    write_params();
+
+    std::vector<std::string> keys;
+    std::istringstream rows(read_file(g.out_prefix + "parameters.tsv"));
+    std::string row;
+    while (getline(rows, row)) keys.push_back(row.substr(0, row.find('\t')));
+
+    EXPECT_EQ(std::vector<std::string>({"program", "version", "out_prefix", "verbosity", "command",
+            "reference_fasta", "query_vcf", "truth_vcf", "bed_file", "stratification", "nstrata",
+            "filters", "min_var_qual", "max_var_qual", "max_var_size", "sv_threshold",
+            "credit_threshold", "max_supercluster_size", "cluster_min_gap", "reach_min_gap",
+            "max_cluster_itrs", "max_threads", "max_ram", "sub", "open", "extend"}), keys);
+}
+
+// -sc and -v were CLI-settable but absent from the TSV; pin them so the gap cannot reopen
+TEST(WriteParams, RecordsSuperclusterSizeAndVerbosity) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+    g.max_supercluster_size = 12345;
+    g.verbosity = 2;
+
+    write_params();
+
+    std::string contents = read_file(g.out_prefix + "parameters.tsv");
+    EXPECT_NE(std::string::npos, contents.find("\nmax_supercluster_size\t12345\n")) << contents;
+    EXPECT_NE(std::string::npos, contents.find("\nverbosity\t2\n")) << contents;
+}
+
 TEST(WriteParams, FopenFail) {
     GlobalsGuard guard;
     TempDir dir;

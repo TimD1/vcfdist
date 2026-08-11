@@ -54,7 +54,7 @@ EnumArray<sizeclass_t, std::string, SIZECLASS_SLOTS> vartype_strs =
  *       (fewer than the three mandatory arguments) accepts only -h/--help, -v/--version and
  *       -ci/--citation, none of which takes a value; each prints and exits 0. Evaluation
  *       (query.vcf, truth.vcf, ref.fasta first) accepts every other flag, each taking exactly
- *       one following value: input/output (-b, -v, -p), variant filtering (-f, -l, -sv, -q,
+ *       one following value: input/output (-b, -st, -v, -p), variant filtering (-f, -l, -sv, -q,
  *       -mq), clustering (-sc), precision-recall (-ct), resources (-t, -r).
  * @throws Errors on invalid file paths, out-of-range parameters, format errors, or an
  *         informational flag used alongside the mandatory arguments.
@@ -166,7 +166,18 @@ void Globals::parse_args(int argc, char ** argv) {
                 ERROR("%s", e.what());
             }
 /**************************************************************************************************/
-        } else if (std::string(argv[i]) == "-p" || 
+        } else if (std::string(argv[i]) == "-st" ||
+                std::string(argv[i]) == "--stratification") {
+            i++;
+            if (i == argc) {
+                ERROR("Option '-st' used without providing stratification manifest filename");
+            }
+            this->strat_tsv_fn = std::string(argv[i++]);
+            load_strata(this->strat_tsv_fn, this->strat_names, this->strata);
+            // a manifest that parses to no strata behaves as though '-st' had not been used at all
+            this->nstrata = int(this->strat_names.size());
+/**************************************************************************************************/
+        } else if (std::string(argv[i]) == "-p" ||
                 std::string(argv[i]) == "--prefix") {
             i++;
             if (i == argc) {
@@ -465,6 +476,9 @@ void Globals::print_usage() const
     printf("\n  Inputs/Outputs:\n");
     printf("  -b, --bed <STRING>\n");
     printf("      BED file containing regions to evaluate (plain, gzip, or bgzip)\n");
+    printf("  -st, --stratification <STRING>\n");
+    printf("      TSV manifest of stratification region sets, one 'name<TAB>BED' line each;\n");
+    printf("      relative BED paths resolve against the manifest's own directory\n");
     printf("  -v, --verbosity <INTEGER> [%d]\n", this->verbosity);
     printf("      printing verbosity (0: succinct, 1: default, 2:verbose)\n");
     printf("  -p, --prefix <STRING> [./]\n");

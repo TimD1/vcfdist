@@ -67,6 +67,13 @@ public:
     std::unordered_map<std::string, contigRegions> regions; ///< mapping from contigs to struct storing all intervals on a contig
 };
 
+/** @brief Loads every region set named by a stratification manifest TSV, in manifest order. */
+void load_strata(const std::string & strat_tsv_fn, std::vector<std::string> & strat_names,
+        std::vector<bedData> & strata);
+
+/** @brief Warns for stratification region sets sharing no contig with the reference FASTA. */
+void check_strata_contigs(const std::shared_ptr<fastaData> & ref_ptr);
+
 /** @brief Intersects query, truth, and reference contigs with BED regions and retains only common contigs. */
 void intersect_contigs(
         std::shared_ptr<variantData> query_ptr,

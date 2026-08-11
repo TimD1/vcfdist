@@ -130,18 +130,32 @@ void write_params() {
     if (out_params == NULL) {
         ERROR("Failed to open parameters TSV file '%s'", out_params_fn.data());
     }
-    fprintf(out_params,
-        "program\t%s\nversion\t%s\nout_prefix\t%s\ncommand\t%s\nreference_fasta\t%s\n"
-        "query_vcf\t%s\ntruth_vcf\t%s\nbed_file\t%s\nfilters\t%s\n"
-        "min_var_qual\t%d\nmax_var_qual\t%d\nmax_var_size\t%d\nsv_threshold\t%d\n"
-        "credit_threshold\t%f\ncluster_min_gap\t%d\n"
-        "reach_min_gap\t%d\nmax_cluster_itrs\t%d\nmax_threads\t%d\nmax_ram\t%f\n"
-        "sub\t%d\nopen\t%d\nextend\t%d\n",
-        g.PROGRAM.data(), g.VERSION.data(), g.out_prefix.data(), g.cmd.data(), g.ref_fasta_fn.data(),
-        g.query_vcf_fn.data(), g.truth_vcf_fn.data(), g.bed_fn.data(),
-        filters_str.data(), g.min_qual, g.max_qual, g.max_size, g.sv_threshold,
-        g.credit_threshold, g.cluster_min_gap, g.reach_min_gap, g.max_cluster_itrs,
-        g.max_threads, g.max_ram, g.sub, g.open, g.extend);
+    fprintf(out_params, "program\t%s\n", g.PROGRAM.data());
+    fprintf(out_params, "version\t%s\n", g.VERSION.data());
+    fprintf(out_params, "out_prefix\t%s\n", g.out_prefix.data());
+    fprintf(out_params, "verbosity\t%d\n", g.verbosity);
+    fprintf(out_params, "command\t%s\n", g.cmd.data());
+    fprintf(out_params, "reference_fasta\t%s\n", g.ref_fasta_fn.data());
+    fprintf(out_params, "query_vcf\t%s\n", g.query_vcf_fn.data());
+    fprintf(out_params, "truth_vcf\t%s\n", g.truth_vcf_fn.data());
+    fprintf(out_params, "bed_file\t%s\n", g.bed_fn.data());
+    fprintf(out_params, "stratification\t%s\n", g.strat_tsv_fn.data());
+    fprintf(out_params, "nstrata\t%d\n", g.nstrata);
+    fprintf(out_params, "filters\t%s\n", filters_str.data());
+    fprintf(out_params, "min_var_qual\t%d\n", g.min_qual);
+    fprintf(out_params, "max_var_qual\t%d\n", g.max_qual);
+    fprintf(out_params, "max_var_size\t%d\n", g.max_size);
+    fprintf(out_params, "sv_threshold\t%d\n", g.sv_threshold);
+    fprintf(out_params, "credit_threshold\t%f\n", g.credit_threshold);
+    fprintf(out_params, "max_supercluster_size\t%d\n", g.max_supercluster_size);
+    fprintf(out_params, "cluster_min_gap\t%d\n", g.cluster_min_gap);
+    fprintf(out_params, "reach_min_gap\t%d\n", g.reach_min_gap);
+    fprintf(out_params, "max_cluster_itrs\t%d\n", g.max_cluster_itrs);
+    fprintf(out_params, "max_threads\t%d\n", g.max_threads);
+    fprintf(out_params, "max_ram\t%f\n", g.max_ram);
+    fprintf(out_params, "sub\t%d\n", g.sub);
+    fprintf(out_params, "open\t%d\n", g.open);
+    fprintf(out_params, "extend\t%d\n", g.extend);
     fclose(out_params);
 }
 
