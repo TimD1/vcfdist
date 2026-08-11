@@ -172,13 +172,13 @@
     - path: record_shapes_out_summary.vcf
       contains:
         # hom SNP, hom CPX (as INS then DEL), and hom DEL: one record each, two values per field
-        - "sc1\t200\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1,1:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1,1:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
-        - "sc1\t209\t.\tG\tGTT\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
-        - "sc1\t209\t.\tGCAAGA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
-        - "sc1\t220\t.\tCAACT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t200\t.\tA\tG\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:1,1:1,1:0,0:gm,gm:50:0:3,3:0:0:.:.:.:.\t1|1:TP,TP:1,1:1,1:0,0:gm,gm:50:0:3,3:0:0:0:.:0:."
+        - "sc1\t209\t.\tG\tGTT\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t209\t.\tGCAAGA\tG\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
+        - "sc1\t220\t.\tCAACT\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:TP,TP:"
         # het-alt: two co-located records, each carrying '.' for its reference allele
-        - "sc1\t250\t.\tA\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
-        - "sc1\t250\t.\tA\tG\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
+        - "sc1\t250\t.\tA\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|0:TP,.:1,.:1,.:0,.:gm,.:50:1:0,.:0:0:.:.:.:.\t1|0:TP,.:"
+        - "sc1\t250\t.\tA\tG\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t0|1:.,TP:.,1:.,1:.,0:.,gm:50:1:.,0:0:0:.:.:.:.\t0|1:.,TP:"
       must_not_contain:
         # the pre-#103 shape: a homozygous call written once per haplotype
         - "\t1|0:TP:"
@@ -212,7 +212,7 @@
     # truth-only direction below, where it used to be dropped
     - path: one_sided_contig_query_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0,0:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
+        - "sc2\t50\t.\tT\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:.\t1|1:FP,FP:0,0:.,.:.,.:.,.:50:0:0,0:0:0:0:.:0:."
 
 - name: test_one-sided-contig_truth-only
   # The mirror of the case above: sc2 is called by the truth only. Superclustering used to
@@ -238,7 +238,7 @@
     # sample reports its own 1|1 call, one FN per allele.
     - path: one_sided_contig_truth_only_summary.vcf
       contains:
-        - "sc2\t50\t.\tT\tC\t.\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0,0:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
+        - "sc2\t50\t.\tT\tC\t50\tPASS\t.\tGT:BD:BC:RD:QD:BK:QQ:SC:SG:PS:PB:BS:VP:FE:GE\t1|1:FN,FN:0,0:.,.:.,.:.,.:50:0:0,0:0:0:.:.:.:.\t.:.:.:.:.:.:.:0:.:.:0:.:.:.:."
 
 # --- variants at reference position 0 (synthetic sc1 reference) ---
 
@@ -443,3 +443,59 @@
   stderr:
     contains:
       - "Failed to open stratification manifest"
+
+- name: test_carried-fields_site-columns-and-allele-subsetting
+  # The summary VCF used to synthesize its site-level columns, so ID/QUAL/FILTER/INFO were fixed
+  # placeholders. Here they are copied from the source record, together with its FORMAT fields. The
+  # het-alt call at 250 is the case that cannot be copied verbatim: one source record becomes two
+  # output records, so its Number=A (AC), Number=R (AD), and Number=G (PL) fields have to be subset
+  # per allele. The chr20 fixture cannot cover this -- every multiallelic record in it is unphased,
+  # and so dropped at parse time -- which is why the case is pinned on a synthetic contig.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/carried_fields_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/carried_fields_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "carried_fields_out_"'
+  files:
+    - path: carried_fields_out_summary.vcf
+      contains:
+        # the input's own declarations reach the output header, or htslib would reject the records
+        - "##FILTER=<ID=q10,"
+        - "##INFO=<ID=AC,Number=A,"
+        - "##FORMAT=<ID=AD,Number=R,"
+        - "##FORMAT=<ID=PL,Number=G,"
+        # ID, QUAL, FILTER, and INFO all carried on one biallelic record
+        - "sc1\t200\trs200\tA\tG\t37.5\tq10\tSOMATIC;AC=2\t"
+        # the two halves of the het-alt disagree on every allele-indexed field: AC picks a different
+        # element, AD a different second element, and PL a different genotype triple
+        - "sc1\t250\t.\tA\tC\t22\tPASS\tAC=3\t"
+        - "sc1\t250\t.\tA\tG\t22\tPASS\tAC=4\t"
+        - ":8,20:60,30,0:45:"
+        - ":8,17:60,40,5:45:"
+      must_not_contain:
+        # the unsubsetted lists, which are what copying the fields verbatim would have written
+        - ":8,20,17:"
+        - "60,30,0,40,10,5"
+        - "AC=3,4"
+    # four SNP alleles: the 1|1 at 200 contributes one per haplotype, the 1|2 at 250 one per allele
+    - path: carried_fields_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t4\t4\t0\t0"
+
+- name: test_carried-fields_bcftools-reads-the-summary-vcf
+  # A field whose value count disagrees with its declared cardinality is rejected on the way back in,
+  # which no assertion over the rendered text would catch: the subsetting has to leave every carried
+  # Number=A/R/G field consistent with the biallelic record it now sits on.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/carried_fields_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/carried_fields_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -p "carried_fields_bcftools_" 2>vcfdist.log
+    && bcftools view carried_fields_bcftools_summary.vcf -o /dev/null'
+  stderr:
+    must_not_contain:
+      - "Error"
+      - "wrong number of values"
+      - "Could not parse"

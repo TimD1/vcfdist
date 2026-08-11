@@ -89,8 +89,10 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
     for (int ctg_idx = 0; ctg_idx < int(this->contigs.size()); ctg_idx++) {
         std::string ctg = contigs[ctg_idx];
 
-        // merge variants from each haplotype for this ctg/callset
-        std::shared_ptr<ctgVariants> merged_vars(new ctgVariants(ctg));
+        // merge variants from each haplotype for this ctg/callset; both haplotypes were parsed from
+        // one file, so the header the merged records index comes from either of them
+        std::shared_ptr<ctgVariants> merged_vars(
+                new ctgVariants(ctg, callset, vars[HAP1][ctg]->hdr));
 
         // skip empty contigs, keeping the trailing boundary that supercluster() reads
         int nvars = 0;

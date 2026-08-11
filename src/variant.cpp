@@ -11,7 +11,9 @@
 #include <cmath>
 #include <cstdio>
 
+#include "htslib/kbitset.h"
 #include "htslib/vcf.h"
+#include "htslib/vcfutils.h"
 
 #include "variant.h"
 #include "print.h"
@@ -25,7 +27,20 @@
  */
 ctgVariants::ctgVariants(const std::string & ctg) {
     this->ctg = ctg;
-    this->n = 0; 
+    this->n = 0;
+}
+
+
+/**
+ * @brief Constructs an empty container that can interpret one callset's retained records.
+ * @param[in] ctg Contig name
+ * @param[in] callset Callset the variants come from, which fixes the sample column they own
+ * @param[in] hdr Header the retained records were read under
+ */
+ctgVariants::ctgVariants(const std::string & ctg, callset_t callset,
+        std::shared_ptr<bcf_hdr_t> hdr) : ctgVariants(ctg) {
+    this->callset = callset;
+    this->hdr = hdr;
 }
 
 
@@ -49,9 +64,9 @@ void ctgVariants::add_var(const var_fields & var) {
     this->gt_quals.push_back(std::min(var.gt_qual, float(g.max_qual)));
     this->var_quals.push_back(std::min(var.var_qual, float(g.max_qual)));
     this->phase_sets.push_back(var.phase_set);
-    this->rec_idxs.push_back(var.rec_idx);
     this->alt_idxs.push_back(var.alt_idx);
     this->ploidies.push_back(var.ploidy);
+    this->recs.push_back(var.rec);
     this->superclusters.push_back(var.supercluster);
     this->n++;
 
@@ -98,9 +113,9 @@ var_fields ctgVariants::get_var(int idx) const {
         .gt_qual = this->gt_quals[idx],
         .var_qual = this->var_quals[idx],
         .phase_set = this->phase_sets[idx],
-        .rec_idx = this->rec_idxs[idx],
         .alt_idx = this->alt_idxs[idx],
         .ploidy = this->ploidies[idx],
+        .rec = this->recs[idx],
         .supercluster = this->superclusters[idx],
         .matched_gt = this->matched_gts[idx],
     };
@@ -464,15 +479,21 @@ void ctgVariants::set_var_matched_gt_on_hap(int var_idx, hap_t hap, bool set,
 /**************************************************************************************************/
 
 /**
- * @brief Builds the summary VCF header, declaring every FORMAT field and the TRUTH/QUERY samples.
+ * @brief Builds the summary VCF header, folding in the declarations of each input header.
+ *
+ * Every column copied from a source record needs its declaration present, or htslib rejects the
+ * record on the way out, so each input header is merged in. An input contig the output writes no
+ * records on comes across too: filtering it would mean hand-rolling the header-line copy and giving
+ * up bcf_hdr_merge()'s ID-collision and IDX renumbering handling.
  * @param[in] contigs Contig names, in the order records are written
  * @param[in] lengths Contig lengths, parallel to contigs
+ * @param[in] in_hdrs Input VCF headers to fold in; a null entry is skipped
  * @return Header owning its own memory, to be released by the caller with bcf_hdr_destroy()
  * @throws ERROR The header cannot be allocated, a header line htslib rejects, a sample htslib
- *         rejects, or a header htslib cannot synchronize
+ *         rejects, an input header htslib cannot merge, or a header htslib cannot synchronize
  */
 bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
-        const std::vector<int> & lengths) {
+        const std::vector<int> & lengths, const std::vector<bcf_hdr_t*> & in_hdrs) {
 
     // bcf_hdr_init() supplies the ##fileformat line
     bcf_hdr_t* hdr = bcf_hdr_init("w");
@@ -525,14 +546,31 @@ bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
             ERROR("Failed to add sample '%s' to summary VCF header", sample);
     }
     if (bcf_hdr_sync(hdr) < 0) ERROR("Failed to synchronize summary VCF header");
+
+    // the inputs are folded in only once everything above is in place, because bcf_hdr_merge() gives
+    // the destination precedence on a colliding ID: that is what keeps vcfdist's own contig lengths
+    // and its own FORMAT cardinalities, both of which its records are written against. The sample
+    // dictionary is not merged, so the two columns added above are still the only ones.
+    for (bcf_hdr_t* in_hdr : in_hdrs) {
+        if (in_hdr == NULL) continue; // a callset whose variants carry no source record
+        bcf_hdr_t* merged = bcf_hdr_merge(hdr, in_hdr);
+        if (merged == NULL) ERROR("Failed to merge an input VCF header into the summary VCF header");
+        hdr = merged;
+    }
+    if (bcf_hdr_sync(hdr) < 0) ERROR("Failed to synchronize merged summary VCF header");
     return hdr;
 }
 
 
 /**
- * @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER) of one record.
+ * @brief Sets the position and alleles of one record, leaving any carried columns alone.
+ *
+ * CHROM/POS/REF/ALT are always vcfdist's own: the source alleles are what the record was parsed
+ * from, not what was evaluated, and a trimmed indel no longer sits at the source position. ID and
+ * INFO arrive on the record copied from the source, and QUAL and FILTER are only synthesized for a
+ * variant that has no source record to carry them.
  * @param[in] hdr Summary VCF header, which must declare this contig
- * @param[in,out] rec Cleared record to fill
+ * @param[in,out] rec Record to fill, either copied from this variant's source or freshly cleared
  * @param[in] ref Reference FASTA data for retrieving flanking bases for indels
  * @param[in] ctg Contig name
  * @param[in] idx Variant index in this container
@@ -546,9 +584,14 @@ void ctgVariants::set_var_record(const bcf_hdr_t* hdr, bcf1_t* rec,
 
     rec->rid = bcf_hdr_name2id(hdr, ctg.data());
     if (rec->rid < 0) ERROR("Contig '%s' is not declared in the summary VCF header", ctg.data());
-    bcf_float_set_missing(rec->qual);
-    if (bcf_add_filter(hdr, rec, bcf_hdr_id2int(hdr, BCF_DT_ID, "PASS")) < 0)
-        ERROR("Failed to set FILTER on summary VCF record at %s:%d", ctg.data(), this->poss[idx]);
+
+    // a source record already carries its own QUAL and FILTER, and stamping PASS onto one that
+    // reports a filter would append to it, yielding the two-filter 'q10;PASS'
+    if (this->recs[idx] == nullptr) {
+        bcf_float_set_missing(rec->qual);
+        if (bcf_add_filter(hdr, rec, bcf_hdr_id2int(hdr, BCF_DT_ID, "PASS")) < 0)
+            ERROR("Failed to set FILTER on summary VCF record at %s:%d", ctg.data(), this->poss[idx]);
+    }
 
     std::string ref_allele, alt_allele;
     switch (this->types[idx]) {
@@ -787,6 +830,196 @@ void set_record_samples(const bcf_hdr_t* hdr, bcf1_t* rec,
     update_format(hdr, rec, "GE", truth.ge, query.ge);
 }
 
+
+/// FORMAT IDs the summary VCF writes itself, which set_record_samples() overwrites per record. A
+/// source record declaring any of them contributes no values: vcfdist's own meaning wins, matching
+/// the header, where its own declaration wins the merge.
+static const char* const SUMMARY_FORMAT_IDS[] = {"GT", "BD", "BC", "RD", "QD", "BK", "QQ", "SC",
+        "SG", "PS", "PB", "BS", "VP", "FE", "GE"};
+
+/** @brief Returns whether the summary VCF writes this FORMAT field itself. */
+static bool is_summary_format(const char* key) {
+    for (const char* id : SUMMARY_FORMAT_IDS) {
+        if (std::string(key) == id) return true;
+    }
+    return false;
+}
+
+/**
+ * @struct carried_fmt
+ * @brief One FORMAT field read off a source record, held until every other one has been read too.
+ */
+struct carried_fmt {
+    std::string key;               ///< FORMAT ID
+    int type = BCF_HT_INT;         ///< htslib value type: BCF_HT_INT, BCF_HT_REAL, or BCF_HT_STR
+    std::vector<int32_t> ints;     ///< values of a BCF_HT_INT field
+    std::vector<float> floats;     ///< values of a BCF_HT_REAL field
+    std::string str;               ///< value of a BCF_HT_STR field
+};
+
+/**
+ * @brief Removes every ALT of a record but one, subsetting its allele-indexed fields to match.
+ *
+ * bcf_remove_allele_set() updates Number=A, R, and G INFO and FORMAT fields as it goes, which is
+ * what makes carrying them correct for the single allele the output record reports. It updates the
+ * genotype too, and fails outright on a genotype naming an allele it is removing, so a biallelic
+ * placeholder is written first; set_record_samples() overwrites it with the real one later. That
+ * placeholder is written through the record's own 1-sample header, since bcf_update_format_*() sets
+ * n_sample from the header it is passed and a record claiming two samples with one sample of values
+ * makes every later read return a neighbouring field's bytes.
+ * @param[in] in_hdr Header the record was read under, declaring one sample
+ * @param[in,out] rec Record to subset, already unpacked
+ * @param[in] alt_idx 1-based ALT ordinal to keep
+ * @throws ERROR alt_idx names no ALT of the record, or htslib cannot subset it
+ */
+static void subset_to_allele(const bcf_hdr_t* in_hdr, bcf1_t* rec, int alt_idx) {
+    if (alt_idx < 1 || alt_idx >= rec->n_allele)
+        ERROR("ALT ordinal %d out of range for a source record with %d alleles at %s:%lld",
+                alt_idx, rec->n_allele, bcf_seqname_safe(in_hdr, rec), (long long)rec->pos);
+
+    const int32_t placeholder = bcf_gt_unphased(0);
+    if (bcf_update_genotypes(in_hdr, rec, &placeholder, 1) < 0)
+        ERROR("Failed to write a placeholder genotype onto a source record at %s:%lld",
+                bcf_seqname_safe(in_hdr, rec), (long long)rec->pos);
+
+    if (rec->n_allele == 2) return; // already biallelic, so there is nothing to remove
+
+    kbitset_t* rm_set = kbs_init(rec->n_allele);
+    if (rm_set == NULL) ERROR("Failed to allocate an allele bitset");
+    for (int i = 1; i < rec->n_allele; i++) {
+        if (i != alt_idx) kbs_insert(rm_set, i);
+    }
+    const int ret = bcf_remove_allele_set(in_hdr, rec, rm_set);
+    kbs_destroy(rm_set);
+    if (ret != 0)
+        ERROR("Failed to subset a source record to ALT %d at %s:%lld", alt_idx,
+                bcf_seqname_safe(in_hdr, rec), (long long)rec->pos);
+}
+
+/**
+ * @brief Reads every FORMAT field a source record carries into memory, in record order.
+ *
+ * All of them are read before any is written, because the first write sets n_sample from the
+ * two-sample output header: a read after that computes its value count as nsmpl * nvals against a
+ * buffer still holding one sample, and returns the bytes of whichever field follows.
+ * @param[in] in_hdr Header the record was read under, declaring one sample
+ * @param[in] rec Record to read, already unpacked and subset to one ALT
+ * @return The fields the summary VCF does not write itself, with their values
+ * @throws ERROR htslib rejects a field the record says it carries
+ */
+static std::vector<carried_fmt> read_carried_formats(const bcf_hdr_t* in_hdr, bcf1_t* rec) {
+
+    // the keys are collected first, since reading a field can reallocate d.fmt
+    std::vector<std::string> keys;
+    for (int i = 0; i < rec->n_fmt; i++) {
+        const char* key = bcf_hdr_int2id(in_hdr, BCF_DT_ID, rec->d.fmt[i].id);
+        if (key != NULL && !is_summary_format(key)) keys.push_back(key);
+    }
+
+    std::vector<carried_fmt> carried;
+    for (const std::string & key : keys) {
+        carried_fmt field;
+        field.key = key;
+        field.type = bcf_hdr_id2type(in_hdr, BCF_HL_FMT, bcf_hdr_id2int(in_hdr, BCF_DT_ID, key.data()));
+        int nvals = 0;
+        if (field.type == BCF_HT_INT) {
+            int32_t* values = NULL;
+            const int n = bcf_get_format_int32(in_hdr, rec, key.data(), &values, &nvals);
+            if (n > 0) field.ints.assign(values, values + n);
+            free(values);
+            if (n < 0) ERROR("Failed to read FORMAT/%s off a source record", key.data());
+
+        } else if (field.type == BCF_HT_REAL) {
+            float* values = NULL;
+            const int n = bcf_get_format_float(in_hdr, rec, key.data(), &values, &nvals);
+            if (n > 0) field.floats.assign(values, values + n);
+            free(values);
+            if (n < 0) ERROR("Failed to read FORMAT/%s off a source record", key.data());
+
+        } else if (field.type == BCF_HT_STR) {
+            char** values = NULL;
+            const int n = bcf_get_format_string(in_hdr, rec, key.data(), &values, &nvals);
+            if (n > 0 && values != NULL && values[0] != NULL) field.str = values[0];
+            if (values != NULL) free(values[0]);
+            free(values);
+            if (n < 0) ERROR("Failed to read FORMAT/%s off a source record", key.data());
+
+        } else { // no other type is legal for a FORMAT field, so there is nothing to carry
+            continue;
+        }
+        carried.push_back(field);
+    }
+    return carried;
+}
+
+/**
+ * @brief Writes each carried FORMAT field back onto a record, re-keyed from one sample to two.
+ *
+ * The sample that made the call gets the source's values and the other gets the missing value, which
+ * is what pad_per_allele() produces from an empty vector on that side.
+ * @param[in] out_hdr Summary VCF header, declaring the two samples
+ * @param[in,out] rec Record to write onto
+ * @param[in] carried Fields read off the source record
+ * @param[in] callset Callset owning the record, which fixes the sample column its values land in
+ * @throws ERROR htslib rejects any field's values
+ */
+static void write_carried_formats(const bcf_hdr_t* out_hdr, bcf1_t* rec,
+        const std::vector<carried_fmt> & carried, callset_t callset) {
+    const bool query = callset == QUERY;
+    for (const carried_fmt & field : carried) {
+        if (field.type == BCF_HT_INT) {
+            const std::vector<int32_t> none;
+            update_format(out_hdr, rec, field.key.data(),
+                    query ? pad_per_allele(none, field.ints) : pad_per_allele(field.ints, none));
+        } else if (field.type == BCF_HT_REAL) {
+            const std::vector<float> none;
+            update_format(out_hdr, rec, field.key.data(),
+                    query ? pad_per_allele(none, field.floats) : pad_per_allele(field.floats, none));
+        } else {
+            update_format(out_hdr, rec, field.key.data(), query ? "." : field.str,
+                    query ? field.str : ".");
+        }
+    }
+}
+
+/**
+ * @brief Returns a record for one variant, copied from its source and subset to its own allele.
+ *
+ * The retained record is never mutated, so each output record is a fresh copy: that is what lets the
+ * two co-located entries of a het-alt source subset the same record to different alleles. The steps
+ * are ordered so that every read of the record happens against its own 1-sample header, before the
+ * first two-sample write; see subset_to_allele() and read_carried_formats().
+ * @param[in] out_hdr Summary VCF header, which the returned record's tag IDs index
+ * @param[in] idx Variant index in this container
+ * @return A record carrying the source's ID, QUAL, FILTER, INFO and FORMAT, or an empty record for a
+ *         variant with no source; released by the caller with bcf_destroy()
+ * @throws ERROR The record cannot be allocated, unpacked, subset, or translated
+ */
+bcf1_t* ctgVariants::source_record(const bcf_hdr_t* out_hdr, int idx) const {
+    if (this->recs[idx] == nullptr) {
+        bcf1_t* rec = bcf_init();
+        if (rec == NULL) ERROR("Failed to allocate a summary VCF record");
+        return rec;
+    }
+
+    bcf_hdr_t* in_hdr = this->hdr.get();
+    bcf1_t* rec = bcf_dup(this->recs[idx].get());
+    if (rec == NULL) ERROR("Failed to copy a source VCF record");
+    if (bcf_unpack(rec, BCF_UN_ALL) < 0)
+        ERROR("Failed to unpack a source VCF record at %s:%d", this->ctg.data(), this->poss[idx]);
+
+    subset_to_allele(in_hdr, rec, this->alt_idxs[idx]);
+    const std::vector<carried_fmt> carried = read_carried_formats(in_hdr, rec);
+
+    // the tag IDs index the input header's dictionaries until here; every write below is against the
+    // merged output header, which is also the header bcf_write() will use
+    if (bcf_translate(out_hdr, in_hdr, rec) != 0)
+        ERROR("Failed to translate a source VCF record at %s:%d into the summary VCF header",
+                this->ctg.data(), this->poss[idx]);
+    write_carried_formats(out_hdr, rec, carried, this->callset);
+    return rec;
+}
+
 /**************************************************************************************************/
 
 /**
@@ -923,6 +1156,9 @@ void parse_variants(const std::string & vcf_fn,
     char errbuf[256] = ""; // bcf_strerror() decoding of rec->errcode
     bcf1_t * rec  = NULL;
     bcf_hdr_t *hdr = bcf_hdr_read(vcf);
+    // the retained records index this header's tag dictionaries, so it must outlive this function;
+    // ownership moves here, and every container of this callset holds a copy of the pointer
+    std::shared_ptr<bcf_hdr_t> shared_hdr(hdr, bcf_hdr_destroy);
     bool pass = false;
     for (int i = 0; i < hdr->nhrec; i++) { // for each header record (line)
 
@@ -995,11 +1231,12 @@ void parse_variants(const std::string & vcf_fn,
                 callset_strs[callset].data(), vcf_fn.data());
         goto error1;
     }
+    variant_data->hdr = shared_hdr;
     for(int i = 0; i < nctg; i++) {
-        variant_data->variants[HAP1][ctgnames[i]] = 
-                std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
-        variant_data->variants[HAP2][ctgnames[i]] = 
-                std::shared_ptr<ctgVariants>(new ctgVariants(ctgnames[i]));
+        for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) {
+            variant_data->variants[h][ctgnames[i]] = std::shared_ptr<ctgVariants>(
+                    new ctgVariants(ctgnames[i], callset, shared_hdr));
+        }
     }
 
     // struct for storing each record
@@ -1208,6 +1445,10 @@ void parse_variants(const std::string & vcf_fn,
         EnumArray<hap_t, int, HAP_SLOTS> rec_prev_end = prev_end;
         EnumArray<hap_t, edittype_t, HAP_SLOTS> rec_prev_type = prev_type;
 
+        // one copy of this record, shared by every variant derived from it; duplicated on first
+        // use so that a record every haplotype discards is never copied at all
+        std::shared_ptr<bcf1_t> src_rec;
+
         // parse variant type
         for (int hi = 0; hi < std::abs(ngt); hi++) { // allow single-allele chrX, chrY
             hap_t hap = static_cast<hap_t>(hi);
@@ -1344,7 +1585,7 @@ void parse_variants(const std::string & vcf_fn,
             }
 
             // add to haplotype-specific query info
-            int rec_idx = n - 1; // 0-based ordinal of this record within the input VCF
+            if (!src_rec) src_rec = std::shared_ptr<bcf1_t>(bcf_dup(rec), bcf_destroy);
             // ngt is 1 or 2 by here: a polyploid record errored above, and a record whose VCF
             // declares no GT tag reports -1 and is treated as the monoploid call it is assumed to be
             ploidy_t ploidy = ploidy_t(std::abs(ngt));
@@ -1354,19 +1595,19 @@ void parse_variants(const std::string & vcf_fn,
                     .type = TYPE_INS, .loc = loc, .ref = "", .alt = alt,
                     .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                     .var_qual = vq, .phase_set = phase_set,
-                    .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
+                    .alt_idx = alt_idx, .ploidy = ploidy, .rec = src_rec});
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen, // DEL
                     .type = TYPE_DEL, .loc = loc, .ref = ref, .alt = "",
                     .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                     .var_qual = vq, .phase_set = phase_set,
-                    .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
+                    .alt_idx = alt_idx, .ploidy = ploidy, .rec = src_rec});
                 complex_total++;
             } else {
                 variant_data->variants[hap][ctg]->add_var(var_fields{.pos = pos, .rlen = rlen,
                         .type = type, .loc = loc, .ref = ref, .alt = alt,
                         .orig_gt = simple_gt, .gt_qual = float(ngq ? gq[0]:0),
                         .var_qual = vq, .phase_set = phase_set,
-                        .rec_idx = rec_idx, .alt_idx = alt_idx, .ploidy = ploidy});
+                        .alt_idx = alt_idx, .ploidy = ploidy, .rec = src_rec});
             }
 
             prev_end[hap] = pos + rlen;
@@ -1491,7 +1732,6 @@ void parse_variants(const std::string & vcf_fn,
     free(gt);
     free(PS);
     free(ctgnames);
-    bcf_hdr_destroy(hdr);
     bcf_close(vcf);
     bcf_destroy(rec);
     return;
@@ -1499,7 +1739,6 @@ error2:
     free(ctgnames);
 error1:
     bcf_close(vcf);
-    bcf_hdr_destroy(hdr);
     return;
 
 }
