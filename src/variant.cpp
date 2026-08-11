@@ -748,6 +748,7 @@ void parse_variants(const std::string & vcf_fn,
     EnumArray<hap_t, edittype_t, HAP_SLOTS> prev_type = {{TYPE_SUB, TYPE_SUB}};
     std::unordered_set<int> prev_rids; // contigs already parsed, to reject an unsorted VCF
     int prev_rid = -1;
+    hts_pos_t prev_pos = -1; // previous record's position within the current contig
     std::unordered_map<int, int> ctglens;
     std::string ctg;
     EnumArray<bedloc_t, int, BEDLOC_SLOTS> nregions{};
@@ -925,8 +926,17 @@ void parse_variants(const std::string & vcf_fn,
                 variant_data->lengths.push_back(ctglens[rec->rid]);
                 prev_end = {{-g.cluster_min_gap*2, -g.cluster_min_gap*2}};
                 prev_type = {{TYPE_SUB, TYPE_SUB}};
+                prev_pos = -1;
             }
         }
+
+        // a record moving backwards within a contig is otherwise dropped silently by the overlap
+        // filter below, leaving a run that succeeds with every denominator quietly wrong
+        if (rec->pos < prev_pos)
+            ERROR("Unsorted %s VCF '%s', record %d at %s:%lld precedes position %lld",
+                    callset_strs[callset].data(), vcf_fn.data(), n+1, ctg.data(),
+                    (long long)rec->pos, (long long)prev_pos);
+        prev_pos = rec->pos;
 
         // unpack info (populates rec->d allele info)
         bcf_unpack(rec, BCF_UN_ALL);

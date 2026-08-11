@@ -141,6 +141,8 @@ ALL    BEST Q >= 0   9098      9098      52        14        0.9984   0.9943   0
 
 To include more details on intermediate results, run it again at higher verbosity by removing the `-v 0` flag.
 
+Both input VCFs must be coordinate-sorted: each contig's records must be grouped together, and within a contig positions must not decrease. vcfdist exits with an error naming the offending record otherwise.
+
 ## Wiki
 
 The [vcfdist wiki](https://github.com/TimD1/vcfdist/wiki) has helpful information on [command-line parameters](https://github.com/TimD1/vcfdist/wiki/02-Parameters-and-Usage), [output documentation](https://github.com/TimD1/vcfdist/wiki/09-Outputs), and [implementation](https://github.com/TimD1/vcfdist/wiki/01-Overview).

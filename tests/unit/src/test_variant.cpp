@@ -1253,6 +1253,37 @@ TEST_F(ParseVariants, UnsortedContigErrors) {
             testing::ExitedWithCode(1), "contig 'chr1' already parsed");
 }
 
+// A record that goes backwards within a contig is otherwise dropped one at a time by the overlap
+// filter, so the run succeeds and every denominator is quietly wrong. Nothing else enforces the
+// order: the overlap filter is per-haplotype, applies only to accepted records, and runs after the
+// region-membership lookup that assumes a non-decreasing query stream.
+TEST_F(ParseVariants, UnsortedPositionErrors) {
+    EXPECT_EXIT(parse_unredirected(dir, {record(100, "A", "G", "1|0"),
+            record(50, "A", "G", "1|0")}, make_vcf_opts()),
+            testing::ExitedWithCode(1), "record 2 at chr1:49 precedes position 99");
+}
+
+// Only a decrease is rejected: two records at one position are ordinary in a sorted VCF, as when a
+// site's alleles are split across rows.
+TEST_F(ParseVariants, RepeatedPositionParses) {
+    ParseResult r = parse_records(dir, {record(100, "A", "G", "1|0"),
+            record(100, "A", "C", "0|1"), record(200, "A", "G", "1|0")});
+    EXPECT_FALSE(logged(r, "Unsorted"));
+    EXPECT_EQ(size_t(2), count_pos(r, 100));
+    EXPECT_EQ(size_t(1), count_pos(r, 200));
+}
+
+// Positions are compared within a contig, so the tracked position must reset when a new one starts;
+// otherwise a contig beginning before the previous contig ended would be rejected as unsorted.
+TEST_F(ParseVariants, PositionResetsOnNewContig) {
+    vcf_opts opts = make_vcf_opts(QUERY, {"chr1", "chr2"});
+    ParseResult r = parse_records(dir, {record(300, "A", "G", "1|0"),
+            record(100, "A", "G", "1|0", "chr2")}, opts);
+    EXPECT_FALSE(logged(r, "Unsorted"));
+    EXPECT_EQ(size_t(1), count_pos(r, 300));
+    EXPECT_EQ(size_t(1), count_pos(r, 100, "chr2"));
+}
+
 // Interleaving is what the guard rejects, not the contig order itself: a file whose contigs appear
 // in an order the header does not use is still sorted, so long as each contig's records are grouped.
 TEST_F(ParseVariants, ContigsOutOfHeaderOrderParse) {
