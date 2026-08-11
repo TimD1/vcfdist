@@ -206,6 +206,135 @@ ac_errtype_t ctgVariants::set_allele_errtype(int vi, bool query) {
 }
 
 
+/* Match tier criteria ****************************************************************************/
+
+
+/**
+ * @brief Maps an allele count error type onto the query's allele count relative to the truth's.
+ *
+ * A total mapping, so that no allele count error type falls outside the match tier ladder. The
+ * 0 -> N rows are pure query false positives and the N -> 0 rows pure truth false negatives; both
+ * are counted as errors in a direction rather than left undefined, since only ALLELE_COUNT_EQUAL
+ * reaches the gm tier and the direction is what separates an allele error from a missed call.
+ *
+ * A 0 -> N row does not imply zero credit. A query heterozygote whose best haplotype scored below
+ * --credit-threshold has no matched haplotype, so it lands on AC_ERR_0_TO_1 while its
+ * MaxAlleleCredit is still CREDIT_NONZERO; it reaches the lm tier and stops at am.
+ *
+ * @param[in] ac_errtype Allele count error type, from ctgVariants::ac_errtype
+ * @return Query allele count relative to the truth allele count
+ * @throws ERROR if the allele count error type is AC_UNKNOWN
+ */
+allelecount_t ac_errtype_to_allele_count(ac_errtype_t ac_errtype) {
+    switch (ac_errtype) {
+        case AC_ERR_0_TO_1:
+        case AC_ERR_0_TO_2:
+        case AC_ERR_1_TO_2: return ALLELE_COUNT_GAIN;
+        case AC_ERR_1_TO_1:
+        case AC_ERR_2_TO_2: return ALLELE_COUNT_EQUAL;
+        case AC_ERR_1_TO_0:
+        case AC_ERR_2_TO_0:
+        case AC_ERR_2_TO_1: return ALLELE_COUNT_LOSS;
+        case AC_UNKNOWN: break;
+    }
+    // fix_allele_counts() already errors on AC_UNKNOWN for both callsets, so this is unreachable
+    ERROR("Unknown allele count error type in ac_errtype_to_allele_count()");
+}
+
+
+/**
+ * @brief Returns the most stringent match tier the three criteria jointly satisfy.
+ *
+ * Each tier adds one criterion to the one below it, so the result is monotone by construction:
+ * every tier's conditions are a superset of the conditions of every tier beneath it.
+ *
+ * MaxAlleleCredit supplies both lower rungs and MinAlleleCredit neither. Since Min <= Max always,
+ * Min is the stronger predicate, so putting it on the looser rung would invert the ladder: a query
+ * 1|1 against a truth 0|1 (Max = PASS, Min = ZERO) would satisfy am while failing lm, ranking a
+ * genotype error below a weak partial match. Two thresholds on Max are monotone instead, and
+ * discriminate on heterozygotes too, where the single carried haplotype makes Min == Max.
+ *
+ * @param[in] max_credit Highest per-haplotype credit, bucketed against --credit-threshold
+ * @param[in] allele_count Query allele count relative to the truth allele count
+ * @param[in] phase_match Whether the variant's phasing matches the phasing its block chose
+ * @return Most stringent tier satisfied, or MATCH_NONE if not even lm is reached
+ */
+matchtier_t match_tier(credit_t max_credit, allelecount_t allele_count, phasematch_t phase_match) {
+    if (max_credit == CREDIT_ZERO) return MATCH_NONE;
+    if (max_credit != CREDIT_PASS) return MATCH_LM;
+    if (allele_count != ALLELE_COUNT_EQUAL) return MATCH_AM;
+    if (phase_match != PHASEMATCH_CORRECT && phase_match != PHASEMATCH_NOT_HETEROZYGOUS)
+        return MATCH_GM;
+    return MATCH_PM;
+}
+
+
+/**
+ * @brief Returns a variant's highest per-haplotype credit, bucketed against --credit-threshold.
+ *
+ * The maximum runs over both haplotype lanes rather than only the carried ones, which needs no
+ * special case for a heterozygote: the lane it does not carry was never evaluated and holds zero.
+ *
+ * @param[in] vi Variant index
+ * @return CREDIT_ZERO, CREDIT_NONZERO, or CREDIT_PASS
+ */
+credit_t ctgVariants::get_max_allele_credit(int vi) const {
+    float max_credit = 0;
+    for (hap_t hap : EnumRange<hap_t, HAP_SLOTS>{}) {
+        max_credit = std::max(max_credit, this->credit[hap][vi]);
+    }
+    if (max_credit <= 0) return CREDIT_ZERO;
+    // --credit-threshold is validated into (0, 1], so zero credit can never reach CREDIT_PASS
+    return max_credit >= g.credit_threshold ? CREDIT_PASS : CREDIT_NONZERO;
+}
+
+
+/**
+ * @brief Returns whether a variant's alignment phasing matches the phasing its block chose.
+ *
+ * The homozygous reference, the homozygous alternate, and the haploid call are all
+ * PHASEMATCH_NOT_HETEROZYGOUS, since none of them occupies a distinguishable pair of haplotypes.
+ * The homozygous reference cannot currently reach here, as parse_variants() stores one variant per
+ * non-reference allele, but it is named rather than left to fall through. Naming the homozygous
+ * genotypes rather than the heterozygous ones is deliberate: a heterozygous genotype added to gt_t
+ * later falls through to the phase comparison, which is the answer it wants.
+ *
+ * The criterion is query-side: phases and pb_phases are populated during phasing for query
+ * variants only, so a truth heterozygote reports PHASEMATCH_UNPHASED. That costs nothing, because
+ * a truth-only site has no query record whose phase could be verified and fails at the lm rung
+ * regardless.
+ *
+ * @param[in] vi Variant index
+ * @return PHASEMATCH_CORRECT, PHASEMATCH_INCORRECT, PHASEMATCH_UNPHASED, or
+ *         PHASEMATCH_NOT_HETEROZYGOUS
+ */
+phasematch_t ctgVariants::get_phase_match(int vi) const {
+    // homozygous and haploid variants keep the PHASE_NONE default that add_var() sets, so they must
+    // be recognized before it, or every one of them would be reported as merely unphased
+    if (this->orig_gts[vi] == GT_REF_REF || this->orig_gts[vi] == GT_ALT_ALT ||
+            this->ploidies[vi] == PLOIDY_HAPLOID) {
+        return PHASEMATCH_NOT_HETEROZYGOUS;
+    }
+    if (this->phases[vi] == PHASE_NONE || this->pb_phases[vi] == PHASE_NONE) {
+        return PHASEMATCH_UNPHASED;
+    }
+    return this->phases[vi] == this->pb_phases[vi] ? PHASEMATCH_CORRECT : PHASEMATCH_INCORRECT;
+}
+
+
+/**
+ * @brief Returns the most stringent match tier a variant satisfies.
+ * @param[in] vi Variant index
+ * @return Most stringent tier satisfied, or MATCH_NONE if not even lm is reached
+ * @throws ERROR if the variant's allele count error type is AC_UNKNOWN
+ */
+matchtier_t ctgVariants::get_match_tier(int vi) const {
+    return match_tier(this->get_max_allele_credit(vi),
+            ac_errtype_to_allele_count(this->ac_errtype[vi]),
+            this->get_phase_match(vi));
+}
+
+
 /**************************************************************************************************/
 
 
