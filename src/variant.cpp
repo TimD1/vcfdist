@@ -292,10 +292,12 @@ credit_t ctgVariants::get_max_allele_credit(int vi) const {
 /**
  * @brief Returns whether a variant's alignment phasing matches the phasing its block chose.
  *
- * Only a heterozygote occupies a distinguishable pair of haplotypes, so every other genotype is
- * PHASEMATCH_NOT_HETEROZYGOUS: the homozygous alternate, the haploid call, and the homozygous
- * reference. The last cannot currently reach here, since parse_variants() stores one variant per
- * non-reference allele, but it is answered rather than left to fall through.
+ * The homozygous reference, the homozygous alternate, and the haploid call are all
+ * PHASEMATCH_NOT_HETEROZYGOUS, since none of them occupies a distinguishable pair of haplotypes.
+ * The homozygous reference cannot currently reach here, as parse_variants() stores one variant per
+ * non-reference allele, but it is named rather than left to fall through. Naming the homozygous
+ * genotypes rather than the heterozygous ones is deliberate: a heterozygous genotype added to gt_t
+ * later falls through to the phase comparison, which is the answer it wants.
  *
  * The criterion is query-side: phases and pb_phases are populated during phasing for query
  * variants only, so a truth heterozygote reports PHASEMATCH_UNPHASED. That costs nothing, because
@@ -307,13 +309,10 @@ credit_t ctgVariants::get_max_allele_credit(int vi) const {
  *         PHASEMATCH_NOT_HETEROZYGOUS
  */
 phasematch_t ctgVariants::get_phase_match(int vi) const {
-    // asking which genotypes are heterozygous rather than which are not keeps this total over gt_t,
-    // so a genotype added later cannot silently acquire a phase it does not have
-    bool heterozygous = this->orig_gts[vi] == GT_REF_ALT || this->orig_gts[vi] == GT_ALT_REF;
-
-    // every other genotype keeps the PHASE_NONE default that add_var() sets, so it must be answered
-    // before that default is read, or it would be reported as merely unphased
-    if (!heterozygous || this->ploidies[vi] == PLOIDY_HAPLOID) {
+    // homozygous and haploid variants keep the PHASE_NONE default that add_var() sets, so they must
+    // be recognized before it, or every one of them would be reported as merely unphased
+    if (this->orig_gts[vi] == GT_REF_REF || this->orig_gts[vi] == GT_ALT_ALT ||
+            this->ploidies[vi] == PLOIDY_HAPLOID) {
         return PHASEMATCH_NOT_HETEROZYGOUS;
     }
     if (this->phases[vi] == PHASE_NONE || this->pb_phases[vi] == PHASE_NONE) {
