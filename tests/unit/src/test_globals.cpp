@@ -1005,14 +1005,13 @@ TEST(ParseArgs, IterationsTooSmallErrors) {
             "Max cluster iterations must be positive");
 }
 
-/* parse_args: -s/--max-supercluster-size *********************************************************/
+/* parse_args: -sc/--max-supercluster-size ********************************************************/
 
 TEST(ParseArgs, SuperclusterOk) {
     GlobalsGuard guard;
     ArgsFixture f;
 
-    // issue #47 renames this flag to -sc; retarget this case along with it
-    parse(f.argv({"-s", "20000"}));
+    parse(f.argv({"-sc", "20000"}));
 
     EXPECT_EQ(20000, g.max_supercluster_size);
 }
@@ -1021,9 +1020,28 @@ TEST(ParseArgs, SuperclusterTooSmallErrors) {
     GlobalsGuard guard;
     ArgsFixture f;
 
-    // issue #47 renames this flag to -sc; retarget this case along with it
-    EXPECT_EXIT(parse(f.argv({"-s", "0"})), testing::ExitedWithCode(1),
+    EXPECT_EXIT(parse(f.argv({"-sc", "0"})), testing::ExitedWithCode(1),
             "Max supercluster size must be positive");
+}
+
+TEST(ParseArgs, SuperclusterBareSDashRejected) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    // no alias is kept for the old short form: an existing '-s 15000' must fail loudly rather than
+    // be reinterpreted once -s is given a different meaning
+    EXPECT_EXIT(parse(f.argv({"-s", "20000"})), testing::ExitedWithCode(1),
+            "Unexpected option '-s'");
+}
+
+TEST(ParseArgs, SuperclusterLongFormOk) {
+    GlobalsGuard guard;
+    ArgsFixture f;
+
+    // only the short form changes, so the long form still reaches the same setting
+    parse(f.argv({"--max-supercluster-size", "20000"}));
+
+    EXPECT_EQ(20000, g.max_supercluster_size);
 }
 
 /* parse_args: -t/--max-threads *******************************************************************/
@@ -1273,7 +1291,7 @@ TEST(ParseArgs, SuperclusterLtMaxSizePlus2Errors) {
     ArgsFixture f;
 
     // a supercluster has to hold the largest evaluated variant plus one flanking base on each side
-    EXPECT_EXIT(parse(f.argv({"-l", "200", "-s", "100"})), testing::ExitedWithCode(1),
+    EXPECT_EXIT(parse(f.argv({"-l", "200", "-sc", "100"})), testing::ExitedWithCode(1),
             "Invalid option selected: --max-supercluster-size");
 }
 
@@ -1416,7 +1434,7 @@ TEST(PrintUsage, ListsDocumentedFlags) {
 
     for (const std::string & flag : {"-b, --bed", "-v, --verbosity", "-p, --prefix",
             "-f, --filter", "-l, --largest-variant", "-sv, --sv-threshold", "-q, --min-qual",
-            "-mq, --max-qual", "-s, --max-supercluster-size", "-ct, --credit-threshold",
+            "-mq, --max-qual", "-sc, --max-supercluster-size", "-ct, --credit-threshold",
             "-t, --max-threads", "-r, --max-ram", "-h, --help", "-ci, --citation",
             "-v, --version"}) {
         EXPECT_NE(std::string::npos, usage.find(flag)) << "undocumented flag '" << flag << "'";

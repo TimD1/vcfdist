@@ -343,6 +343,38 @@
         - "SNP\tNONE\t0\t6\t6\t0\t0"
         - "SV\tNONE\t0\t0\t0\t2\t0"
 
+- name: test_max-supercluster-size_sc-short-form-accepted
+  # swallowed_snps run again with the max supercluster size set through the renamed short form.
+  # 20000 is above the default, so no supercluster is split and counts must match
+  # test_single-pass_large-fn-sv-recovers-snps, which takes the default.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -sc 20000
+    -p "max_supercluster_size_sc_out_"'
+  files:
+    - path: max_supercluster_size_sc_out_precision-recall-summary.tsv
+      contains:
+        - "SNP\tNONE\t0\t6\t6\t0\t0"
+        - "SV\tNONE\t0\t0\t0\t2\t0"
+
+- name: test_max-supercluster-size_bare-s-rejected
+  # The same invocation with the old short form. No alias is kept, so an existing '-s <size>'
+  # command line must fail loudly rather than have its value silently reinterpreted.
+  command: bash -c '${VCFDIST_REPO_PATH}/src/vcfdist
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_query.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/swallowed_snps_truth.vcf"
+    "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.fasta"
+    -b "${VCFDIST_REPO_PATH}/tests/integration/data/synthetic.bed"
+    -s 20000
+    -p "max_supercluster_size_bare_s_out_"'
+  exit_code: 1
+  stderr:
+    contains:
+      - "Unexpected option '-s'"
+
 - name: test_malformed-query-vcf-exits-nonzero
   # A query VCF whose header mis-declares GT as Float is rejected by htslib inside bcf_read.
   # Before #227 that read ended as though the file were empty and vcfdist exited 0 with a full
