@@ -906,6 +906,7 @@ static void subset_to_allele(const bcf_hdr_t* in_hdr, bcf1_t* rec, int alt_idx) 
  * @param[in] rec Record to read, already unpacked and subset to one ALT
  * @return The fields the summary VCF does not write itself, with their values
  * @throws ERROR htslib rejects a field the record says it carries
+ * @throws ERROR A carried field's declared type is one no FORMAT field may legally have
  */
 static std::vector<carried_fmt> read_carried_formats(const bcf_hdr_t* in_hdr, bcf1_t* rec) {
 
@@ -944,8 +945,13 @@ static std::vector<carried_fmt> read_carried_formats(const bcf_hdr_t* in_hdr, bc
             free(values);
             if (n < 0) ERROR("Failed to read FORMAT/%s off a source record", key.data());
 
-        } else { // no other type is legal for a FORMAT field, so there is nothing to carry
-            continue;
+        // Every field on the record must be rewritten for two samples before it is written out: the
+        // first two-sample write reinterprets any field still holding one sample as garbage. A type
+        // that cannot be read therefore cannot be skipped, only refused. The VCF spec allows no such
+        // type -- Flag is INFO-only -- so this is reachable only from a header that declares one.
+        } else {
+            ERROR("FORMAT/%s at %s:%lld is declared with a type no FORMAT field may have",
+                    key.data(), bcf_seqname_safe(in_hdr, rec), (long long)rec->pos);
         }
         carried.push_back(field);
     }
