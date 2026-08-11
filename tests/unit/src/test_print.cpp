@@ -528,6 +528,46 @@ TEST(WriteParams, FiltersSingle) {
     EXPECT_EQ(std::string::npos, contents.find("PASS,"));
 }
 
+TEST(WriteParams, StratificationManifestRecorded) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+    g.strat_tsv_fn = "/data/strata/manifest.tsv";
+
+    write_params();
+
+    std::string contents = read_file(g.out_prefix + "parameters.tsv");
+    EXPECT_NE(std::string::npos,
+            contents.find("\nstratification_tsv\t/data/strata/manifest.tsv\n")) << contents;
+}
+
+TEST(WriteParams, StratificationManifestEmptyWhenUnused) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+    g.strat_tsv_fn.clear();
+
+    write_params();
+
+    std::string contents = read_file(g.out_prefix + "parameters.tsv");
+    EXPECT_NE(std::string::npos, contents.find("\nstratification_tsv\t\n")) << contents;
+}
+
+// -sc and -v were CLI-settable but absent from the TSV; pin them so the gap cannot reopen
+TEST(WriteParams, RecordsSuperclusterSizeAndVerbosity) {
+    GlobalsGuard guard;
+    TempDir dir;
+    g.out_prefix = dir.path() + "/";
+    g.max_supercluster_size = 12345;
+    g.verbosity = 2;
+
+    write_params();
+
+    std::string contents = read_file(g.out_prefix + "parameters.tsv");
+    EXPECT_NE(std::string::npos, contents.find("\nmax_supercluster_size\t12345\n")) << contents;
+    EXPECT_NE(std::string::npos, contents.find("\nverbosity\t2\n")) << contents;
+}
+
 TEST(WriteParams, FopenFail) {
     GlobalsGuard guard;
     TempDir dir;
