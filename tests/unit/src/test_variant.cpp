@@ -41,9 +41,9 @@ TEST(CtgVariantsCtor, ZeroesN) {
     EXPECT_TRUE(vars.gt_quals.empty());
     EXPECT_TRUE(vars.var_quals.empty());
     EXPECT_TRUE(vars.phase_sets.empty());
-    EXPECT_TRUE(vars.rec_idxs.empty());
     EXPECT_TRUE(vars.alt_idxs.empty());
     EXPECT_TRUE(vars.ploidies.empty());
+    EXPECT_TRUE(vars.recs.empty());
     EXPECT_TRUE(vars.superclusters.empty());
     EXPECT_TRUE(vars.matched_gts.empty());
     EXPECT_TRUE(vars.phases.empty());
@@ -88,19 +88,21 @@ TEST(CtgVariantsCtor, EmptyCtg) {
 
 // Asserts every per-variant field that exists today, so it must gain assertions as new per-variant
 // vectors land, or "every field" quietly stops being every field: strata_bits (#47), is_phased
-// (#46). rec_idxs/alt_idxs/ploidies (#48) are covered below. A new var_fields member with a
+// (#46). recs/alt_idxs/ploidies (#48) are covered below. A new var_fields member with a
 // default reaches its vector only if asserted here; the compiler will not require it at any call
 // site.
 TEST(AddVar, AllFields) {
     GlobalsGuard guard;
     g.max_qual = 100;
+    std::shared_ptr<bcf1_t> rec(bcf_init(), bcf_destroy);
     ctgVariants vars("chr20");
 
     // every per-haplotype field differs between haplotypes, so a hap[HAP1]/hap[HAP2] mix-up in
     // add_var()'s body cannot pass
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
             .alt = "GT", .orig_gt = GT_ALT_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .supercluster = 7, .matched_gt = GT_ALT_REF,
+            .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .rec = rec, .supercluster = 7,
+            .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -117,7 +119,7 @@ TEST(AddVar, AllFields) {
     EXPECT_FLOAT_EQ(21, vars.gt_quals[0]);
     EXPECT_FLOAT_EQ(22, vars.var_quals[0]);
     EXPECT_EQ(33, vars.phase_sets[0]);
-    EXPECT_EQ(12, vars.rec_idxs[0]);
+    EXPECT_EQ(rec.get(), vars.recs[0].get());
     EXPECT_EQ(3, vars.alt_idxs[0]);
     EXPECT_EQ(PLOIDY_DIPLOID, vars.ploidies[0]);
     EXPECT_EQ(7, vars.superclusters[0]);
@@ -204,7 +206,7 @@ TEST(AddVar, HeaderDefaults) {
     vars.add_var(var_fields{.pos = 100, .rlen = 1, .type = TYPE_SUB, .loc = BED_INSIDE, .ref = "A",
             .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
-    // the rec_idx/alt_idx/ploidy defaults are asserted by ProvenanceVectorDefaults.UnknownSentinels
+    // the rec/alt_idx/ploidy defaults are asserted by ProvenanceVectorDefaults.UnknownSentinels
     EXPECT_EQ(-1, vars.superclusters[0]);
     EXPECT_EQ(GT_REF_REF, vars.matched_gts[0]);
     EXPECT_EQ(ERRTYPE_UN, vars.errtypes[HAP1][0]);
@@ -258,9 +260,9 @@ TEST(AddVar, LaneLengthsTrackN) {
     EXPECT_EQ(n, vars.gt_quals.size());
     EXPECT_EQ(n, vars.var_quals.size());
     EXPECT_EQ(n, vars.phase_sets.size());
-    EXPECT_EQ(n, vars.rec_idxs.size());
     EXPECT_EQ(n, vars.alt_idxs.size());
     EXPECT_EQ(n, vars.ploidies.size());
+    EXPECT_EQ(n, vars.recs.size());
     EXPECT_EQ(n, vars.superclusters.size());
     EXPECT_EQ(n, vars.matched_gts.size());
     EXPECT_EQ(n, vars.phases.size());
@@ -311,7 +313,7 @@ TEST(AddVar, OptionalFieldDefaults) {
             .alt = "C", .orig_gt = GT_REF_ALT, .gt_qual = 30, .var_qual = 30, .phase_set = 0});
 
     ASSERT_EQ(1, vars.n);
-    EXPECT_EQ(-1, vars.rec_idxs[0]);
+    EXPECT_EQ(nullptr, vars.recs[0]);
     EXPECT_EQ(-1, vars.alt_idxs[0]);
     EXPECT_EQ(PLOIDY_DIPLOID, vars.ploidies[0]);
     EXPECT_EQ(-1, vars.superclusters[0]);
@@ -334,10 +336,12 @@ TEST(AddVar, OptionalFieldDefaults) {
 TEST(GetVar, RoundTripsEveryField) {
     GlobalsGuard guard;
     g.max_qual = 100;
+    std::shared_ptr<bcf1_t> rec(bcf_init(), bcf_destroy);
     ctgVariants vars("chr20");
     vars.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_CPX, .loc = BED_OUTSIDE, .ref = "AC",
             .alt = "GT", .orig_gt = GT_ALT_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .supercluster = 7, .matched_gt = GT_ALT_REF,
+            .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .rec = rec, .supercluster = 7,
+            .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -354,7 +358,7 @@ TEST(GetVar, RoundTripsEveryField) {
     EXPECT_FLOAT_EQ(21, var.gt_qual);
     EXPECT_FLOAT_EQ(22, var.var_qual);
     EXPECT_EQ(33, var.phase_set);
-    EXPECT_EQ(12, var.rec_idx);
+    EXPECT_EQ(rec.get(), var.rec.get());
     EXPECT_EQ(3, var.alt_idx);
     EXPECT_EQ(PLOIDY_DIPLOID, var.ploidy);
     EXPECT_EQ(7, var.supercluster);
@@ -378,10 +382,12 @@ TEST(GetVar, RoundTripsEveryField) {
 TEST(GetVar, FeedsAddVarWithoutLoss) {
     GlobalsGuard guard;
     g.max_qual = 100;
+    std::shared_ptr<bcf1_t> rec(bcf_init(), bcf_destroy);
     ctgVariants src("chr20");
     src.add_var(var_fields{.pos = 500, .rlen = 2, .type = TYPE_DEL, .loc = BED_BORDER, .ref = "AC",
             .alt = "", .orig_gt = GT_REF_ALT, .gt_qual = 21, .var_qual = 22, .phase_set = 33,
-            .rec_idx = 12, .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .supercluster = 7, .matched_gt = GT_ALT_REF,
+            .alt_idx = 3, .ploidy = PLOIDY_DIPLOID, .rec = rec, .supercluster = 7,
+            .matched_gt = GT_ALT_REF,
             .hap = {{{{.errtype = ERRTYPE_FN, .sync_group = 4, .callq = 6.5, .ref_ed = 8,
                        .query_ed = 10, .credit = 0.4},
                       {.errtype = ERRTYPE_TP, .sync_group = 5, .callq = 7.5, .ref_ed = 9,
@@ -401,7 +407,7 @@ TEST(GetVar, FeedsAddVarWithoutLoss) {
     EXPECT_FLOAT_EQ(src.gt_quals[0], dst.gt_quals[0]);
     EXPECT_FLOAT_EQ(src.var_quals[0], dst.var_quals[0]);
     EXPECT_EQ(src.phase_sets[0], dst.phase_sets[0]);
-    EXPECT_EQ(src.rec_idxs[0], dst.rec_idxs[0]);
+    EXPECT_EQ(src.recs[0].get(), dst.recs[0].get());
     EXPECT_EQ(src.alt_idxs[0], dst.alt_idxs[0]);
     EXPECT_EQ(src.ploidies[0], dst.ploidies[0]);
     EXPECT_EQ(src.superclusters[0], dst.superclusters[0]);
@@ -427,13 +433,6 @@ TEST(GetVar, RejectsOutOfRangeIndex) {
 }
 
 /* provenance and ploidy vectors ******************************************************************/
-
-// Record ordinals within FIXTURE_RECORDS, pinned by the rec_idxs assertions below.
-const int REC_HOM_SNP    = 0;
-const int REC_HET_SNP    = 1;
-const int REC_MULTIALLIC = 2;
-const int REC_CPX        = 3;
-const int REC_HAPLOID    = 4;
 
 // One record per provenance case, in file order; ctgX carries the haploid call so that its
 // ploidy of 1 does not conflict with the diploid ploidy recorded for ctg1.
@@ -476,7 +475,7 @@ protected:
 // The three new vectors must stay sized n, like every other parsed-data vector.
 TEST_F(ProvenanceVectors, VectorsSizedN) {
     for (const auto & vars : {hap1, hap2, hapx}) {
-        EXPECT_EQ(size_t(vars->n), vars->rec_idxs.size());
+        EXPECT_EQ(size_t(vars->n), vars->recs.size());
         EXPECT_EQ(size_t(vars->n), vars->alt_idxs.size());
         EXPECT_EQ(size_t(vars->n), vars->ploidies.size());
     }
@@ -486,58 +485,81 @@ TEST_F(ProvenanceVectors, VectorsSizedN) {
     EXPECT_EQ(0, vcf_data->variants[HAP2]["ctgX"]->n);
 }
 
-// A 1|1 record yields one variant per haplotype, both from record 0's first ALT.
-TEST_F(ProvenanceVectors, HomozygousSnp) {
-    ASSERT_LE(1, hap1->n);
-    EXPECT_EQ(10, hap1->poss[0]);
-    EXPECT_EQ(REC_HOM_SNP, hap1->rec_idxs[0]);
-    EXPECT_EQ(1, hap1->alt_idxs[0]);
-    EXPECT_EQ(PLOIDY_DIPLOID, hap1->ploidies[0]);
-
-    ASSERT_LE(1, hap2->n);
-    EXPECT_EQ(10, hap2->poss[0]);
-    EXPECT_EQ(REC_HOM_SNP, hap2->rec_idxs[0]);
-    EXPECT_EQ(1, hap2->alt_idxs[0]);
-    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[0]);
+// A retained record is uninterpretable without the header it was read under, so every container
+// of a callset carries the same one.
+TEST_F(ProvenanceVectors, HeaderSharedAcrossEveryContainer) {
+    ASSERT_NE(nullptr, hap1->hdr);
+    for (const auto & vars : {hap2, hapx, vcf_data->variants[HAP2]["ctgX"]}) {
+        EXPECT_EQ(hap1->hdr.get(), vars->hdr.get());
+    }
+    EXPECT_EQ(1, bcf_hdr_nsamples(hap1->hdr.get()));
 }
 
-// A 0|1 record yields a single HAP2 variant, carrying record 1's ordinal.
-TEST_F(ProvenanceVectors, HeterozygousSnp) {
+// The re-keying in the writer needs to know which sample column a container owns.
+TEST_F(ProvenanceVectors, CallsetRecordedOnEveryContainer) {
+    for (const auto & vars : {hap1, hap2, hapx}) EXPECT_EQ(QUERY, vars->callset);
+}
+
+// A 1|1 record yields one variant per haplotype, and one bcf_dup is shared by both: the record is
+// duplicated once per source line, not once per variant derived from it.
+TEST_F(ProvenanceVectors, HomozygousSnpSharesOneRecordAcrossHaplotypes) {
+    ASSERT_LE(1, hap1->n);
+    ASSERT_LE(1, hap2->n);
+    EXPECT_EQ(10, hap1->poss[0]);
+    EXPECT_EQ(10, hap2->poss[0]);
+    ASSERT_NE(nullptr, hap1->recs[0]);
+    EXPECT_EQ(hap1->recs[0].get(), hap2->recs[0].get());
+    EXPECT_EQ(1, hap1->alt_idxs[0]);
+    EXPECT_EQ(1, hap2->alt_idxs[0]);
+}
+
+// Separate source lines must not collapse onto one retained record.
+TEST_F(ProvenanceVectors, DistinctRecordsStayDistinct) {
     ASSERT_LE(2, hap2->n);
     EXPECT_EQ(20, hap2->poss[1]);
-    EXPECT_EQ(REC_HET_SNP, hap2->rec_idxs[1]);
+    ASSERT_NE(nullptr, hap2->recs[1]);
+    EXPECT_NE(hap2->recs[0].get(), hap2->recs[1].get());
     EXPECT_EQ(1, hap2->alt_idxs[1]);
-    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[1]);
 }
 
-// A 1|2 record splits across haplotypes, each half keeping its own original ALT ordinal.
-TEST_F(ProvenanceVectors, MultiallelicRecord) {
+// A 1|2 record splits across haplotypes into two entries that share one retained record while
+// keeping their own original ALT ordinals, which is what lets the writer subset it two ways.
+TEST_F(ProvenanceVectors, HetAltEntriesShareOneRecordWithDifferingAltIdx) {
     ASSERT_LE(2, hap1->n);
-    EXPECT_EQ(30, hap1->poss[1]);
-    EXPECT_EQ("G", hap1->alts[1]);
-    EXPECT_EQ(REC_MULTIALLIC, hap1->rec_idxs[1]);
-    EXPECT_EQ(1, hap1->alt_idxs[1]);
-    EXPECT_EQ(PLOIDY_DIPLOID, hap1->ploidies[1]);
-
     ASSERT_LE(3, hap2->n);
-    EXPECT_EQ(30, hap2->poss[2]);
+    EXPECT_EQ("G", hap1->alts[1]);
     EXPECT_EQ("T", hap2->alts[2]);
-    EXPECT_EQ(REC_MULTIALLIC, hap2->rec_idxs[2]);
+    ASSERT_NE(nullptr, hap1->recs[1]);
+    EXPECT_EQ(hap1->recs[1].get(), hap2->recs[2].get());
+    EXPECT_EQ(1, hap1->alt_idxs[1]);
     EXPECT_EQ(2, hap2->alt_idxs[2]);
-    EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[2]);
+}
+
+// The retained record is never mutated, so it still carries every ALT of the source line and its
+// original position; the writer subsets a fresh copy instead.
+TEST_F(ProvenanceVectors, RetainedRecordKeepsEverySourceAllele) {
+    ASSERT_LE(2, hap1->n);
+    ASSERT_NE(nullptr, hap1->recs[1]);
+    bcf1_t* rec = hap1->recs[1].get();
+    bcf_unpack(rec, BCF_UN_STR);
+    ASSERT_EQ(3, rec->n_allele); // REF plus both ALTs, neither subsetted away
+    EXPECT_STREQ("A", rec->d.allele[0]);
+    EXPECT_STREQ("G", rec->d.allele[1]);
+    EXPECT_STREQ("T", rec->d.allele[2]);
+    EXPECT_EQ(30, rec->pos); // the source POS, not the normalized one
 }
 
 // A single-allele record records ploidy 1, distinct from the diploid records above.
 TEST_F(ProvenanceVectors, HaploidRecord) {
     ASSERT_LE(1, hapx->n);
     EXPECT_EQ(10, hapx->poss[0]);
-    EXPECT_EQ(REC_HAPLOID, hapx->rec_idxs[0]);
+    ASSERT_NE(nullptr, hapx->recs[0]);
     EXPECT_EQ(1, hapx->alt_idxs[0]);
     EXPECT_EQ(PLOIDY_HAPLOID, hapx->ploidies[0]);
 }
 
 // The INS and DEL halves of a CPX allele derive from one original allele, so they must agree on
-// rec_idx and alt_idx (here ALT 2, not ALT 1) as well as position.
+// the retained record and alt_idx (here ALT 2, not ALT 1) as well as position.
 TEST_F(ProvenanceVectors, ComplexVariantHalvesShareAltIdx) {
     ASSERT_LE(5, hap2->n);
     const int ins = 3;
@@ -552,8 +574,8 @@ TEST_F(ProvenanceVectors, ComplexVariantHalvesShareAltIdx) {
 
     EXPECT_EQ(2, hap2->alt_idxs[ins]);
     EXPECT_EQ(hap2->alt_idxs[ins], hap2->alt_idxs[del]);
-    EXPECT_EQ(REC_CPX, hap2->rec_idxs[ins]);
-    EXPECT_EQ(hap2->rec_idxs[ins], hap2->rec_idxs[del]);
+    ASSERT_NE(nullptr, hap2->recs[ins]);
+    EXPECT_EQ(hap2->recs[ins].get(), hap2->recs[del].get());
     EXPECT_EQ(PLOIDY_DIPLOID, hap2->ploidies[ins]);
     EXPECT_EQ(hap2->ploidies[ins], hap2->ploidies[del]);
 }
@@ -566,9 +588,113 @@ TEST(ProvenanceVectorDefaults, UnknownSentinels) {
             .alt = "G", .orig_gt = GT_ALT_ALT, .gt_qual = 60, .var_qual = 60, .phase_set = 0});
 
     ASSERT_EQ(1, vars->n);
-    EXPECT_EQ(-1, vars->rec_idxs[0]);
+    EXPECT_EQ(nullptr, vars->recs[0]);
     EXPECT_EQ(-1, vars->alt_idxs[0]);
     EXPECT_EQ(PLOIDY_DIPLOID, vars->ploidies[0]);
+}
+
+/* summary_vcf_header *****************************************************************************/
+
+const std::vector<std::string> SUMMARY_CONTIGS = {"chr1"};
+const std::vector<int> SUMMARY_LENGTHS = {604};
+
+/** @brief Builds the summary VCF header over one contig and returns its rendered text. */
+std::string summary_hdr_text(const std::vector<bcf_hdr_t*> & in_hdrs) {
+    bcf_hdr_t* hdr = summary_vcf_header(SUMMARY_CONTIGS, SUMMARY_LENGTHS, in_hdrs);
+    std::string text = hdr_text(hdr);
+    bcf_hdr_destroy(hdr);
+    return text;
+}
+
+// The site-level columns are copied from the input, so the declarations that give them meaning have
+// to come across too: a record carrying INFO/DP under a header that never declares DP is rejected.
+TEST(SummaryVcfHeader, CarriesInputInfoFormatAndFilterDeclarations) {
+    GlobalsGuard guard;
+    std::shared_ptr<bcf_hdr_t> in = make_vcf_hdr({
+            "##contig=<ID=chr1,length=604>",
+            "##FILTER=<ID=q10,Description=\"Quality below 10\">",
+            "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+            "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths\">"});
+
+    std::string text = summary_hdr_text({in.get()});
+    EXPECT_NE(std::string::npos, text.find("##FILTER=<ID=q10,")) << text;
+    EXPECT_NE(std::string::npos, text.find("##INFO=<ID=DP,Number=1,Type=Integer,")) << text;
+    EXPECT_NE(std::string::npos, text.find("##FORMAT=<ID=AD,Number=R,Type=Integer,")) << text;
+}
+
+// Both callsets' headers are folded in, so a tag only one of them declares still reaches the output.
+TEST(SummaryVcfHeader, FoldsInEveryInputHeader) {
+    GlobalsGuard guard;
+    std::shared_ptr<bcf_hdr_t> query = make_vcf_hdr({
+            "##contig=<ID=chr1,length=604>",
+            "##INFO=<ID=QONLY,Number=1,Type=Integer,Description=\"Query only\">"}, "QSAMPLE");
+    std::shared_ptr<bcf_hdr_t> truth = make_vcf_hdr({
+            "##contig=<ID=chr1,length=604>",
+            "##INFO=<ID=TONLY,Number=1,Type=Integer,Description=\"Truth only\">"}, "TSAMPLE");
+
+    std::string text = summary_hdr_text({truth.get(), query.get()});
+    EXPECT_NE(std::string::npos, text.find("##INFO=<ID=QONLY,")) << text;
+    EXPECT_NE(std::string::npos, text.find("##INFO=<ID=TONLY,")) << text;
+}
+
+// vcfdist's own contig lengths are the ones its records are written against, so the merge must not
+// let an input's disagreeing length replace them.
+TEST(SummaryVcfHeader, VcfdistContigLengthWinsOverTheInputs) {
+    GlobalsGuard guard;
+    std::shared_ptr<bcf_hdr_t> in = make_vcf_hdr({"##contig=<ID=chr1,length=999999>"});
+
+    std::string text = summary_hdr_text({in.get()});
+    EXPECT_NE(std::string::npos, text.find("##contig=<ID=chr1,length=604>")) << text;
+    EXPECT_EQ(std::string::npos, text.find("length=999999")) << text;
+}
+
+// Every FORMAT field vcfdist writes itself is overwritten per record, so its own declaration has to
+// survive a collision: taking the input's Number/Type would misdeclare the values actually written.
+TEST(SummaryVcfHeader, VcfdistFormatDeclarationWinsOnCollision) {
+    GlobalsGuard guard;
+    std::shared_ptr<bcf_hdr_t> in = make_vcf_hdr({
+            "##contig=<ID=chr1,length=604>",
+            "##FORMAT=<ID=BD,Number=1,Type=Integer,Description=\"Something else entirely\">"});
+
+    std::string text = summary_hdr_text({in.get()});
+    EXPECT_NE(std::string::npos, text.find("##FORMAT=<ID=BD,Number=.,Type=String,")) << text;
+    EXPECT_EQ(std::string::npos, text.find("Something else entirely")) << text;
+}
+
+// The output has its own two sample columns; the merge copies declarations, never samples, so an
+// input's sample name must not appear and the column count must stay at two.
+TEST(SummaryVcfHeader, SampleColumnsStayTruthAndQuery) {
+    GlobalsGuard guard;
+    std::shared_ptr<bcf_hdr_t> query = make_vcf_hdr({"##contig=<ID=chr1,length=604>"}, "HG002");
+    std::shared_ptr<bcf_hdr_t> truth = make_vcf_hdr({"##contig=<ID=chr1,length=604>"}, "HG002_TRUTH");
+
+    bcf_hdr_t* hdr = summary_vcf_header(SUMMARY_CONTIGS, SUMMARY_LENGTHS,
+            {truth.get(), query.get()});
+    ASSERT_EQ(2, bcf_hdr_nsamples(hdr));
+    EXPECT_STREQ("TRUTH", hdr->samples[0]);
+    EXPECT_STREQ("QUERY", hdr->samples[1]);
+    EXPECT_EQ(std::string::npos, hdr_text(hdr).find("HG002")) << hdr_text(hdr);
+    bcf_hdr_destroy(hdr);
+}
+
+// An input contig vcfdist writes no records on comes across with the rest of the header. Accepted
+// deliberately: filtering it would mean hand-rolling the hrec copy and giving up bcf_hdr_merge()'s
+// ID-collision and IDX renumbering handling.
+TEST(SummaryVcfHeader, InputContigsBeyondTheWrittenOnesAreCarried) {
+    GlobalsGuard guard;
+    std::shared_ptr<bcf_hdr_t> in = make_vcf_hdr({
+            "##contig=<ID=chr1,length=604>", "##contig=<ID=chr2,length=700>"});
+
+    EXPECT_NE(std::string::npos, summary_hdr_text({in.get()}).find("##contig=<ID=chr2,length=700>"));
+}
+
+// Variants built without a source record carry no header, so the merge has to tolerate a null one
+// rather than dereferencing it.
+TEST(SummaryVcfHeader, NullInputHeaderIsSkipped) {
+    GlobalsGuard guard;
+    std::string text = summary_hdr_text({nullptr, nullptr});
+    EXPECT_NE(std::string::npos, text.find("##contig=<ID=chr1,length=604>")) << text;
+    EXPECT_NE(std::string::npos, text.find("##FORMAT=<ID=BD,Number=.,Type=String,")) << text;
 }
 
 /* get_vartype ************************************************************************************/

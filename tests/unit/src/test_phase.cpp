@@ -1272,7 +1272,11 @@ TEST(WriteSummaryVcf, ContigLineOmitsPloidy) {
 
 /* write_summary_vcf(): one record per variant *****************************************************/
 
-const int QUERY_COL = 10; ///< 0-based column of the QUERY sample within a summary VCF record
+/** @brief 0-based column offsets within a summary VCF record. */
+enum record_col { COL_CHROM, COL_POS, COL_ID, COL_REF, COL_ALT, COL_QUAL, COL_FILTER, COL_INFO,
+                  COL_FORMAT, COL_TRUTH, COL_QUERY };
+
+const int QUERY_COL = COL_QUERY; ///< 0-based column of the QUERY sample within a summary VCF record
 
 /** @brief Field offsets within a summary VCF sample column, in FORMAT order. */
 enum sample_field { FMT_GT, FMT_BD, FMT_BC, FMT_RD, FMT_QD, FMT_BK, FMT_QQ, FMT_SC, FMT_SG };
@@ -1525,6 +1529,362 @@ TEST(WriteSummaryVcf, RecordsReadBackThroughHtslib) {
     bcf_destroy(rec);
     bcf_hdr_destroy(hdr);
     bcf_close(vcf);
+}
+
+/* write_summary_vcf(): columns carried from the source record *************************************/
+
+const int SRC_POS = SPACING + 1; ///< 1-based POS every sourced fixture record sits on
+
+/**
+ * @brief Header options for a source VCF on the contig the writer tests build, with extra lines.
+ * @param[in] meta Extra meta-information lines (##INFO, ##FILTER) appended after ##fileformat
+ * @param[in] formats Extra ##FORMAT declarations appended after the defaults
+ * @return Options declaring CTG at CTG_LENGTH plus the caller's lines
+ */
+vcf_opts sourced_opts(const std::vector<std::string> & meta = {},
+        const std::vector<std::string> & formats = {}) {
+    vcf_opts opts = make_vcf_opts(QUERY, {CTG}, CTG_LENGTH);
+    for (const std::string & line : meta) opts.meta.push_back(line);
+    for (const std::string & line : formats) opts.formats.push_back(line);
+    return opts;
+}
+
+/**
+ * @brief Builds a query container whose variants each carry one of the given source records.
+ *
+ * The header travels with the records, since a retained record's tag IDs index its dictionaries.
+ * @param[in,out] descs Variant descriptions, gaining one source record apiece in order
+ * @param[in] source Header and records to attach
+ * @return Query variants whose matched_gts equal their orig_gts, so every one is PHASE_ORIG
+ */
+std::shared_ptr<ctgVariants> sourced_qvars(std::vector<var_desc> descs,
+        const source_records & source) {
+    for (size_t i = 0; i < descs.size(); i++) descs[i].rec = source.recs.at(i);
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(CTG, descs, QUERY, source.hdr);
+    for (size_t i = 0; i < descs.size(); i++) qvars->matched_gts[i] = descs[i].gt;
+    return qvars;
+}
+
+/** @brief Describes a heterozygous A>C substitution at SRC_POS, derived from the given ALT. */
+var_desc sourced_snp(int alt_idx = 1, const std::string & alt = "C") {
+    var_desc desc;
+    desc.pos = SPACING;
+    desc.rlen = 1;
+    desc.ref = "A";
+    desc.alt = alt;
+    desc.gt = GT_ALT_REF;
+    desc.phase_set = 1;
+    desc.alt_idx = alt_idx;
+    return desc;
+}
+
+/** @brief Returns the columns of the sole summary VCF record at SRC_POS. */
+std::vector<std::string> sole_record_cols(const std::string & vcf, int vcf_pos = SRC_POS) {
+    std::vector<std::string> recs = records_at(vcf, vcf_pos);
+    EXPECT_EQ(size_t(1), recs.size()) << vcf;
+    if (recs.size() != 1) return std::vector<std::string>(11, "");
+    return split(recs[0], '\t');
+}
+
+// ID, QUAL, FILTER, and INFO were hardcoded placeholders before the source record was retained, so
+// all four are asserted from one record: any one of them left synthesized fails here.
+TEST(WriteSummaryVcf, SiteColumnsAreCarriedFromTheSourceRecord) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\trs123\tA\tC\t37\tq10\tDP=31\tGT:PS\t1|0:1"},
+            sourced_opts({"##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                          "##FILTER=<ID=q10,Description=\"Quality below 10\">"}));
+
+    std::vector<std::string> cols = sole_record_cols(shape_vcf(dir, sourced_qvars({sourced_snp()},
+            source)));
+    EXPECT_EQ("rs123", cols.at(COL_ID));
+    EXPECT_EQ("37", cols.at(COL_QUAL));
+    EXPECT_EQ("q10", cols.at(COL_FILTER));
+    EXPECT_EQ("DP=31", cols.at(COL_INFO));
+}
+
+// A source record reporting no quality and no filter must stay that way, rather than picking up the
+// PASS the writer used to stamp on every record.
+TEST(WriteSummaryVcf, UnreportedQualAndFilterAreCarriedAsMissing) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC\t.\t.\t.\tGT:PS\t1|0:1"}, sourced_opts());
+
+    std::vector<std::string> cols = sole_record_cols(shape_vcf(dir, sourced_qvars({sourced_snp()},
+            source)));
+    EXPECT_EQ(".", cols.at(COL_ID));
+    EXPECT_EQ(".", cols.at(COL_QUAL));
+    EXPECT_EQ(".", cols.at(COL_FILTER));
+    EXPECT_EQ(".", cols.at(COL_INFO));
+}
+
+// CHROM/POS/REF/ALT stay vcfdist's normalized ones: the source allele is what the record was parsed
+// from, not what was evaluated, and a left-trimmed indel no longer sits at the source position.
+TEST(WriteSummaryVcf, PositionAndAllelesStayNormalized) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tAT\tACT\t50\tPASS\t.\tGT:PS\t1|0:1"}, sourced_opts());
+
+    var_desc desc = sourced_snp();
+    desc.pos = SPACING + 1; // the insertion normalizes to one base past the source position
+    desc.rlen = 0;
+    desc.type = TYPE_INS;
+    desc.ref = "";
+    desc.alt = "C";
+
+    // an insertion is written left-anchored on the preceding reference base, so POS is SRC_POS
+    std::vector<std::string> cols = sole_record_cols(shape_vcf(dir, sourced_qvars({desc}, source)));
+    EXPECT_EQ(CTG, cols.at(COL_CHROM));
+    EXPECT_EQ(std::to_string(SRC_POS), cols.at(COL_POS));
+    EXPECT_EQ("A", cols.at(COL_REF));
+    EXPECT_EQ("AC", cols.at(COL_ALT));
+}
+
+// A variant built without a source record (a hand-built container, or one derived from a CIGAR)
+// still has to write a legal record, which is where the old placeholders remain correct.
+TEST(WriteSummaryVcf, VariantWithoutASourceRecordWritesPlaceholders) {
+    GlobalsGuard guard;
+    TempDir dir;
+    std::vector<std::string> cols = sole_record_cols(
+            shape_vcf(dir, make_shape_qvars(TYPE_SUB, GT_ALT_REF, GT_ALT_REF)));
+    EXPECT_EQ(".", cols.at(COL_ID));
+    EXPECT_EQ(".", cols.at(COL_QUAL));
+    EXPECT_EQ("PASS", cols.at(COL_FILTER));
+    EXPECT_EQ(".", cols.at(COL_INFO));
+}
+
+/* write_summary_vcf(): carried FORMAT fields and allele subsetting ********************************/
+
+// Declarations covering every cardinality a carried field can have, plus one INFO field per kind.
+const std::vector<std::string> CARRIED_META = {
+    "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">",
+    "##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description=\"Somatic call\">"};
+const std::vector<std::string> CARRIED_FORMATS = {
+    "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths\">",
+    "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Phred likelihoods\">",
+    "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">",
+    "##FORMAT=<ID=VF,Number=2,Type=Float,Description=\"Two fixed fractions\">",
+    "##FORMAT=<ID=TAG,Number=1,Type=String,Description=\"A string field\">"};
+
+/**
+ * @brief Returns one FORMAT field of one sample column, looked up by key rather than by position.
+ *
+ * A carried field sits between GT and the fields vcfdist appends, so the offsets of the sample_field
+ * enum no longer describe a record built from a source; the FORMAT column is read to place the key.
+ * @param[in] cols Columns of one summary VCF record
+ * @param[in] key FORMAT ID to read
+ * @param[in] sample_col Column of the sample to read (COL_TRUTH or COL_QUERY)
+ * @return The field's value, or "" if the record's FORMAT does not list the key
+ */
+std::string fmt_field(const std::vector<std::string> & cols, const std::string & key,
+        int sample_col = COL_QUERY) {
+    std::vector<std::string> keys = split(cols.at(COL_FORMAT), ':');
+    auto found = std::find(keys.begin(), keys.end(), key);
+    if (found == keys.end()) return "";
+    std::vector<std::string> values = split(cols.at(sample_col), ':');
+    const size_t at = size_t(found - keys.begin());
+    return at < values.size() ? values[at] : "";
+}
+
+/** @brief Builds two co-located query variants from the two ALTs of one shared source record. */
+std::shared_ptr<ctgVariants> het_alt_qvars(const source_records & source) {
+    std::vector<var_desc> descs = {sourced_snp(1, "C"), sourced_snp(2, "G")};
+    descs[1].gt = GT_REF_ALT;
+    for (var_desc & desc : descs) desc.rec = source.recs.at(0); // one record, two entries
+    std::shared_ptr<ctgVariants> qvars = make_ctgVariants(CTG, descs, QUERY, source.hdr);
+    qvars->matched_gts[0] = GT_ALT_REF;
+    qvars->matched_gts[1] = GT_REF_ALT;
+    return qvars;
+}
+
+// Fields whose cardinality does not depend on the alleles are carried through untouched, and an INFO
+// Flag either appears or does not. Asserted on a 1|1 record, whose single entry covers both
+// haplotypes, so nothing about the carrying depends on the genotype being heterozygous.
+TEST(WriteSummaryVcf, FixedCardinalityFieldsAreCarriedVerbatim) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC\t50\tPASS\tSOMATIC\tGT:DP:VF:TAG\t1|1:31:0.25,0.75:hello"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    var_desc desc = sourced_snp();
+    desc.gt = GT_ALT_ALT;
+    std::vector<std::string> cols = sole_record_cols(shape_vcf(dir, sourced_qvars({desc}, source)));
+    EXPECT_EQ("SOMATIC", cols.at(COL_INFO));
+    EXPECT_EQ("31", fmt_field(cols, "DP"));
+    EXPECT_EQ("0.25,0.75", fmt_field(cols, "VF"));
+    EXPECT_EQ("hello", fmt_field(cols, "TAG"));
+}
+
+// The two carried fields are what make this test able to fail: bcf_update_format_*() sets n_sample
+// from the two-sample output header, so a field read after the first write computes its value count
+// against a buffer still holding one sample and returns the next field's bytes. With AD read late,
+// it reports 17,7,97 -- the unsubsetted list -- rather than the two values belonging to this allele.
+TEST(WriteSummaryVcf, EveryCarriedFieldIsReadBeforeAnyIsWritten) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC,G\t50\tPASS\t.\tGT:AD:DP\t1|2:17,7,97:31"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    std::vector<std::string> recs = records_at(shape_vcf(dir, het_alt_qvars(source)), SRC_POS);
+    ASSERT_EQ(size_t(2), recs.size());
+    EXPECT_EQ("17,7", fmt_field(split(recs[0], '\t'), "AD"));
+    EXPECT_EQ("31", fmt_field(split(recs[0], '\t'), "DP"));
+}
+
+// A het-alt source record becomes two output records, each reporting one of its ALTs, so every
+// allele-indexed field has to be subset per record rather than copied whole. The two lines must
+// therefore disagree: Number=A picks a different element, Number=R a different second element, and
+// Number=G a different genotype triple, the last of which is only exercised at alt_idx 2.
+TEST(WriteSummaryVcf, AlleleIndexedFieldsSubsetToTheirOwnAllele) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC,G\t50\tPASS\tAC=7,9"
+             "\tGT:AD:PL:DP\t1|2:17,7,97:10,20,30,40,50,60:31"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    std::vector<std::string> recs = records_at(shape_vcf(dir, het_alt_qvars(source)), SRC_POS);
+    ASSERT_EQ(size_t(2), recs.size());
+    std::vector<std::string> first = split(recs[0], '\t');
+    std::vector<std::string> second = split(recs[1], '\t');
+
+    // the first record reports ALT 1, so it keeps AC's first element and AD's first two
+    EXPECT_EQ("C", first.at(COL_ALT));
+    EXPECT_EQ("AC=7", first.at(COL_INFO));
+    EXPECT_EQ("17,7", fmt_field(first, "AD"));
+    // Number=G over alleles {0,1} keeps the 0/0, 0/1, and 1/1 likelihoods
+    EXPECT_EQ("10,20,30", fmt_field(first, "PL"));
+
+    // the second reports ALT 2, so every allele-indexed field lands on a different element
+    EXPECT_EQ("G", second.at(COL_ALT));
+    EXPECT_EQ("AC=9", second.at(COL_INFO));
+    EXPECT_EQ("17,97", fmt_field(second, "AD"));
+    // Number=G over alleles {0,2} keeps the 0/0, 0/2, and 2/2 likelihoods
+    EXPECT_EQ("10,40,60", fmt_field(second, "PL"));
+}
+
+// Subsetting to ALT 1 removes the allele the source GT's second half reports, so a het-alt record is
+// where bcf_remove_allele_set() has the most to remap; a biallelic placeholder genotype is written
+// first so that it has nothing to remap, and the output GT is vcfdist's own, written afterwards.
+// Note this test cannot fail on htslib 1.20, which subsets a 1|2 genotype without complaint; on the
+// 1.17 the CI pins, removal fails with "Problem updating genotypes" and the placeholder is required.
+TEST(WriteSummaryVcf, HetAltSourceGenotypeDoesNotBlockSubsetting) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC,G\t50\tPASS\t.\tGT:DP\t1|2:31"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    std::vector<std::string> recs = records_at(shape_vcf(dir, het_alt_qvars(source)), SRC_POS);
+    ASSERT_EQ(size_t(2), recs.size());
+    EXPECT_EQ("1|0", fmt_field(split(recs[0], '\t'), "GT"));
+    EXPECT_EQ("0|1", fmt_field(split(recs[1], '\t'), "GT"));
+}
+
+// Both halves of a split complex variant derive from one allele of one record, so both carry the
+// same values: the INS and the DEL are two entries sharing a source, not two different sources.
+TEST(WriteSummaryVcf, BothHalvesOfASplitComplexVariantCarryTheSameFields) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tATTT\tGG\t50\tPASS\tAC=5\tGT:AD:DP\t1|0:17,7:31"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    std::vector<var_desc> descs;
+    for (edittype_t type : {TYPE_INS, TYPE_DEL}) {
+        var_desc desc = sourced_snp();
+        desc.type = type;
+        desc.rlen = type == TYPE_INS ? 0 : 4;
+        desc.ref = type == TYPE_INS ? "" : "ATTT";
+        desc.alt = type == TYPE_INS ? "GG" : "";
+        descs.push_back(desc);
+    }
+    std::string vcf = shape_vcf(dir, sourced_qvars(descs, {source.hdr,
+            {source.recs.at(0), source.recs.at(0)}}));
+
+    // both are written left-anchored on the base before their shared position
+    std::vector<std::string> recs = records_at(vcf, SPACING);
+    ASSERT_EQ(size_t(2), recs.size());
+    for (const std::string & rec : recs) {
+        std::vector<std::string> cols = split(rec, '\t');
+        EXPECT_EQ("AC=5", cols.at(COL_INFO));
+        EXPECT_EQ("17,7", fmt_field(cols, "AD"));
+        EXPECT_EQ("31", fmt_field(cols, "DP"));
+    }
+}
+
+// A carried value belongs to the callset that reported it, so it lands in that callset's column and
+// the other reports missing. This is the whole reason a container records which callset it holds.
+TEST(WriteSummaryVcf, CarriedValuesLandInTheOwningSampleColumn) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC\t50\tPASS\t.\tGT:DP:TAG\t1|0:31:hello"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    // the query owns column 10, so a query-only variant leaves the truth column missing
+    std::vector<std::string> cols = sole_record_cols(shape_vcf(dir,
+            sourced_qvars({sourced_snp()}, source)));
+    EXPECT_EQ("31", fmt_field(cols, "DP", COL_QUERY));
+    EXPECT_EQ(".", fmt_field(cols, "DP", COL_TRUTH));
+    EXPECT_EQ("hello", fmt_field(cols, "TAG", COL_QUERY));
+    EXPECT_EQ(".", fmt_field(cols, "TAG", COL_TRUTH));
+
+    // the same record reached through the truth callset fills the other column instead
+    std::vector<var_desc> descs = {sourced_snp()};
+    descs[0].rec = source.recs.at(0);
+    std::shared_ptr<ctgVariants> tvars = make_ctgVariants(CTG, descs, TRUTH, source.hdr);
+    tvars->matched_gts[0] = GT_ALT_REF;
+    pipeline_result result = run_pipeline(dir, nullptr, tvars, CTG_LENGTH,
+            make_fasta(CTG, std::string(CTG_LENGTH, 'A')));
+    std::vector<std::string> truth_cols = sole_record_cols(summary_vcf(dir, *result.data));
+    EXPECT_EQ("31", fmt_field(truth_cols, "DP", COL_TRUTH));
+    EXPECT_EQ(".", fmt_field(truth_cols, "DP", COL_QUERY));
+}
+
+// A FORMAT ID the input also uses is vcfdist's to define in the output: its header declaration wins
+// the merge, so carrying the input's values under it would contradict the declaration.
+TEST(WriteSummaryVcf, VcfdistOwnedFormatFieldsAreNotCarried) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC\t50\tPASS\t.\tGT:PS:DP\t1|0:77:31"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    var_desc desc = sourced_snp();
+    desc.phase_set = 5; // what vcfdist parsed, which is what the output must report
+    std::vector<std::string> cols = sole_record_cols(shape_vcf(dir, sourced_qvars({desc}, source)));
+    EXPECT_EQ("5", fmt_field(cols, "PS"));
+    EXPECT_EQ("31", fmt_field(cols, "DP"));
+}
+
+// Every record is built from a fresh copy, so the retained record has to come out of the writer
+// exactly as it went in: a subsetted source would give the second entry of a het-alt the wrong ALT.
+TEST(WriteSummaryVcf, RetainedRecordIsNotMutatedByWriting) {
+    GlobalsGuard guard;
+    TempDir dir;
+    source_records source = read_source_records(dir,
+            {"chr1\t101\t.\tA\tC,G\t50\tPASS\tAC=7,9\tGT:AD:DP\t1|2:17,7,97:31"},
+            sourced_opts(CARRIED_META, CARRIED_FORMATS));
+
+    shape_vcf(dir, het_alt_qvars(source));
+
+    bcf1_t* rec = source.recs.at(0).get();
+    bcf_unpack(rec, BCF_UN_STR);
+    EXPECT_EQ(3, rec->n_allele);
+    EXPECT_EQ(1, rec->n_sample);
+    int32_t* ad = NULL;
+    int nad = 0;
+    ASSERT_EQ(3, bcf_get_format_int32(source.hdr.get(), rec, "AD", &ad, &nad));
+    EXPECT_EQ(17, ad[0]);
+    EXPECT_EQ(7, ad[1]);
+    EXPECT_EQ(97, ad[2]);
+    free(ad);
 }
 
 // Number=P would declare the one-value-per-GT-allele cardinality these fields carry, but it is a

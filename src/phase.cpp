@@ -14,6 +14,31 @@
 /**************************************************************************************************/
 
 /**
+ * @brief Returns the input header of each callset, for folding into the summary VCF header.
+ *
+ * Every container of a callset shares one header, so the first contig that carries one answers for
+ * the whole callset; a callset whose variants were all built without a source record contributes
+ * nothing rather than a null the merge would have to skip.
+ * @param[in] data Phase block data holding both callsets' variants
+ * @return One header per callset that has one, truth before query
+ */
+static std::vector<bcf_hdr_t*> input_headers(const phaseblockData & data) {
+    std::vector<bcf_hdr_t*> in_hdrs;
+    for (callset_t c : EnumRange<callset_t, CALLSET_SLOTS>{}) {
+        for (const std::string & ctg : data.contigs) {
+            std::shared_ptr<ctgVariants> vars =
+                    data.phase_blocks.at(ctg)->ctg_superclusters->callset_vars[c];
+            if (vars->hdr) {
+                in_hdrs.push_back(vars->hdr.get());
+                break;
+            }
+        }
+    }
+    return in_hdrs;
+}
+
+
+/**
  * @brief Writes a summary VCF containing all variants annotated with benchmark metrics.
  * @param[in] out_vcf_fn Output VCF filename
  * @note FORMAT fields include: TP/FP/FN decision, credit score, edit distances, phase info, and flip/switch errors
@@ -35,13 +60,10 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
     if (out_vcf == NULL) {
         ERROR("Failed to open summary VCF file '%s'", out_vcf_fn.data());
     }
-    bcf_hdr_t* hdr = summary_vcf_header(this->contigs, this->lengths);
+    bcf_hdr_t* hdr = summary_vcf_header(this->contigs, this->lengths, input_headers(*this));
     if (bcf_hdr_write(out_vcf, hdr) != 0) {
         ERROR("Failed to write summary VCF header to '%s'", out_vcf_fn.data());
     }
-    bcf1_t* rec = bcf_init();
-    if (rec == NULL) ERROR("Failed to allocate summary VCF record");
-
     // write variants
     for (std::string ctg : this->contigs) {
         EnumArray<callset_t, int, CALLSET_SLOTS> ptrs{};
@@ -121,13 +143,18 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             /*             gt_strs[vars[TRUTH]->orig_gts[ptrs[TRUTH]]].data()); */
             /* } */
 
-            bcf_clear(rec);
+            // each record is built fresh from its variant's source rather than reused, so that two
+            // entries sharing one source record can subset it to different alleles
+            bcf1_t* rec = NULL;
             if (next[QUERY]) {
                 // a positional tie between differing alleles is not a match: the two are written as
                 // co-located records, the truth one on the next pass
                 bool matched = next[TRUTH] &&
                         vars[QUERY]->refs[ptrs[QUERY]] == vars[TRUTH]->refs[ptrs[TRUTH]] &&
                         vars[QUERY]->alts[ptrs[QUERY]] == vars[TRUTH]->alts[ptrs[TRUTH]];
+                // one record is written per variant, so a matched pair reports the query's carried
+                // columns; the truth's own ID, QUAL, FILTER, and INFO have no second record to go on
+                rec = vars[QUERY]->source_record(hdr, ptrs[QUERY]);
                 vars[QUERY]->set_var_record(hdr, rec, this->ref, ctg, ptrs[QUERY]);
                 set_record_samples(hdr, rec,
                         matched ? vars[TRUTH]->var_sample_fields(ptrs[TRUTH], sc_idx, phase_block,
@@ -138,6 +165,7 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
                 ptrs[QUERY]++;
                 if (matched) ptrs[TRUTH]++;
             } else if (next[TRUTH]) {
+                rec = vars[TRUTH]->source_record(hdr, ptrs[TRUTH]);
                 vars[TRUTH]->set_var_record(hdr, rec, this->ref, ctg, ptrs[TRUTH]);
                 set_record_samples(hdr, rec,
                         vars[TRUTH]->var_sample_fields(ptrs[TRUTH], sc_idx, phase_block,
@@ -147,13 +175,14 @@ void phaseblockData::write_summary_vcf(std::string out_vcf_fn) {
             } else {
                 ERROR("No variants are selected next.");
             }
-            if (bcf_write(out_vcf, hdr, rec) != 0) {
-                ERROR("Failed to write summary VCF record at %s:%lld", ctg.data(),
-                        static_cast<long long>(rec->pos+1));
+            const int write_ret = bcf_write(out_vcf, hdr, rec);
+            const long long vcf_pos = static_cast<long long>(rec->pos+1);
+            bcf_destroy(rec);
+            if (write_ret != 0) {
+                ERROR("Failed to write summary VCF record at %s:%lld", ctg.data(), vcf_pos);
             }
         }
     }
-    bcf_destroy(rec);
     bcf_hdr_destroy(hdr);
     if (hts_close(out_vcf) != 0) {
         ERROR("Failed to close summary VCF file '%s'", out_vcf_fn.data());

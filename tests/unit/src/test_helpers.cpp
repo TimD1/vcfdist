@@ -472,6 +472,79 @@ std::string type_hist_line(edittype_t type, int count) {
     return "    " + type_strs[type] + ": " + std::to_string(count);
 }
 
+/* VCF headers and records ************************************************************************/
+
+/**
+ * @brief Builds a single-sample VCF header from meta-information lines, with no file involved.
+ * @param[in] lines ##contig, ##FILTER, ##INFO, and ##FORMAT declarations to append, in order
+ * @param[in] sample Sample name for the one sample column
+ * @return Header owning its own memory, released when the last copy of the pointer goes away
+ * @throws std::runtime_error if htslib rejects the header, a line, or the sample
+ */
+std::shared_ptr<bcf_hdr_t> make_vcf_hdr(const std::vector<std::string> & lines,
+        const std::string & sample /* = "SAMPLE" */) {
+    std::shared_ptr<bcf_hdr_t> hdr(bcf_hdr_init("w"), bcf_hdr_destroy);
+    if (hdr == nullptr) throw std::runtime_error("failed to allocate a VCF header");
+    for (const std::string & line : lines) {
+        if (bcf_hdr_append(hdr.get(), line.data()) != 0)
+            throw std::runtime_error("failed to append header line '" + line + "'");
+    }
+    if (bcf_hdr_add_sample(hdr.get(), sample.data()) < 0)
+        throw std::runtime_error("failed to add sample '" + sample + "'");
+    if (bcf_hdr_sync(hdr.get()) < 0) throw std::runtime_error("failed to sync a VCF header");
+    return hdr;
+}
+
+/**
+ * @brief Renders a VCF header to the text htslib would write ahead of the records.
+ * @param[in] hdr Header to render
+ * @return The header text, one line per declaration
+ * @throws std::runtime_error if htslib cannot format the header
+ */
+std::string hdr_text(const bcf_hdr_t* hdr) {
+    kstring_t ks = KS_INITIALIZE;
+    if (bcf_hdr_format(hdr, 0, &ks) != 0) {
+        ks_free(&ks);
+        throw std::runtime_error("failed to format a VCF header");
+    }
+    std::string text(ks.s ? ks.s : "", ks.l);
+    ks_free(&ks);
+    return text;
+}
+
+/**
+ * @brief Writes a VCF into a temporary directory and reads it back through htslib.
+ * @param[in] dir Temporary directory receiving the VCF
+ * @param[in] records Data lines to write, one per line
+ * @param[in] opts Header options for the written VCF
+ * @return The header and every record, in file order
+ * @throws std::runtime_error if the VCF cannot be opened or a record cannot be read
+ */
+source_records read_source_records(const TempDir & dir, const std::vector<std::string> & records,
+        const vcf_opts & opts /* = vcf_opts() */) {
+    const std::string vcf_fn = write_tmp_vcf(dir, records, opts);
+    htsFile* vcf = bcf_open(vcf_fn.data(), "r");
+    if (vcf == NULL) throw std::runtime_error("failed to open '" + vcf_fn + "'");
+
+    source_records out;
+    out.hdr = std::shared_ptr<bcf_hdr_t>(bcf_hdr_read(vcf), bcf_hdr_destroy);
+    if (out.hdr == nullptr) {
+        bcf_close(vcf);
+        throw std::runtime_error("failed to read the header of '" + vcf_fn + "'");
+    }
+
+    int read_ret = 0;
+    while (true) {
+        std::shared_ptr<bcf1_t> rec(bcf_init(), bcf_destroy);
+        read_ret = bcf_read(vcf, out.hdr.get(), rec.get());
+        if (read_ret != 0) break;
+        out.recs.push_back(rec);
+    }
+    bcf_close(vcf);
+    if (read_ret < -1) throw std::runtime_error("failed to read a record of '" + vcf_fn + "'");
+    return out;
+}
+
 /* In-memory builders *****************************************************************************/
 
 /**
@@ -569,16 +642,19 @@ std::shared_ptr<variantData> make_variantData(callset_t callset,
  * qual and rely on defaults for the fields they do not care about.
  * @param[in] ctg Contig name
  * @param[in] vars Variants to append, in ascending position order
+ * @param[in] callset Callset the container reports as its own
+ * @param[in] hdr Header any attached source records were read under
  * @return Populated variant container
  */
 std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
-        const std::vector<var_desc> & vars) {
-    std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg));
+        const std::vector<var_desc> & vars, callset_t callset /* = QUERY */,
+        std::shared_ptr<bcf_hdr_t> hdr /* = nullptr */) {
+    std::shared_ptr<ctgVariants> ctg_vars(new ctgVariants(ctg, callset, hdr));
     for (const var_desc & var : vars) {
         ctg_vars->add_var(var_fields{.pos = var.pos, .rlen = var.rlen, .type = var.type, .loc = var.loc,
                 .ref = var.ref, .alt = var.alt, .orig_gt = var.gt, .gt_qual = var.qual,
-                .var_qual = var.qual, .phase_set = var.phase_set, .rec_idx = var.rec_idx,
-                .alt_idx = var.alt_idx, .ploidy = var.ploidy,
+                .var_qual = var.qual, .phase_set = var.phase_set,
+                .alt_idx = var.alt_idx, .ploidy = var.ploidy, .rec = var.rec,
                 .supercluster = var.supercluster});
     }
     return ctg_vars;

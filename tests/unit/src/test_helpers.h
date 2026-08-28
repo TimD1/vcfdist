@@ -282,6 +282,38 @@ std::string gt_hist_line(gtparse_t gt, int count);
 /** @brief Returns the variant-type line parse_variants() prints for a type and count. */
 std::string type_hist_line(edittype_t type, int count);
 
+/* VCF headers and records ************************************************************************/
+
+/**
+ * @brief Builds a single-sample VCF header from meta-information lines, with no file involved.
+ *
+ * ##fileformat and the #CHROM line are supplied by htslib, so a caller passes only the ##contig,
+ * ##FILTER, ##INFO, and ##FORMAT declarations its test varies.
+ */
+std::shared_ptr<bcf_hdr_t> make_vcf_hdr(const std::vector<std::string> & lines,
+        const std::string & sample = "SAMPLE");
+
+/** @brief Renders a VCF header to the text htslib would write ahead of the records. */
+std::string hdr_text(const bcf_hdr_t* hdr);
+
+/**
+ * @struct source_records
+ * @brief A parsed VCF's header and records, retained the way parse_variants() retains them.
+ */
+struct source_records {
+    std::shared_ptr<bcf_hdr_t> hdr;                ///< Header the records were read under
+    std::vector< std::shared_ptr<bcf1_t> > recs;    ///< Records, in file order
+};
+
+/**
+ * @brief Writes a VCF into a temporary directory and reads it back through htslib.
+ *
+ * Yields exactly what parse_variants() attaches to a variant: an unmutated record plus the header
+ * whose dictionaries its tag IDs index. The records outlive the TempDir, since htslib copied them.
+ */
+source_records read_source_records(const TempDir & dir, const std::vector<std::string> & records,
+        const vcf_opts & opts = vcf_opts());
+
 /* In-memory builders *****************************************************************************/
 
 /** @brief Builds a single-contig reference, bypassing the FASTA-parsing constructor. */
@@ -331,14 +363,20 @@ struct var_desc {
     int phase_set = 0;         ///< Phase set identifier (0 = missing)
     int supercluster = -1;     ///< Supercluster index (-1 = not yet assigned)
     bedloc_t loc = BED_INSIDE; ///< BED location (BED_INSIDE, BED_OUTSIDE, BED_BORDER, BED_OFFCTG)
-    int rec_idx = -1;          ///< Source VCF record ordinal, 0-based (-1 = unknown)
+    std::shared_ptr<bcf1_t> rec = nullptr; ///< Source VCF record (null = none)
     int alt_idx = -1;          ///< Original ALT ordinal, 1-based (-1 = unknown)
     ploidy_t ploidy = PLOIDY_DIPLOID; ///< Variant ploidy
 };
 
-/** @brief Builds a ctgVariants container holding the described variants, in the given order. */
+/**
+ * @brief Builds a ctgVariants container holding the described variants, in the given order.
+ *
+ * The callset and header are the container's own rather than a var_desc field, since they are
+ * per-callset: a test attaching source records passes the header they were read under.
+ */
 std::shared_ptr<ctgVariants> make_ctgVariants(const std::string & ctg,
-        const std::vector<var_desc> & vars);
+        const std::vector<var_desc> & vars, callset_t callset = QUERY,
+        std::shared_ptr<bcf_hdr_t> hdr = nullptr);
 
 /**
  * @brief Builds a one-variant container with the given original and matched genotypes.

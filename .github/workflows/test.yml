@@ -21,7 +21,9 @@ jobs:
     - name: Install build dependencies
       run: |
        sudo apt-get update
-       sudo apt-get install -y libbz2-dev liblzma-dev libgtest-dev
+       # bcftools reads the summary VCF back in an integration test, where it is the only check that
+       # a carried INFO/FORMAT field's value count agrees with the cardinality its header declares
+       sudo apt-get install -y libbz2-dev liblzma-dev libgtest-dev bcftools
     - name: Cache htslib
       id: cache-htslib
       uses: actions/cache@v6

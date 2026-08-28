@@ -53,9 +53,10 @@ struct var_fields {
     float gt_qual;                ///< genotype quality (capped above at --max-qual when stored)
     float var_qual;               ///< variant quality (capped above at --max-qual when stored)
     int phase_set;                ///< integer representing variant phase set (0 = missing)
-    int rec_idx = -1;             ///< source VCF record ordinal (0-based, -1 = unknown)
     int alt_idx = -1;             ///< original ALT ordinal (1-based, -1 = unknown)
     ploidy_t ploidy = PLOIDY_DIPLOID; ///< variant ploidy, from std::abs(ngt)
+    ///< source VCF record, shared with every variant derived from it (null = none)
+    std::shared_ptr<bcf1_t> rec = nullptr;
     int supercluster = -1;        ///< supercluster index (-1 = not yet assigned)
     gt_t matched_gt = GT_REF_REF; ///< the other callset's genotype, recovered by alignment
     EnumArray<hap_t, hap_fields, HAP_SLOTS> hap = {}; ///< per-haplotype results, indexed by HAP1 and HAP2
@@ -98,15 +99,21 @@ public:
     /** @brief Constructs a contig-specific variant container with empty data structures. */
     ctgVariants(const std::string & ctg);
 
+    /** @brief Constructs an empty container that can interpret one callset's retained records. */
+    ctgVariants(const std::string & ctg, callset_t callset, std::shared_ptr<bcf_hdr_t> hdr);
+
     /** @brief Appends a variant with all fields explicitly specified. */
     void add_var(const var_fields & var);
 
     /** @brief Returns every field of one variant, for copying it into another container. */
     var_fields get_var(int idx) const;
 
-    /** @brief Sets the fixed VCF fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER) of one record. */
+    /** @brief Sets the position and alleles of one record, leaving any carried columns alone. */
     void set_var_record(const bcf_hdr_t* hdr, bcf1_t* rec, std::shared_ptr<fastaData> ref,
             const std::string & ctg, int idx) const;
+
+    /** @brief Returns a record for one variant, copied from its source and subset to its own allele. */
+    bcf1_t* source_record(const bcf_hdr_t* out_hdr, int idx) const;
 
     /** @brief Returns one sample's FORMAT values for a variant it called. */
     sample_fields var_sample_fields(int vi, int sc_idx, int phase_block,
@@ -139,6 +146,10 @@ public:
 
     // originally parsed data (size n)
     std::string ctg;                ///< Contig name (chromosome identifier)
+    callset_t callset = QUERY;      ///< Callset these variants were parsed from: QUERY or TRUTH
+    ///< Header the retained records were read under, shared by every container of a callset; a
+    ///< retained record is uninterpretable without it, since its tag IDs index this dictionary
+    std::shared_ptr<bcf_hdr_t> hdr;
     std::vector<int> poss;          ///< variant start positions (0-based)
     std::vector<int> rlens;         ///< reference lengths
     std::vector<edittype_t> types;     ///< variant type: NONE, SUB, INS, DEL, CPX
@@ -149,9 +160,11 @@ public:
     std::vector<float> gt_quals;    ///< genotype quality (capped above at --max-qual)
     std::vector<float> var_quals;   ///< variant quality (capped above at --max-qual)
     std::vector<int> phase_sets;    ///< integer representing variant phase set (0 = missing)
-    std::vector<int> rec_idxs;      ///< source VCF record ordinal (0-based, -1 = unknown)
     std::vector<int> alt_idxs;      ///< original ALT ordinal (1-based, -1 = unknown)
     std::vector<ploidy_t> ploidies; ///< variant ploidy, from std::abs(ngt)
+    ///< Source VCF records, never mutated; entries derived from one record share one pointer, so
+    ///< shared provenance is pointer equality. Null for a variant with no source record.
+    std::vector< std::shared_ptr<bcf1_t> > recs;
     std::vector<int> superclusters; ///< initially -1, set during superclustering
     int n = 0;                      ///< Total number of variants
 
@@ -189,6 +202,8 @@ public:
     std::shared_ptr<fastaData> ref;  ///< Pointer to reference FASTA data
     callset_t callset;               ///< Callset type: QUERY or TRUTH
     std::string filename;            ///< Source VCF filename
+    ///< Header this callset's records were read under, shared with every ctgVariants below
+    std::shared_ptr<bcf_hdr_t> hdr;
 
     std::string sample;               ///< Sample name from VCF header
     std::vector<std::string> contigs; ///< List of all contig names
@@ -209,9 +224,9 @@ allelecount_t ac_errtype_to_allele_count(ac_errtype_t ac_errtype);
 /** @brief Returns the most stringent match tier the three criteria jointly satisfy. */
 matchtier_t match_tier(credit_t max_credit, allelecount_t allele_count, phasematch_t phase_match);
 
-/** @brief Builds the summary VCF header, declaring every FORMAT field and the TRUTH/QUERY samples. */
+/** @brief Builds the summary VCF header, folding in the declarations of each input header. */
 bcf_hdr_t* summary_vcf_header(const std::vector<std::string> & contigs,
-        const std::vector<int> & lengths);
+        const std::vector<int> & lengths, const std::vector<bcf_hdr_t*> & in_hdrs);
 
 /** @brief Returns the FORMAT values of a sample that made no call at a locus. */
 sample_fields empty_sample_fields(int sc_idx, int phase_block);

@@ -119,3 +119,27 @@ reports `PB=0` and `BS=.`.
   the unit tests because the failure mode it replaces was a *successful* run: the backwards record
   was dropped by the overlap filter, warned about only above the default verbosity, and every
   denominator was then quietly wrong.
+
+### carried_fields — site and FORMAT columns copied from the source record (#248)
+
+- `carried_fields_query.vcf` — two calls on `sc1`, declaring an INFO `Number=A` (`AC`), an INFO
+  `Flag` (`SOMATIC`), and FORMAT `Number=R` (`AD`), `Number=G` (`PL`), and `Number=1` (`DP`):
+  - 200 `A>G`, `1|1`, carrying `ID=rs200`, `QUAL=37.5`, `FILTER=q10`, and `INFO=SOMATIC;AC=2`.
+  - 250 `A>C,G`, `1|2` — one record that becomes two output records, one per ALT.
+- `carried_fields_truth.vcf` — the same two calls, so both are TP and the columns rather than the
+  classification are what is under test.
+
+The `1|2` call is the case that cannot be copied verbatim. Its allele-indexed fields have to be
+subset per output record, so the two lines disagree: `AC` keeps a different element (3 against 4),
+`AD` a different second element (`8,20` against `8,17`), and `PL` a different genotype triple
+(`60,30,0` against `60,40,5`, the latter reached only at ALT ordinal 2). Copying them whole would
+write the source's `AC=3,4`, `8,20,17`, and `60,30,0,40,10,5` onto both records, disagreeing with
+the cardinality their header declares.
+
+The chr20 fixture cannot cover this: every multiallelic record in it is unphased, so all of them are
+dropped at parse time. A second test reads the output back with `bcftools`, which is the only check
+that each carried field's value count still matches its declaration.
+
+The query's two records carry different filters — `q10` at 200 and `PASS` at 250 — so the output also
+pins that a carried non-PASS filter reaches it intact rather than being replaced by, or appended to
+with, the `PASS` the writer used to stamp on every record.
