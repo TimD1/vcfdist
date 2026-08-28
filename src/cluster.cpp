@@ -94,8 +94,14 @@ void superclusterData::load_and_merge_callset_vars_across_haps(
 
         // skip empty contigs, keeping the trailing boundary that supercluster() reads
         int nvars = 0;
-        for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) nvars += vars[h][ctg]->n;
-        if (!nvars) {
+        bool declared = true;
+        for (hap_t h : EnumRange<hap_t, HAP_SLOTS>{}) {
+            // look up, since operator[] would insert a null ctgVariants for an undeclared contig
+            auto vars_itr = vars[h].find(ctg);
+            if (vars_itr == vars[h].end()) { declared = false; break; }
+            nvars += vars_itr->second->n;
+        }
+        if (!declared || !nvars) {
             merged_vars->clusters.push_back(0);
             this->superclusters[ctg]->callset_vars[callset] = merged_vars;
             continue;

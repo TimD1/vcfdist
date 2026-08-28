@@ -1593,9 +1593,9 @@ TEST(SortSuperclusters, EmptyCallsetNcZeroGuard) {
  *
  * parse_variants() creates a ctgVariants for every contig in the VCF header but only appends to
  * `contigs` once a record is seen, so a header contig with no records is reachable through
- * `variants` and absent from `contigs`. The merge indexes `variants[hap][ctg]` for every contig in
- * the union of both callsets and dereferences the result without a null check, so a contig that
- * one callset never declared at all is not a state these tests construct.
+ * `variants` and absent from `contigs`. The merge looks up `variants[hap][ctg]` for every contig in
+ * the union of both callsets and treats a contig one callset never declared as empty, so declaring
+ * it here exercises the found path rather than that guard.
  * @param[in,out] vars Callset to declare the contig on
  * @param[in] ctg Contig name
  */

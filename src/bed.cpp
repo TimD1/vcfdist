@@ -637,8 +637,11 @@ void intersect_contigs(
     // verify the observed ploidies match for all truth/query contigs
     for (int i = 0; i < int(truth_ptr->contigs.size()); i++) {
         std::string ctg = truth_ptr->contigs[i];
-        int query_ctg_idx = std::find(query_ptr->contigs.begin(),
-                query_ptr->contigs.end(), ctg) - query_ptr->contigs.begin();
+        auto query_ctg_itr = std::find(query_ptr->contigs.begin(),
+                query_ptr->contigs.end(), ctg);
+        // a truth contig with no query counterpart has no ploidies to compare against
+        if (query_ctg_itr == query_ptr->contigs.end()) continue;
+        int query_ctg_idx = query_ctg_itr - query_ptr->contigs.begin();
         int truth_ctg_idx = i;
         const std::set<int> & truth_ploidies = truth_ptr->observed_ploidies[truth_ctg_idx];
         const std::set<int> & query_ploidies = query_ptr->observed_ploidies[query_ctg_idx];
